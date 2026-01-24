@@ -180,12 +180,6 @@ except TaskTimeoutError as e:
 - Python 3.9+
 - VergeOS 26.0+
 
-## Documentation
-
-- [API Coverage](/.claude/reference/specs/data-types.md)
-- [Examples](/.claude/reference/specs/examples.md)
-- [Configuration](/.claude/reference/specs/configuration.md)
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
