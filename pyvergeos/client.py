@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.nas_nfs import NASNFSShareManager
     from pyvergeos.resources.nas_services import NASServiceManager
     from pyvergeos.resources.nas_users import NASUserManager
+    from pyvergeos.resources.nas_volume_syncs import NASVolumeSyncManager
     from pyvergeos.resources.nas_volumes import NASVolumeManager, NASVolumeSnapshotManager
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
@@ -115,6 +116,7 @@ class VergeClient:
         self._cifs_shares: NASCIFSShareManager | None = None
         self._nfs_shares: NASNFSShareManager | None = None
         self._nas_users: NASUserManager | None = None
+        self._volume_syncs: NASVolumeSyncManager | None = None
 
         if auto_connect:
             self.connect()
@@ -519,3 +521,12 @@ class VergeClient:
 
             self._nas_users = NASUserManager(self)
         return self._nas_users
+
+    @property
+    def volume_syncs(self) -> NASVolumeSyncManager:
+        """Access NAS volume sync operations."""
+        if self._volume_syncs is None:
+            from pyvergeos.resources.nas_volume_syncs import NASVolumeSyncManager
+
+            self._volume_syncs = NASVolumeSyncManager(self)
+        return self._volume_syncs
