@@ -1037,10 +1037,13 @@ class NASVolumeSnapshot(ResourceObject):
     """
 
     @property
-    def volume_key(self) -> int | None:
-        """Get the parent volume key."""
+    def volume_key(self) -> str | None:
+        """Get the parent volume key.
+
+        Note: NAS volume keys are 40-character hex strings, not integers.
+        """
         vol = self.get("volume")
-        return int(vol) if vol is not None else None
+        return str(vol) if vol is not None else None
 
     @property
     def never_expires(self) -> bool:
