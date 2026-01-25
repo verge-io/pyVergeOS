@@ -11,6 +11,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.nas_volume_browser import NASVolumeFileManager
 
 
 class NASVolume(ResourceObject):
@@ -116,6 +117,33 @@ class NASVolume(ResourceObject):
         """Get the parent NAS service key."""
         service = self.get("service")
         return int(service) if service is not None else None
+
+    @property
+    def files(self) -> NASVolumeFileManager:
+        """Get a file manager for browsing this volume's files.
+
+        Returns:
+            NASVolumeFileManager scoped to this volume.
+
+        Example:
+            >>> # Browse volume files
+            >>> for f in volume.files.list():
+            ...     print(f"{f.name}: {f.size_display}")
+
+            >>> # Browse a subdirectory
+            >>> for f in volume.files.list("/documents"):
+            ...     print(f.name)
+        """
+        from typing import cast
+
+        from pyvergeos.resources.nas_volume_browser import NASVolumeFileManager
+
+        manager = cast("NASVolumeManager", self._manager)
+        return NASVolumeFileManager(
+            manager._client,
+            volume_key=self.key,
+            volume_name=self.get("name"),
+        )
 
 
 class NASVolumeSnapshot(ResourceObject):
@@ -647,6 +675,31 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
             >>> snap = client.nas_volumes.snapshots(vol.key).create("pre-update")
         """
         return NASVolumeSnapshotManager(self._client, volume_key=key)
+
+    def files(self, key: str, *, name: str | None = None) -> NASVolumeFileManager:
+        """Get a file manager for browsing a volume's files.
+
+        Args:
+            key: Volume $key (40-character hex string).
+            name: Optional volume name for display purposes.
+
+        Returns:
+            NASVolumeFileManager for browsing the volume.
+
+        Example:
+            >>> # Browse root directory
+            >>> for f in client.nas_volumes.files(vol.key).list():
+            ...     print(f"{f.name}: {f.size_display}")
+
+            >>> # Browse a subdirectory
+            >>> files = client.nas_volumes.files(vol.key).list("/documents")
+
+            >>> # Get a specific file
+            >>> file = client.nas_volumes.files(vol.key).get("/report.pdf")
+        """
+        from pyvergeos.resources.nas_volume_browser import NASVolumeFileManager
+
+        return NASVolumeFileManager(self._client, volume_key=key, volume_name=name)
 
     def _to_model(self, data: dict[str, Any]) -> NASVolume:
         """Convert API response to NASVolume object."""
