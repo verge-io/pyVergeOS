@@ -10,6 +10,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.aliases import NetworkAliasManager
+    from pyvergeos.resources.hosts import NetworkHostManager
     from pyvergeos.resources.rules import NetworkRuleManager
 
 
@@ -189,6 +190,36 @@ class Network(ResourceObject):
         from pyvergeos.resources.aliases import NetworkAliasManager
 
         return NetworkAliasManager(self._manager._client, self)
+
+    @property
+    def hosts(self) -> NetworkHostManager:
+        """Access DHCP/DNS host overrides for this network.
+
+        Returns:
+            NetworkHostManager for this network.
+
+        Examples:
+            List all host overrides::
+
+                hosts = network.hosts.list()
+
+            Create a host override::
+
+                host = network.hosts.create(
+                    hostname="server01",
+                    ip="10.0.0.50"
+                )
+
+            Get host by hostname::
+
+                host = network.hosts.get(hostname="server01")
+
+        Note:
+            Host override changes require DNS apply to take effect.
+        """
+        from pyvergeos.resources.hosts import NetworkHostManager
+
+        return NetworkHostManager(self._manager._client, self)
 
 
 class NetworkManager(ResourceManager[Network]):
