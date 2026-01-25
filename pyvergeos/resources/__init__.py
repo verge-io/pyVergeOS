@@ -9,6 +9,7 @@ from pyvergeos.resources.nas_services import (
     NASServiceManager,
     NFSSettings,
 )
+from pyvergeos.resources.nas_users import NASUser, NASUserManager
 from pyvergeos.resources.nas_volumes import (
     NASVolume,
     NASVolumeManager,
@@ -24,6 +25,8 @@ __all__ = [
     "NASNFSShareManager",
     "NASService",
     "NASServiceManager",
+    "NASUser",
+    "NASUserManager",
     "NASVolume",
     "NASVolumeManager",
     "NASVolumeSnapshot",
