@@ -5,6 +5,10 @@ from pyvergeos.resources.nas import (
     CIFSSettings,
     NASService,
     NASServiceManager,
+    NASVolume,
+    NASVolumeManager,
+    NASVolumeSnapshot,
+    NASVolumeSnapshotManager,
     NFSSettings,
 )
 
@@ -12,6 +16,10 @@ __all__ = [
     "CIFSSettings",
     "NASService",
     "NASServiceManager",
+    "NASVolume",
+    "NASVolumeManager",
+    "NASVolumeSnapshot",
+    "NASVolumeSnapshotManager",
     "NFSSettings",
     "ResourceManager",
     "ResourceObject",

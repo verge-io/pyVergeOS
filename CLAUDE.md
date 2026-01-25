@@ -105,6 +105,53 @@ Use custom exceptions from `exceptions.py`. Names are prefixed with `Verge` to a
 ### Thread Safety
 The `VergeClient` is NOT thread-safe. Each thread should use its own client instance, or external locking should be used.
 
+### Resources with Non-Integer Keys
+
+Some VergeOS resources use string keys instead of integers (e.g., NAS volumes use 40-character hex strings). When implementing these:
+
+1. **Override the `key` property** in the ResourceObject subclass:
+```python
+@property
+def key(self) -> str:  # type: ignore[override]
+    k = self.get("$key")
+    if k is None:
+        raise ValueError("Resource has no $key")
+    return str(k)
+```
+
+2. **Override `refresh()`, `save()`, `delete()`** using `cast()`:
+```python
+def refresh(self) -> MyResource:
+    from typing import cast
+    manager = cast("MyResourceManager", self._manager)
+    return manager.get(self.key)
+
+def save(self, **kwargs: Any) -> MyResource:
+    from typing import cast
+    manager = cast("MyResourceManager", self._manager)
+    return manager.update(self.key, **kwargs)
+
+def delete(self) -> None:
+    from typing import cast
+    manager = cast("MyResourceManager", self._manager)
+    manager.delete(self.key)
+```
+
+3. **Add `# type: ignore[override]`** to manager methods with different signatures:
+```python
+def get(self, key: str | None = None, ...) -> MyResource:  # type: ignore[override]
+def update(self, key: str, ...) -> MyResource:  # type: ignore[override]
+def delete(self, key: str) -> None:  # type: ignore[override]
+```
+
+4. **Use filter-based lookup** instead of direct endpoint paths for get-by-key:
+```python
+# Instead of: GET /volumes/{key}
+# Use: GET /volumes?filter=id eq '{key}'
+params = {"filter": f"id eq '{key}'"}
+response = self._client._request("GET", self._endpoint, params=params)
+```
+
 ### Configuration
 Use `VergeClient.from_env()` to create a client from environment variables:
 - `VERGE_HOST` (required)

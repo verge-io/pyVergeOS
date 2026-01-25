@@ -25,7 +25,11 @@ if TYPE_CHECKING:
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
-    from pyvergeos.resources.nas import NASServiceManager
+    from pyvergeos.resources.nas import (
+        NASServiceManager,
+        NASVolumeManager,
+        NASVolumeSnapshotManager,
+    )
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
@@ -106,6 +110,8 @@ class VergeClient:
         self._files: FileManager | None = None
         self._storage_tiers: StorageTierManager | None = None
         self._nas_services: NASServiceManager | None = None
+        self._nas_volumes: NASVolumeManager | None = None
+        self._nas_volume_snapshots: NASVolumeSnapshotManager | None = None
 
         if auto_connect:
             self.connect()
@@ -465,3 +471,21 @@ class VergeClient:
 
             self._nas_services = NASServiceManager(self)
         return self._nas_services
+
+    @property
+    def nas_volumes(self) -> NASVolumeManager:
+        """Access NAS volume operations."""
+        if self._nas_volumes is None:
+            from pyvergeos.resources.nas import NASVolumeManager
+
+            self._nas_volumes = NASVolumeManager(self)
+        return self._nas_volumes
+
+    @property
+    def nas_volume_snapshots(self) -> NASVolumeSnapshotManager:
+        """Access NAS volume snapshot operations."""
+        if self._nas_volume_snapshots is None:
+            from pyvergeos.resources.nas import NASVolumeSnapshotManager
+
+            self._nas_volume_snapshots = NASVolumeSnapshotManager(self)
+        return self._nas_volume_snapshots
