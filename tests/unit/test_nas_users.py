@@ -608,6 +608,8 @@ class TestNASUserManager:
 
         assert result == 1
         call_args = mock_client._request.call_args
+        # Should query vm_services endpoint, not vms
+        assert call_args[0][1] == "vm_services"
         assert "NAS01" in call_args[1]["params"]["filter"]
 
     def test_resolve_service_key_not_found(

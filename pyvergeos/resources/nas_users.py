@@ -573,12 +573,12 @@ class NASUserManager(ResourceManager["NASUser"]):
         if isinstance(service, int):
             return service
 
-        # Look up by name
+        # Look up by name in vm_services endpoint (NAS services are stored there)
         response = self._client._request(
             "GET",
-            "vms",
+            "vm_services",
             params={
-                "filter": f"type eq 'service' and subtype eq 'nas' and name eq '{service}'",
+                "filter": f"name eq '{service}'",
                 "fields": "$key,name",
                 "limit": "1",
             },

@@ -17,13 +17,9 @@ from pyvergeos import VergeClient
 
 
 def main() -> None:
-    # Connect to VergeOS
-    client = VergeClient(
-        host="192.168.1.100",
-        username="admin",
-        password="REDACTED",
-        verify_ssl=False,
-    )
+    # Connect to VergeOS using environment variables
+    # Set: VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    client = VergeClient.from_env()
 
     print("=" * 60)
     print("Storage and File Operations Example")

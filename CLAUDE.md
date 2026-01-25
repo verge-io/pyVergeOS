@@ -105,6 +105,9 @@ Use custom exceptions from `exceptions.py`. Names are prefixed with `Verge` to a
 ### Thread Safety
 The `VergeClient` is NOT thread-safe. Each thread should use its own client instance, or external locking should be used.
 
+### Reserved Networks
+**IMPORTANT:** Never use "Core" or "DMZ" networks for workloads, services, VMs, or NAS. These networks are reserved for the VergeOS operating system. Always create a new network (e.g., "Internal") for test workloads and examples.
+
 ### Resources with Non-Integer Keys
 
 Some VergeOS resources use string keys instead of integers (e.g., NAS volumes use 40-character hex strings). When implementing these:
