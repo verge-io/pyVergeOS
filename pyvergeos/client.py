@@ -23,9 +23,11 @@ from pyvergeos.exceptions import (
 
 if TYPE_CHECKING:
     from pyvergeos.resources.clusters import ClusterManager
+    from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
+    from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenants import TenantManager
     from pyvergeos.resources.users import UserManager
@@ -100,6 +102,8 @@ class VergeClient:
         self._clusters: ClusterManager | None = None
         self._nodes: NodeManager | None = None
         self._tasks: TaskManager | None = None
+        self._files: FileManager | None = None
+        self._storage_tiers: StorageTierManager | None = None
 
         if auto_connect:
             self.connect()
@@ -432,3 +436,21 @@ class VergeClient:
 
             self._tasks = TaskManager(self)
         return self._tasks
+
+    @property
+    def files(self) -> FileManager:
+        """Access file/media catalog operations."""
+        if self._files is None:
+            from pyvergeos.resources.files import FileManager
+
+            self._files = FileManager(self)
+        return self._files
+
+    @property
+    def storage_tiers(self) -> StorageTierManager:
+        """Access storage tier operations."""
+        if self._storage_tiers is None:
+            from pyvergeos.resources.storage_tiers import StorageTierManager
+
+            self._storage_tiers = StorageTierManager(self)
+        return self._storage_tiers
