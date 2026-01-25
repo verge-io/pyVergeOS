@@ -9,6 +9,9 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.drives import DriveManager
+    from pyvergeos.resources.nics import NICManager
+    from pyvergeos.resources.snapshots import VMSnapshotManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,37 @@ VM_DEFAULT_FIELDS = [
 
 class VM(ResourceObject):
     """Virtual Machine resource object."""
+
+    _drives: DriveManager | None = None
+    _nics: NICManager | None = None
+    _snapshots: VMSnapshotManager | None = None
+
+    @property
+    def drives(self) -> DriveManager:
+        """Access drives attached to this VM."""
+        if self._drives is None:
+            from pyvergeos.resources.drives import DriveManager
+
+            self._drives = DriveManager(self._manager._client, self)
+        return self._drives
+
+    @property
+    def nics(self) -> NICManager:
+        """Access NICs attached to this VM."""
+        if self._nics is None:
+            from pyvergeos.resources.nics import NICManager
+
+            self._nics = NICManager(self._manager._client, self)
+        return self._nics
+
+    @property
+    def snapshots(self) -> VMSnapshotManager:
+        """Access snapshots for this VM."""
+        if self._snapshots is None:
+            from pyvergeos.resources.snapshots import VMSnapshotManager
+
+            self._snapshots = VMSnapshotManager(self._manager._client, self)
+        return self._snapshots
 
     def power_on(self, preferred_node: int | None = None) -> VM:
         """Power on the VM.

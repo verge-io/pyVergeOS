@@ -181,3 +181,173 @@ class TestVMPowerOperations:
         assert vm.is_running
 
         # Leave it running for other tests
+
+
+@pytest.mark.integration
+class TestVMDrives:
+    """Integration tests for VM drive operations."""
+
+    @pytest.fixture
+    def test_vm(self, live_client: VergeClient):
+        """Get the test VM, or skip if not available."""
+        try:
+            return live_client.vms.get(name="test")
+        except NotFoundError:
+            pytest.skip("Test VM 'test' not available")
+
+    def test_list_drives(self, live_client: VergeClient, test_vm) -> None:
+        """Test listing drives for a VM."""
+        drives = test_vm.drives.list()
+
+        assert isinstance(drives, list)
+        if drives:
+            drive = drives[0]
+            assert "$key" in drive
+            assert "name" in drive
+            assert "interface" in drive
+            assert "media" in drive
+
+    def test_drive_properties(self, live_client: VergeClient, test_vm) -> None:
+        """Test drive property accessors."""
+        drives = test_vm.drives.list()
+        if not drives:
+            pytest.skip("No drives available on test VM")
+
+        drive = drives[0]
+
+        # Test size properties
+        assert isinstance(drive.size_gb, float)
+        assert drive.size_gb >= 0
+
+        # Test display properties
+        assert isinstance(drive.interface_display, str)
+        assert isinstance(drive.media_display, str)
+
+        # Test boolean properties
+        assert isinstance(drive.is_enabled, bool)
+        assert isinstance(drive.is_readonly, bool)
+
+
+@pytest.mark.integration
+class TestVMNICs:
+    """Integration tests for VM NIC operations."""
+
+    @pytest.fixture
+    def test_vm(self, live_client: VergeClient):
+        """Get the test VM, or skip if not available."""
+        try:
+            return live_client.vms.get(name="test")
+        except NotFoundError:
+            pytest.skip("Test VM 'test' not available")
+
+    def test_list_nics(self, live_client: VergeClient, test_vm) -> None:
+        """Test listing NICs for a VM."""
+        nics = test_vm.nics.list()
+
+        assert isinstance(nics, list)
+        if nics:
+            nic = nics[0]
+            assert "$key" in nic
+            assert "name" in nic
+            assert "interface" in nic
+
+    def test_nic_properties(self, live_client: VergeClient, test_vm) -> None:
+        """Test NIC property accessors."""
+        nics = test_vm.nics.list()
+        if not nics:
+            pytest.skip("No NICs available on test VM")
+
+        nic = nics[0]
+
+        # Test display properties
+        assert isinstance(nic.interface_display, str)
+
+        # Test boolean properties
+        assert isinstance(nic.is_enabled, bool)
+
+        # Test MAC address
+        mac = nic.mac_address
+        assert mac is None or isinstance(mac, str)
+
+        # Test network properties
+        network = nic.network_name
+        assert network is None or isinstance(network, str)
+
+
+@pytest.mark.integration
+class TestVMSnapshots:
+    """Integration tests for VM snapshot operations."""
+
+    @pytest.fixture
+    def test_vm(self, live_client: VergeClient):
+        """Get the test VM, or skip if not available."""
+        try:
+            return live_client.vms.get(name="test")
+        except NotFoundError:
+            pytest.skip("Test VM 'test' not available")
+
+    def test_list_snapshots(self, live_client: VergeClient, test_vm) -> None:
+        """Test listing snapshots for a VM."""
+        snapshots = test_vm.snapshots.list()
+
+        assert isinstance(snapshots, list)
+        if snapshots:
+            snapshot = snapshots[0]
+            assert "$key" in snapshot
+            assert "name" in snapshot
+            assert "created" in snapshot
+
+    def test_snapshot_properties(self, live_client: VergeClient, test_vm) -> None:
+        """Test snapshot property accessors."""
+        snapshots = test_vm.snapshots.list()
+        if not snapshots:
+            pytest.skip("No snapshots available on test VM")
+
+        snapshot = snapshots[0]
+
+        # Test datetime properties
+        created = snapshot.created_at
+        assert created is not None
+
+        # Test boolean properties
+        assert isinstance(snapshot.is_quiesced, bool)
+        assert isinstance(snapshot.is_manual, bool)
+        assert isinstance(snapshot.never_expires, bool)
+        assert isinstance(snapshot.is_cloud_snapshot, bool)
+
+        # Test snap_machine_key
+        snap_key = snapshot.snap_machine_key
+        assert snap_key is None or isinstance(snap_key, int)
+
+    def test_create_and_delete_snapshot(self, live_client: VergeClient, test_vm) -> None:
+        """Test creating and deleting a snapshot."""
+        # Create snapshot
+        result = test_vm.snapshots.create(
+            name="pyvergeos-test-snapshot",
+            retention=3600,  # 1 hour
+            quiesce=False,
+        )
+
+        assert result is not None
+
+        # Wait for snapshot to be created
+        time.sleep(2)
+
+        # Find the snapshot
+        snapshots = test_vm.snapshots.list()
+        test_snapshot = None
+        for s in snapshots:
+            if s.name == "pyvergeos-test-snapshot":
+                test_snapshot = s
+                break
+
+        assert test_snapshot is not None
+
+        # Delete the snapshot
+        test_vm.snapshots.delete(test_snapshot.key)
+
+        # Verify deletion
+        time.sleep(1)
+        snapshots = test_vm.snapshots.list()
+        for s in snapshots:
+            assert s.name != "pyvergeos-test-snapshot"
