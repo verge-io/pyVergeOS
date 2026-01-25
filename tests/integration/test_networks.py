@@ -296,3 +296,209 @@ class TestNetworkPowerOperations:
         # Verify network is still running
         network = live_client.networks.get(key=network.key)
         assert network.is_running is True
+
+
+@pytest.mark.integration
+class TestNetworkDiagnostics:
+    """Integration tests for network diagnostics and statistics."""
+
+    def test_diagnostics_all(self, live_client: VergeClient) -> None:
+        """Test getting all diagnostics for a network."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        diag = network.diagnostics()
+
+        # Should contain all expected keys
+        assert "network_key" in diag
+        assert "network_name" in diag
+        assert "is_running" in diag
+        assert "dhcp_enabled" in diag
+        assert "dhcp_leases" in diag
+        assert "dhcp_lease_count" in diag
+        assert "addresses" in diag
+        assert "address_count" in diag
+
+        # Values should be of correct types
+        assert isinstance(diag["network_key"], int)
+        assert isinstance(diag["network_name"], str)
+        assert isinstance(diag["is_running"], bool)
+        assert isinstance(diag["dhcp_leases"], list)
+        assert isinstance(diag["addresses"], list)
+
+    def test_diagnostics_dhcp_leases_only(self, live_client: VergeClient) -> None:
+        """Test getting only DHCP leases."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        diag = network.diagnostics(diagnostic_type="dhcp_leases")
+
+        # Should have dhcp_leases but not addresses
+        assert "dhcp_leases" in diag
+        assert "dhcp_lease_count" in diag
+        assert "addresses" not in diag
+
+    def test_diagnostics_addresses_only(self, live_client: VergeClient) -> None:
+        """Test getting only addresses."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        diag = network.diagnostics(diagnostic_type="addresses")
+
+        # Should have addresses but not dhcp_leases
+        assert "addresses" in diag
+        assert "address_count" in diag
+        assert "dhcp_leases" not in diag
+
+    def test_diagnostics_via_manager(self, live_client: VergeClient) -> None:
+        """Test getting diagnostics via the manager method."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        diag = live_client.networks.diagnostics(network.key)
+
+        assert diag["network_key"] == network.key
+        assert diag["network_name"] == network.name
+
+    def test_diagnostics_address_has_expected_fields(
+        self, live_client: VergeClient
+    ) -> None:
+        """Test that address entries have expected fields."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        # Find a network with addresses
+        for network in networks:
+            diag = network.diagnostics(diagnostic_type="addresses")
+            if diag["address_count"] > 0:
+                addr = diag["addresses"][0]
+                assert "key" in addr
+                assert "ip" in addr
+                assert "mac" in addr
+                assert "type" in addr
+                assert "type_raw" in addr
+                # Type should be mapped to human-readable name
+                assert addr["type"] in [
+                    "Static",
+                    "DHCP Lease",
+                    "IP Alias",
+                    "Proxy ARP",
+                    "Virtual IP",
+                ] or addr["type"] == addr["type_raw"]
+                return
+
+        pytest.skip("No networks with addresses available")
+
+
+@pytest.mark.integration
+class TestNetworkStatistics:
+    """Integration tests for network statistics."""
+
+    def test_statistics_basic(self, live_client: VergeClient) -> None:
+        """Test getting basic statistics for a network."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        stats = network.statistics()
+
+        # Should contain all expected keys
+        assert "network_key" in stats
+        assert "network_name" in stats
+        assert "is_running" in stats
+        assert "tx_bytes_per_sec" in stats
+        assert "rx_bytes_per_sec" in stats
+        assert "tx_packets_per_sec" in stats
+        assert "rx_packets_per_sec" in stats
+        assert "tx_bytes_total" in stats
+        assert "rx_bytes_total" in stats
+        assert "tx_total_formatted" in stats
+        assert "rx_total_formatted" in stats
+
+        # Check formatted bytes are strings
+        assert isinstance(stats["tx_total_formatted"], str)
+        assert isinstance(stats["rx_total_formatted"], str)
+
+    def test_statistics_with_history(self, live_client: VergeClient) -> None:
+        """Test getting statistics with historical data."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        stats = network.statistics(include_history=True)
+
+        # Should have history key
+        assert "history" in stats
+        assert isinstance(stats["history"], list)
+
+        # If there is history, check the structure
+        if stats["history"]:
+            entry = stats["history"][0]
+            assert "timestamp" in entry
+            assert "sent" in entry
+            assert "dropped" in entry
+            assert "quality" in entry
+            assert "latency_avg_ms" in entry
+            assert "latency_peak_ms" in entry
+
+    def test_statistics_no_history_by_default(self, live_client: VergeClient) -> None:
+        """Test that history is not included by default."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        stats = network.statistics()
+
+        assert "history" not in stats
+
+    def test_statistics_via_manager(self, live_client: VergeClient) -> None:
+        """Test getting statistics via the manager method."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        stats = live_client.networks.statistics(network.key)
+
+        assert stats["network_key"] == network.key
+        assert stats["network_name"] == network.name
+
+    def test_statistics_dmz_fields(self, live_client: VergeClient) -> None:
+        """Test that DMZ fields are present in statistics."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        stats = network.statistics()
+
+        # DMZ fields should be present (may be None if no DMZ interface)
+        assert "dmz_tx_bytes_per_sec" in stats
+        assert "dmz_rx_bytes_per_sec" in stats
+        assert "dmz_tx_bytes_total" in stats
+        assert "dmz_rx_bytes_total" in stats
+
+    def test_statistics_history_limit(self, live_client: VergeClient) -> None:
+        """Test that history_limit parameter works."""
+        networks = live_client.networks.list_running()
+        if not networks:
+            pytest.skip("No running networks available")
+
+        network = networks[0]
+        stats = network.statistics(include_history=True, history_limit=5)
+
+        # History should be present and limited
+        assert "history" in stats
+        assert len(stats["history"]) <= 5

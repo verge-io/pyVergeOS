@@ -441,3 +441,383 @@ class TestNetwork:
 
         result = network.apply_dns()
         assert result is network
+
+
+class TestNetworkDiagnostics:
+    """Unit tests for Network diagnostics and statistics."""
+
+    @pytest.fixture
+    def network_data(self) -> dict[str, Any]:
+        """Sample network data."""
+        return {
+            "$key": 100,
+            "name": "test-network",
+            "type": "internal",
+            "running": True,
+            "dhcp_enabled": True,
+        }
+
+    def test_diagnostics_returns_all_by_default(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that diagnostics returns both DHCP leases and addresses by default."""
+        # First call: get network, second: dhcp leases, third: addresses
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": True},
+            [  # DHCP leases
+                {
+                    "$key": 1,
+                    "ip": "10.0.0.100",
+                    "mac": "00:11:22:33:44:55",
+                    "hostname": "client1",
+                    "vendor": "Dell Inc.",
+                    "expiration": 1706140800,
+                },
+            ],
+            [  # All addresses
+                {
+                    "$key": 1,
+                    "ip": "10.0.0.100",
+                    "mac": "00:11:22:33:44:55",
+                    "hostname": "client1",
+                    "type": "dynamic",
+                    "vendor": "Dell Inc.",
+                    "description": "",
+                    "expiration": 1706140800,
+                },
+                {
+                    "$key": 2,
+                    "ip": "10.0.0.1",
+                    "mac": "00:00:00:00:00:01",
+                    "hostname": "router",
+                    "type": "static",
+                    "vendor": "",
+                    "description": "Router IP",
+                    "expiration": 0,
+                },
+            ],
+        ]
+
+        diag = mock_client.networks.diagnostics(100)
+
+        assert diag["network_key"] == 100
+        assert diag["network_name"] == "test-network"
+        assert diag["is_running"] is True
+        assert diag["dhcp_enabled"] is True
+        assert diag["dhcp_lease_count"] == 1
+        assert diag["address_count"] == 2
+        assert "dhcp_leases" in diag
+        assert "addresses" in diag
+
+    def test_diagnostics_dhcp_leases_only(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test diagnostics with dhcp_leases type only."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": True},
+            [  # DHCP leases
+                {"$key": 1, "ip": "10.0.0.100", "mac": "00:11:22:33:44:55"},
+            ],
+        ]
+
+        diag = mock_client.networks.diagnostics(100, diagnostic_type="dhcp_leases")
+
+        assert "dhcp_leases" in diag
+        assert "addresses" not in diag
+        assert diag["dhcp_lease_count"] == 1
+
+    def test_diagnostics_addresses_only(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test diagnostics with addresses type only."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": True},
+            [  # Addresses
+                {"$key": 1, "ip": "10.0.0.1", "type": "static"},
+                {"$key": 2, "ip": "10.0.0.2", "type": "ipalias"},
+            ],
+        ]
+
+        diag = mock_client.networks.diagnostics(100, diagnostic_type="addresses")
+
+        assert "addresses" in diag
+        assert "dhcp_leases" not in diag
+        assert diag["address_count"] == 2
+
+    def test_diagnostics_address_type_mapping(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that address types are mapped to human-readable names."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": True},
+            [  # Addresses with various types
+                {"$key": 1, "ip": "10.0.0.1", "type": "static"},
+                {"$key": 2, "ip": "10.0.0.2", "type": "dynamic"},
+                {"$key": 3, "ip": "10.0.0.3", "type": "ipalias"},
+                {"$key": 4, "ip": "10.0.0.4", "type": "proxy"},
+                {"$key": 5, "ip": "10.0.0.5", "type": "virtual"},
+            ],
+        ]
+
+        diag = mock_client.networks.diagnostics(100, diagnostic_type="addresses")
+
+        addresses = diag["addresses"]
+        assert addresses[0]["type"] == "Static"
+        assert addresses[0]["type_raw"] == "static"
+        assert addresses[1]["type"] == "DHCP Lease"
+        assert addresses[2]["type"] == "IP Alias"
+        assert addresses[3]["type"] == "Proxy ARP"
+        assert addresses[4]["type"] == "Virtual IP"
+
+    def test_diagnostics_via_network_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        network_data: dict[str, Any],
+    ) -> None:
+        """Test calling diagnostics via network object."""
+        network = Network(network_data, mock_client.networks)
+
+        mock_session.request.return_value.json.side_effect = [
+            network_data,  # get network
+            [],  # dhcp leases
+            [],  # addresses
+        ]
+
+        diag = network.diagnostics()
+
+        assert diag["network_key"] == 100
+
+    def test_diagnostics_empty_results(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test diagnostics with no leases or addresses."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": False},
+            [],  # No DHCP leases
+            [],  # No addresses
+        ]
+
+        diag = mock_client.networks.diagnostics(100)
+
+        assert diag["dhcp_lease_count"] == 0
+        assert diag["address_count"] == 0
+        assert diag["dhcp_leases"] == []
+        assert diag["addresses"] == []
+
+    def test_diagnostics_expiration_conversion(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that expiration timestamps are converted to datetime."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": True},
+            [{"$key": 1, "ip": "10.0.0.100", "expiration": 1706140800}],  # lease
+            [],  # addresses
+        ]
+
+        diag = mock_client.networks.diagnostics(100)
+
+        lease = diag["dhcp_leases"][0]
+        assert lease["expiration"] is not None
+        # Verify it's a datetime object
+        from datetime import datetime as dt
+        assert isinstance(lease["expiration"], dt)
+
+    def test_diagnostics_expiration_zero_is_none(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that expiration of 0 is converted to None."""
+        # When diagnostic_type="addresses", we skip the DHCP leases query
+        # So we only need: get network, then addresses
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True, "dhcp_enabled": True},
+            [{"$key": 1, "ip": "10.0.0.1", "type": "static", "expiration": 0}],
+        ]
+
+        diag = mock_client.networks.diagnostics(100, diagnostic_type="addresses")
+
+        addr = diag["addresses"][0]
+        assert addr["expiration"] is None
+
+
+class TestNetworkStatistics:
+    """Unit tests for Network statistics."""
+
+    def test_statistics_returns_traffic_data(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that statistics returns traffic data."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True},  # get network
+            [  # stats query
+                {
+                    "$key": 100,
+                    "name": "test-network",
+                    "tx_bps": 1024,
+                    "rx_bps": 2048,
+                    "tx_packets": 100,
+                    "rx_packets": 200,
+                    "tx_bytes": 1048576,
+                    "rx_bytes": 2097152,
+                }
+            ],
+        ]
+
+        stats = mock_client.networks.statistics(100)
+
+        assert stats["network_key"] == 100
+        assert stats["network_name"] == "test-network"
+        assert stats["is_running"] is True
+        assert stats["tx_bytes_per_sec"] == 1024
+        assert stats["rx_bytes_per_sec"] == 2048
+        assert stats["tx_packets_per_sec"] == 100
+        assert stats["rx_packets_per_sec"] == 200
+        assert stats["tx_bytes_total"] == 1048576
+        assert stats["rx_bytes_total"] == 2097152
+
+    def test_statistics_formatted_bytes(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that statistics includes formatted byte values."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True},
+            [{"$key": 100, "tx_bytes": 1073741824, "rx_bytes": 2147483648}],  # 1GB, 2GB
+        ]
+
+        stats = mock_client.networks.statistics(100)
+
+        assert stats["tx_total_formatted"] == "1.00 GB"
+        assert stats["rx_total_formatted"] == "2.00 GB"
+
+    def test_statistics_dmz_data(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that statistics includes DMZ interface data."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True},
+            [
+                {
+                    "$key": 100,
+                    "tx_bps": 1024,
+                    "rx_bps": 2048,
+                    "dmz_tx_bps": 512,
+                    "dmz_rx_bps": 256,
+                    "dmz_tx_bytes": 100000,
+                    "dmz_rx_bytes": 200000,
+                }
+            ],
+        ]
+
+        stats = mock_client.networks.statistics(100)
+
+        assert stats["dmz_tx_bytes_per_sec"] == 512
+        assert stats["dmz_rx_bytes_per_sec"] == 256
+        assert stats["dmz_tx_bytes_total"] == 100000
+        assert stats["dmz_rx_bytes_total"] == 200000
+
+    def test_statistics_with_history(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test statistics with historical data."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True},
+            [{"$key": 100, "tx_bytes": 1000, "rx_bytes": 2000}],  # current stats
+            [  # history
+                {
+                    "timestamp": 1706140800,
+                    "sent": 100,
+                    "dropped": 2,
+                    "quality": 98,
+                    "latency_usec_avg": 5000,
+                    "latency_usec_peak": 10000,
+                },
+                {
+                    "timestamp": 1706140700,
+                    "sent": 95,
+                    "dropped": 5,
+                    "quality": 95,
+                    "latency_usec_avg": 6000,
+                    "latency_usec_peak": 12000,
+                },
+            ],
+        ]
+
+        stats = mock_client.networks.statistics(100, include_history=True)
+
+        assert "history" in stats
+        assert len(stats["history"]) == 2
+        entry = stats["history"][0]
+        assert entry["sent"] == 100
+        assert entry["dropped"] == 2
+        assert entry["quality"] == 98
+        assert entry["latency_avg_ms"] == 5.0
+        assert entry["latency_peak_ms"] == 10.0
+
+    def test_statistics_history_limit(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test statistics history limit parameter."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True},
+            [{"$key": 100}],  # current stats
+            [],  # history
+        ]
+
+        mock_client.networks.statistics(100, include_history=True, history_limit=30)
+
+        # Find the history query call
+        calls = mock_session.request.call_args_list
+        history_call = [c for c in calls if "vnet_monitor_stats_history_short" in c.kwargs.get("url", "")]
+        assert len(history_call) == 1
+        params = history_call[0].kwargs.get("params", {})
+        assert params["limit"] == "30"
+
+    def test_statistics_via_network_object(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test calling statistics via network object."""
+        network_data = {"$key": 100, "name": "test-network", "running": True}
+        network = Network(network_data, mock_client.networks)
+
+        mock_session.request.return_value.json.side_effect = [
+            network_data,  # get network
+            [{"$key": 100, "tx_bytes": 1000, "rx_bytes": 2000}],  # stats
+        ]
+
+        stats = network.statistics()
+
+        assert stats["network_key"] == 100
+
+    def test_statistics_empty_stats(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test statistics when no stats data available."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": False},
+            [],  # No stats
+        ]
+
+        stats = mock_client.networks.statistics(100)
+
+        assert stats["tx_bytes_per_sec"] is None
+        assert stats["rx_bytes_per_sec"] is None
+        assert stats["tx_total_formatted"] == "0 B"
+        assert stats["rx_total_formatted"] == "0 B"
+
+    def test_statistics_no_history_by_default(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that history is not included by default."""
+        # Reset call count from connection validation during fixture setup
+        mock_session.request.reset_mock()
+
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "test-network", "running": True},
+            [{"$key": 100}],  # stats
+        ]
+
+        stats = mock_client.networks.statistics(100)
+
+        assert "history" not in stats
+        # Should only have 2 calls (get network, get stats), not 3 (no history call)
+        assert mock_session.request.call_count == 2

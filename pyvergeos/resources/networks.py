@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import builtins
-from typing import TYPE_CHECKING, Any
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -41,6 +42,70 @@ DEFAULT_NETWORK_FIELDS = [
     "machine#status#running as running",
     "machine#status#status as status",
 ]
+
+# Type aliases for diagnostics
+DiagnosticType = Literal["dhcp_leases", "addresses", "all"]
+
+# Address type mapping for human-readable display
+ADDRESS_TYPE_MAP = {
+    "dynamic": "DHCP Lease",
+    "static": "Static",
+    "ipalias": "IP Alias",
+    "proxy": "Proxy ARP",
+    "virtual": "Virtual IP",
+}
+
+# Statistics fields to request from vnets endpoint
+STATISTICS_FIELDS = [
+    "$key",
+    "name",
+    "nic#stats#txbps as tx_bps",
+    "nic#stats#rxbps as rx_bps",
+    "nic#stats#tx_pckts as tx_packets",
+    "nic#stats#rx_pckts as rx_packets",
+    "nic#stats#tx_bytes as tx_bytes",
+    "nic#stats#rx_bytes as rx_bytes",
+    "nic_dmz#stats#txbps as dmz_tx_bps",
+    "nic_dmz#stats#rxbps as dmz_rx_bps",
+    "nic_dmz#stats#tx_pckts as dmz_tx_packets",
+    "nic_dmz#stats#rx_pckts as dmz_rx_packets",
+    "nic_dmz#stats#tx_bytes as dmz_tx_bytes",
+    "nic_dmz#stats#rx_bytes as dmz_rx_bytes",
+]
+
+
+def _format_bytes(size: int | float | None) -> str:
+    """Format bytes to human-readable string.
+
+    Args:
+        size: Size in bytes.
+
+    Returns:
+        Formatted string like "1.23 MB".
+    """
+    if size is None or size == 0:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    unit_index = 0
+    size_float = float(size)
+    while size_float >= 1024 and unit_index < len(units) - 1:
+        size_float /= 1024
+        unit_index += 1
+    return f"{size_float:.2f} {units[unit_index]}"
+
+
+def _timestamp_to_datetime(timestamp: int | None) -> datetime | None:
+    """Convert Unix timestamp to datetime.
+
+    Args:
+        timestamp: Unix timestamp in seconds.
+
+    Returns:
+        Datetime object or None if timestamp is 0 or None.
+    """
+    if not timestamp or timestamp == 0:
+        return None
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
 
 class Network(ResourceObject):
@@ -257,6 +322,106 @@ class Network(ResourceObject):
         from pyvergeos.resources.dns import DNSZoneManager
 
         return DNSZoneManager(self._manager._client, self)
+
+    def diagnostics(
+        self,
+        diagnostic_type: DiagnosticType = "all",
+    ) -> dict[str, Any]:
+        """Get network diagnostic information.
+
+        Returns DHCP leases and/or address table entries for this network.
+
+        Args:
+            diagnostic_type: Type of diagnostics to retrieve:
+                - "dhcp_leases": Only DHCP lease information (dynamic addresses)
+                - "addresses": All address table entries
+                - "all": Both DHCP leases and addresses (default)
+
+        Returns:
+            Dictionary containing:
+                - network_key: Network key
+                - network_name: Network name
+                - is_running: Whether network is running
+                - dhcp_enabled: Whether DHCP is enabled
+                - dhcp_leases: List of DHCP leases (if requested)
+                - dhcp_lease_count: Number of DHCP leases
+                - addresses: List of all addresses (if requested)
+                - address_count: Number of addresses
+
+        Examples:
+            Get all diagnostics::
+
+                diag = network.diagnostics()
+                print(f"DHCP Leases: {diag['dhcp_lease_count']}")
+                for lease in diag['dhcp_leases']:
+                    print(f"  {lease['ip']} -> {lease['hostname']}")
+
+            Get only DHCP leases::
+
+                diag = network.diagnostics(diagnostic_type="dhcp_leases")
+
+            Get only address table::
+
+                diag = network.diagnostics(diagnostic_type="addresses")
+        """
+        manager = self._manager
+        if not isinstance(manager, NetworkManager):
+            raise TypeError("Manager must be NetworkManager")
+        return manager.diagnostics(self.key, diagnostic_type=diagnostic_type)
+
+    def statistics(
+        self,
+        include_history: bool = False,
+        history_limit: int = 60,
+    ) -> dict[str, Any]:
+        """Get network traffic statistics.
+
+        Returns current traffic statistics and optionally historical data.
+
+        Args:
+            include_history: Include historical monitoring data.
+            history_limit: Maximum number of history entries to return (default 60).
+
+        Returns:
+            Dictionary containing:
+                - network_key: Network key
+                - network_name: Network name
+                - is_running: Whether network is running
+                - tx_bytes_per_sec: Transmit rate in bytes/second
+                - rx_bytes_per_sec: Receive rate in bytes/second
+                - tx_packets_per_sec: Transmit packets/second
+                - rx_packets_per_sec: Receive packets/second
+                - tx_bytes_total: Total bytes transmitted
+                - rx_bytes_total: Total bytes received
+                - tx_total_formatted: Human-readable total transmitted
+                - rx_total_formatted: Human-readable total received
+                - dmz_tx_bytes_per_sec: DMZ transmit rate (if applicable)
+                - dmz_rx_bytes_per_sec: DMZ receive rate (if applicable)
+                - ... (similar DMZ stats)
+                - history: List of historical stats (if requested)
+
+        Examples:
+            Get current statistics::
+
+                stats = network.statistics()
+                print(f"TX: {stats['tx_total_formatted']}")
+                print(f"RX: {stats['rx_total_formatted']}")
+
+            Get statistics with history::
+
+                stats = network.statistics(include_history=True)
+                for entry in stats.get('history', []):
+                    print(f"{entry['timestamp']}: {entry['quality']}% quality")
+
+        Note:
+            Statistics are only available for running networks.
+        """
+        manager = self._manager
+        if not isinstance(manager, NetworkManager):
+            raise TypeError("Manager must be NetworkManager")
+        return manager.statistics(
+            self.key, include_history=include_history, history_limit=history_limit
+        )
 
 
 class NetworkManager(ResourceManager[Network]):
@@ -503,3 +668,237 @@ class NetworkManager(ResourceManager[Network]):
             raise ValueError("Create response missing $key")
 
         return self.get(int(key))
+
+    def diagnostics(
+        self,
+        key: int,
+        diagnostic_type: DiagnosticType = "all",
+    ) -> dict[str, Any]:
+        """Get network diagnostic information.
+
+        Returns DHCP leases and/or address table entries for a network.
+
+        Args:
+            key: Network $key (ID).
+            diagnostic_type: Type of diagnostics to retrieve:
+                - "dhcp_leases": Only DHCP lease information (dynamic addresses)
+                - "addresses": All address table entries
+                - "all": Both DHCP leases and addresses (default)
+
+        Returns:
+            Dictionary containing diagnostic information.
+
+        Examples:
+            Get all diagnostics::
+
+                diag = client.networks.diagnostics(network_key)
+                print(f"DHCP Leases: {diag['dhcp_lease_count']}")
+
+            Get via network object::
+
+                network = client.networks.get(name="Internal")
+                diag = network.diagnostics()
+        """
+        # Get the network to include metadata
+        network = self.get(key)
+
+        result: dict[str, Any] = {
+            "network_key": network.key,
+            "network_name": network.name,
+            "is_running": network.is_running,
+            "dhcp_enabled": network.get("dhcp_enabled", False),
+        }
+
+        # Get DHCP leases (dynamic addresses)
+        if diagnostic_type in ("dhcp_leases", "all"):
+            lease_params = {
+                "filter": f"vnet eq {key} and type eq 'dynamic'",
+                "fields": "$key,ip,mac,hostname,expiration,vendor",
+                "sort": "ip",
+            }
+            lease_response = self._client._request(
+                "GET", "vnet_addresses", params=lease_params
+            )
+
+            leases: builtins.list[dict[str, Any]] = []
+            if lease_response:
+                raw_leases = (
+                    lease_response
+                    if isinstance(lease_response, builtins.list)
+                    else [lease_response]
+                )
+                for lease in raw_leases:
+                    if isinstance(lease, dict) and lease.get("$key"):
+                        leases.append(
+                            {
+                                "key": lease.get("$key"),
+                                "ip": lease.get("ip"),
+                                "mac": lease.get("mac"),
+                                "hostname": lease.get("hostname"),
+                                "vendor": lease.get("vendor"),
+                                "expiration": _timestamp_to_datetime(
+                                    lease.get("expiration")
+                                ),
+                            }
+                        )
+
+            result["dhcp_leases"] = leases
+            result["dhcp_lease_count"] = len(leases)
+
+        # Get all addresses
+        if diagnostic_type in ("addresses", "all"):
+            address_params = {
+                "filter": f"vnet eq {key}",
+                "fields": "$key,ip,mac,hostname,type,expiration,vendor,description",
+                "sort": "ip",
+            }
+            address_response = self._client._request(
+                "GET", "vnet_addresses", params=address_params
+            )
+
+            addresses: builtins.list[dict[str, Any]] = []
+            if address_response:
+                raw_addresses = (
+                    address_response
+                    if isinstance(address_response, builtins.list)
+                    else [address_response]
+                )
+                for addr in raw_addresses:
+                    if isinstance(addr, dict) and addr.get("$key"):
+                        addr_type = addr.get("type", "")
+                        addresses.append(
+                            {
+                                "key": addr.get("$key"),
+                                "ip": addr.get("ip"),
+                                "mac": addr.get("mac"),
+                                "hostname": addr.get("hostname"),
+                                "type": ADDRESS_TYPE_MAP.get(addr_type, addr_type),
+                                "type_raw": addr_type,
+                                "vendor": addr.get("vendor"),
+                                "description": addr.get("description"),
+                                "expiration": _timestamp_to_datetime(
+                                    addr.get("expiration")
+                                ),
+                            }
+                        )
+
+            result["addresses"] = addresses
+            result["address_count"] = len(addresses)
+
+        return result
+
+    def statistics(
+        self,
+        key: int,
+        include_history: bool = False,
+        history_limit: int = 60,
+    ) -> dict[str, Any]:
+        """Get network traffic statistics.
+
+        Returns current traffic statistics and optionally historical data.
+
+        Args:
+            key: Network $key (ID).
+            include_history: Include historical monitoring data.
+            history_limit: Maximum number of history entries (default 60).
+
+        Returns:
+            Dictionary containing traffic statistics.
+
+        Examples:
+            Get current statistics::
+
+                stats = client.networks.statistics(network_key)
+                print(f"TX: {stats['tx_total_formatted']}")
+
+            Get via network object::
+
+                network = client.networks.get(name="External")
+                stats = network.statistics(include_history=True)
+
+        Note:
+            Statistics are only available for running networks.
+        """
+        # Get the network first to get name and running status
+        network = self.get(key)
+
+        # Query stats fields
+        stats_params = {
+            "filter": f"$key eq {key}",
+            "fields": ",".join(STATISTICS_FIELDS),
+        }
+        stats_response = self._client._request("GET", "vnets", params=stats_params)
+
+        # Extract stats data
+        stats_data: dict[str, Any] = {}
+        if stats_response:
+            if isinstance(stats_response, builtins.list) and stats_response:
+                stats_data = stats_response[0]
+            elif isinstance(stats_response, dict):
+                stats_data = stats_response
+
+        result: dict[str, Any] = {
+            "network_key": network.key,
+            "network_name": network.name,
+            "is_running": network.is_running,
+            # Router interface stats
+            "tx_bytes_per_sec": stats_data.get("tx_bps"),
+            "rx_bytes_per_sec": stats_data.get("rx_bps"),
+            "tx_packets_per_sec": stats_data.get("tx_packets"),
+            "rx_packets_per_sec": stats_data.get("rx_packets"),
+            "tx_bytes_total": stats_data.get("tx_bytes"),
+            "rx_bytes_total": stats_data.get("rx_bytes"),
+            "tx_total_formatted": _format_bytes(stats_data.get("tx_bytes")),
+            "rx_total_formatted": _format_bytes(stats_data.get("rx_bytes")),
+            # DMZ interface stats
+            "dmz_tx_bytes_per_sec": stats_data.get("dmz_tx_bps"),
+            "dmz_rx_bytes_per_sec": stats_data.get("dmz_rx_bps"),
+            "dmz_tx_packets_per_sec": stats_data.get("dmz_tx_packets"),
+            "dmz_rx_packets_per_sec": stats_data.get("dmz_rx_packets"),
+            "dmz_tx_bytes_total": stats_data.get("dmz_tx_bytes"),
+            "dmz_rx_bytes_total": stats_data.get("dmz_rx_bytes"),
+        }
+
+        # Get historical data if requested
+        if include_history:
+            history_params = {
+                "filter": f"vnet eq {key}",
+                "fields": "timestamp,sent,dropped,quality,latency_usec_avg,latency_usec_peak",
+                "sort": "-timestamp",
+                "limit": str(history_limit),
+            }
+            history_response = self._client._request(
+                "GET", "vnet_monitor_stats_history_short", params=history_params
+            )
+
+            history: builtins.list[dict[str, Any]] = []
+            if history_response:
+                raw_history = (
+                    history_response
+                    if isinstance(history_response, builtins.list)
+                    else [history_response]
+                )
+                for entry in raw_history:
+                    if isinstance(entry, dict):
+                        latency_avg = entry.get("latency_usec_avg", 0)
+                        latency_peak = entry.get("latency_usec_peak", 0)
+                        history.append(
+                            {
+                                "timestamp": _timestamp_to_datetime(
+                                    entry.get("timestamp")
+                                ),
+                                "sent": entry.get("sent"),
+                                "dropped": entry.get("dropped"),
+                                "quality": entry.get("quality"),
+                                "latency_avg_ms": round(latency_avg / 1000, 2)
+                                if latency_avg
+                                else 0,
+                                "latency_peak_ms": round(latency_peak / 1000, 2)
+                                if latency_peak
+                                else 0,
+                            }
+                        )
+
+            result["history"] = history
+
+        return result
