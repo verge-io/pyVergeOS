@@ -78,8 +78,16 @@ def sample_network_data() -> dict[str, Any]:
         "type": "internal",
         "network": "192.168.1.0/24",
         "ipaddress": "192.168.1.1",
-        "powerstate": True,
+        "gateway": "192.168.1.254",
+        "running": True,
+        "status": "running",
         "dhcp_enabled": True,
+        "dhcp_start": "192.168.1.100",
+        "dhcp_stop": "192.168.1.200",
+        "need_fw_apply": False,
+        "need_dns_apply": False,
+        "need_restart": False,
+        "description": "Test network",
     }
 
 
