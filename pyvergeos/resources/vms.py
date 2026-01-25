@@ -12,6 +12,32 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Default fields to request for VMs
+VM_DEFAULT_FIELDS = [
+    "$key",
+    "name",
+    "description",
+    "enabled",
+    "cpu_cores",
+    "ram",
+    "os_family",
+    "guest_agent",
+    "uefi",
+    "secure_boot",
+    "machine_type",
+    "created",
+    "modified",
+    "is_snapshot",
+    "machine",
+    "machine#status#status as status",
+    "machine#status#running as running",
+    "machine#status#node as node_key",
+    "machine#status#node#name as node_name",
+    "machine#cluster as cluster_key",
+    "machine#cluster#name as cluster_name",
+    "machine#ha_group as ha_group",
+]
+
 
 class VM(ResourceObject):
     """Virtual Machine resource object."""
@@ -24,53 +50,84 @@ class VM(ResourceObject):
 
         Returns:
             Self for chaining.
+
+        Raises:
+            ValueError: If VM is a snapshot.
         """
-        kwargs: dict[str, Any] = {}
+        if self.is_snapshot:
+            raise ValueError("Cannot power on a snapshot")
+
+        body: dict[str, Any] = {"vm": self.key, "action": "poweron"}
         if preferred_node is not None:
-            kwargs["preferred_node"] = preferred_node
-        self._manager.action(self.key, "poweron", **kwargs)
+            body["params"] = {"preferred_node": preferred_node}
+
+        self._manager._client._request("POST", "vm_actions", json_data=body)
         return self  # type: ignore[return-value]
 
-    def power_off(self) -> VM:
-        """Graceful power off (ACPI shutdown)."""
-        self._manager.action(self.key, "poweroff")
-        return self  # type: ignore[return-value]
+    def power_off(self, force: bool = False) -> VM:
+        """Power off the VM.
 
-    def kill_power(self) -> VM:
-        """Force power off (like pulling the plug)."""
-        self._manager.action(self.key, "killpower")
+        Args:
+            force: If True, forces immediate power off (like pulling the plug).
+                   If False (default), sends ACPI shutdown signal for graceful shutdown.
+
+        Returns:
+            Self for chaining.
+        """
+        # 'kill' = immediate termination, 'poweroff' = graceful ACPI shutdown
+        action = "kill" if force else "poweroff"
+        self._manager._client._request(
+            "POST", "vm_actions", json_data={"vm": self.key, "action": action}
+        )
         return self  # type: ignore[return-value]
 
     def reset(self) -> VM:
-        """Reset VM."""
-        self._manager.action(self.key, "reset")
+        """Reset VM (hard reboot)."""
+        self._manager._client._request(
+            "POST", "vm_actions", json_data={"vm": self.key, "action": "reset"}
+        )
         return self  # type: ignore[return-value]
 
     def guest_reboot(self) -> VM:
         """Send reboot signal to guest OS (requires guest agent)."""
-        self._manager.action(self.key, "guestreset")
+        self._manager._client._request(
+            "POST", "vm_actions", json_data={"vm": self.key, "action": "guestreset"}
+        )
+        return self  # type: ignore[return-value]
+
+    def guest_shutdown(self) -> VM:
+        """Send shutdown signal to guest OS (requires guest agent)."""
+        self._manager._client._request(
+            "POST", "vm_actions", json_data={"vm": self.key, "action": "guestshutdown"}
+        )
         return self  # type: ignore[return-value]
 
     def snapshot(
         self,
+        name: str | None = None,
         retention: int = 86400,
         quiesce: bool = False,
     ) -> dict[str, Any] | None:
         """Take a VM snapshot.
 
         Args:
+            name: Snapshot name (optional).
             retention: Snapshot retention in seconds (default 24h).
             quiesce: Quiesce disk activity (requires guest agent).
 
         Returns:
             Snapshot task information.
         """
-        return self._manager.action(
-            self.key,
-            "snapshot",
-            retention=retention,
-            quiesce=quiesce,
-        )
+        body: dict[str, Any] = {
+            "vm": self.key,
+            "action": "snapshot",
+            "params": {"retention": retention, "quiesce": quiesce},
+        }
+        if name:
+            body["params"]["name"] = name
+
+        result = self._manager._client._request("POST", "vm_actions", json_data=body)
+        return result if isinstance(result, dict) else None
 
     def clone(
         self,
@@ -86,26 +143,114 @@ class VM(ResourceObject):
         Returns:
             Clone task information with new VM key.
         """
-        kwargs: dict[str, Any] = {"preserve_macs": preserve_macs}
+        body: dict[str, Any] = {
+            "vm": self.key,
+            "action": "clone",
+            "params": {"preserve_macs": preserve_macs},
+        }
         if name:
-            kwargs["name"] = name
-        return self._manager.action(self.key, "clone", **kwargs)
+            body["params"]["name"] = name
+
+        result = self._manager._client._request("POST", "vm_actions", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def move(
+        self,
+        node: int | None = None,
+        cluster: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Move VM to a different node or cluster.
+
+        Args:
+            node: Target node $key.
+            cluster: Target cluster $key.
+
+        Returns:
+            Move task information.
+        """
+        params: dict[str, Any] = {}
+        if node is not None:
+            params["node"] = node
+        if cluster is not None:
+            params["cluster"] = cluster
+
+        body: dict[str, Any] = {"vm": self.key, "action": "move"}
+        if params:
+            body["params"] = params
+
+        result = self._manager._client._request("POST", "vm_actions", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def get_console_info(self) -> dict[str, Any]:
+        """Get console access information for this VM.
+
+        Returns:
+            Dict with console_type, host, port, url, web_url, is_available.
+        """
+        # Query VM with console status fields using alias syntax
+        fields = "name,console,console_status#host as host,console_status#port as port"
+        result = self._manager._client._request(
+            "GET",
+            f"vms/{self.key}",
+            params={"fields": fields},
+        )
+
+        if not isinstance(result, dict):
+            return {"is_available": False}
+
+        console_type = result.get("console", "vnc")
+        host = result.get("host")
+        port = result.get("port")
+
+        # Build URLs
+        url = None
+        if host and port:
+            protocol = {"vnc": "vnc", "spice": "spice", "serial": "telnet"}.get(console_type, "vnc")
+            url = f"{protocol}://{host}:{port}"
+
+        # Web console URL (through VergeOS UI)
+        web_url = f"https://{self._manager._client.host}/#/vm-console/{self.key}"
+
+        return {
+            "console_type": console_type,
+            "host": host,
+            "port": port,
+            "url": url,
+            "web_url": web_url,
+            "is_available": bool(host and port),
+        }
 
     @property
     def is_running(self) -> bool:
         """Check if VM is powered on."""
-        return bool(self.get("powerstate", False))
+        return bool(self.get("running", False))
 
     @property
     def is_snapshot(self) -> bool:
         """Check if this is a snapshot (not a running VM)."""
         return bool(self.get("is_snapshot", False))
 
+    @property
+    def status(self) -> str:
+        """Get VM status (running, stopped, etc.)."""
+        return str(self.get("status", "unknown"))
+
+    @property
+    def node_name(self) -> str | None:
+        """Get the name of the node this VM is running on."""
+        return self.get("node_name")
+
+    @property
+    def cluster_name(self) -> str | None:
+        """Get the name of the cluster this VM belongs to."""
+        return self.get("cluster_name")
+
 
 class VMManager(ResourceManager[VM]):
     """Manager for Virtual Machine operations."""
 
     _endpoint = "vms"
+    _default_fields = VM_DEFAULT_FIELDS
 
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
@@ -113,13 +258,79 @@ class VMManager(ResourceManager[VM]):
     def _to_model(self, data: dict[str, Any]) -> VM:
         return VM(data, self)
 
+    def list(
+        self,
+        filter: str | None = None,  # noqa: A002
+        fields: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        include_snapshots: bool = False,
+        **filter_kwargs: Any,
+    ) -> list[VM]:
+        """List VMs with optional filtering.
+
+        Args:
+            filter: OData filter string.
+            fields: List of fields to return (defaults to rich field set).
+            limit: Maximum number of results.
+            offset: Skip this many results.
+            include_snapshots: Include VM snapshots (default False).
+            **filter_kwargs: Shorthand filter arguments.
+
+        Returns:
+            List of VM objects.
+        """
+        # Use default fields if not specified
+        if fields is None:
+            fields = self._default_fields
+
+        # Add snapshot filter unless explicitly including snapshots
+        if not include_snapshots:
+            snapshot_filter = "is_snapshot eq false"
+            filter = f"({filter}) and {snapshot_filter}" if filter else snapshot_filter
+
+        return super().list(
+            filter=filter,
+            fields=fields,
+            limit=limit,
+            offset=offset,
+            **filter_kwargs,
+        )
+
+    def get(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: list[str] | None = None,
+    ) -> VM:
+        """Get a single VM by key or name.
+
+        Args:
+            key: VM $key (ID).
+            name: VM name (will search if key not provided).
+            fields: List of fields to return (defaults to rich field set).
+
+        Returns:
+            VM object.
+
+        Raises:
+            NotFoundError: If VM not found.
+            ValueError: If neither key nor name provided.
+        """
+        if fields is None:
+            fields = self._default_fields
+        return super().get(key, name=name, fields=fields)
+
     def list_running(self) -> list[VM]:
         """List all running VMs."""
-        return self.list(filter="powerstate eq true and is_snapshot eq false")
+        # Filter post-query since API doesn't support filtering on joined fields
+        return [vm for vm in self.list() if vm.is_running]
 
     def list_stopped(self) -> list[VM]:
         """List all stopped VMs."""
-        return self.list(filter="powerstate eq false and is_snapshot eq false")
+        # Filter post-query since API doesn't support filtering on joined fields
+        return [vm for vm in self.list() if not vm.is_running]
 
     def create(
         self,
