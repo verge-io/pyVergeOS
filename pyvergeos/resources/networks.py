@@ -9,6 +9,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.rules import NetworkRuleManager
 
 
 # Default fields to request for comprehensive network data
@@ -133,6 +134,32 @@ class Network(ResourceObject):
     def needs_dns_apply(self) -> bool:
         """Check if DNS configuration needs to be applied."""
         return bool(self.get("need_dns_apply", False))
+
+    @property
+    def rules(self) -> NetworkRuleManager:
+        """Access firewall rules for this network.
+
+        Returns:
+            NetworkRuleManager for this network.
+
+        Examples:
+            List all rules::
+
+                rules = network.rules.list()
+
+            Create a rule::
+
+                rule = network.rules.create(
+                    name="Allow HTTPS",
+                    direction="incoming",
+                    action="accept",
+                    protocol="tcp",
+                    destination_ports="443"
+                )
+        """
+        from pyvergeos.resources.rules import NetworkRuleManager
+
+        return NetworkRuleManager(self._manager._client, self)
 
 
 class NetworkManager(ResourceManager[Network]):

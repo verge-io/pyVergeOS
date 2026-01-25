@@ -1,6 +1,6 @@
 # pyvergeos
 
-Python SDK for the VergeOS REST API v4.
+Python SDK for the VergeOS REST API.
 
 [![PyPI version](https://badge.fury.io/py/pyvergeos.svg)](https://badge.fury.io/py/pyvergeos)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
