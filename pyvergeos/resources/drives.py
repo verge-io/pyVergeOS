@@ -219,24 +219,28 @@ class DriveManager(ResourceManager[Drive]):
         description: str = "",
         readonly: bool = False,
         enabled: bool = True,
+        media_source: int | str | None = None,
     ) -> Drive:
         """Create a new drive for this VM.
 
         Args:
             size_gb: Disk size in GB (required for disk media).
             name: Drive name (optional, auto-generated if not provided).
-            interface: Drive interface type (virtio-scsi, nvme, ahci, etc.).
+            interface: Drive interface type (virtio-scsi, nvme, ahci, ide, etc.).
             media: Media type (disk, cdrom, efidisk).
             tier: Preferred storage tier (1-5).
             description: Drive description.
             readonly: Make drive read-only.
             enabled: Enable drive (default True).
+            media_source: File key (int) or name (str) for CD-ROM media source.
+                Used to attach ISO or other media files.
 
         Returns:
             Created Drive object.
 
         Raises:
             ValueError: If size_gb not provided for disk media.
+            ValueError: If media_source file not found (when passed as string).
         """
         if media == "disk" and size_gb is None:
             raise ValueError("size_gb is required for disk media")
@@ -259,10 +263,31 @@ class DriveManager(ResourceManager[Drive]):
         if readonly:
             body["readonly"] = True
 
+        # Resolve media_source by name if string provided
+        if media_source is not None:
+            if isinstance(media_source, str):
+                # Look up file by name
+                response = self._client._request(
+                    "GET",
+                    "files",
+                    params={"filter": f"name eq '{media_source}'", "fields": "$key,name"},
+                )
+                if not response:
+                    raise ValueError(f"Media file '{media_source}' not found")
+                if isinstance(response, list):
+                    if not response:
+                        raise ValueError(f"Media file '{media_source}' not found")
+                    media_source = response[0].get("$key")
+                else:
+                    media_source = response.get("$key")
+            body["media_source"] = int(media_source)
+
         response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None:
             raise ValueError("No response from create operation")
-        return self._to_model(response)
+        # Fetch the full drive data with all fields
+        drive = self._to_model(response)
+        return self.get(drive.key)
 
     def delete(self, key: int) -> None:
         """Delete a drive.

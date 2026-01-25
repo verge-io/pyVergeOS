@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -109,12 +109,11 @@ class TestVMManager:
 
     def test_create_vm(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test creating a VM."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 789,
-            "name": "new-vm",
-            "ram": 2048,
-            "cpu_cores": 2,
-        }
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 789, "name": "new-vm", "ram": 2048, "cpu_cores": 2},  # POST response
+            {"$key": 789, "name": "new-vm", "ram": 2048, "cpu_cores": 2},  # GET response
+        ]
 
         vm = mock_client.vms.create(
             name="new-vm",
@@ -130,17 +129,22 @@ class TestVMManager:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test that RAM is normalized to 256MB increments."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 1,
-            "name": "test",
-            "ram": 2304,  # 2048 + 256
-        }
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "test", "ram": 2304},  # POST response
+            {"$key": 1, "name": "test", "ram": 2304},  # GET response
+        ]
 
         mock_client.vms.create(name="test", ram=2100)
 
-        # Check the request body
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        # Find the POST call to vms endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "vms" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
         assert body["ram"] == 2304  # Rounded up to nearest 256
 
     def test_update_vm(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
@@ -348,7 +352,7 @@ class TestVM:
         }
 
         vm = VM(vm_data, mock_client.vms)
-        result = vm.snapshot(name="my-snapshot", retention=172800, quiesce=True)
+        vm.snapshot(name="my-snapshot", retention=172800, quiesce=True)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -370,7 +374,7 @@ class TestVM:
         }
 
         vm = VM(vm_data, mock_client.vms)
-        result = vm.clone(name="test-vm-clone", preserve_macs=True)
+        vm.clone(name="test-vm-clone", preserve_macs=True)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -388,7 +392,7 @@ class TestVM:
         mock_session.request.return_value.json.return_value = {"task": 123}
 
         vm = VM(vm_data, mock_client.vms)
-        result = vm.move(node=5, cluster=2)
+        vm.move(node=5, cluster=2)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})

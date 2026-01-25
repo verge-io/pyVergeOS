@@ -243,11 +243,8 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         # Generate snapshot name if not provided
         snapshot_name = name or f"Snapshot-{_time.strftime('%Y%m%d-%H%M%S')}"
 
-        # Calculate expiration timestamp
-        if retention > 0:
-            expires_timestamp = int(_time.time()) + retention
-        else:
-            expires_timestamp = 0  # Never expires
+        # Calculate expiration timestamp (0 means never expires)
+        expires_timestamp = int(_time.time()) + retention if retention > 0 else 0
 
         body: dict[str, Any] = {
             "machine": self.machine_key,

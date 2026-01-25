@@ -405,4 +405,7 @@ class VMManager(ResourceManager[VM]):
             **kwargs,
         }
 
-        return super().create(**data)
+        # Create VM and fetch full data with all fields
+        vm = super().create(**data)
+        # The API only returns limited fields on create, so fetch the full VM
+        return self.get(vm.key)

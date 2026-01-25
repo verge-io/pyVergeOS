@@ -109,18 +109,23 @@ class TestNICManager:
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
         """Test creating a NIC with network key."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 3,
-            "name": "eth2",
-            "interface": "virtio",
-            "vnet": 5,
-        }
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 3, "name": "eth2", "interface": "virtio", "vnet": 5},
+            {"$key": 3, "name": "eth2", "interface": "virtio", "vnet": 5},
+        ]
 
         nic = vm.nics.create(network=5, name="eth2")
 
         assert nic.name == "eth2"
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        # Find the POST call to machine_nics endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "machine_nics" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
         assert body["machine"] == 200
         assert body["vnet"] == 5
 
@@ -128,10 +133,11 @@ class TestNICManager:
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
         """Test creating a NIC with network name lookup."""
-        # First call returns network lookup, second returns created NIC
+        # First call returns network lookup, second creates NIC, third fetches full data
         mock_session.request.return_value.json.side_effect = [
             [{"$key": 10, "name": "Internal"}],  # Network lookup
-            {"$key": 4, "name": "eth3", "vnet": 10},  # Created NIC
+            {"$key": 4, "name": "eth3", "vnet": 10},  # Created NIC (POST response)
+            {"$key": 4, "name": "eth3", "vnet": 10},  # GET full NIC data
         ]
 
         nic = vm.nics.create(network="Internal", name="eth3")
@@ -142,16 +148,20 @@ class TestNICManager:
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
         """Test creating a NIC with MAC address."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 5,
-            "name": "eth4",
-            "macaddress": "aa:bb:cc:dd:ee:ff",
-        }
+        # Reset call history from fixture setup
+        mock_session.request.reset_mock()
+
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 5, "name": "eth4", "macaddress": "aa:bb:cc:dd:ee:ff"},
+            {"$key": 5, "name": "eth4", "macaddress": "aa:bb:cc:dd:ee:ff"},
+        ]
 
         vm.nics.create(mac_address="AA:BB:CC:DD:EE:FF")
 
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        # Check the first request body (the POST call)
+        call_args_list = mock_session.request.call_args_list
+        body = call_args_list[0].kwargs.get("json", {})
         assert body["macaddress"] == "aa:bb:cc:dd:ee:ff"
 
     def test_delete_nic(self, mock_client: VergeClient, mock_session: MagicMock, vm: VM) -> None:
@@ -293,4 +303,4 @@ class TestNICInterfaceMaps:
             "vmxnet3": "VMware Paravirt v3",
             "direct": "Direct",
         }
-        assert INTERFACE_DISPLAY_MAP == expected
+        assert expected == INTERFACE_DISPLAY_MAP

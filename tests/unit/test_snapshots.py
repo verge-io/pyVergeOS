@@ -123,7 +123,7 @@ class TestVMSnapshotManager:
             "name": "my-snapshot",
         }
 
-        result = vm.snapshots.create(name="my-snapshot", retention=172800, quiesce=True)
+        vm.snapshots.create(name="my-snapshot", retention=172800, quiesce=True)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -177,7 +177,7 @@ class TestVMSnapshotManager:
             {"$key": 101, "name": "Daily_20240101 restored"},
         ]
 
-        result = vm.snapshots.restore(1)
+        vm.snapshots.restore(1)
 
         # Check the clone action was called
         call_args = mock_session.request.call_args
@@ -338,7 +338,7 @@ class TestVMSnapshot:
             "name": "Daily_20240101 restored",
         }
 
-        result = snapshot.restore(name="My Restored VM")
+        snapshot.restore(name="My Restored VM")
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})

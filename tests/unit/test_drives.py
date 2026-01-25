@@ -121,19 +121,36 @@ class TestDriveManager:
 
     def test_create_drive(self, mock_client: VergeClient, mock_session: MagicMock, vm: VM) -> None:
         """Test creating a drive."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 3,
-            "name": "NewDrive",
-            "interface": "nvme",
-            "media": "disk",
-            "disksize": 53687091200,
-        }
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {
+                "$key": 3,
+                "name": "NewDrive",
+                "interface": "nvme",
+                "media": "disk",
+                "disksize": 53687091200,
+            },
+            {
+                "$key": 3,
+                "name": "NewDrive",
+                "interface": "nvme",
+                "media": "disk",
+                "disksize": 53687091200,
+            },
+        ]
 
         drive = vm.drives.create(size_gb=50, name="NewDrive", interface="nvme")
 
         assert drive.name == "NewDrive"
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        # Find the POST call to machine_drives endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "machine_drives" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
         assert body["machine"] == 200
         assert body["disksize"] == 50 * (1024**3)
 
@@ -146,16 +163,23 @@ class TestDriveManager:
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
         """Test creating a drive with storage tier."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 4,
-            "name": "TieredDrive",
-            "preferred_tier": "1",
-        }
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 4, "name": "TieredDrive", "preferred_tier": "1"},
+            {"$key": 4, "name": "TieredDrive", "preferred_tier": "1"},
+        ]
 
         vm.drives.create(size_gb=100, tier=1)
 
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        # Find the POST call to machine_drives endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "machine_drives" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
         assert body["preferred_tier"] == "1"
 
     def test_delete_drive(self, mock_client: VergeClient, mock_session: MagicMock, vm: VM) -> None:
@@ -271,7 +295,7 @@ class TestDriveMaps:
             "megasas-gen2": "LSI MegaRAID SAS 2",
             "usb": "USB",
         }
-        assert INTERFACE_DISPLAY_MAP == expected
+        assert expected == INTERFACE_DISPLAY_MAP
 
     def test_media_display_map(self) -> None:
         """Test all media display mappings."""
@@ -285,4 +309,4 @@ class TestDriveMaps:
             "clone": "Clone Disk",
             "nonpersistent": "Non-Persistent",
         }
-        assert MEDIA_DISPLAY_MAP == expected
+        assert expected == MEDIA_DISPLAY_MAP

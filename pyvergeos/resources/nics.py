@@ -274,7 +274,9 @@ class NICManager(ResourceManager[NIC]):
         response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None:
             raise ValueError("No response from create operation")
-        return self._to_model(response)
+        # Fetch the full NIC data with all fields
+        nic = self._to_model(response)
+        return self.get(nic.key)
 
     def delete(self, key: int) -> None:
         """Delete a NIC.
