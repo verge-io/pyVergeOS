@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
+    from pyvergeos.resources.nas import NASServiceManager
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
@@ -104,6 +105,7 @@ class VergeClient:
         self._tasks: TaskManager | None = None
         self._files: FileManager | None = None
         self._storage_tiers: StorageTierManager | None = None
+        self._nas_services: NASServiceManager | None = None
 
         if auto_connect:
             self.connect()
@@ -454,3 +456,12 @@ class VergeClient:
 
             self._storage_tiers = StorageTierManager(self)
         return self._storage_tiers
+
+    @property
+    def nas_services(self) -> NASServiceManager:
+        """Access NAS service operations."""
+        if self._nas_services is None:
+            from pyvergeos.resources.nas import NASServiceManager
+
+            self._nas_services = NASServiceManager(self)
+        return self._nas_services
