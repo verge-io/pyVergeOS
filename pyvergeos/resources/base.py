@@ -58,7 +58,8 @@ class ResourceObject(dict[str, Any]):
         """
         if self.key is None:
             raise ValueError("Cannot refresh resource without $key")
-        return self._manager.get(self.key)
+        result = self._manager.get(self.key)
+        return result  # type: ignore[no-any-return]
 
     def save(self, **kwargs: Any) -> ResourceObject:
         """Save changes to resource.
@@ -71,7 +72,8 @@ class ResourceObject(dict[str, Any]):
         """
         if self.key is None:
             raise ValueError("Cannot save resource without $key")
-        return self._manager.update(self.key, **kwargs)
+        result = self._manager.update(self.key, **kwargs)
+        return result  # type: ignore[no-any-return]
 
     def delete(self) -> None:
         """Delete this resource."""
@@ -173,6 +175,8 @@ class ResourceManager(Generic[T]):
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"{self._endpoint}/{key} not found")
+            if not isinstance(response, dict):
+                raise NotFoundError(f"{self._endpoint}/{key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -197,6 +201,8 @@ class ResourceManager(Generic[T]):
         response = self._client._request("POST", self._endpoint, json_data=kwargs)
         if response is None:
             raise ValueError("No response from create operation")
+        if not isinstance(response, dict):
+            raise ValueError("Create operation returned invalid response")
         return self._to_model(response)
 
     def update(self, key: int, **kwargs: Any) -> T:
@@ -212,6 +218,8 @@ class ResourceManager(Generic[T]):
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             # Fetch updated resource
+            return self.get(key)
+        if not isinstance(response, dict):
             return self.get(key)
         return self._to_model(response)
 

@@ -173,7 +173,9 @@ class TestVMSnapshotManager:
                 "name": "Daily_20240101",
                 "snap_machine": 999,
             },
-            # Second call: clone action
+            # Second call: find snapshot VM by machine key
+            [{"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}],
+            # Third call: clone action
             {"$key": 101, "name": "Daily_20240101 restored"},
         ]
 
@@ -183,7 +185,7 @@ class TestVMSnapshotManager:
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
         assert body["action"] == "clone"
-        assert body["vm"] == 999
+        assert body["vm"] == 888  # Should use snapshot VM key, not machine key
 
     def test_restore_snapshot_with_custom_name(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
@@ -191,6 +193,8 @@ class TestVMSnapshotManager:
         """Test restoring snapshot with custom name."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 1, "name": "Daily", "snap_machine": 999},
+            # Second call: find snapshot VM by machine key
+            [{"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}],
             {"$key": 102, "name": "CustomName"},
         ]
 

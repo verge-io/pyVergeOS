@@ -23,12 +23,12 @@ class Network(ResourceObject):
             Self for chaining.
         """
         self._manager.action(self.key, "poweron", apply=apply_rules)
-        return self  # type: ignore[return-value]
+        return self
 
     def power_off(self) -> Network:
         """Power off the network."""
         self._manager.action(self.key, "poweroff")
-        return self  # type: ignore[return-value]
+        return self
 
     def reset(self, apply_rules: bool = True) -> Network:
         """Reset the network.
@@ -40,17 +40,17 @@ class Network(ResourceObject):
             Self for chaining.
         """
         self._manager.action(self.key, "reset", apply=apply_rules)
-        return self  # type: ignore[return-value]
+        return self
 
     def apply_rules(self) -> Network:
         """Apply firewall rules."""
         self._manager.action(self.key, "apply")
-        return self  # type: ignore[return-value]
+        return self
 
     def apply_dns(self) -> Network:
         """Apply DNS configuration."""
         self._manager.action(self.key, "applydns")
-        return self  # type: ignore[return-value]
+        return self
 
     @property
     def is_running(self) -> bool:
@@ -91,7 +91,7 @@ class NetworkManager(ResourceManager[Network]):
         """List all running networks."""
         return self.list(filter="powerstate eq true")
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         name: str,
         network_type: str = "internal",

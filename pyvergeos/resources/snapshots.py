@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -132,12 +133,15 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
     @property
     def machine_key(self) -> int:
         """Get the machine key for this VM."""
-        return int(self._vm.get("machine"))
+        machine = self._vm.get("machine")
+        if machine is None:
+            raise ValueError("VM has no machine key")
+        return int(machine)
 
     def _to_model(self, data: dict[str, Any]) -> VMSnapshot:
         return VMSnapshot(data, self)
 
-    def list(  # noqa: A003
+    def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
         fields: list[str] | None = None,
@@ -182,7 +186,7 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: list[str] | None = None,
+        fields: builtins.list[str] | None = None,
     ) -> VMSnapshot:
         """Get a snapshot by key or name.
 
@@ -208,6 +212,10 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
                 from pyvergeos.exceptions import NotFoundError
 
                 raise NotFoundError(f"Snapshot {key} not found")
+            if not isinstance(response, dict):
+                from pyvergeos.exceptions import NotFoundError
+
+                raise NotFoundError(f"Snapshot {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -220,7 +228,7 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
         raise ValueError("Either key or name must be provided")
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         name: str | None = None,
         retention: int = 86400,
@@ -290,10 +298,33 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             Restore task information.
         """
         snapshot = self.get(key)
-        snap_key = snapshot.snap_machine_key
+        snap_machine_key = snapshot.snap_machine_key
 
-        if snap_key is None:
+        if snap_machine_key is None:
             raise ValueError("Snapshot does not have a valid snap_machine reference")
+
+        # Find the snapshot VM that has this machine
+        # The snap_machine is a machine key, not a VM key
+        # We need to find the VM where machine = snap_machine
+        response = self._client._request(
+            "GET",
+            "vms",
+            params={
+                "filter": f"machine eq {snap_machine_key}",
+                "fields": "$key,name,machine,is_snapshot",
+            },
+        )
+
+        snap_vm_key = None
+        if response:
+            vms = response if isinstance(response, list) else [response]
+            for vm_data in vms:
+                if vm_data.get("is_snapshot"):
+                    snap_vm_key = vm_data.get("$key")
+                    break
+
+        if snap_vm_key is None:
+            raise ValueError(f"Could not find snapshot VM with machine key {snap_machine_key}")
 
         if replace_original:
             # In-place restore - revert original VM
@@ -301,7 +332,7 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
                 raise ValueError("VM must be powered off for in-place restore")
 
             body: dict[str, Any] = {
-                "vm": snap_key,
+                "vm": snap_vm_key,
                 "action": "restore",
             }
 
@@ -323,7 +354,7 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             restored_name = name or f"{snapshot.get('name', 'snapshot')} restored"
 
             body = {
-                "vm": snap_key,
+                "vm": snap_vm_key,
                 "action": "clone",
                 "params": {"name": restored_name},
             }

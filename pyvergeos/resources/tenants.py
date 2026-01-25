@@ -16,17 +16,17 @@ class Tenant(ResourceObject):
     def power_on(self) -> Tenant:
         """Power on the tenant."""
         self._manager.action(self.key, "poweron")
-        return self  # type: ignore[return-value]
+        return self
 
     def power_off(self) -> Tenant:
         """Power off the tenant."""
         self._manager.action(self.key, "poweroff")
-        return self  # type: ignore[return-value]
+        return self
 
     def reset(self) -> Tenant:
         """Reset the tenant."""
         self._manager.action(self.key, "reset")
-        return self  # type: ignore[return-value]
+        return self
 
     def clone(self, name: str | None = None) -> dict[str, Any] | None:
         """Clone this tenant.
@@ -63,7 +63,7 @@ class TenantManager(ResourceManager[Tenant]):
         """List all running tenants."""
         return self.list(filter="powerstate eq true")
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         name: str,
         description: str = "",

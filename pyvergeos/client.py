@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 import requests
@@ -170,8 +170,12 @@ class VergeClient:
         else:
             raise ValueError("Either token or username/password required")
 
-        self._connection._session.headers.update(auth_header)
-        self._connection._session.headers.update(
+        session = self._connection._session
+        if session is None:
+            raise NotConnectedError("Session not initialized")
+
+        session.headers.update(auth_header)
+        session.headers.update(
             {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
@@ -194,7 +198,11 @@ class VergeClient:
             url = f"{self._connection.api_base_url}/system"
             params = {"fields": "$key,yb_version,os_version,cloud_name"}
 
-            resp = self._connection._session.request(
+            session = self._connection._session
+            if session is None:
+                raise NotConnectedError("Session not initialized")
+
+            resp = session.request(
                 method="GET",
                 url=url,
                 params=params,
@@ -213,7 +221,7 @@ class VergeClient:
                     response = response[0]
                 if isinstance(response, dict):
                     self._connection.vergeos_version = response.get("yb_version")
-                    self._connection.connected_at = datetime.now(UTC)
+                    self._connection.connected_at = datetime.now(timezone.utc)
                     self._connection.is_connected = True
                     return
 
@@ -286,12 +294,16 @@ class VergeClient:
         if not self._connection or not self._connection.is_connected:
             raise NotConnectedError("Not connected to VergeOS")
 
+        session = self._connection._session
+        if session is None:
+            raise NotConnectedError("Session not initialized")
+
         url = f"{self._connection.api_base_url}/{endpoint}"
 
         logger.debug("%s %s params=%s", method, url, params)
 
         try:
-            response = self._connection._session.request(
+            response = session.request(
                 method=method,
                 url=url,
                 params=params,

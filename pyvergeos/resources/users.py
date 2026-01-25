@@ -39,7 +39,7 @@ class UserManager(ResourceManager[User]):
         """List all enabled users."""
         return self.list(filter="enabled eq true")
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         username: str,
         password: str,

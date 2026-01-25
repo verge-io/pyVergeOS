@@ -27,7 +27,7 @@ class GroupManager(ResourceManager[Group]):
     def _to_model(self, data: dict[str, Any]) -> Group:
         return Group(data, self)
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         name: str,
         description: str = "",

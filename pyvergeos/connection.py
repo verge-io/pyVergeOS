@@ -2,7 +2,7 @@
 
 from base64 import b64encode
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -85,7 +85,7 @@ class VergeConnection:
         """
         if not self.is_connected:
             return False
-        return not (self.token_expires and datetime.now(UTC) >= self.token_expires)
+        return not (self.token_expires and datetime.now(timezone.utc) >= self.token_expires)
 
     def disconnect(self) -> None:
         """Clear connection state and close session."""

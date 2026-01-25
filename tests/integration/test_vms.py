@@ -227,6 +227,40 @@ class TestVMDrives:
         assert isinstance(drive.is_enabled, bool)
         assert isinstance(drive.is_readonly, bool)
 
+    def test_import_drive(self, live_client: VergeClient) -> None:
+        """Test importing a drive from a disk image file."""
+        # Create a test VM for import
+        vm = live_client.vms.create(
+            name="pstest-import-drive",
+            cpu_cores=1,
+            ram=1024,
+            os_family="linux",
+        )
+
+        try:
+            # Import the QCOW2 disk image
+            drive = vm.drives.import_drive(
+                file_name="debian-12-generic-amd64-fa03cff7.qcow2",
+                name="ImportedDisk",
+                interface="virtio-scsi",
+                tier=1,
+            )
+
+            assert drive is not None
+            assert drive.name == "ImportedDisk"
+            # After import, media becomes "disk" (converted from import format)
+            assert drive.get("media") in ("import", "disk")
+            assert drive.get("interface") == "virtio-scsi"
+
+            # Verify drive is in the VM's drive list
+            drives = vm.drives.list()
+            imported_drives = [d for d in drives if d.name == "ImportedDisk"]
+            assert len(imported_drives) == 1
+
+        finally:
+            # Cleanup: delete the test VM
+            live_client.vms.delete(vm.key)
+
 
 @pytest.mark.integration
 class TestVMNICs:

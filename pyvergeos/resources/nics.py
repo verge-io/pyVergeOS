@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -57,7 +58,7 @@ class NIC(ResourceObject):
     def interface_display(self) -> str:
         """Get friendly interface name."""
         interface = self.get("interface", "")
-        return INTERFACE_DISPLAY_MAP.get(interface, interface)
+        return INTERFACE_DISPLAY_MAP.get(interface, str(interface))
 
     @property
     def is_enabled(self) -> bool:
@@ -122,12 +123,15 @@ class NICManager(ResourceManager[NIC]):
     @property
     def machine_key(self) -> int:
         """Get the machine key for this VM."""
-        return int(self._vm.get("machine"))
+        machine = self._vm.get("machine")
+        if machine is None:
+            raise ValueError("VM has no machine key")
+        return int(machine)
 
     def _to_model(self, data: dict[str, Any]) -> NIC:
         return NIC(data, self)
 
-    def list(  # noqa: A003
+    def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
         fields: list[str] | None = None,
@@ -172,7 +176,7 @@ class NICManager(ResourceManager[NIC]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: list[str] | None = None,
+        fields: builtins.list[str] | None = None,
     ) -> NIC:
         """Get a NIC by key or name.
 
@@ -198,6 +202,10 @@ class NICManager(ResourceManager[NIC]):
                 from pyvergeos.exceptions import NotFoundError
 
                 raise NotFoundError(f"NIC {key} not found")
+            if not isinstance(response, dict):
+                from pyvergeos.exceptions import NotFoundError
+
+                raise NotFoundError(f"NIC {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -210,7 +218,7 @@ class NICManager(ResourceManager[NIC]):
 
         raise ValueError("Either key or name must be provided")
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         network: int | str | None = None,
         name: str | None = None,
@@ -260,7 +268,7 @@ class NICManager(ResourceManager[NIC]):
                     network = response[0].get("$key")
                 else:
                     network = response.get("$key")
-            body["vnet"] = int(network)
+            body["vnet"] = int(network)  # type: ignore[arg-type]
 
         if mac_address:
             body["macaddress"] = mac_address.lower()
@@ -274,6 +282,8 @@ class NICManager(ResourceManager[NIC]):
         response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None:
             raise ValueError("No response from create operation")
+        if not isinstance(response, dict):
+            raise ValueError("Create operation returned invalid response")
         # Fetch the full NIC data with all fields
         nic = self._to_model(response)
         return self.get(nic.key)
@@ -320,5 +330,7 @@ class NICManager(ResourceManager[NIC]):
 
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
+            return self.get(key)
+        if not isinstance(response, dict):
             return self.get(key)
         return self._to_model(response)

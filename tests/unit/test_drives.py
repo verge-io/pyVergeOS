@@ -205,6 +205,125 @@ class TestDriveManager:
 
         assert drive.get("description") == "New description"
 
+    def test_import_drive_by_file_key(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test importing a drive by file key."""
+        # First call is POST (create), second is GET (fetch full data)
+        mock_session.request.return_value.json.side_effect = [
+            {
+                "$key": 5,
+                "name": "ImportedDisk",
+                "interface": "virtio-scsi",
+                "media": "import",
+                "media_source": 999,
+            },
+            {
+                "$key": 5,
+                "name": "ImportedDisk",
+                "interface": "virtio-scsi",
+                "media": "import",
+                "media_source": 999,
+            },
+        ]
+
+        drive = vm.drives.import_drive(file_key=999, name="ImportedDisk")
+
+        assert drive.name == "ImportedDisk"
+        # Find the POST call to machine_drives endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "machine_drives" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["machine"] == 200
+        assert body["media"] == "import"
+        assert body["media_source"] == 999
+        assert body["interface"] == "virtio-scsi"
+        assert body["preserve_drive_format"] is False
+
+    def test_import_drive_by_file_name(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test importing a drive by file name."""
+        # First call is GET files (lookup), second is POST (create), third is GET (fetch)
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 888, "name": "debian-12-generic-amd64.qcow2"}],
+            {
+                "$key": 6,
+                "name": "ImportedQCOW",
+                "interface": "nvme",
+                "media": "import",
+                "media_source": 888,
+            },
+            {
+                "$key": 6,
+                "name": "ImportedQCOW",
+                "interface": "nvme",
+                "media": "import",
+                "media_source": 888,
+            },
+        ]
+
+        drive = vm.drives.import_drive(
+            file_name="debian-12-generic-amd64.qcow2",
+            name="ImportedQCOW",
+            interface="nvme",
+            tier=1,
+        )
+
+        assert drive.name == "ImportedQCOW"
+        # Find the POST call to machine_drives endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "machine_drives" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["media_source"] == 888
+        assert body["interface"] == "nvme"
+        assert body["preferred_tier"] == "1"
+
+    def test_import_drive_preserve_format(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test importing a drive with preserve_drive_format option."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 7, "name": "PreservedDisk", "media": "import"},
+            {"$key": 7, "name": "PreservedDisk", "media": "import"},
+        ]
+
+        vm.drives.import_drive(file_key=999, preserve_drive_format=True)
+
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "machine_drives" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["preserve_drive_format"] is True
+
+    def test_import_drive_requires_file_key_or_name(self, mock_client: VergeClient, vm: VM) -> None:
+        """Test that file_key or file_name is required."""
+        with pytest.raises(ValueError, match="Either file_key or file_name must be provided"):
+            vm.drives.import_drive()
+
+    def test_import_drive_file_not_found(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test error when file not found by name."""
+        mock_session.request.return_value.json.return_value = []
+
+        with pytest.raises(ValueError, match="not found in media catalog"):
+            vm.drives.import_drive(file_name="nonexistent.qcow2")
+
 
 class TestDrive:
     """Unit tests for Drive object."""

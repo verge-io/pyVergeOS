@@ -8,6 +8,19 @@ This example demonstrates creating a VM with:
 - 1 NIC connected to the External network
 - VergeOS installation ISO attached as CD-ROM
 
+Usage:
+    # Create VM (stopped by default)
+    python CreateVM.py
+
+    # Create VM and power it on
+    python CreateVM.py --power-on
+
+    # Create VM with custom name
+    python CreateVM.py --vm-name my-test-vm
+
+    # Create VM and keep it (skip cleanup)
+    python CreateVM.py --no-cleanup
+
 Requirements:
 - A VergeOS system with:
   - An "External" network
@@ -15,6 +28,7 @@ Requirements:
   - The ISO file "verge-io-install-26.0.1.2.iso" uploaded to files
 """
 
+import argparse
 import sys
 import time
 
@@ -25,12 +39,14 @@ from pyvergeos.exceptions import NotFoundError, VergeError
 def create_configured_vm(
     client: VergeClient,
     vm_name: str = "pstest-001",
+    power_on: bool = False,
 ) -> int:
     """Create a fully configured VM.
 
     Args:
         client: Connected VergeClient instance.
         vm_name: Name for the new VM.
+        power_on: Whether to power on the VM after creation.
 
     Returns:
         The created VM's $key.
@@ -136,6 +152,16 @@ def create_configured_vm(
     for nic in vm.nics.list():
         print(f"  - {nic.name}: {nic.network_name} ({nic.interface_display})")
 
+    # Power on if requested
+    if power_on:
+        print("\n6. Powering on VM...")
+        vm.power_on()
+        print(f"   VM {vm.name} is starting")
+        # Wait briefly for status to update
+        time.sleep(2)
+        vm = client.vms.get(vm.key)  # Refresh
+        print(f"   Status: {vm.status}")
+
     print()
     print(f"Web Console: https://{client.host}/#/vm-console/{vm.key}")
 
@@ -176,9 +202,43 @@ def main() -> int:
     """Main entry point."""
     import os
 
+    parser = argparse.ArgumentParser(
+        description="Create a fully configured VM with pyvergeos",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                          # Create VM (stopped)
+  %(prog)s --power-on               # Create and start VM
+  %(prog)s --vm-name my-vm          # Custom VM name
+  %(prog)s --no-cleanup             # Keep VM after creation
+  %(prog)s --power-on --no-cleanup  # Create, start, and keep
+        """,
+    )
+    parser.add_argument(
+        "--vm-name",
+        default="pstest-001",
+        help="Name for the VM (default: pstest-001)",
+    )
+    parser.add_argument(
+        "--power-on",
+        action="store_true",
+        help="Power on the VM after creation",
+    )
+    parser.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="Skip cleanup (keep VM after example completes)",
+    )
+
+    args = parser.parse_args()
+
     print("=" * 40)
     print("pyvergeos CreateVM Example")
     print("=" * 40)
+    print()
+    print(f"VM Name:   {args.vm_name}")
+    print(f"Power On:  {'Yes' if args.power_on else 'No'}")
+    print(f"Cleanup:   {'No' if args.no_cleanup else 'Yes'}")
     print()
 
     # Configuration from environment variables
@@ -186,8 +246,6 @@ def main() -> int:
     if not host:
         print("Error: VERGE_HOST environment variable not set")
         return 1
-
-    vm_name = "pstest-001"
 
     # Connect to VergeOS
     print(f"Connecting to {host}...")
@@ -198,8 +256,8 @@ def main() -> int:
 
             # Check if VM already exists
             try:
-                existing = client.vms.get(name=vm_name)
-                print(f"VM '{vm_name}' already exists (key={existing.key}).")
+                existing = client.vms.get(name=args.vm_name)
+                print(f"VM '{args.vm_name}' already exists (key={existing.key}).")
                 print("Cleaning up existing VM first...")
                 cleanup_vm(client, existing.key)
                 print()
@@ -207,14 +265,24 @@ def main() -> int:
                 pass  # VM doesn't exist, proceed with creation
 
             # Create the VM
-            vm_key = create_configured_vm(client, vm_name)
+            vm_key = create_configured_vm(
+                client,
+                args.vm_name,
+                power_on=args.power_on,
+            )
 
-            # Wait a moment
-            print("\nWaiting 5 seconds before cleanup...")
-            time.sleep(5)
-
-            # Clean up
-            cleanup_vm(client, vm_key)
+            # Clean up unless --no-cleanup specified
+            if not args.no_cleanup:
+                print("\nWaiting 5 seconds before cleanup...")
+                time.sleep(5)
+                cleanup_vm(client, vm_key)
+            else:
+                print()
+                print("=" * 40)
+                print("SKIPPING CLEANUP")
+                print("=" * 40)
+                print(f"VM '{args.vm_name}' (key={vm_key}) left for inspection.")
+                print("Delete manually when done.")
 
             print()
             print("Example completed successfully!")

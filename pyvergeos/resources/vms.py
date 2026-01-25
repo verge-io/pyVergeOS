@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -96,7 +97,7 @@ class VM(ResourceObject):
             body["params"] = {"preferred_node": preferred_node}
 
         self._manager._client._request("POST", "vm_actions", json_data=body)
-        return self  # type: ignore[return-value]
+        return self
 
     def power_off(self, force: bool = False) -> VM:
         """Power off the VM.
@@ -113,28 +114,28 @@ class VM(ResourceObject):
         self._manager._client._request(
             "POST", "vm_actions", json_data={"vm": self.key, "action": action}
         )
-        return self  # type: ignore[return-value]
+        return self
 
     def reset(self) -> VM:
         """Reset VM (hard reboot)."""
         self._manager._client._request(
             "POST", "vm_actions", json_data={"vm": self.key, "action": "reset"}
         )
-        return self  # type: ignore[return-value]
+        return self
 
     def guest_reboot(self) -> VM:
         """Send reboot signal to guest OS (requires guest agent)."""
         self._manager._client._request(
             "POST", "vm_actions", json_data={"vm": self.key, "action": "guestreset"}
         )
-        return self  # type: ignore[return-value]
+        return self
 
     def guest_shutdown(self) -> VM:
         """Send shutdown signal to guest OS (requires guest agent)."""
         self._manager._client._request(
             "POST", "vm_actions", json_data={"vm": self.key, "action": "guestshutdown"}
         )
-        return self  # type: ignore[return-value]
+        return self
 
     def snapshot(
         self,
@@ -336,7 +337,7 @@ class VMManager(ResourceManager[VM]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: list[str] | None = None,
+        fields: builtins.list[str] | None = None,
     ) -> VM:
         """Get a single VM by key or name.
 
@@ -356,17 +357,17 @@ class VMManager(ResourceManager[VM]):
             fields = self._default_fields
         return super().get(key, name=name, fields=fields)
 
-    def list_running(self) -> list[VM]:
+    def list_running(self) -> builtins.list[VM]:
         """List all running VMs."""
         # Filter post-query since API doesn't support filtering on joined fields
         return [vm for vm in self.list() if vm.is_running]
 
-    def list_stopped(self) -> list[VM]:
+    def list_stopped(self) -> builtins.list[VM]:
         """List all stopped VMs."""
         # Filter post-query since API doesn't support filtering on joined fields
         return [vm for vm in self.list() if not vm.is_running]
 
-    def create(
+    def create(  # type: ignore[override]
         self,
         name: str,
         ram: int = 1024,
