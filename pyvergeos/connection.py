@@ -2,9 +2,9 @@
 
 from base64 import b64encode
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Dict, Optional
+from typing import Optional
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -85,9 +85,7 @@ class VergeConnection:
         """
         if not self.is_connected:
             return False
-        if self.token_expires and datetime.utcnow() >= self.token_expires:
-            return False
-        return True
+        return not (self.token_expires and datetime.now(UTC) >= self.token_expires)
 
     def disconnect(self) -> None:
         """Clear connection state and close session."""
@@ -104,7 +102,7 @@ def build_auth_header(
     username: Optional[str] = None,
     password: Optional[str] = None,
     token: Optional[str] = None,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Build the Authorization header based on auth method.
 
     Args:

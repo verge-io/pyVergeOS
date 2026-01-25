@@ -1,7 +1,7 @@
 """OData-style filter expression builder for VergeOS API queries."""
 
 from enum import Enum
-from typing import Any, List, Union
+from typing import Any, Union
 
 
 class FilterOperator(Enum):
@@ -28,7 +28,7 @@ class Filter:
     """
 
     def __init__(self) -> None:
-        self._parts: List[str] = []
+        self._parts: list[str] = []
 
     def _add(self, field: str, op: FilterOperator, value: Any) -> "Filter":
         """Add a filter condition."""
@@ -44,10 +44,9 @@ class Filter:
             formatted = ", ".join(self._format_single(v) for v in value)
             return f"({formatted})"
 
-        if op == FilterOperator.LIKE:
+        if op == FilterOperator.LIKE and isinstance(value, str):
             # Convert wildcards: * -> %, ? -> _
-            if isinstance(value, str):
-                value = value.replace("*", "%").replace("?", "_")
+            value = value.replace("*", "%").replace("?", "_")
 
         return self._format_single(value)
 
@@ -103,7 +102,7 @@ class Filter:
         self._auto_and()
         return self._add(field, FilterOperator.LIKE, pattern)
 
-    def in_(self, field: str, values: Union[List[Any], Any]) -> "Filter":
+    def in_(self, field: str, values: Union[list[Any], Any]) -> "Filter":
         """Add IN condition."""
         self._auto_and()
         return self._add(field, FilterOperator.IN, values)

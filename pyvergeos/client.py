@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import requests
 
@@ -61,9 +61,9 @@ class VergeClient:
     def __init__(
         self,
         host: str,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        token: Optional[str] = None,
+        username: str | None = None,
+        password: str | None = None,
+        token: str | None = None,
         verify_ssl: bool = True,
         timeout: int = 30,
         auto_connect: bool = True,
@@ -89,17 +89,17 @@ class VergeClient:
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
-        self._connection: Optional[VergeConnection] = None
+        self._connection: VergeConnection | None = None
 
         # Resource managers (lazy-loaded)
-        self._vms: Optional[VMManager] = None
-        self._networks: Optional[NetworkManager] = None
-        self._tenants: Optional[TenantManager] = None
-        self._users: Optional[UserManager] = None
-        self._groups: Optional[GroupManager] = None
-        self._clusters: Optional[ClusterManager] = None
-        self._nodes: Optional[NodeManager] = None
-        self._tasks: Optional[TaskManager] = None
+        self._vms: VMManager | None = None
+        self._networks: NetworkManager | None = None
+        self._tenants: TenantManager | None = None
+        self._users: UserManager | None = None
+        self._groups: GroupManager | None = None
+        self._clusters: ClusterManager | None = None
+        self._nodes: NodeManager | None = None
+        self._tasks: TaskManager | None = None
 
         if auto_connect:
             self.connect()
@@ -208,9 +208,12 @@ class VergeClient:
 
             if resp.status_code == 200 and resp.text:
                 response = resp.json()
+                # Response can be a dict or a list with one item
+                if isinstance(response, list) and len(response) > 0:
+                    response = response[0]
                 if isinstance(response, dict):
                     self._connection.vergeos_version = response.get("yb_version")
-                    self._connection.connected_at = datetime.utcnow()
+                    self._connection.connected_at = datetime.now(UTC)
                     self._connection.is_connected = True
                     return
 
@@ -235,7 +238,7 @@ class VergeClient:
         return self._connection is not None and self._connection.is_connected
 
     @property
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         """Get VergeOS version."""
         if self._connection:
             return self._connection.vergeos_version
@@ -246,9 +249,9 @@ class VergeClient:
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: Any | None,
     ) -> None:
         self.disconnect()
 
@@ -256,10 +259,10 @@ class VergeClient:
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
-        timeout: Optional[int] = None,
-    ) -> Union[Dict[str, Any], List[Any], None]:
+        params: dict[str, Any] | None = None,
+        json_data: dict[str, Any] | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any] | list[Any] | None:
         """Make an HTTP request to the VergeOS API.
 
         Args:
@@ -303,9 +306,7 @@ class VergeClient:
         except requests.exceptions.ConnectionError as e:
             raise VergeConnectionError(f"Connection to {self.host} failed: {e}") from e
 
-    def _handle_response(
-        self, response: requests.Response
-    ) -> Union[Dict[str, Any], List[Any], None]:
+    def _handle_response(self, response: requests.Response) -> dict[str, Any] | list[Any] | None:
         """Handle API response and raise appropriate exceptions."""
         # Success responses
         if response.status_code in (200, 201):

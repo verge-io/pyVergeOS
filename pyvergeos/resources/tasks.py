@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import TaskError, TaskTimeoutError
 from pyvergeos.resources.base import ResourceManager, ResourceObject
@@ -44,7 +44,7 @@ class TaskManager(ResourceManager[Task]):
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
 
-    def _to_model(self, data: Dict[str, Any]) -> Task:
+    def _to_model(self, data: dict[str, Any]) -> Task:
         return Task(data, self)
 
     def wait(

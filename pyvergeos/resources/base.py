@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Dict, Generic, List, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
@@ -14,14 +15,14 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound="ResourceObject")
 
 
-class ResourceObject(Dict[str, Any]):
+class ResourceObject(dict[str, Any]):
     """Dict subclass with attribute access and resource methods.
 
     Provides a dict-like object that also supports attribute access
     and common resource operations like refresh, save, and delete.
     """
 
-    def __init__(self, data: Dict[str, Any], manager: ResourceManager[Any]) -> None:
+    def __init__(self, data: dict[str, Any], manager: ResourceManager[Any]) -> None:
         super().__init__(data)
         self._manager = manager
 
@@ -96,12 +97,12 @@ class ResourceManager(Generic[T]):
 
     def list(
         self,
-        filter: Optional[str] = None,
-        fields: Optional[List[str]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        filter: str | None = None,
+        fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **filter_kwargs: Any,
-    ) -> List[T]:
+    ) -> builtins.list[T]:
         """List resources with optional filtering.
 
         Args:
@@ -114,7 +115,7 @@ class ResourceManager(Generic[T]):
         Returns:
             List of resource objects.
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
 
         # Build filter
         if filter:
@@ -144,10 +145,10 @@ class ResourceManager(Generic[T]):
 
     def get(
         self,
-        key: Optional[int] = None,
+        key: int | None = None,
         *,
-        name: Optional[str] = None,
-        fields: Optional[List[str]] = None,
+        name: str | None = None,
+        fields: builtins.list[str] | None = None,
     ) -> T:
         """Get a single resource by key or name.
 
@@ -165,7 +166,7 @@ class ResourceManager(Generic[T]):
         """
         if key is not None:
             # Direct fetch by key
-            params: Dict[str, Any] = {}
+            params: dict[str, Any] = {}
             if fields:
                 params["fields"] = ",".join(fields)
 
@@ -222,7 +223,7 @@ class ResourceManager(Generic[T]):
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
-    def action(self, key: int, action_name: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
+    def action(self, key: int, action_name: str, **kwargs: Any) -> dict[str, Any] | None:
         """Execute an action on a resource.
 
         Args:
@@ -239,7 +240,7 @@ class ResourceManager(Generic[T]):
             return response
         return None
 
-    def _to_model(self, data: Dict[str, Any]) -> T:
+    def _to_model(self, data: dict[str, Any]) -> T:
         """Convert API response to model object.
 
         Override in subclasses to return specific model types.

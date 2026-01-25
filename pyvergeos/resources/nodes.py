@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -32,5 +32,5 @@ class NodeManager(ResourceManager[Node]):
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
 
-    def _to_model(self, data: Dict[str, Any]) -> Node:
+    def _to_model(self, data: dict[str, Any]) -> Node:
         return Node(data, self)

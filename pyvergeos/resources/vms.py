@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class VM(ResourceObject):
     """Virtual Machine resource object."""
 
-    def power_on(self, preferred_node: Optional[int] = None) -> VM:
+    def power_on(self, preferred_node: int | None = None) -> VM:
         """Power on the VM.
 
         Args:
@@ -25,7 +25,7 @@ class VM(ResourceObject):
         Returns:
             Self for chaining.
         """
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         if preferred_node is not None:
             kwargs["preferred_node"] = preferred_node
         self._manager.action(self.key, "poweron", **kwargs)
@@ -55,7 +55,7 @@ class VM(ResourceObject):
         self,
         retention: int = 86400,
         quiesce: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Take a VM snapshot.
 
         Args:
@@ -74,9 +74,9 @@ class VM(ResourceObject):
 
     def clone(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         preserve_macs: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Clone this VM.
 
         Args:
@@ -86,7 +86,7 @@ class VM(ResourceObject):
         Returns:
             Clone task information with new VM key.
         """
-        kwargs: Dict[str, Any] = {"preserve_macs": preserve_macs}
+        kwargs: dict[str, Any] = {"preserve_macs": preserve_macs}
         if name:
             kwargs["name"] = name
         return self._manager.action(self.key, "clone", **kwargs)
@@ -110,14 +110,14 @@ class VMManager(ResourceManager[VM]):
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
 
-    def _to_model(self, data: Dict[str, Any]) -> VM:
+    def _to_model(self, data: dict[str, Any]) -> VM:
         return VM(data, self)
 
-    def list_running(self) -> List[VM]:
+    def list_running(self) -> list[VM]:
         """List all running VMs."""
         return self.list(filter="powerstate eq true and is_snapshot eq false")
 
-    def list_stopped(self) -> List[VM]:
+    def list_stopped(self) -> list[VM]:
         """List all stopped VMs."""
         return self.list(filter="powerstate eq false and is_snapshot eq false")
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -28,7 +28,7 @@ class Tenant(ResourceObject):
         self._manager.action(self.key, "reset")
         return self  # type: ignore[return-value]
 
-    def clone(self, name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def clone(self, name: str | None = None) -> dict[str, Any] | None:
         """Clone this tenant.
 
         Args:
@@ -37,7 +37,7 @@ class Tenant(ResourceObject):
         Returns:
             Clone task information.
         """
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         if name:
             kwargs["name"] = name
         return self._manager.action(self.key, "clone", **kwargs)
@@ -56,10 +56,10 @@ class TenantManager(ResourceManager[Tenant]):
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
 
-    def _to_model(self, data: Dict[str, Any]) -> Tenant:
+    def _to_model(self, data: dict[str, Any]) -> Tenant:
         return Tenant(data, self)
 
-    def list_running(self) -> List[Tenant]:
+    def list_running(self) -> list[Tenant]:
         """List all running tenants."""
         return self.list(filter="powerstate eq true")
 

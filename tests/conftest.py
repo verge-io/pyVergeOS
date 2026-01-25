@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Generator
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -54,7 +54,7 @@ def mock_client(mock_session: MagicMock) -> VergeClient:
 
 
 @pytest.fixture
-def sample_vm_data() -> Dict[str, Any]:
+def sample_vm_data() -> dict[str, Any]:
     """Sample VM data for tests."""
     return {
         "$key": 123,
@@ -70,7 +70,7 @@ def sample_vm_data() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_network_data() -> Dict[str, Any]:
+def sample_network_data() -> dict[str, Any]:
     """Sample network data for tests."""
     return {
         "$key": 100,

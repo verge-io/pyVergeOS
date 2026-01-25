@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -76,18 +76,18 @@ class NetworkManager(ResourceManager[Network]):
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
 
-    def _to_model(self, data: Dict[str, Any]) -> Network:
+    def _to_model(self, data: dict[str, Any]) -> Network:
         return Network(data, self)
 
-    def list_internal(self) -> List[Network]:
+    def list_internal(self) -> list[Network]:
         """List internal networks."""
         return self.list(filter="type eq 'internal'")
 
-    def list_external(self) -> List[Network]:
+    def list_external(self) -> list[Network]:
         """List external networks."""
         return self.list(filter="type eq 'external'")
 
-    def list_running(self) -> List[Network]:
+    def list_running(self) -> list[Network]:
         """List all running networks."""
         return self.list(filter="powerstate eq true")
 
@@ -95,8 +95,8 @@ class NetworkManager(ResourceManager[Network]):
         self,
         name: str,
         network_type: str = "internal",
-        network_address: Optional[str] = None,
-        ip_address: Optional[str] = None,
+        network_address: str | None = None,
+        ip_address: str | None = None,
         dhcp_enabled: bool = False,
         description: str = "",
         **kwargs: Any,
@@ -115,7 +115,7 @@ class NetworkManager(ResourceManager[Network]):
         Returns:
             Created network object.
         """
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "name": name,
             "type": network_type,
             "dhcp_enabled": dhcp_enabled,

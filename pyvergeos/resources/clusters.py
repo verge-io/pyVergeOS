@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -27,5 +27,5 @@ class ClusterManager(ResourceManager[Cluster]):
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
 
-    def _to_model(self, data: Dict[str, Any]) -> Cluster:
+    def _to_model(self, data: dict[str, Any]) -> Cluster:
         return Cluster(data, self)
