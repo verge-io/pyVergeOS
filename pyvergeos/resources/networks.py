@@ -9,6 +9,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.aliases import NetworkAliasManager
     from pyvergeos.resources.rules import NetworkRuleManager
 
 
@@ -160,6 +161,34 @@ class Network(ResourceObject):
         from pyvergeos.resources.rules import NetworkRuleManager
 
         return NetworkRuleManager(self._manager._client, self)
+
+    @property
+    def aliases(self) -> NetworkAliasManager:
+        """Access IP aliases for this network.
+
+        Returns:
+            NetworkAliasManager for this network.
+
+        Examples:
+            List all aliases::
+
+                aliases = network.aliases.list()
+
+            Create an alias::
+
+                alias = network.aliases.create(
+                    ip="10.0.0.100",
+                    name="webserver",
+                    description="Main web server"
+                )
+
+            Get alias by IP::
+
+                alias = network.aliases.get(ip="10.0.0.100")
+        """
+        from pyvergeos.resources.aliases import NetworkAliasManager
+
+        return NetworkAliasManager(self._manager._client, self)
 
 
 class NetworkManager(ResourceManager[Network]):
