@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.hosts import NetworkHostManager
     from pyvergeos.resources.ipsec import IPSecConnectionManager
     from pyvergeos.resources.rules import NetworkRuleManager
+    from pyvergeos.resources.wireguard import WireGuardManager
 
 
 # Default fields to request for comprehensive network data
@@ -367,6 +368,55 @@ class Network(ResourceObject):
         from pyvergeos.resources.ipsec import IPSecConnectionManager
 
         return IPSecConnectionManager(self._manager._client, self)
+
+    @property
+    def wireguard(self) -> WireGuardManager:
+        """Access WireGuard VPN interfaces for this network.
+
+        Returns:
+            WireGuardManager for this network.
+
+        Examples:
+            List all WireGuard interfaces::
+
+                interfaces = network.wireguard.list()
+
+            Get an interface by name::
+
+                wg = network.wireguard.get(name="wg0")
+
+            Create an interface::
+
+                wg = network.wireguard.create(
+                    name="wg0",
+                    ip_address="10.100.0.1/24",
+                    listen_port=51820
+                )
+
+            Access peers::
+
+                peers = wg.peers.list()
+
+            Create a peer::
+
+                peer = wg.peers.create(
+                    name="remote-office",
+                    peer_ip="10.100.0.2",
+                    public_key="abc123...",
+                    allowed_ips="192.168.1.0/24"
+                )
+
+            Get peer configuration::
+
+                config = peer.get_config()
+
+        Note:
+            WireGuard configuration changes may require applying firewall rules
+            on the network for changes to take effect.
+        """
+        from pyvergeos.resources.wireguard import WireGuardManager
+
+        return WireGuardManager(self._manager._client, self)
 
     def diagnostics(
         self,
