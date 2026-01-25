@@ -5,15 +5,17 @@ from unittest.mock import MagicMock, patch
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.nas import (
+from pyvergeos.resources.nas_services import (
     CIFSSettings,
     NASService,
     NASServiceManager,
+    NFSSettings,
+)
+from pyvergeos.resources.nas_volumes import (
     NASVolume,
     NASVolumeManager,
     NASVolumeSnapshot,
     NASVolumeSnapshotManager,
-    NFSSettings,
 )
 
 

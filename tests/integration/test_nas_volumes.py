@@ -13,11 +13,8 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.nas import (
-    NASService,
-    NASVolume,
-    NASVolumeSnapshot,
-)
+from pyvergeos.resources.nas_services import NASService
+from pyvergeos.resources.nas_volumes import NASVolume, NASVolumeSnapshot
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
