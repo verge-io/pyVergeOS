@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.aliases import NetworkAliasManager
     from pyvergeos.resources.dns import DNSZoneManager
     from pyvergeos.resources.hosts import NetworkHostManager
+    from pyvergeos.resources.ipsec import IPSecConnectionManager
     from pyvergeos.resources.rules import NetworkRuleManager
 
 
@@ -322,6 +323,50 @@ class Network(ResourceObject):
         from pyvergeos.resources.dns import DNSZoneManager
 
         return DNSZoneManager(self._manager._client, self)
+
+    @property
+    def ipsec(self) -> IPSecConnectionManager:
+        """Access IPSec VPN connections for this network.
+
+        Returns:
+            IPSecConnectionManager for this network.
+
+        Examples:
+            List all IPSec connections::
+
+                connections = network.ipsec.list()
+
+            Get a connection by name::
+
+                conn = network.ipsec.get(name="Site-B")
+
+            Create a connection::
+
+                conn = network.ipsec.create(
+                    name="Site-B",
+                    remote_gateway="203.0.113.1",
+                    pre_shared_key="MySecretKey123"
+                )
+
+            Access Phase 2 policies::
+
+                policies = conn.policies.list()
+
+            Create a Phase 2 policy::
+
+                policy = conn.policies.create(
+                    name="LAN-to-LAN",
+                    local_network="10.0.0.0/24",
+                    remote_network="192.168.1.0/24"
+                )
+
+        Note:
+            IPSec configuration changes may require applying firewall rules
+            on the network for changes to take effect.
+        """
+        from pyvergeos.resources.ipsec import IPSecConnectionManager
+
+        return IPSecConnectionManager(self._manager._client, self)
 
     def diagnostics(
         self,
