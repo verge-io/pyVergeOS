@@ -10,6 +10,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.aliases import NetworkAliasManager
+    from pyvergeos.resources.dns import DNSZoneManager
     from pyvergeos.resources.hosts import NetworkHostManager
     from pyvergeos.resources.rules import NetworkRuleManager
 
@@ -220,6 +221,42 @@ class Network(ResourceObject):
         from pyvergeos.resources.hosts import NetworkHostManager
 
         return NetworkHostManager(self._manager._client, self)
+
+    @property
+    def dns_zones(self) -> DNSZoneManager:
+        """Access DNS zones for this network.
+
+        Returns:
+            DNSZoneManager for this network.
+
+        Examples:
+            List all DNS zones::
+
+                zones = network.dns_zones.list()
+
+            Get a zone by domain::
+
+                zone = network.dns_zones.get(domain="example.com")
+
+            List records in a zone::
+
+                records = zone.records.list()
+
+            Create a DNS record::
+
+                record = zone.records.create(
+                    host="www",
+                    record_type="A",
+                    value="10.0.0.100"
+                )
+
+        Note:
+            DNS zones are typically created through the VergeOS UI.
+            DNS changes require DNS apply on the network to take effect.
+        """
+        from pyvergeos.resources.dns import DNSZoneManager
+
+        return DNSZoneManager(self._manager._client, self)
 
 
 class NetworkManager(ResourceManager[Network]):
