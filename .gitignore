@@ -58,3 +58,4 @@ Thumbs.db
 # Debug / Logs
 *.log
 debug/
+loop.sh
