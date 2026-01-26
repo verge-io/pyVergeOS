@@ -22,6 +22,7 @@ from pyvergeos.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from pyvergeos.resources.api_keys import APIKeyManager
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
@@ -104,6 +105,7 @@ class VergeClient:
         self._networks: NetworkManager | None = None
         self._tenants: TenantManager | None = None
         self._users: UserManager | None = None
+        self._api_keys: APIKeyManager | None = None
         self._groups: GroupManager | None = None
         self._clusters: ClusterManager | None = None
         self._nodes: NodeManager | None = None
@@ -413,6 +415,15 @@ class VergeClient:
 
             self._users = UserManager(self)
         return self._users
+
+    @property
+    def api_keys(self) -> APIKeyManager:
+        """Access API key operations."""
+        if self._api_keys is None:
+            from pyvergeos.resources.api_keys import APIKeyManager
+
+            self._api_keys = APIKeyManager(self)
+        return self._api_keys
 
     @property
     def groups(self) -> GroupManager:
