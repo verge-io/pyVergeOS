@@ -16,6 +16,8 @@ from pyvergeos.resources.tenants import (
     TenantManager,
     TenantSnapshot,
     TenantSnapshotManager,
+    TenantStorage,
+    TenantStorageManager,
 )
 
 
@@ -1135,3 +1137,569 @@ class TestTenantSnapshotsProperty:
         manager = tenant.snapshots
 
         assert manager._tenant.key == tenant.key
+
+
+class TestTenantStorage:
+    """Unit tests for TenantStorage object."""
+
+    @pytest.fixture
+    def storage_data(self) -> dict[str, Any]:
+        """Sample storage allocation data."""
+        return {
+            "$key": 7,
+            "tenant": 100,
+            "tier": 1,
+            "tier_number": 1,
+            "tier_description": "Fast SSD",
+            "provisioned": 10737418240,  # 10 GB
+            "used": 1073741824,  # 1 GB
+            "allocated": 2147483648,  # 2 GB
+            "used_pct": 10,
+            "last_update": 1737900000,
+        }
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_storage_properties(
+        self, storage_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test storage property accessors."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantStorageManager(mock_client, tenant)
+        storage = TenantStorage(storage_data, manager)
+
+        assert storage.key == 7
+        assert storage.tenant_key == 100
+        assert storage.tier_key == 1
+        assert storage.tier == 1
+        assert storage.tier_name == "Tier 1"
+        assert storage.tier_description == "Fast SSD"
+        assert storage.provisioned_bytes == 10737418240
+        assert storage.provisioned_gb == 10.0
+        assert storage.used_bytes == 1073741824
+        assert storage.used_gb == 1.0
+        assert storage.allocated_bytes == 2147483648
+        assert storage.allocated_gb == 2.0
+        assert storage.used_percent == 10
+        assert storage.free_bytes == 10737418240 - 1073741824
+        assert storage.free_gb == round((10737418240 - 1073741824) / 1073741824, 2)
+
+    def test_storage_last_update(
+        self, storage_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test last_update datetime conversion."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantStorageManager(mock_client, tenant)
+        storage = TenantStorage(storage_data, manager)
+
+        last_update = storage.last_update
+        assert last_update is not None
+        assert isinstance(last_update, datetime)
+        assert last_update.tzinfo == timezone.utc
+
+    def test_storage_repr(
+        self, storage_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test storage __repr__."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantStorageManager(mock_client, tenant)
+        storage = TenantStorage(storage_data, manager)
+
+        repr_str = repr(storage)
+        assert "Tier 1" in repr_str
+        assert "10.0" in repr_str
+        assert "10%" in repr_str
+
+
+class TestTenantStorageManager:
+    """Unit tests for TenantStorageManager."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def storage_data(self) -> dict[str, Any]:
+        """Sample storage allocation data."""
+        return {
+            "$key": 7,
+            "tenant": 100,
+            "tier": 1,
+            "tier_number": 1,
+            "tier_description": "Fast SSD",
+            "provisioned": 10737418240,
+            "used": 0,
+            "allocated": 0,
+            "used_pct": 0,
+            "last_update": 1737900000,
+        }
+
+    def test_list_storage(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test listing tenant storage allocations."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "tenant": 100, "tier_number": 1, "provisioned": 10737418240},
+            {"$key": 2, "tenant": 100, "tier_number": 3, "provisioned": 53687091200},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        allocations = tenant.storage.list()
+
+        assert len(allocations) == 2
+        assert allocations[0].tier == 1
+        assert allocations[1].tier == 3
+
+    def test_list_storage_filters_by_tenant(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that list() filters by tenant key."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.storage.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "tenant eq 100" in params.get("filter", "")
+
+    def test_list_storage_with_tier_filter(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() filters by tier number."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "tenant": 100, "tier_number": 1, "provisioned": 10737418240},
+            {"$key": 2, "tenant": 100, "tier_number": 3, "provisioned": 53687091200},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        allocations = tenant.storage.list(tier=1)
+
+        assert len(allocations) == 1
+        assert allocations[0].tier == 1
+
+    def test_get_storage_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test getting storage allocation by key."""
+        mock_session.request.return_value.json.return_value = storage_data
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        allocation = tenant.storage.get(7)
+
+        assert allocation.key == 7
+        assert allocation.tier == 1
+
+    def test_get_storage_by_tier(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test getting storage allocation by tier number."""
+        mock_session.request.return_value.json.return_value = [storage_data]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        allocation = tenant.storage.get(tier=1)
+
+        assert allocation.tier == 1
+
+    def test_get_storage_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when storage allocation not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.storage.get(tier=2)
+
+    def test_get_storage_requires_key_or_tier(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither key nor tier provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either key or tier must be provided"):
+            tenant.storage.get()
+
+    @patch("time.sleep")
+    def test_create_storage(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test creating a storage allocation."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 1, "tier": 1}],  # GET storage_tiers
+            {},  # POST response
+            [storage_data],  # GET to fetch created allocation
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        allocation = tenant.storage.create(tier=1, provisioned_gb=10)
+
+        assert allocation.tier == 1
+        assert allocation.provisioned_bytes == 10737418240
+
+        # Find the POST request to tenant_storage
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_storage" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["tier"] == 1
+        assert body["provisioned"] == 10 * 1073741824
+
+    @patch("time.sleep")
+    def test_create_storage_with_bytes(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test creating storage allocation with provisioned_bytes."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 1, "tier": 1}],  # GET storage_tiers
+            {},  # POST response
+            [storage_data],  # GET to fetch created allocation
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.storage.create(tier=1, provisioned_bytes=5368709120)
+
+        # Find the POST request
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_storage" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["provisioned"] == 5368709120
+
+    def test_create_storage_on_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating storage on a tenant snapshot raises ValueError."""
+        tenant_data["is_snapshot"] = True
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Cannot add storage to a tenant snapshot"):
+            tenant.storage.create(tier=1, provisioned_gb=10)
+
+    def test_create_storage_invalid_tier_0_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating storage with tier 0 raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Invalid tier 0"):
+            tenant.storage.create(tier=0, provisioned_gb=10)
+
+    def test_create_storage_invalid_tier_6_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating storage with tier 6 raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Invalid tier 6"):
+            tenant.storage.create(tier=6, provisioned_gb=10)
+
+    def test_create_storage_no_size_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating storage without size raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Either provisioned_gb or provisioned_bytes"):
+            tenant.storage.create(tier=1)
+
+    def test_update_storage(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test updating a storage allocation."""
+        mock_session.request.return_value.json.return_value = {
+            **storage_data,
+            "provisioned": 21474836480,
+        }
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantStorageManager(mock_client, tenant)
+        allocation = manager.update(7, provisioned=21474836480)
+
+        assert allocation.provisioned_bytes == 21474836480
+
+    def test_update_storage_by_tier(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test updating storage allocation by tier."""
+        mock_session.request.return_value.json.side_effect = [
+            [storage_data],  # GET by tier
+            {**storage_data, "provisioned": 21474836480},  # PUT response
+            {**storage_data, "provisioned": 21474836480},  # GET updated
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        allocation = tenant.storage.update_by_tier(tier=1, provisioned_gb=20)
+
+        assert allocation.provisioned_bytes == 21474836480
+
+    def test_update_by_tier_no_size_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test update_by_tier without size raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Either provisioned_gb or provisioned_bytes"):
+            tenant.storage.update_by_tier(tier=1)
+
+    def test_delete_storage(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a storage allocation."""
+        mock_session.request.return_value.status_code = 204
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.storage.delete(7)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "DELETE"
+        assert "tenant_storage/7" in call_args.kwargs["url"]
+
+    def test_delete_storage_by_tier(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test deleting storage allocation by tier."""
+        # Need to create separate mock responses for each call
+        response1 = MagicMock()
+        response1.json.return_value = [storage_data]
+        response1.status_code = 200
+
+        response2 = MagicMock()
+        response2.status_code = 204
+        response2.text = ""
+
+        mock_session.request.side_effect = [response1, response2]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.storage.delete_by_tier(tier=1)
+
+        # Find the DELETE call
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "tenant_storage/7" in delete_call.kwargs["url"]
+
+
+class TestTenantStorageViaObject:
+    """Test storage operations via TenantStorage object."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def storage_data(self) -> dict[str, Any]:
+        """Sample storage allocation data."""
+        return {
+            "$key": 7,
+            "tenant": 100,
+            "tier": 1,
+            "tier_number": 1,
+            "provisioned": 10737418240,
+            "used": 0,
+            "allocated": 0,
+            "used_pct": 0,
+        }
+
+    def test_storage_save_method(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test save via storage object."""
+        mock_session.request.return_value.json.return_value = {
+            **storage_data,
+            "provisioned": 21474836480,
+        }
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantStorageManager(mock_client, tenant)
+        storage = TenantStorage(storage_data, manager)
+
+        updated = storage.save(provisioned_gb=20)
+
+        assert updated.provisioned_bytes == 21474836480
+
+    def test_storage_delete_method(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        storage_data: dict[str, Any],
+    ) -> None:
+        """Test delete via storage object."""
+        mock_session.request.return_value.status_code = 204
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantStorageManager(mock_client, tenant)
+        storage = TenantStorage(storage_data, manager)
+
+        storage.delete()
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "DELETE"
+        assert "tenant_storage/7" in call_args.kwargs["url"]
+
+
+class TestTenantStorageProperty:
+    """Test accessing storage via tenant.storage property."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_storage_property_returns_manager(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenant.storage returns TenantStorageManager."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.storage
+
+        assert isinstance(manager, TenantStorageManager)
+
+    def test_storage_manager_has_correct_tenant(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that storage manager references the correct tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.storage
+
+        assert manager._tenant.key == tenant.key
+
+
+class TestTenantManagerStorageMethod:
+    """Test TenantManager.storage() method."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_storage_method_returns_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenants.storage(key) returns TenantStorageManager."""
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        manager = mock_client.tenants.storage(100)
+
+        assert isinstance(manager, TenantStorageManager)
+        assert manager._tenant.key == 100

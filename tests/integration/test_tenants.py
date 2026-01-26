@@ -534,3 +534,265 @@ class TestTenantSnapshots:
         tenant_snapshot = tenant_snapshots[0]
         with pytest.raises(ValueError, match="Cannot create snapshot of a tenant snapshot"):
             tenant_snapshot.snapshots.create(name="should-fail")
+
+
+@pytest.mark.integration
+class TestTenantStorage:
+    """Integration tests for Tenant Storage operations."""
+
+    @pytest.fixture
+    def test_tenant(self, live_client: VergeClient):
+        """Create a test tenant for storage tests."""
+        import random
+
+        tenant_name = f"pysdk-storage-integ-{random.randint(10000, 99999)}"
+
+        tenant = live_client.tenants.create(
+            name=tenant_name,
+            description="Test tenant for storage integration tests",
+        )
+
+        yield tenant
+
+        # Cleanup: delete tenant (storage allocations will be deleted automatically)
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            live_client.tenants.delete(tenant.key)
+
+    def test_list_storage_empty(self, live_client: VergeClient, test_tenant) -> None:
+        """Test listing storage allocations on a new tenant returns empty list."""
+        allocations = test_tenant.storage.list()
+        assert isinstance(allocations, list)
+        assert len(allocations) == 0
+
+    def test_create_storage_allocation(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test creating a storage allocation."""
+        allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        assert allocation.tier == 1
+        assert allocation.tier_name == "Tier 1"
+        assert allocation.provisioned_gb == 10.0
+        assert allocation.provisioned_bytes == 10737418240
+        assert allocation.used_gb == 0.0
+        assert allocation.used_percent == 0
+
+        # Cleanup
+        test_tenant.storage.delete(allocation.key)
+
+    def test_create_storage_with_bytes(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test creating a storage allocation with bytes."""
+        allocation = test_tenant.storage.create(
+            tier=1, provisioned_bytes=5 * 1073741824
+        )
+
+        assert allocation.tier == 1
+        assert allocation.provisioned_gb == 5.0
+
+        # Cleanup
+        test_tenant.storage.delete(allocation.key)
+
+    def test_get_storage_by_tier(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test getting a storage allocation by tier number."""
+        # Create allocation first
+        test_tenant.storage.create(tier=1, provisioned_gb=15)
+
+        # Get by tier
+        allocation = test_tenant.storage.get(tier=1)
+
+        assert allocation.tier == 1
+        assert allocation.provisioned_gb == 15.0
+
+        # Cleanup
+        test_tenant.storage.delete(allocation.key)
+
+    def test_get_storage_by_key(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test getting a storage allocation by key."""
+        # Create allocation first
+        created = test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        # Get by key
+        allocation = test_tenant.storage.get(created.key)
+
+        assert allocation.key == created.key
+        assert allocation.tier == 1
+
+        # Cleanup
+        test_tenant.storage.delete(allocation.key)
+
+    def test_get_storage_not_found(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test getting a non-existent storage allocation."""
+        with pytest.raises(NotFoundError):
+            test_tenant.storage.get(tier=2)
+
+    def test_list_storage_after_create(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test listing storage allocations after creating one."""
+        test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        allocations = test_tenant.storage.list()
+        assert len(allocations) == 1
+        assert allocations[0].tier == 1
+
+        # Cleanup
+        test_tenant.storage.delete(allocations[0].key)
+
+    def test_list_storage_filter_by_tier(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test filtering storage allocations by tier."""
+        # Create multiple allocations (if tiers available)
+        alloc1 = test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        try:
+            alloc3 = test_tenant.storage.create(tier=3, provisioned_gb=50)
+            has_tier3 = True
+        except Exception:
+            has_tier3 = False
+
+        try:
+            # Filter by tier 1
+            tier1_allocs = test_tenant.storage.list(tier=1)
+            assert len(tier1_allocs) == 1
+            assert tier1_allocs[0].tier == 1
+
+            if has_tier3:
+                tier3_allocs = test_tenant.storage.list(tier=3)
+                assert len(tier3_allocs) == 1
+                assert tier3_allocs[0].tier == 3
+        finally:
+            test_tenant.storage.delete(alloc1.key)
+            if has_tier3:
+                test_tenant.storage.delete(alloc3.key)
+
+    def test_update_storage_allocation(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test updating a storage allocation."""
+        # Create allocation
+        allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        # Update by tier
+        updated = test_tenant.storage.update_by_tier(tier=1, provisioned_gb=20)
+
+        assert updated.provisioned_gb == 20.0
+        assert updated.provisioned_bytes == 21474836480
+
+        # Cleanup
+        test_tenant.storage.delete(allocation.key)
+
+    def test_delete_storage_by_tier(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test deleting a storage allocation by tier."""
+        # Create allocation
+        test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        # Delete by tier
+        test_tenant.storage.delete_by_tier(tier=1)
+
+        # Verify deletion
+        allocations = test_tenant.storage.list()
+        assert len(allocations) == 0
+
+    def test_storage_via_object_save(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test updating storage via the save method."""
+        allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        # Update via save
+        updated = allocation.save(provisioned_gb=25)
+
+        assert updated.provisioned_gb == 25.0
+
+        # Cleanup
+        test_tenant.storage.delete(updated.key)
+
+    def test_storage_via_object_delete(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test deleting storage via the delete method."""
+        allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        # Delete via object method
+        allocation.delete()
+
+        # Verify deletion
+        allocations = test_tenant.storage.list()
+        assert len(allocations) == 0
+
+    def test_storage_properties(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test storage allocation property accessors."""
+        allocation = test_tenant.storage.create(tier=1, provisioned_gb=20)
+
+        try:
+            # Test properties
+            assert allocation.tier == 1
+            assert allocation.tier_key > 0
+            assert allocation.tenant_key == test_tenant.key
+            assert allocation.provisioned_gb == 20.0
+            assert allocation.provisioned_bytes == 21474836480
+            assert allocation.used_gb >= 0.0
+            assert allocation.used_bytes >= 0
+            assert allocation.allocated_gb >= 0.0
+            assert allocation.allocated_bytes >= 0
+            assert allocation.free_gb >= 0.0
+            assert allocation.free_bytes >= 0
+            assert 0 <= allocation.used_percent <= 100
+            assert allocation.tier_name == "Tier 1"
+
+            # Last update should be set
+            if allocation.last_update is not None:
+                from datetime import datetime
+
+                assert isinstance(allocation.last_update, datetime)
+        finally:
+            test_tenant.storage.delete(allocation.key)
+
+    def test_create_storage_invalid_tier_raises(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that creating storage with invalid tier raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid tier 0"):
+            test_tenant.storage.create(tier=0, provisioned_gb=10)
+
+        with pytest.raises(ValueError, match="Invalid tier 6"):
+            test_tenant.storage.create(tier=6, provisioned_gb=10)
+
+    def test_create_storage_no_size_raises(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that creating storage without size raises ValueError."""
+        with pytest.raises(ValueError, match="Either provisioned_gb or provisioned_bytes"):
+            test_tenant.storage.create(tier=1)
+
+    def test_manager_storage_method(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test TenantManager.storage() direct access method."""
+        # Create allocation via tenant.storage
+        test_tenant.storage.create(tier=1, provisioned_gb=10)
+
+        # Access via manager method
+        storage_manager = live_client.tenants.storage(test_tenant.key)
+        allocations = storage_manager.list()
+
+        assert len(allocations) == 1
+        assert allocations[0].tier == 1
+
+        # Cleanup
+        storage_manager.delete(allocations[0].key)
