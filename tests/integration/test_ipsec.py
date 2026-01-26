@@ -7,6 +7,7 @@ Configure with environment variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import pytest
@@ -60,10 +61,8 @@ def cleanup_connections(test_network: Network):
 
     # Cleanup any connections we created (also removes policies)
     for key in created_keys:
-        try:
+        with contextlib.suppress(NotFoundError):
             test_network.ipsec.delete(key)
-        except NotFoundError:
-            pass  # Already deleted
 
 
 class TestIPSecConnectionManagerIntegration:
@@ -170,9 +169,7 @@ class TestIPSecConnectionManagerIntegration:
         with pytest.raises(NotFoundError):
             test_network.ipsec.get(name="nonexistent-connection-xyz")
 
-    def test_update_connection(
-        self, test_network: Network, cleanup_connections: list[int]
-    ) -> None:
+    def test_update_connection(self, test_network: Network, cleanup_connections: list[int]) -> None:
         """Test updating a connection."""
         conn = test_network.ipsec.create(
             name="pytest-ipsec-update",
@@ -195,9 +192,7 @@ class TestIPSecConnectionManagerIntegration:
 class TestIPSecPolicyManagerIntegration:
     """Integration tests for IPSecPolicyManager."""
 
-    def test_list_policies(
-        self, test_network: Network, cleanup_connections: list[int]
-    ) -> None:
+    def test_list_policies(self, test_network: Network, cleanup_connections: list[int]) -> None:
         """Test listing policies for a connection."""
         conn = test_network.ipsec.create(
             name="pytest-ipsec-policies",
@@ -272,9 +267,7 @@ class TestIPSecPolicyManagerIntegration:
         assert policy.get("lifetime") == 7200
         assert policy.get("ciphers") == "aes256-sha512-modp4096"
 
-    def test_get_policy_by_key(
-        self, test_network: Network, cleanup_connections: list[int]
-    ) -> None:
+    def test_get_policy_by_key(self, test_network: Network, cleanup_connections: list[int]) -> None:
         """Test getting a policy by key."""
         conn = test_network.ipsec.create(
             name="pytest-ipsec-getpolicy",
@@ -315,9 +308,7 @@ class TestIPSecPolicyManagerIntegration:
         assert fetched.key == created.key
         assert fetched.name == test_name
 
-    def test_update_policy(
-        self, test_network: Network, cleanup_connections: list[int]
-    ) -> None:
+    def test_update_policy(self, test_network: Network, cleanup_connections: list[int]) -> None:
         """Test updating a policy."""
         conn = test_network.ipsec.create(
             name="pytest-ipsec-updpolicy",
@@ -342,9 +333,7 @@ class TestIPSecPolicyManagerIntegration:
         assert updated.get("lifetime") == 7200
         assert updated.get("description") == "Updated policy"
 
-    def test_multiple_policies(
-        self, test_network: Network, cleanup_connections: list[int]
-    ) -> None:
+    def test_multiple_policies(self, test_network: Network, cleanup_connections: list[int]) -> None:
         """Test creating multiple policies on one connection."""
         conn = test_network.ipsec.create(
             name="pytest-ipsec-multipol",

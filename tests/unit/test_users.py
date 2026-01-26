@@ -400,7 +400,7 @@ class TestUserManager:
         manager, client = self._create_manager()
         client._request.return_value = [{"$key": 1, "name": "user1", "enabled": False}]
 
-        result = manager.list_disabled()
+        manager.list_disabled()
 
         call_args = client._request.call_args
         filter_param = call_args.kwargs["params"]["filter"]
@@ -411,7 +411,7 @@ class TestUserManager:
         manager, client = self._create_manager()
         client._request.return_value = [{"$key": 1, "name": "apiuser", "type": "api"}]
 
-        result = manager.list_api_users()
+        manager.list_api_users()
 
         call_args = client._request.call_args
         filter_param = call_args.kwargs["params"]["filter"]
@@ -422,7 +422,7 @@ class TestUserManager:
         manager, client = self._create_manager()
         client._request.return_value = [{"$key": 1, "name": "vdiuser", "type": "vdi"}]
 
-        result = manager.list_vdi_users()
+        manager.list_vdi_users()
 
         call_args = client._request.call_args
         filter_param = call_args.kwargs["params"]["filter"]
@@ -554,7 +554,7 @@ class TestUserManager:
             {"$key": 1, "name": "apiuser", "type": "api"},
         ]
 
-        result = manager.create(name="apiuser", password="pass123", user_type="api")
+        manager.create(name="apiuser", password="pass123", user_type="api")
 
         post_call = client._request.call_args_list[0]
         body = post_call.kwargs["json_data"]
@@ -635,9 +635,7 @@ class TestUserManager:
         manager, client = self._create_manager()
 
         with pytest.raises(ValueError, match="Email address is required"):
-            manager.create(
-                name="newuser", password="pass123", two_factor_enabled=True
-            )
+            manager.create(name="newuser", password="pass123", two_factor_enabled=True)
 
     def test_create_with_ssh_keys_list(self) -> None:
         """Test create with SSH keys as list."""
@@ -812,7 +810,7 @@ class TestUserManager:
         manager, client = self._create_manager()
         client._request.return_value = {"$key": 1, "name": "testuser"}
 
-        result = manager.update(1)
+        manager.update(1)
 
         # Should only call GET, not PUT
         assert client._request.call_count == 1

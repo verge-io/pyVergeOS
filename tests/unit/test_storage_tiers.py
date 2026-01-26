@@ -8,15 +8,13 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.storage_tiers import StorageTier, StorageTierManager
+from pyvergeos.resources.storage_tiers import StorageTier
 
 
 class TestStorageTierManager:
     """Unit tests for StorageTierManager."""
 
-    def test_list_storage_tiers(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_storage_tiers(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing storage tiers."""
         mock_session.request.return_value.json.return_value = [
             {
@@ -100,9 +98,7 @@ class TestStorageTierManager:
         with pytest.raises(NotFoundError):
             mock_client.storage_tiers.get(tier=99)
 
-    def test_get_summary(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_summary(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting storage summary."""
         mock_session.request.return_value.json.return_value = [
             {

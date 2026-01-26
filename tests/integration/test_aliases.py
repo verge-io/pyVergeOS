@@ -7,6 +7,7 @@ Configure with environment variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import pytest
@@ -61,10 +62,8 @@ def cleanup_aliases(test_network: Network):
 
     # Cleanup any aliases we created
     for key in created_keys:
-        try:
+        with contextlib.suppress(NotFoundError):
             test_network.aliases.delete(key)
-        except NotFoundError:
-            pass  # Already deleted
 
 
 class TestNetworkAliasManagerIntegration:
@@ -107,9 +106,7 @@ class TestNetworkAliasManagerIntegration:
         with pytest.raises(NotFoundError):
             test_network.aliases.get(alias.key)
 
-    def test_get_alias_by_key(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_get_alias_by_key(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test getting an alias by key."""
         # Create an alias
         created = test_network.aliases.create(
@@ -125,9 +122,7 @@ class TestNetworkAliasManagerIntegration:
         assert fetched.ip == created.ip
         assert fetched.hostname == created.hostname
 
-    def test_get_alias_by_ip(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_get_alias_by_ip(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test getting an alias by IP address."""
         test_ip = "192.168.200.102"
 
@@ -144,9 +139,7 @@ class TestNetworkAliasManagerIntegration:
         assert fetched.key == created.key
         assert fetched.ip == test_ip
 
-    def test_get_alias_by_hostname(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_get_alias_by_hostname(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test getting an alias by hostname."""
         test_hostname = "pytest-getbyhostname"
 
@@ -163,9 +156,7 @@ class TestNetworkAliasManagerIntegration:
         assert fetched.key == created.key
         assert fetched.hostname == test_hostname
 
-    def test_get_alias_by_name(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_get_alias_by_name(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test getting an alias by name (alias for hostname)."""
         test_name = "pytest-getbyname"
 
@@ -182,9 +173,7 @@ class TestNetworkAliasManagerIntegration:
         assert fetched.key == created.key
         assert fetched.hostname == test_name
 
-    def test_list_with_ip_filter(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_list_with_ip_filter(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test listing aliases with IP filter."""
         # Create two aliases
         alias1 = test_network.aliases.create(
@@ -254,9 +243,7 @@ class TestNetworkAliasManagerIntegration:
         # Description may be None or empty string
         assert alias.description is None or alias.description == ""
 
-    def test_alias_properties(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_alias_properties(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test all alias properties."""
         alias = test_network.aliases.create(
             ip="192.168.200.140",
@@ -276,9 +263,7 @@ class TestNetworkAliasManagerIntegration:
         # MAC is typically None or empty for IP aliases
         assert alias.mac is None or alias.mac == ""
 
-    def test_multiple_aliases(
-        self, test_network: Network, cleanup_aliases: list[int]
-    ) -> None:
+    def test_multiple_aliases(self, test_network: Network, cleanup_aliases: list[int]) -> None:
         """Test creating and listing multiple aliases."""
         # Create multiple aliases
         aliases = []

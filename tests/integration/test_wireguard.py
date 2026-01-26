@@ -8,6 +8,7 @@ Configure with environment variables:
 from __future__ import annotations
 
 import base64
+import contextlib
 import os
 import secrets
 
@@ -16,7 +17,7 @@ import pytest
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.networks import Network
-from pyvergeos.resources.wireguard import WireGuardInterface, WireGuardPeer
+from pyvergeos.resources.wireguard import WireGuardInterface
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
@@ -67,10 +68,8 @@ def cleanup_interfaces(test_network: Network):
 
     # Cleanup any interfaces we created (also removes peers)
     for key in created_keys:
-        try:
+        with contextlib.suppress(NotFoundError):
             test_network.wireguard.delete(key)
-        except NotFoundError:
-            pass  # Already deleted
 
 
 class TestWireGuardManagerIntegration:
@@ -175,9 +174,7 @@ class TestWireGuardManagerIntegration:
         with pytest.raises(NotFoundError):
             test_network.wireguard.get(name="nonexistent-interface-xyz")
 
-    def test_update_interface(
-        self, test_network: Network, cleanup_interfaces: list[int]
-    ) -> None:
+    def test_update_interface(self, test_network: Network, cleanup_interfaces: list[int]) -> None:
         """Test updating an interface."""
         iface = test_network.wireguard.create(
             name="pytest-wg-update",
@@ -199,9 +196,7 @@ class TestWireGuardManagerIntegration:
 class TestWireGuardPeerManagerIntegration:
     """Integration tests for WireGuardPeerManager."""
 
-    def test_list_peers(
-        self, test_network: Network, cleanup_interfaces: list[int]
-    ) -> None:
+    def test_list_peers(self, test_network: Network, cleanup_interfaces: list[int]) -> None:
         """Test listing peers for an interface."""
         iface = test_network.wireguard.create(
             name="pytest-wg-peers",
@@ -302,9 +297,7 @@ class TestWireGuardPeerManagerIntegration:
         assert "192.168.50.0/24" in peer.allowed_ips
         assert "192.168.51.0/24" in peer.allowed_ips
 
-    def test_get_peer_by_key(
-        self, test_network: Network, cleanup_interfaces: list[int]
-    ) -> None:
+    def test_get_peer_by_key(self, test_network: Network, cleanup_interfaces: list[int]) -> None:
         """Test getting a peer by key."""
         iface = test_network.wireguard.create(
             name="pytest-wg-getpeer",
@@ -324,9 +317,7 @@ class TestWireGuardPeerManagerIntegration:
         assert fetched.key == created.key
         assert fetched.name == created.name
 
-    def test_get_peer_by_name(
-        self, test_network: Network, cleanup_interfaces: list[int]
-    ) -> None:
+    def test_get_peer_by_name(self, test_network: Network, cleanup_interfaces: list[int]) -> None:
         """Test getting a peer by name."""
         iface = test_network.wireguard.create(
             name="pytest-wg-getpeer-name",
@@ -347,9 +338,7 @@ class TestWireGuardPeerManagerIntegration:
         assert fetched.key == created.key
         assert fetched.name == test_name
 
-    def test_update_peer(
-        self, test_network: Network, cleanup_interfaces: list[int]
-    ) -> None:
+    def test_update_peer(self, test_network: Network, cleanup_interfaces: list[int]) -> None:
         """Test updating a peer."""
         iface = test_network.wireguard.create(
             name="pytest-wg-updpeer",
@@ -374,9 +363,7 @@ class TestWireGuardPeerManagerIntegration:
         assert updated.keepalive == 30
         assert updated.get("description") == "Updated peer"
 
-    def test_multiple_peers(
-        self, test_network: Network, cleanup_interfaces: list[int]
-    ) -> None:
+    def test_multiple_peers(self, test_network: Network, cleanup_interfaces: list[int]) -> None:
         """Test creating multiple peers on one interface."""
         iface = test_network.wireguard.create(
             name="pytest-wg-multipeer",

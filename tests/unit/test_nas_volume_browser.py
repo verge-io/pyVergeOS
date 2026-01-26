@@ -1,8 +1,9 @@
 """Unit tests for NAS volume browser."""
 
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import APIError, NotFoundError, VergeTimeoutError
@@ -114,11 +115,13 @@ class TestNASVolumeFile:
 
     def test_full_path_property(self):
         """Test full_path property."""
-        file = NASVolumeFile({
-            "name": "test.txt",
-            "type": "file",
-            "_full_path": "/documents/test.txt",
-        })
+        file = NASVolumeFile(
+            {
+                "name": "test.txt",
+                "type": "file",
+                "_full_path": "/documents/test.txt",
+            }
+        )
         assert file.full_path == "/documents/test.txt"
 
     def test_full_path_default(self, sample_file_entry):
@@ -228,7 +231,7 @@ class TestNASVolumeFileManager:
             {"id": "job111", "status": "complete", "result": sample_browse_result},
         ]
 
-        files = file_manager.list("/", limit=10, offset=5)
+        file_manager.list("/", limit=10, offset=5)
 
         post_call = mock_client._request.call_args_list[0]
         payload = post_call[1]["json_data"]
@@ -242,7 +245,7 @@ class TestNASVolumeFileManager:
             {"id": "job222", "status": "complete", "result": sample_browse_result},
         ]
 
-        files = file_manager.list("/", extensions="pdf,doc")
+        file_manager.list("/", extensions="pdf,doc")
 
         post_call = mock_client._request.call_args_list[0]
         payload = post_call[1]["json_data"]
@@ -270,9 +273,8 @@ class TestNASVolumeFileManager:
             {"$key": "job444"},
         ] + [{"id": "job444", "status": "running"}] * 100  # Always running
 
-        with patch("time.sleep"):
-            with pytest.raises(VergeTimeoutError, match="timed out"):
-                file_manager.list("/", timeout=5)
+        with patch("time.sleep"), pytest.raises(VergeTimeoutError, match="timed out"):
+            file_manager.list("/", timeout=5)
 
     def test_list_error_status(self, file_manager, mock_client):
         """Test handling error status from browse operation."""
@@ -281,9 +283,8 @@ class TestNASVolumeFileManager:
             {"id": "job555", "status": "error", "result": "Volume not found"},
         ]
 
-        with patch("time.sleep"):
-            with pytest.raises(APIError, match="Volume not found"):
-                file_manager.list("/")
+        with patch("time.sleep"), pytest.raises(APIError, match="Volume not found"):
+            file_manager.list("/")
 
     def test_list_no_job_key(self, file_manager, mock_client):
         """Test handling missing job key in response."""
@@ -303,6 +304,7 @@ class TestNASVolumeFileManager:
     def test_list_result_as_string(self, file_manager, mock_client, sample_browse_result):
         """Test handling result that is a JSON string."""
         import json
+
         mock_client._request.side_effect = [
             {"$key": "job666"},
             {"id": "job666", "status": "complete", "result": json.dumps(sample_browse_result)},
@@ -313,7 +315,9 @@ class TestNASVolumeFileManager:
 
         assert len(files) == 2
 
-    def test_list_result_with_entries_property(self, file_manager, mock_client, sample_browse_result):
+    def test_list_result_with_entries_property(
+        self, file_manager, mock_client, sample_browse_result
+    ):
         """Test handling result with entries property."""
         mock_client._request.side_effect = [
             {"$key": "job777"},
@@ -359,7 +363,7 @@ class TestNASVolumeFileManager:
         ]
 
         with patch("time.sleep"):
-            file = file_manager.get("/documents/reports/document.pdf")
+            file_manager.get("/documents/reports/document.pdf")
 
         # Verify it browsed the parent directory
         post_call = mock_client._request.call_args_list[0]
@@ -373,9 +377,8 @@ class TestNASVolumeFileManager:
             {"id": "jobbbb", "status": "complete", "result": sample_browse_result},
         ]
 
-        with patch("time.sleep"):
-            with pytest.raises(NotFoundError, match="not found"):
-                file_manager.get("/nonexistent.txt")
+        with patch("time.sleep"), pytest.raises(NotFoundError, match="not found"):
+            file_manager.get("/nonexistent.txt")
 
     def test_get_from_empty_directory(self, file_manager, mock_client):
         """Test getting a file from an empty directory."""
@@ -384,9 +387,8 @@ class TestNASVolumeFileManager:
             {"id": "jobccc", "status": "complete", "result": None},
         ]
 
-        with patch("time.sleep"):
-            with pytest.raises(NotFoundError, match="not found"):
-                file_manager.get("/empty/test.txt")
+        with patch("time.sleep"), pytest.raises(NotFoundError, match="not found"):
+            file_manager.get("/empty/test.txt")
 
 
 class TestFormatFileSize:
@@ -451,8 +453,7 @@ class TestNASVolumeManagerFiles:
         vol_manager = NASVolumeManager(mock_client)
 
         file_manager = vol_manager.files(
-            "8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
-            name="TestVolume"
+            "8f73f8bcc9c9f1aaba32f733bfc295acaf548554", name="TestVolume"
         )
 
         assert isinstance(file_manager, NASVolumeFileManager)

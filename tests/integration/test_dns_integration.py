@@ -12,11 +12,12 @@ Environment variables:
 from __future__ import annotations
 
 import os
+
 import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.dns import DNSRecord, DNSRecordManager, DNSZone, DNSZoneManager
+from pyvergeos.resources.dns import DNSRecordManager, DNSZone, DNSZoneManager
 
 # Skip all tests if not in integration mode
 pytestmark = pytest.mark.skipif(
@@ -80,7 +81,14 @@ class TestDNSZoneIntegration:
         """Test DNS zone properties are accessible."""
         assert test_zone.key > 0
         assert test_zone.domain
-        assert test_zone.zone_type in ["master", "slave", "redirect", "forward", "static-stub", "stub"]
+        assert test_zone.zone_type in [
+            "master",
+            "slave",
+            "redirect",
+            "forward",
+            "static-stub",
+            "stub",
+        ]
         assert test_zone.view_key > 0
 
     def test_get_zone_by_key(self, dns_network, test_zone: DNSZone) -> None:
@@ -265,7 +273,7 @@ class TestDNSApply:
             dns_network.apply_dns()
 
             # Verify network's needs_dns_apply flag (if applicable)
-            refreshed = dns_network._manager.get(dns_network.key)
+            dns_network._manager.get(dns_network.key)
             # The flag should be cleared after apply
         finally:
             test_zone.records.delete(record.key)

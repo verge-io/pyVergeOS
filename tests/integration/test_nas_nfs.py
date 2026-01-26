@@ -7,6 +7,7 @@ Configure with environment variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import pytest
@@ -62,10 +63,8 @@ def test_volume(client: VergeClient, test_service: NASService) -> NASVolume:
     )
     yield vol
     # Cleanup
-    try:
+    with contextlib.suppress(NotFoundError):
         client.nas_volumes.delete(vol.key)
-    except NotFoundError:
-        pass
 
 
 @pytest.fixture
@@ -77,10 +76,8 @@ def cleanup_shares(client: VergeClient):
 
     # Cleanup any shares we created
     for key in created_keys:
-        try:
+        with contextlib.suppress(NotFoundError):
             client.nfs_shares.delete(key)
-        except NotFoundError:
-            pass  # Already deleted
 
 
 class TestNASNFSShareManagerIntegration:
@@ -344,9 +341,7 @@ class TestNASNFSShareManagerIntegration:
 
         assert saved.get("description") == "Saved description"
 
-    def test_share_delete_instance(
-        self, client: VergeClient, test_volume: NASVolume
-    ) -> None:
+    def test_share_delete_instance(self, client: VergeClient, test_volume: NASVolume) -> None:
         """Test deleting share via instance method."""
         # Create a share
         share = client.nfs_shares.create(

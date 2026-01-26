@@ -54,9 +54,7 @@ class TestNetworkManager:
         # Should include running status field
         assert "running" in fields
 
-    def test_list_internal(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_internal(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing internal networks."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "Internal1", "type": "internal", "running": True},
@@ -69,23 +67,19 @@ class TestNetworkManager:
         assert "type eq 'internal'" in params.get("filter", "")
         assert len(networks) == 1
 
-    def test_list_external(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_external(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing external networks."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "External", "type": "external", "running": True},
         ]
 
-        networks = mock_client.networks.list_external()
+        mock_client.networks.list_external()
 
         call_args = mock_session.request.call_args
         params = call_args.kwargs.get("params", {})
         assert "type eq 'external'" in params.get("filter", "")
 
-    def test_list_running(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_running(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing running networks."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "Net1", "running": True, "status": "running"},
@@ -99,23 +93,19 @@ class TestNetworkManager:
         assert "running eq true" in params.get("filter", "")
         assert len(networks) == 2
 
-    def test_list_stopped(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_stopped(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing stopped networks."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "Net1", "running": False, "status": "stopped"},
         ]
 
-        networks = mock_client.networks.list_stopped()
+        mock_client.networks.list_stopped()
 
         call_args = mock_session.request.call_args
         params = call_args.kwargs.get("params", {})
         assert "running eq false" in params.get("filter", "")
 
-    def test_get_network_by_key(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_network_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a network by key."""
         mock_session.request.return_value.json.return_value = {
             "$key": 100,
@@ -129,9 +119,7 @@ class TestNetworkManager:
         assert network.key == 100
         assert network.name == "test-network"
 
-    def test_get_network_by_name(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_network_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a network by name."""
         mock_session.request.return_value.json.return_value = [
             {
@@ -146,18 +134,14 @@ class TestNetworkManager:
         assert network.name == "my-network"
         assert network.key == 200
 
-    def test_get_network_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_network_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that NotFoundError is raised when network not found."""
         mock_session.request.return_value.json.return_value = []
 
         with pytest.raises(NotFoundError):
             mock_client.networks.get(name="nonexistent")
 
-    def test_create_network(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_create_network(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test creating a network."""
         # First call is POST (create), second is GET (fetch full data)
         mock_session.request.return_value.json.side_effect = [
@@ -217,9 +201,7 @@ class TestNetworkManager:
         assert body["dhcp_start"] == "10.0.0.100"
         assert body["dhcp_stop"] == "10.0.0.200"
 
-    def test_update_network(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_update_network(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating a network."""
         mock_session.request.return_value.json.return_value = {
             "$key": 100,
@@ -231,9 +213,7 @@ class TestNetworkManager:
 
         assert network.get("description") == "New description"
 
-    def test_delete_network(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_network(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a network."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""
@@ -621,6 +601,7 @@ class TestNetworkDiagnostics:
         assert lease["expiration"] is not None
         # Verify it's a datetime object
         from datetime import datetime as dt
+
         assert isinstance(lease["expiration"], dt)
 
     def test_diagnostics_expiration_zero_is_none(
@@ -689,9 +670,7 @@ class TestNetworkStatistics:
         assert stats["tx_total_formatted"] == "1.00 GB"
         assert stats["rx_total_formatted"] == "2.00 GB"
 
-    def test_statistics_dmz_data(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_statistics_dmz_data(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that statistics includes DMZ interface data."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 100, "name": "test-network", "running": True},
@@ -767,7 +746,9 @@ class TestNetworkStatistics:
 
         # Find the history query call
         calls = mock_session.request.call_args_list
-        history_call = [c for c in calls if "vnet_monitor_stats_history_short" in c.kwargs.get("url", "")]
+        history_call = [
+            c for c in calls if "vnet_monitor_stats_history_short" in c.kwargs.get("url", "")
+        ]
         assert len(history_call) == 1
         params = history_call[0].kwargs.get("params", {})
         assert params["limit"] == "30"

@@ -108,9 +108,7 @@ class TestNetworkAlias:
 
         assert alias.alias_name == alias.hostname
 
-    def test_alias_missing_vnet_raises(
-        self, alias_manager: NetworkAliasManager
-    ) -> None:
+    def test_alias_missing_vnet_raises(self, alias_manager: NetworkAliasManager) -> None:
         """Test ValueError when vnet is missing."""
         data: dict[str, Any] = {"$key": 1, "ip": "10.0.0.1"}
         alias = NetworkAlias(data, alias_manager)
@@ -118,9 +116,7 @@ class TestNetworkAlias:
         with pytest.raises(ValueError, match="no network"):
             _ = alias.network_key
 
-    def test_alias_missing_ip_raises(
-        self, alias_manager: NetworkAliasManager
-    ) -> None:
+    def test_alias_missing_ip_raises(self, alias_manager: NetworkAliasManager) -> None:
         """Test ValueError when IP is missing."""
         data: dict[str, Any] = {"$key": 1, "vnet": 3}
         alias = NetworkAlias(data, alias_manager)
@@ -192,7 +188,7 @@ class TestNetworkAliasManagerList:
         """Test with additional OData filter."""
         mock_client._request.return_value = [sample_alias_data]
 
-        aliases = alias_manager.list(filter="description ne ''")
+        alias_manager.list(filter="description ne ''")
 
         call_args = mock_client._request.call_args
         assert "(description ne '')" in call_args[1]["params"]["filter"]
@@ -323,9 +319,7 @@ class TestNetworkAliasManagerGet:
         with pytest.raises(NotFoundError, match="hostname .* not found"):
             alias_manager.get(hostname="nonexistent")
 
-    def test_get_requires_identifier(
-        self, alias_manager: NetworkAliasManager
-    ) -> None:
+    def test_get_requires_identifier(self, alias_manager: NetworkAliasManager) -> None:
         """Test that get requires some identifier."""
         with pytest.raises(ValueError, match="Either key, ip, or hostname must be provided"):
             alias_manager.get()

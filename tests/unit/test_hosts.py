@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -120,25 +120,19 @@ class TestNetworkHost:
         assert host.is_domain is True
         assert host.is_host is False
 
-    def test_hostname_missing_raises(
-        self, host_manager: NetworkHostManager
-    ) -> None:
+    def test_hostname_missing_raises(self, host_manager: NetworkHostManager) -> None:
         """Test that missing hostname raises ValueError."""
         host = NetworkHost({"$key": 1, "ip": "10.0.0.1"}, host_manager)
         with pytest.raises(ValueError, match="no hostname"):
             _ = host.hostname
 
-    def test_ip_missing_raises(
-        self, host_manager: NetworkHostManager
-    ) -> None:
+    def test_ip_missing_raises(self, host_manager: NetworkHostManager) -> None:
         """Test that missing IP raises ValueError."""
         host = NetworkHost({"$key": 1, "host": "test"}, host_manager)
         with pytest.raises(ValueError, match="no IP"):
             _ = host.ip
 
-    def test_network_key_missing_raises(
-        self, host_manager: NetworkHostManager
-    ) -> None:
+    def test_network_key_missing_raises(self, host_manager: NetworkHostManager) -> None:
         """Test that missing network key raises ValueError."""
         host = NetworkHost({"$key": 1, "host": "test", "ip": "10.0.0.1"}, host_manager)
         with pytest.raises(ValueError, match="no network"):
@@ -331,9 +325,7 @@ class TestNetworkHostManagerGet:
         with pytest.raises(NotFoundError, match="IP.*not found"):
             host_manager.get(ip="10.255.255.255")
 
-    def test_get_without_identifier_raises(
-        self, host_manager: NetworkHostManager
-    ) -> None:
+    def test_get_without_identifier_raises(self, host_manager: NetworkHostManager) -> None:
         """Test that get without any identifier raises ValueError."""
         with pytest.raises(ValueError, match="Either key, hostname, or ip"):
             host_manager.get()
@@ -445,7 +437,7 @@ class TestNetworkHostManagerUpdate:
         updated_data = {**sample_host_data, "host": "newname"}
         mock_client._request.side_effect = [None, updated_data]
 
-        host = host_manager.update(10, hostname="newname")
+        host_manager.update(10, hostname="newname")
 
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["host"] == "newname"
@@ -460,7 +452,7 @@ class TestNetworkHostManagerUpdate:
         updated_data = {**sample_host_data, "type": "domain"}
         mock_client._request.side_effect = [None, updated_data]
 
-        host = host_manager.update(10, host_type="domain")
+        host_manager.update(10, host_type="domain")
 
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["type"] == "domain"
@@ -482,9 +474,7 @@ class TestNetworkHostManagerUpdate:
         assert body["host"] == "newname"
         assert body["ip"] == "10.0.0.99"
 
-    def test_update_no_fields_raises(
-        self, host_manager: NetworkHostManager
-    ) -> None:
+    def test_update_no_fields_raises(self, host_manager: NetworkHostManager) -> None:
         """Test that update with no fields raises ValueError."""
         with pytest.raises(ValueError, match="At least one field"):
             host_manager.update(10)
@@ -493,9 +483,7 @@ class TestNetworkHostManagerUpdate:
 class TestNetworkHostManagerDelete:
     """Tests for NetworkHostManager.delete() method."""
 
-    def test_delete_host(
-        self, host_manager: NetworkHostManager, mock_client: MagicMock
-    ) -> None:
+    def test_delete_host(self, host_manager: NetworkHostManager, mock_client: MagicMock) -> None:
         """Test deleting a host."""
         mock_client._request.return_value = None
 

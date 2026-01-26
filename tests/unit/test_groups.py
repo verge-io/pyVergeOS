@@ -350,7 +350,14 @@ class TestGroupMemberManager:
         # POST returns just the key
         mock_client._request.side_effect = [
             {"$key": 10},  # POST response
-            [{"$key": 10, "parent_group": 5, "member": "/v4/users/1", "member_display": "testuser"}],  # GET for list
+            [
+                {
+                    "$key": 10,
+                    "parent_group": 5,
+                    "member": "/v4/users/1",
+                    "member_display": "testuser",
+                }
+            ],  # GET for list
         ]
         manager = GroupMemberManager(mock_client, group_key=5)
 
@@ -368,7 +375,14 @@ class TestGroupMemberManager:
         """Test add_group creates nested group membership."""
         mock_client._request.side_effect = [
             {"$key": 11},  # POST response
-            [{"$key": 11, "parent_group": 5, "member": "/v4/groups/3", "member_display": "ChildGroup"}],  # GET for list
+            [
+                {
+                    "$key": 11,
+                    "parent_group": 5,
+                    "member": "/v4/groups/3",
+                    "member_display": "ChildGroup",
+                }
+            ],  # GET for list
         ]
         manager = GroupMemberManager(mock_client, group_key=5)
 
@@ -395,7 +409,14 @@ class TestGroupMemberManager:
         """Test remove_user finds and removes user membership."""
         mock_client._request.side_effect = [
             # First call is list() to find the membership
-            [{"$key": 10, "parent_group": 5, "member": "/v4/users/1", "member_display": "testuser"}],
+            [
+                {
+                    "$key": 10,
+                    "parent_group": 5,
+                    "member": "/v4/users/1",
+                    "member_display": "testuser",
+                }
+            ],
             # Second call is delete
             None,
         ]
@@ -420,7 +441,14 @@ class TestGroupMemberManager:
         """Test remove_group finds and removes group membership."""
         mock_client._request.side_effect = [
             # First call is list() to find the membership
-            [{"$key": 11, "parent_group": 5, "member": "/v4/groups/3", "member_display": "ChildGroup"}],
+            [
+                {
+                    "$key": 11,
+                    "parent_group": 5,
+                    "member": "/v4/groups/3",
+                    "member_display": "ChildGroup",
+                }
+            ],
             # Second call is delete
             None,
         ]
@@ -604,7 +632,13 @@ class TestGroupManager:
         """Test group creation with all options."""
         mock_client._request.side_effect = [
             {"$key": 5},  # POST response
-            {"$key": 5, "name": "QA Team", "description": "QA", "email": "qa@test.com", "enabled": True},  # GET
+            {
+                "$key": 5,
+                "name": "QA Team",
+                "description": "QA",
+                "email": "qa@test.com",
+                "enabled": True,
+            },  # GET
         ]
         manager = GroupManager(mock_client)
 

@@ -1,10 +1,11 @@
 """Unit tests for NAS volume sync operations."""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_volume_syncs import NASVolumeSync, NASVolumeSyncManager
 
 
@@ -389,19 +390,20 @@ class TestNASVolumeSyncManager:
 
     def test_update_no_changes(self, mock_client):
         """Test updating with no changes returns current sync."""
-        mock_client._request.return_value = [
-            {"$key": "sync1", "name": "TestSync"}
-        ]
+        mock_client._request.return_value = [{"$key": "sync1", "name": "TestSync"}]
         manager = NASVolumeSyncManager(mock_client)
 
-        result = manager.update("sync1")
+        manager.update("sync1")
 
         # Should only call GET, not PUT
         assert mock_client._request.call_count == 1
         mock_client._request.assert_called_with(
             "GET",
             "volume_syncs",
-            params={"filter": "id eq 'sync1'", "fields": manager._default_fields[0] + "," + ",".join(manager._default_fields[1:])},
+            params={
+                "filter": "id eq 'sync1'",
+                "fields": manager._default_fields[0] + "," + ",".join(manager._default_fields[1:]),
+            },
         )
 
     def test_delete(self, mock_client):
@@ -411,9 +413,7 @@ class TestNASVolumeSyncManager:
 
         manager.delete("sync1")
 
-        mock_client._request.assert_called_once_with(
-            "DELETE", "volume_syncs/sync1"
-        )
+        mock_client._request.assert_called_once_with("DELETE", "volume_syncs/sync1")
 
     def test_enable(self, mock_client):
         """Test enabling a sync job."""
@@ -594,9 +594,7 @@ class TestNASVolumeSync:
 
     def test_refresh(self, mock_client):
         """Test refresh method."""
-        mock_client._request.return_value = [
-            {"$key": "sync1", "name": "Updated"}
-        ]
+        mock_client._request.return_value = [{"$key": "sync1", "name": "Updated"}]
         manager = NASVolumeSyncManager(mock_client)
         sync = NASVolumeSync({"$key": "sync1", "name": "Original"}, manager)
 
@@ -625,9 +623,7 @@ class TestNASVolumeSync:
 
         sync.delete()
 
-        mock_client._request.assert_called_once_with(
-            "DELETE", "volume_syncs/sync1"
-        )
+        mock_client._request.assert_called_once_with("DELETE", "volume_syncs/sync1")
 
     def test_start_method(self, mock_client):
         """Test start method on object."""
@@ -669,8 +665,9 @@ class TestSyncMethodMapping:
         ]
         manager = NASVolumeSyncManager(mock_client)
 
-        manager.create("Test", service=1, source_volume="v1", destination_volume="v2",
-                       sync_method="vergesync")
+        manager.create(
+            "Test", service=1, source_volume="v1", destination_volume="v2", sync_method="vergesync"
+        )
 
         body = mock_client._request.call_args_list[0].kwargs.get("json_data", {})
         assert body["sync_method"] == "ysync"
@@ -683,8 +680,9 @@ class TestSyncMethodMapping:
         ]
         manager = NASVolumeSyncManager(mock_client)
 
-        manager.create("Test", service=1, source_volume="v1", destination_volume="v2",
-                       sync_method="verge_sync")
+        manager.create(
+            "Test", service=1, source_volume="v1", destination_volume="v2", sync_method="verge_sync"
+        )
 
         body = mock_client._request.call_args_list[0].kwargs.get("json_data", {})
         assert body["sync_method"] == "ysync"
@@ -697,8 +695,9 @@ class TestSyncMethodMapping:
         ]
         manager = NASVolumeSyncManager(mock_client)
 
-        manager.create("Test", service=1, source_volume="v1", destination_volume="v2",
-                       sync_method="rsync")
+        manager.create(
+            "Test", service=1, source_volume="v1", destination_volume="v2", sync_method="rsync"
+        )
 
         body = mock_client._request.call_args_list[0].kwargs.get("json_data", {})
         assert body["sync_method"] == "rsync"
@@ -728,8 +727,13 @@ class TestDestinationDeleteMapping:
             ]
             manager = NASVolumeSyncManager(mock_client)
 
-            manager.create("Test", service=1, source_volume="v1", destination_volume="v2",
-                           destination_delete=input_val)
+            manager.create(
+                "Test",
+                service=1,
+                source_volume="v1",
+                destination_volume="v2",
+                destination_delete=input_val,
+            )
 
             body = mock_client._request.call_args_list[0].kwargs.get("json_data", {})
             assert body["destination_delete"] == expected, f"Failed for {input_val}"

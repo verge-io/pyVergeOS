@@ -542,9 +542,7 @@ class TestAPIKeyManager:
         manager, client = self._create_manager()
         client._request.return_value = {"$key": 1, "response": {"private_key": "secret"}}
 
-        manager.create(
-            user=10, name="my-key", ip_allow_list=["10.0.0.0/8", "192.168.1.100"]
-        )
+        manager.create(user=10, name="my-key", ip_allow_list=["10.0.0.0/8", "192.168.1.100"])
 
         post_call = client._request.call_args
         body = post_call.kwargs["json_data"]

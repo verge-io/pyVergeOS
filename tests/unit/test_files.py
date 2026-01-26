@@ -8,7 +8,7 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.files import File, FileManager
+from pyvergeos.resources.files import File
 
 
 class TestFileManager:
@@ -49,9 +49,7 @@ class TestFileManager:
         assert files[1].name == "disk.qcow2"
         assert files[1].file_type == "qcow2"
 
-    def test_list_files_by_type(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_files_by_type(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test filtering files by type."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "ubuntu.iso", "type": "iso"},
@@ -73,9 +71,7 @@ class TestFileManager:
         files = mock_client.files.list(file_type=["iso", "qcow2"])
         assert len(files) == 2
 
-    def test_get_file_by_key(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_file_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a file by key."""
         mock_session.request.return_value.json.return_value = {
             "$key": 42,
@@ -91,9 +87,7 @@ class TestFileManager:
         assert file.file_type == "iso"
         assert file.size_bytes == 1073741824
 
-    def test_get_file_by_name(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_file_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a file by name."""
         mock_session.request.return_value.json.return_value = [
             {
@@ -108,18 +102,14 @@ class TestFileManager:
         assert file.name == "my-image.qcow2"
         assert file.key == 99
 
-    def test_get_file_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_file_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that NotFoundError is raised when file not found."""
         mock_session.request.return_value.json.return_value = []
 
         with pytest.raises(NotFoundError):
             mock_client.files.get(name="nonexistent.iso")
 
-    def test_delete_file(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_file(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a file."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""

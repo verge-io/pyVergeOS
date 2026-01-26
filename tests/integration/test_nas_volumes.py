@@ -7,6 +7,7 @@ Configure with environment variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import pytest
@@ -14,7 +15,7 @@ import pytest
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_services import NASService
-from pyvergeos.resources.nas_volumes import NASVolume, NASVolumeSnapshot
+from pyvergeos.resources.nas_volumes import NASVolume
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
@@ -57,10 +58,8 @@ def cleanup_volumes(client: VergeClient):
             # First delete any snapshots
             snap_mgr = client.nas_volumes.snapshots(key)
             for snap in snap_mgr.list():
-                try:
+                with contextlib.suppress(NotFoundError):
                     snap_mgr.delete(snap.key)
-                except NotFoundError:
-                    pass
             # Then delete the volume
             client.nas_volumes.delete(key)
         except NotFoundError:
@@ -502,9 +501,7 @@ class TestNASVolumeObjectMethods:
 
         assert updated.get("description") == "Saved via object method"
 
-    def test_volume_delete(
-        self, client: VergeClient, test_service: NASService
-    ) -> None:
+    def test_volume_delete(self, client: VergeClient, test_service: NASService) -> None:
         """Test deleting a volume via object method."""
         vol = client.nas_volumes.create(
             name="pytest-vol-objdel",

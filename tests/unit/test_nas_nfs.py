@@ -1,10 +1,11 @@
 """Unit tests for NAS NFS share management."""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_nfs import NASNFSShare, NASNFSShareManager
 
 
@@ -224,7 +225,7 @@ class TestNASNFSShareManagerList:
         """Test listing with limit parameter."""
         mock_client._request.return_value = [sample_nfs_share]
 
-        result = nfs_manager.list(limit=10)
+        nfs_manager.list(limit=10)
 
         args = mock_client._request.call_args
         params = args[1]["params"]
@@ -262,10 +263,7 @@ class TestNASNFSShareManagerGet:
         """Test getting share by name and volume."""
         mock_client._request.return_value = [sample_nfs_share]
 
-        result = nfs_manager.get(
-            name="exports",
-            volume="d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5"
-        )
+        result = nfs_manager.get(name="exports", volume="d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5")
 
         assert result.name == "exports"
 
@@ -295,9 +293,7 @@ class TestNASNFSShareManagerCreate:
         ]
 
         result = nfs_manager.create(
-            name="exports",
-            volume="FileShare",
-            allowed_hosts=["192.168.1.0/24"]
+            name="exports", volume="FileShare", allowed_hosts=["192.168.1.0/24"]
         )
 
         assert result.name == "exports"
@@ -311,11 +307,7 @@ class TestNASNFSShareManagerCreate:
             [sample_nfs_share],  # Get after create
         ]
 
-        result = nfs_manager.create(
-            name="exports",
-            volume="FileShare",
-            allow_all=True
-        )
+        result = nfs_manager.create(name="exports", volume="FileShare", allow_all=True)
 
         assert result.name == "exports"
 
@@ -348,7 +340,7 @@ class TestNASNFSShareManagerCreate:
             no_acl=False,
             insecure=False,
             async_mode=False,
-            enabled=True
+            enabled=True,
         )
 
         assert result.name == "exports"
@@ -369,10 +361,7 @@ class TestNASNFSShareManagerUpdate:
             [updated_share],  # GET after update
         ]
 
-        result = nfs_manager.update(
-            sample_nfs_share["$key"],
-            description="Updated description"
-        )
+        result = nfs_manager.update(sample_nfs_share["$key"], description="Updated description")
 
         assert result.get("description") == "Updated description"
         # Verify PUT was called
@@ -387,11 +376,7 @@ class TestNASNFSShareManagerUpdate:
             [updated_share],  # GET after update
         ]
 
-        result = nfs_manager.update(
-            sample_nfs_share["$key"],
-            data_access="ro",
-            squash="all_squash"
-        )
+        result = nfs_manager.update(sample_nfs_share["$key"], data_access="ro", squash="all_squash")
 
         assert result.get("data_access") == "ro"
         assert result.get("squash") == "all_squash"
@@ -404,10 +389,7 @@ class TestNASNFSShareManagerUpdate:
             [updated_share],  # GET after update
         ]
 
-        result = nfs_manager.update(
-            sample_nfs_share["$key"],
-            allowed_hosts=["10.0.0.0/8"]
-        )
+        result = nfs_manager.update(sample_nfs_share["$key"], allowed_hosts=["10.0.0.0/8"])
 
         assert result.get("allowed_hosts") == "10.0.0.0/8"
 

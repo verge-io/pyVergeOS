@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -11,11 +10,11 @@ from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.dns import (
     DNS_RECORD_DEFAULT_FIELDS,
     DNS_ZONE_DEFAULT_FIELDS,
+    ZONE_TYPE_DISPLAY,
     DNSRecord,
     DNSRecordManager,
     DNSZone,
     DNSZoneManager,
-    ZONE_TYPE_DISPLAY,
 )
 from pyvergeos.resources.networks import Network
 
@@ -107,9 +106,7 @@ class TestDNSZone:
         assert ZONE_TYPE_DISPLAY["static-stub"] == "Static Stub"
         assert ZONE_TYPE_DISPLAY["stub"] == "Stub"
 
-    def test_zone_records_property(
-        self, mock_client: MagicMock, mock_zone: DNSZone
-    ) -> None:
+    def test_zone_records_property(self, mock_client: MagicMock, mock_zone: DNSZone) -> None:
         """Test zone.records property returns DNSRecordManager."""
         records_mgr = mock_zone.records
         assert isinstance(records_mgr, DNSRecordManager)
@@ -163,9 +160,7 @@ class TestDNSZoneManager:
         zones = zone_manager.list()
         assert zones == []
 
-    def test_list_zones_success(
-        self, zone_manager: DNSZoneManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_zones_success(self, zone_manager: DNSZoneManager, mock_client: MagicMock) -> None:
         """Test list zones successfully."""
         mock_client._request.side_effect = [
             [{"$key": 1, "name": "default"}],  # views
@@ -235,9 +230,7 @@ class TestDNSZoneManager:
         zones = zone_manager.list()
         assert len(zones) == 2
 
-    def test_get_zone_by_key(
-        self, zone_manager: DNSZoneManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_zone_by_key(self, zone_manager: DNSZoneManager, mock_client: MagicMock) -> None:
         """Test get zone by key."""
         mock_client._request.return_value = {
             "$key": 1,
@@ -248,9 +241,7 @@ class TestDNSZoneManager:
         assert zone.key == 1
         assert zone.domain == "test.local"
 
-    def test_get_zone_by_domain(
-        self, zone_manager: DNSZoneManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_zone_by_domain(self, zone_manager: DNSZoneManager, mock_client: MagicMock) -> None:
         """Test get zone by domain."""
         mock_client._request.side_effect = [
             [{"$key": 1, "name": "default"}],  # views
@@ -278,9 +269,7 @@ class TestDNSZoneManager:
         with pytest.raises(NotFoundError, match="DNS zone 'nonexistent'"):
             zone_manager.get(domain="nonexistent")
 
-    def test_get_zone_no_identifier_raises(
-        self, zone_manager: DNSZoneManager
-    ) -> None:
+    def test_get_zone_no_identifier_raises(self, zone_manager: DNSZoneManager) -> None:
         """Test get zone raises ValueError when no identifier provided."""
         with pytest.raises(ValueError, match="Either key or domain must be provided"):
             zone_manager.get()
@@ -357,9 +346,7 @@ class TestDNSRecord:
         assert record.weight == 5
         assert record.port == 80
 
-    def test_record_zone_key_missing_raises(
-        self, record_manager: DNSRecordManager
-    ) -> None:
+    def test_record_zone_key_missing_raises(self, record_manager: DNSRecordManager) -> None:
         """Test record zone_key raises when not available."""
         record = DNSRecord({"$key": 1, "host": "www", "value": "1.2.3.4"}, record_manager)
         with pytest.raises(ValueError, match="Record has no zone key"):
@@ -510,13 +497,9 @@ class TestDNSRecordManager:
         with pytest.raises(NotFoundError, match="DNS record with type 'TXT'"):
             record_manager.get(record_type="TXT")
 
-    def test_get_record_no_identifier_raises(
-        self, record_manager: DNSRecordManager
-    ) -> None:
+    def test_get_record_no_identifier_raises(self, record_manager: DNSRecordManager) -> None:
         """Test get record raises ValueError when no identifier provided."""
-        with pytest.raises(
-            ValueError, match="Either key, host, or record_type must be provided"
-        ):
+        with pytest.raises(ValueError, match="Either key, host, or record_type must be provided"):
             record_manager.get()
 
     def test_create_a_record(
@@ -527,9 +510,7 @@ class TestDNSRecordManager:
             {"$key": 1},  # create response
             {"$key": 1, "zone": 1, "host": "www", "type": "A", "value": "1.2.3.4"},
         ]
-        record = record_manager.create(
-            host="www", record_type="A", value="1.2.3.4", ttl="1h"
-        )
+        record = record_manager.create(host="www", record_type="A", value="1.2.3.4", ttl="1h")
         assert record.key == 1
         assert record.host == "www"
 
@@ -640,16 +621,12 @@ class TestDNSRecordManager:
         with pytest.raises(ValueError, match="Create response missing \\$key"):
             record_manager.create(host="www", record_type="A", value="1.2.3.4")
 
-    def test_delete_record(
-        self, record_manager: DNSRecordManager, mock_client: MagicMock
-    ) -> None:
+    def test_delete_record(self, record_manager: DNSRecordManager, mock_client: MagicMock) -> None:
         """Test delete record."""
         mock_client._request.return_value = None
         record_manager.delete(1)
 
-        mock_client._request.assert_called_once_with(
-            "DELETE", "vnet_dns_zone_records/1"
-        )
+        mock_client._request.assert_called_once_with("DELETE", "vnet_dns_zone_records/1")
 
 
 # =============================================================================

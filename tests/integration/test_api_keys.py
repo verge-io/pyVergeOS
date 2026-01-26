@@ -1,5 +1,7 @@
 """Integration tests for API key operations."""
 
+import contextlib
+
 import pytest
 
 from pyvergeos import VergeClient
@@ -77,10 +79,8 @@ class TestAPIKeyCRUD:
         )
         yield result
         # Cleanup
-        try:
+        with contextlib.suppress(NotFoundError):
             live_client.api_keys.delete(result.key)
-        except NotFoundError:
-            pass  # Already deleted
 
     def test_create_api_key(self, live_client: VergeClient) -> None:
         """Test creating an API key."""
@@ -223,10 +223,8 @@ class TestAPIKeyProperties:
             ip_allow_list=["10.0.0.0/8"],
         )
         yield result
-        try:
+        with contextlib.suppress(NotFoundError):
             live_client.api_keys.delete(result.key)
-        except NotFoundError:
-            pass
 
     def test_api_key_basic_properties(self, test_api_key, live_client: VergeClient) -> None:
         """Test accessing basic properties on API key."""
@@ -239,9 +237,7 @@ class TestAPIKeyProperties:
         assert api_key.user_key > 0
         assert api_key.user_name == "admin"
 
-    def test_api_key_timestamp_properties(
-        self, test_api_key, live_client: VergeClient
-    ) -> None:
+    def test_api_key_timestamp_properties(self, test_api_key, live_client: VergeClient) -> None:
         """Test timestamp properties on API key."""
         api_key = live_client.api_keys.get(test_api_key.key)
 
@@ -258,9 +254,7 @@ class TestAPIKeyProperties:
         assert api_key.last_login is None
         assert api_key.last_login_datetime is None
 
-    def test_api_key_ip_list_properties(
-        self, test_api_key, live_client: VergeClient
-    ) -> None:
+    def test_api_key_ip_list_properties(self, test_api_key, live_client: VergeClient) -> None:
         """Test IP list properties on API key."""
         api_key = live_client.api_keys.get(test_api_key.key)
 

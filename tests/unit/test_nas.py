@@ -1,7 +1,8 @@
 """Unit tests for NAS service management."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
@@ -497,7 +498,7 @@ class TestNASServiceManagerCIFSSettings:
             [sample_cifs_settings],  # Get updated settings
         ]
 
-        result = nas_manager.set_cifs_settings(1, min_protocol="SMB3")
+        nas_manager.set_cifs_settings(1, min_protocol="SMB3")
 
         update_call = mock_client._request.call_args_list[1]
         assert update_call[1]["json_data"]["server_min_protocol"] == "SMB3"
@@ -510,7 +511,7 @@ class TestNASServiceManagerCIFSSettings:
             [sample_cifs_settings],  # Get updated settings
         ]
 
-        result = nas_manager.set_cifs_settings(1, guest_mapping="never")
+        nas_manager.set_cifs_settings(1, guest_mapping="never")
 
         update_call = mock_client._request.call_args_list[1]
         assert update_call[1]["json_data"]["map_to_guest"] == "never"
@@ -563,9 +564,7 @@ class TestNASServiceManagerNFSSettings:
             [sample_nfs_settings],  # Get updated settings
         ]
 
-        result = nas_manager.set_nfs_settings(
-            1, allowed_hosts="192.168.1.0/24,10.0.0.0/8"
-        )
+        nas_manager.set_nfs_settings(1, allowed_hosts="192.168.1.0/24,10.0.0.0/8")
 
         update_call = mock_client._request.call_args_list[1]
         assert update_call[1]["json_data"]["allowed_hosts"] == "192.168.1.0/24,10.0.0.0/8"
@@ -578,7 +577,7 @@ class TestNASServiceManagerNFSSettings:
             [sample_nfs_settings],  # Get updated settings
         ]
 
-        result = nas_manager.set_nfs_settings(1, squash="all_squash")
+        nas_manager.set_nfs_settings(1, squash="all_squash")
 
         update_call = mock_client._request.call_args_list[1]
         assert update_call[1]["json_data"]["squash"] == "all_squash"
@@ -591,7 +590,7 @@ class TestNASServiceManagerNFSSettings:
             [sample_nfs_settings],  # Get updated settings
         ]
 
-        result = nas_manager.set_nfs_settings(1, data_access="readonly")
+        nas_manager.set_nfs_settings(1, data_access="readonly")
 
         update_call = mock_client._request.call_args_list[1]
         assert update_call[1]["json_data"]["data_access"] == "ro"
@@ -896,7 +895,7 @@ class TestNASVolumeManagerCreate:
             [sample_nas_volume],  # Get created volume
         ]
 
-        result = nas_volume_manager.create(
+        nas_volume_manager.create(
             "FileShare",
             service=1,
             size_gb=100,
@@ -971,7 +970,7 @@ class TestNASVolumeManagerUpdate:
             [sample_nas_volume],  # Get updated volume
         ]
 
-        result = nas_volume_manager.update(
+        nas_volume_manager.update(
             "8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
             size_gb=200,
         )
@@ -986,7 +985,7 @@ class TestNASVolumeManagerUpdate:
             [sample_nas_volume],  # Get updated volume
         ]
 
-        result = nas_volume_manager.update(
+        nas_volume_manager.update(
             "8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
             tier=3,
         )
@@ -1001,7 +1000,7 @@ class TestNASVolumeManagerUpdate:
             [sample_nas_volume],  # Get updated volume
         ]
 
-        result = nas_volume_manager.update(
+        nas_volume_manager.update(
             "8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
             enabled=False,
         )
@@ -1013,7 +1012,7 @@ class TestNASVolumeManagerUpdate:
         """Test update with no changes."""
         mock_client._request.return_value = [sample_nas_volume]
 
-        result = nas_volume_manager.update("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
+        nas_volume_manager.update("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         # Should only call get, not update
         assert mock_client._request.call_count == 1
@@ -1043,7 +1042,7 @@ class TestNASVolumeManagerEnableDisable:
             [sample_nas_volume],  # Get updated volume
         ]
 
-        result = nas_volume_manager.enable("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
+        nas_volume_manager.enable("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         update_call = mock_client._request.call_args_list[0]
         assert update_call[1]["json_data"]["enabled"] is True
@@ -1055,7 +1054,7 @@ class TestNASVolumeManagerEnableDisable:
             [sample_nas_volume],  # Get updated volume
         ]
 
-        result = nas_volume_manager.disable("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
+        nas_volume_manager.disable("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         update_call = mock_client._request.call_args_list[0]
         assert update_call[1]["json_data"]["enabled"] is False
@@ -1123,14 +1122,18 @@ class TestNASVolumeSnapshot:
         snapshot = NASVolumeSnapshot(sample_nas_volume_snapshot, nas_volume_snapshot_manager)
         assert snapshot.never_expires is False
 
-    def test_never_expires_true_by_type(self, nas_volume_snapshot_manager, sample_nas_volume_snapshot):
+    def test_never_expires_true_by_type(
+        self, nas_volume_snapshot_manager, sample_nas_volume_snapshot
+    ):
         """Test never_expires returns True when expires_type is never."""
         sample_nas_volume_snapshot["expires_type"] = "never"
         sample_nas_volume_snapshot["expires"] = 0
         snapshot = NASVolumeSnapshot(sample_nas_volume_snapshot, nas_volume_snapshot_manager)
         assert snapshot.never_expires is True
 
-    def test_never_expires_true_by_value(self, nas_volume_snapshot_manager, sample_nas_volume_snapshot):
+    def test_never_expires_true_by_value(
+        self, nas_volume_snapshot_manager, sample_nas_volume_snapshot
+    ):
         """Test never_expires returns True when expires is 0."""
         sample_nas_volume_snapshot["expires"] = 0
         snapshot = NASVolumeSnapshot(sample_nas_volume_snapshot, nas_volume_snapshot_manager)
@@ -1161,7 +1164,9 @@ class TestNASVolumeSnapshotManagerList:
 
         assert result == []
 
-    def test_list_scoped_to_volume(self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_list_scoped_to_volume(
+        self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test listing snapshots scoped to a volume."""
         mock_client._request.return_value = [sample_nas_volume_snapshot]
 
@@ -1177,9 +1182,7 @@ class TestNASVolumeSnapshotManagerList:
         """Test listing with volume parameter by key."""
         mock_client._request.return_value = [sample_nas_volume_snapshot]
 
-        result = nas_volume_snapshot_manager.list(
-            volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-        )
+        result = nas_volume_snapshot_manager.list(volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         assert len(result) == 1
         args = mock_client._request.call_args
@@ -1198,20 +1201,24 @@ class TestNASVolumeSnapshotManagerList:
 
         assert len(result) == 1
 
-    def test_list_with_filter(self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_list_with_filter(
+        self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test listing with filter."""
         mock_client._request.return_value = [sample_nas_volume_snapshot]
 
-        result = nas_volume_snapshot_manager.list(filter="name eq 'pre-update'")
+        nas_volume_snapshot_manager.list(filter="name eq 'pre-update'")
 
         args = mock_client._request.call_args
         assert "name eq 'pre-update'" in args[1]["params"]["filter"]
 
-    def test_list_with_pagination(self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_list_with_pagination(
+        self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test listing with pagination."""
         mock_client._request.return_value = [sample_nas_volume_snapshot]
 
-        result = nas_volume_snapshot_manager.list(limit=10, offset=5)
+        nas_volume_snapshot_manager.list(limit=10, offset=5)
 
         args = mock_client._request.call_args
         assert args[1]["params"]["limit"] == 10
@@ -1232,7 +1239,9 @@ class TestNASVolumeSnapshotManagerGet:
         assert args[0][0] == "GET"
         assert args[0][1] == "volume_snapshots/1"
 
-    def test_get_by_name(self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_get_by_name(
+        self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test getting snapshot by name."""
         mock_client._request.return_value = [sample_nas_volume_snapshot]
 
@@ -1265,7 +1274,9 @@ class TestNASVolumeSnapshotManagerGet:
 class TestNASVolumeSnapshotManagerCreate:
     """Tests for NASVolumeSnapshotManager.create()."""
 
-    def test_create_basic_scoped(self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_create_basic_scoped(
+        self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test creating a snapshot with scoped manager."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create snapshot
@@ -1281,7 +1292,9 @@ class TestNASVolumeSnapshotManagerCreate:
         assert create_call[1]["json_data"]["name"] == "pre-update"
         assert create_call[1]["json_data"]["volume"] == "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
 
-    def test_create_with_volume_param(self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_create_with_volume_param(
+        self, nas_volume_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test creating a snapshot with volume parameter."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create snapshot
@@ -1300,14 +1313,16 @@ class TestNASVolumeSnapshotManagerCreate:
         with pytest.raises(ValueError, match="Volume key is required"):
             nas_volume_snapshot_manager.create("pre-update")
 
-    def test_create_with_description(self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_create_with_description(
+        self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test creating snapshot with description."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create snapshot
             sample_nas_volume_snapshot,  # Get created snapshot
         ]
 
-        result = scoped_snapshot_manager.create(
+        scoped_snapshot_manager.create(
             "pre-update",
             description="Snapshot before update",
         )
@@ -1315,40 +1330,46 @@ class TestNASVolumeSnapshotManagerCreate:
         create_call = mock_client._request.call_args_list[0]
         assert create_call[1]["json_data"]["description"] == "Snapshot before update"
 
-    def test_create_with_custom_expiration(self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_create_with_custom_expiration(
+        self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test creating snapshot with custom expiration."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create snapshot
             sample_nas_volume_snapshot,  # Get created snapshot
         ]
 
-        result = scoped_snapshot_manager.create("pre-update", expires_days=7)
+        scoped_snapshot_manager.create("pre-update", expires_days=7)
 
         create_call = mock_client._request.call_args_list[0]
         assert create_call[1]["json_data"]["expires_type"] == "date"
         assert create_call[1]["json_data"]["expires"] > 0
 
-    def test_create_never_expires(self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_create_never_expires(
+        self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test creating snapshot that never expires."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create snapshot
             sample_nas_volume_snapshot,  # Get created snapshot
         ]
 
-        result = scoped_snapshot_manager.create("pre-update", never_expires=True)
+        scoped_snapshot_manager.create("pre-update", never_expires=True)
 
         create_call = mock_client._request.call_args_list[0]
         assert create_call[1]["json_data"]["expires_type"] == "never"
         assert create_call[1]["json_data"]["expires"] == 0
 
-    def test_create_with_quiesce(self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot):
+    def test_create_with_quiesce(
+        self, scoped_snapshot_manager, mock_client, sample_nas_volume_snapshot
+    ):
         """Test creating snapshot with quiesce."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create snapshot
             sample_nas_volume_snapshot,  # Get created snapshot
         ]
 
-        result = scoped_snapshot_manager.create("pre-update", quiesce=True)
+        scoped_snapshot_manager.create("pre-update", quiesce=True)
 
         create_call = mock_client._request.call_args_list[0]
         assert create_call[1]["json_data"]["quiesce"] is True

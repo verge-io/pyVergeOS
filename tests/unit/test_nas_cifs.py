@@ -1,10 +1,11 @@
 """Unit tests for NAS CIFS share management."""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_cifs import NASCIFSShare, NASCIFSShareManager
 
 
@@ -199,7 +200,7 @@ class TestNASCIFSShareManagerList:
         """Test listing with limit parameter."""
         mock_client._request.return_value = [sample_cifs_share]
 
-        result = cifs_manager.list(limit=10)
+        cifs_manager.list(limit=10)
 
         args = mock_client._request.call_args
         params = args[1]["params"]
@@ -237,10 +238,7 @@ class TestNASCIFSShareManagerGet:
         """Test getting share by name and volume."""
         mock_client._request.return_value = [sample_cifs_share]
 
-        result = cifs_manager.get(
-            name="shared",
-            volume="b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3"
-        )
+        result = cifs_manager.get(name="shared", volume="b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3")
 
         assert result.name == "shared"
 
@@ -269,10 +267,7 @@ class TestNASCIFSShareManagerCreate:
             [sample_cifs_share],  # Get after create
         ]
 
-        result = cifs_manager.create(
-            name="shared",
-            volume="FileShare"
-        )
+        result = cifs_manager.create(name="shared", volume="FileShare")
 
         assert result.name == "shared"
 
@@ -303,7 +298,7 @@ class TestNASCIFSShareManagerCreate:
             allowed_hosts=["192.168.1.0/24"],
             denied_hosts=[],
             shadow_copy=True,
-            enabled=True
+            enabled=True,
         )
 
         assert result.name == "shared"
@@ -324,10 +319,7 @@ class TestNASCIFSShareManagerUpdate:
             [updated_share],  # GET after update
         ]
 
-        result = cifs_manager.update(
-            sample_cifs_share["$key"],
-            description="Updated description"
-        )
+        result = cifs_manager.update(sample_cifs_share["$key"], description="Updated description")
 
         assert result.get("description") == "Updated description"
         # Verify PUT was called
@@ -342,11 +334,7 @@ class TestNASCIFSShareManagerUpdate:
             [updated_share],  # GET after update
         ]
 
-        result = cifs_manager.update(
-            sample_cifs_share["$key"],
-            guest_ok=True,
-            read_only=True
-        )
+        result = cifs_manager.update(sample_cifs_share["$key"], guest_ok=True, read_only=True)
 
         assert result.get("guest_ok") is True
         assert result.get("read_only") is True

@@ -7,6 +7,7 @@ Configure with environment variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import pytest
@@ -61,10 +62,8 @@ def cleanup_hosts(test_network: Network):
 
     # Cleanup any hosts we created
     for key in created_keys:
-        try:
+        with contextlib.suppress(NotFoundError):
             test_network.hosts.delete(key)
-        except NotFoundError:
-            pass  # Already deleted
 
 
 class TestNetworkHostManagerIntegration:
@@ -82,9 +81,7 @@ class TestNetworkHostManagerIntegration:
             assert host.hostname is not None
             assert host.ip is not None
 
-    def test_create_and_delete_host(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_create_and_delete_host(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test creating and deleting a host override."""
         # Create a test host
         host = test_network.hosts.create(
@@ -109,9 +106,7 @@ class TestNetworkHostManagerIntegration:
         with pytest.raises(NotFoundError):
             test_network.hosts.get(host.key)
 
-    def test_create_domain_type(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_create_domain_type(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test creating a domain type override."""
         host = test_network.hosts.create(
             hostname="mail.pytest.local",
@@ -125,9 +120,7 @@ class TestNetworkHostManagerIntegration:
         assert host.is_domain is True
         assert host.is_host is False
 
-    def test_get_host_by_key(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_get_host_by_key(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test getting a host by key."""
         # Create a host
         created = test_network.hosts.create(
@@ -143,9 +136,7 @@ class TestNetworkHostManagerIntegration:
         assert fetched.hostname == created.hostname
         assert fetched.ip == created.ip
 
-    def test_get_host_by_hostname(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_get_host_by_hostname(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test getting a host by hostname."""
         test_hostname = "pytest-getbyhostname"
 
@@ -162,9 +153,7 @@ class TestNetworkHostManagerIntegration:
         assert fetched.key == created.key
         assert fetched.hostname == test_hostname
 
-    def test_get_host_by_ip(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_get_host_by_ip(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test getting a host by IP address."""
         test_ip = "192.168.200.54"
 
@@ -181,9 +170,7 @@ class TestNetworkHostManagerIntegration:
         assert fetched.key == created.key
         assert fetched.ip == test_ip
 
-    def test_update_host_ip(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_update_host_ip(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test updating a host's IP address."""
         # Create a host
         host = test_network.hosts.create(
@@ -198,9 +185,7 @@ class TestNetworkHostManagerIntegration:
         assert updated.ip == "192.168.200.61"
         assert updated.hostname == "pytest-updateip"
 
-    def test_update_host_hostname(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_update_host_hostname(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test updating a host's hostname."""
         # Create a host
         host = test_network.hosts.create(
@@ -215,9 +200,7 @@ class TestNetworkHostManagerIntegration:
         assert updated.hostname == "pytest-updatename-new"
         assert updated.ip == "192.168.200.62"
 
-    def test_update_host_type(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_update_host_type(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test updating a host's type."""
         # Create a host type
         host = test_network.hosts.create(
@@ -254,9 +237,7 @@ class TestNetworkHostManagerIntegration:
         assert len(filtered) == 1
         assert filtered[0].hostname == unique_hostname
 
-    def test_list_with_ip_filter(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_list_with_ip_filter(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test listing hosts with IP filter."""
         test_ip = "192.168.200.71"
 
@@ -273,9 +254,7 @@ class TestNetworkHostManagerIntegration:
         assert len(filtered) == 1
         assert filtered[0].ip == test_ip
 
-    def test_list_with_type_filter(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_list_with_type_filter(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test listing hosts with type filter."""
         # Create one of each type
         host = test_network.hosts.create(
@@ -320,9 +299,7 @@ class TestNetworkHostManagerIntegration:
         with pytest.raises(NotFoundError, match="IP.*not found"):
             test_network.hosts.get(ip="10.255.255.254")
 
-    def test_multiple_hosts(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_multiple_hosts(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test creating and listing multiple hosts."""
         # Create multiple hosts
         hosts = []
@@ -341,9 +318,7 @@ class TestNetworkHostManagerIntegration:
         found_count = sum(1 for h in all_hosts if h.hostname in test_hostnames)
         assert found_count == 3
 
-    def test_host_properties(
-        self, test_network: Network, cleanup_hosts: list[int]
-    ) -> None:
+    def test_host_properties(self, test_network: Network, cleanup_hosts: list[int]) -> None:
         """Test all host properties."""
         host = test_network.hosts.create(
             hostname="pytest-properties",

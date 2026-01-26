@@ -8,7 +8,7 @@ Run with: pytest tests/integration/test_nas_volume_syncs.py -v
 """
 
 import pytest
-import time
+
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError, ValidationError
 
@@ -65,6 +65,7 @@ class TestNASVolumeSyncList:
         syncs = client.volume_syncs.list()
         if syncs:
             from pyvergeos.resources.nas_volume_syncs import NASVolumeSync
+
             assert all(isinstance(sync, NASVolumeSync) for sync in syncs)
 
     def test_list_with_service_filter(self, client, nas_service):

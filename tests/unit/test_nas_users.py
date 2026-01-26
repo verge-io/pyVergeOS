@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -255,9 +254,7 @@ class TestNASUserManager:
         call_args = mock_client._request.call_args
         assert "enabled eq false" in call_args[1]["params"]["filter"]
 
-    def test_list_empty(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_empty(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing returns empty list when none found."""
         mock_client._request.return_value = None
 
@@ -265,9 +262,7 @@ class TestNASUserManager:
 
         assert users == []
 
-    def test_list_single_result(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_single_result(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing with single result (not array)."""
         mock_client._request.return_value = {"$key": "abc", "name": "user1"}
 
@@ -276,9 +271,7 @@ class TestNASUserManager:
         assert len(users) == 1
         assert users[0].name == "user1"
 
-    def test_list_with_service_name(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_with_service_name(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing with service name resolution."""
         # First call resolves service name, second lists users
         mock_client._request.side_effect = [
@@ -291,9 +284,7 @@ class TestNASUserManager:
         assert len(users) == 1
         assert mock_client._request.call_count == 2
 
-    def test_get_by_key(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_by_key(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test getting user by key."""
         mock_client._request.return_value = [
             {"$key": "abc123", "name": "testuser", "enabled": True}
@@ -306,9 +297,7 @@ class TestNASUserManager:
         call_args = mock_client._request.call_args
         assert "$key eq 'abc123'" in call_args[1]["params"]["filter"]
 
-    def test_get_by_key_not_found(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_by_key_not_found(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test getting user by key when not found."""
         mock_client._request.return_value = []
 
@@ -328,14 +317,10 @@ class TestNASUserManager:
         with pytest.raises(NotFoundError):
             manager.get("abc123")
 
-    def test_get_by_name(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_by_name(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test getting user by name."""
         # When service is an int, no service lookup needed
-        mock_client._request.return_value = [
-            {"$key": "abc123", "name": "testuser"}
-        ]
+        mock_client._request.return_value = [{"$key": "abc123", "name": "testuser"}]
 
         user = manager.get(name="testuser", service=1)
 
@@ -348,9 +333,7 @@ class TestNASUserManager:
         with pytest.raises(ValueError, match="service is required"):
             manager.get(name="testuser")
 
-    def test_get_by_name_not_found(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_by_name_not_found(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test getting user by name when not found."""
         # When service is an int, no service lookup needed - just empty user list
         mock_client._request.return_value = []
@@ -360,25 +343,19 @@ class TestNASUserManager:
         with pytest.raises(NotFoundError, match="not found"):
             manager.get(name="nonexistent", service=1)
 
-    def test_get_no_identifier(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_no_identifier(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test getting user without key or name raises."""
         with pytest.raises(ValueError, match="key or name"):
             manager.get()
 
-    def test_create_basic(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_create_basic(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test creating a basic user."""
         mock_client._request.side_effect = [
             {"$key": "newkey123"},  # Create response
             [{"$key": "newkey123", "name": "newuser", "enabled": True}],  # Get
         ]
 
-        user = manager.create(
-            service=1, name="newuser", password="TestPass123!"
-        )
+        user = manager.create(service=1, name="newuser", password="TestPass123!")
 
         assert user.name == "newuser"
         # Check create request
@@ -390,9 +367,7 @@ class TestNASUserManager:
         assert body["password"] == "TestPass123!"
         assert body["enabled"] is True
 
-    def test_create_with_all_options(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_create_with_all_options(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test creating user with all options."""
         mock_client._request.side_effect = [
             [{"$key": 5}],  # CIFS share lookup
@@ -430,9 +405,7 @@ class TestNASUserManager:
             [{"$key": "newkey", "name": "user"}],  # Get
         ]
 
-        user = manager.create(
-            service="NAS01", name="user", password="pass"
-        )
+        user = manager.create(service="NAS01", name="user", password="pass")
 
         assert user.name == "user"
         # Check service was resolved
@@ -447,41 +420,33 @@ class TestNASUserManager:
         with pytest.raises(ValueError, match="not found"):
             manager.create(service="InvalidNAS", name="user", password="pass")
 
-    def test_create_disabled(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_create_disabled(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test creating disabled user."""
         mock_client._request.side_effect = [
             {"$key": "newkey"},  # Create
             [{"$key": "newkey", "name": "user", "enabled": False}],  # Get
         ]
 
-        user = manager.create(
-            service=1, name="user", password="pass", enabled=False
-        )
+        manager.create(service=1, name="user", password="pass", enabled=False)
 
         create_call = mock_client._request.call_args_list[0]
         body = create_call[1]["json_data"]
         assert body["enabled"] is False
 
-    def test_update_password(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_update_password(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test updating user password."""
         mock_client._request.side_effect = [
             None,  # PUT
             [{"$key": "abc123", "name": "user"}],  # GET
         ]
 
-        user = manager.update("abc123", password="NewPass!")
+        manager.update("abc123", password="NewPass!")
 
         put_call = mock_client._request.call_args_list[0]
         assert put_call[0] == ("PUT", "vm_service_users/abc123")
         assert put_call[1]["json_data"]["password"] == "NewPass!"
 
-    def test_update_displayname(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_update_displayname(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test updating display name."""
         mock_client._request.side_effect = [
             None,  # PUT
@@ -494,37 +459,31 @@ class TestNASUserManager:
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["displayname"] == "New Name"
 
-    def test_update_enabled(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_update_enabled(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test updating enabled state."""
         mock_client._request.side_effect = [
             None,  # PUT
             [{"$key": "abc123", "enabled": False}],  # GET
         ]
 
-        user = manager.update("abc123", enabled=False)
+        manager.update("abc123", enabled=False)
 
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["enabled"] is False
 
-    def test_update_home_drive(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_update_home_drive(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test updating home drive (uppercase)."""
         mock_client._request.side_effect = [
             None,  # PUT
             [{"$key": "abc123", "home_drive": "Z"}],  # GET
         ]
 
-        user = manager.update("abc123", home_drive="z")
+        manager.update("abc123", home_drive="z")
 
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["home_drive"] == "Z"
 
-    def test_update_clear_home_drive(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_update_clear_home_drive(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test clearing home drive."""
         mock_client._request.side_effect = [
             None,  # PUT
@@ -536,34 +495,26 @@ class TestNASUserManager:
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["home_drive"] == ""
 
-    def test_update_no_changes(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_update_no_changes(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test update with no changes just fetches."""
         mock_client._request.return_value = [{"$key": "abc123", "name": "user"}]
 
-        user = manager.update("abc123")
+        manager.update("abc123")
 
         # Only one call (GET), no PUT
         assert mock_client._request.call_count == 1
         call_args = mock_client._request.call_args
         assert call_args[0][0] == "GET"
 
-    def test_delete(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_delete(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test deleting user."""
         mock_client._request.return_value = None
 
         manager.delete("abc123")
 
-        mock_client._request.assert_called_once_with(
-            "DELETE", "vm_service_users/abc123"
-        )
+        mock_client._request.assert_called_once_with("DELETE", "vm_service_users/abc123")
 
-    def test_enable(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_enable(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test enabling user."""
         mock_client._request.side_effect = [
             None,  # PUT
@@ -576,9 +527,7 @@ class TestNASUserManager:
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["enabled"] is True
 
-    def test_disable(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_disable(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test disabling user."""
         mock_client._request.side_effect = [
             None,  # PUT
@@ -591,9 +540,7 @@ class TestNASUserManager:
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["enabled"] is False
 
-    def test_resolve_service_key_int(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_resolve_service_key_int(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test service key resolution with integer."""
         result = manager._resolve_service_key(42)
         assert result == 42
@@ -642,9 +589,7 @@ class TestNASUserManager:
         assert "UserHome" in call_args[1]["params"]["filter"]
         assert "volume#service eq 1" in call_args[1]["params"]["filter"]
 
-    def test_to_model(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_to_model(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test _to_model creates proper NASUser object."""
         data = {
             "$key": "abc123",
@@ -674,9 +619,7 @@ class TestNASUserManagerPagination:
         """Create a NASUserManager with mock client."""
         return NASUserManager(mock_client)
 
-    def test_list_with_limit(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_with_limit(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing with limit."""
         mock_client._request.return_value = [{"$key": "abc", "name": "user1"}]
 
@@ -685,9 +628,7 @@ class TestNASUserManagerPagination:
         call_args = mock_client._request.call_args
         assert call_args[1]["params"]["limit"] == 10
 
-    def test_list_with_offset(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_with_offset(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing with offset."""
         mock_client._request.return_value = []
 
@@ -722,9 +663,7 @@ class TestNASUserManagerFilters:
         """Create a NASUserManager with mock client."""
         return NASUserManager(mock_client)
 
-    def test_list_with_custom_filter(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_with_custom_filter(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing with custom OData filter."""
         mock_client._request.return_value = []
 
@@ -744,9 +683,7 @@ class TestNASUserManagerFilters:
         call_args = mock_client._request.call_args
         assert "name eq 'testuser'" in call_args[1]["params"]["filter"]
 
-    def test_list_combines_filters(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_combines_filters(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test that multiple filters are combined with 'and'."""
         mock_client._request.return_value = []
 
@@ -763,9 +700,7 @@ class TestNASUserManagerFilters:
         assert "enabled eq true" in filter_str
         assert " and " in filter_str
 
-    def test_list_with_custom_fields(
-        self, manager: NASUserManager, mock_client: MagicMock
-    ) -> None:
+    def test_list_with_custom_fields(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test listing with custom fields."""
         mock_client._request.return_value = [{"$key": "abc", "name": "user"}]
 

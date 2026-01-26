@@ -368,9 +368,7 @@ class TestNetworkDiagnostics:
         assert diag["network_key"] == network.key
         assert diag["network_name"] == network.name
 
-    def test_diagnostics_address_has_expected_fields(
-        self, live_client: VergeClient
-    ) -> None:
+    def test_diagnostics_address_has_expected_fields(self, live_client: VergeClient) -> None:
         """Test that address entries have expected fields."""
         networks = live_client.networks.list_running()
         if not networks:
@@ -387,13 +385,17 @@ class TestNetworkDiagnostics:
                 assert "type" in addr
                 assert "type_raw" in addr
                 # Type should be mapped to human-readable name
-                assert addr["type"] in [
-                    "Static",
-                    "DHCP Lease",
-                    "IP Alias",
-                    "Proxy ARP",
-                    "Virtual IP",
-                ] or addr["type"] == addr["type_raw"]
+                assert (
+                    addr["type"]
+                    in [
+                        "Static",
+                        "DHCP Lease",
+                        "IP Alias",
+                        "Proxy ARP",
+                        "Virtual IP",
+                    ]
+                    or addr["type"] == addr["type_raw"]
+                )
                 return
 
         pytest.skip("No networks with addresses available")

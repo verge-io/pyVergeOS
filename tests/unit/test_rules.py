@@ -212,7 +212,7 @@ class TestNetworkRuleManagerList:
         """Test filtering by action."""
         mock_client._request.return_value = [sample_rule_data]
 
-        rules = rule_manager.list(action="accept")
+        rule_manager.list(action="accept")
 
         call_args = mock_client._request.call_args
         assert "action eq 'accept'" in call_args[1]["params"]["filter"]
@@ -226,7 +226,7 @@ class TestNetworkRuleManagerList:
         """Test filtering by protocol."""
         mock_client._request.return_value = [sample_rule_data]
 
-        rules = rule_manager.list(protocol="tcp")
+        rule_manager.list(protocol="tcp")
 
         call_args = mock_client._request.call_args
         assert "protocol eq 'tcp'" in call_args[1]["params"]["filter"]
@@ -240,7 +240,7 @@ class TestNetworkRuleManagerList:
         """Test filtering by enabled status."""
         mock_client._request.return_value = [sample_rule_data]
 
-        rules = rule_manager.list(enabled=True)
+        rule_manager.list(enabled=True)
 
         call_args = mock_client._request.call_args
         assert "enabled eq true" in call_args[1]["params"]["filter"]
@@ -254,7 +254,7 @@ class TestNetworkRuleManagerList:
         """Test list_incoming helper."""
         mock_client._request.return_value = [sample_rule_data]
 
-        rules = rule_manager.list_incoming()
+        rule_manager.list_incoming()
 
         call_args = mock_client._request.call_args
         assert "direction eq 'incoming'" in call_args[1]["params"]["filter"]
@@ -268,7 +268,7 @@ class TestNetworkRuleManagerList:
         """Test list_outgoing helper."""
         mock_client._request.return_value = [sample_rule_data]
 
-        rules = rule_manager.list_outgoing()
+        rule_manager.list_outgoing()
 
         call_args = mock_client._request.call_args
         assert "direction eq 'outgoing'" in call_args[1]["params"]["filter"]
@@ -318,9 +318,7 @@ class TestNetworkRuleManagerGet:
 
         assert rule.name == "Allow HTTPS"
 
-    def test_get_not_found(
-        self, mock_client: MagicMock, rule_manager: NetworkRuleManager
-    ) -> None:
+    def test_get_not_found(self, mock_client: MagicMock, rule_manager: NetworkRuleManager) -> None:
         """Test NotFoundError when rule doesn't exist."""
         mock_client._request.return_value = None
 
@@ -336,9 +334,7 @@ class TestNetworkRuleManagerGet:
         with pytest.raises(NotFoundError, match="not found on this network"):
             rule_manager.get(name="NonExistent")
 
-    def test_get_requires_key_or_name(
-        self, rule_manager: NetworkRuleManager
-    ) -> None:
+    def test_get_requires_key_or_name(self, rule_manager: NetworkRuleManager) -> None:
         """Test that get requires either key or name."""
         with pytest.raises(ValueError, match="Either key or name must be provided"):
             rule_manager.get()
@@ -408,7 +404,7 @@ class TestNetworkRuleManagerCreate:
             },
         ]
 
-        rule = rule_manager.create(
+        rule_manager.create(
             name="NAT Rule",
             action="translate",
             protocol="tcp",
@@ -437,7 +433,7 @@ class TestNetworkRuleManagerCreate:
             },
         ]
 
-        rule = rule_manager.create(
+        rule_manager.create(
             name="Logged Rule",
             log=True,
             statistics=True,
@@ -457,7 +453,7 @@ class TestNetworkRuleManagerCreate:
             {"$key": 23, "name": "Top Rule", "orderid": 1},
         ]
 
-        rule = rule_manager.create(name="Top Rule", pin="top")
+        rule_manager.create(name="Top Rule", pin="top")
 
         create_call = mock_client._request.call_args_list[0]
         body = create_call[1]["json_data"]

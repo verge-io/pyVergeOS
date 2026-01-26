@@ -105,9 +105,7 @@ class TestIPSecConnection:
         conn = IPSecConnection(sample_connection_data, ipsec_manager)
         assert conn.key_exchange_display == "IKEv2"
 
-    def test_key_exchange_display_auto(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_key_exchange_display_auto(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test key_exchange_display for auto mode."""
         conn = IPSecConnection({"$key": 1, "keyexchange": "ike"}, ipsec_manager)
         assert conn.key_exchange_display == "Auto"
@@ -126,16 +124,12 @@ class TestIPSecConnection:
         conn = IPSecConnection(sample_connection_data, ipsec_manager)
         assert conn.connection_mode_display == "On-Demand"
 
-    def test_connection_mode_display_start(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_connection_mode_display_start(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test connection_mode_display for start mode."""
         conn = IPSecConnection({"$key": 1, "auto": "start"}, ipsec_manager)
         assert conn.connection_mode_display == "Always Start"
 
-    def test_connection_mode_display_add(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_connection_mode_display_add(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test connection_mode_display for add mode."""
         conn = IPSecConnection({"$key": 1, "auto": "add"}, ipsec_manager)
         assert conn.connection_mode_display == "Responder Only"
@@ -147,9 +141,7 @@ class TestIPSecConnection:
         conn = IPSecConnection(sample_connection_data, ipsec_manager)
         assert conn.dpd_action_display == "Restart"
 
-    def test_dpd_action_display_disabled(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_dpd_action_display_disabled(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test dpd_action_display for disabled."""
         conn = IPSecConnection({"$key": 1, "dpdaction": "none"}, ipsec_manager)
         assert conn.dpd_action_display == "Disabled"
@@ -161,9 +153,7 @@ class TestIPSecConnection:
         conn = IPSecConnection(sample_connection_data, ipsec_manager)
         assert conn.is_enabled is True
 
-    def test_is_enabled_false(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_is_enabled_false(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test is_enabled when disabled."""
         conn = IPSecConnection({"$key": 1, "enabled": False}, ipsec_manager)
         assert conn.is_enabled is False
@@ -182,9 +172,7 @@ class TestIPSecConnection:
         conn = IPSecConnection(sample_connection_data, ipsec_manager)
         assert conn.modified_at is not None
 
-    def test_modified_at_none(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_modified_at_none(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test modified_at when not set."""
         conn = IPSecConnection({"$key": 1}, ipsec_manager)
         assert conn.modified_at is None
@@ -202,9 +190,7 @@ class TestIPSecPolicy:
         policy = IPSecPolicy(sample_policy_data, policy_manager)
         assert policy.mode_display == "Tunnel"
 
-    def test_mode_display_transport(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_mode_display_transport(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test mode_display for transport mode."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
         policy_manager = IPSecPolicyManager(ipsec_manager._client, conn)
@@ -220,9 +206,7 @@ class TestIPSecPolicy:
         policy = IPSecPolicy(sample_policy_data, policy_manager)
         assert policy.protocol_display == "ESP (Encrypted)"
 
-    def test_protocol_display_ah(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_protocol_display_ah(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test protocol_display for AH."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
         policy_manager = IPSecPolicyManager(ipsec_manager._client, conn)
@@ -269,7 +253,10 @@ class TestIPSecConnectionManagerList:
         assert result == []
 
     def test_list_returns_connections(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test list returns connections."""
         # First call gets IPSec config
@@ -283,7 +270,10 @@ class TestIPSecConnectionManagerList:
         assert result[0].name == "Site-B"
 
     def test_list_handles_single_connection(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test list handles single connection (dict instead of list)."""
         mock_client._request.side_effect = [
@@ -298,7 +288,10 @@ class TestIPSecConnectionManagerGet:
     """Tests for IPSecConnectionManager.get() method."""
 
     def test_get_by_key(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test get connection by key."""
         mock_client._request.return_value = sample_connection_data
@@ -307,7 +300,10 @@ class TestIPSecConnectionManagerGet:
         assert result.name == "Site-B"
 
     def test_get_by_name(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test get connection by name."""
         mock_client._request.side_effect = [
@@ -336,9 +332,7 @@ class TestIPSecConnectionManagerGet:
         with pytest.raises(NotFoundError):
             ipsec_manager.get(name="NonExistent")
 
-    def test_get_requires_key_or_name(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_get_requires_key_or_name(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test get raises ValueError when neither key nor name provided."""
         with pytest.raises(ValueError, match="Either key or name"):
             ipsec_manager.get()
@@ -348,7 +342,10 @@ class TestIPSecConnectionManagerCreate:
     """Tests for IPSecConnectionManager.create() method."""
 
     def test_create_connection(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test create connection."""
         mock_client._request.side_effect = [
@@ -364,7 +361,10 @@ class TestIPSecConnectionManagerCreate:
         assert result.name == "Site-B"
 
     def test_create_creates_ipsec_config_if_missing(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test create creates IPSec config if not exists."""
         mock_client._request.side_effect = [
@@ -386,7 +386,10 @@ class TestIPSecConnectionManagerUpdate:
     """Tests for IPSecConnectionManager.update() method."""
 
     def test_update_connection(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test update connection."""
         mock_client._request.side_effect = [
@@ -397,7 +400,10 @@ class TestIPSecConnectionManagerUpdate:
         assert result.name == "Site-B"
 
     def test_update_maps_friendly_values(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_connection_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test update maps friendly values to API values."""
         mock_client._request.side_effect = [
@@ -410,9 +416,7 @@ class TestIPSecConnectionManagerUpdate:
         assert put_call[1]["json_data"]["keyexchange"] == "ikev2"
         assert put_call[1]["json_data"]["auto"] == "start"
 
-    def test_update_requires_parameters(
-        self, ipsec_manager: IPSecConnectionManager
-    ) -> None:
+    def test_update_requires_parameters(self, ipsec_manager: IPSecConnectionManager) -> None:
         """Test update raises ValueError when no parameters provided."""
         with pytest.raises(ValueError, match="No update parameters"):
             ipsec_manager.update(1)
@@ -434,7 +438,10 @@ class TestIPSecPolicyManagerList:
     """Tests for IPSecPolicyManager.list() method."""
 
     def test_list_policies(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_policy_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test list policies."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
@@ -459,7 +466,10 @@ class TestIPSecPolicyManagerGet:
     """Tests for IPSecPolicyManager.get() method."""
 
     def test_get_by_key(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_policy_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test get policy by key."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
@@ -469,7 +479,10 @@ class TestIPSecPolicyManagerGet:
         assert result.name == "LAN-to-LAN"
 
     def test_get_by_name(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_policy_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test get policy by name."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
@@ -493,7 +506,10 @@ class TestIPSecPolicyManagerCreate:
     """Tests for IPSecPolicyManager.create() method."""
 
     def test_create_policy(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_policy_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test create policy."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
@@ -514,7 +530,10 @@ class TestIPSecPolicyManagerUpdate:
     """Tests for IPSecPolicyManager.update() method."""
 
     def test_update_policy(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock, sample_policy_data: dict[str, Any]
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test update policy."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)

@@ -1,5 +1,7 @@
 """Integration tests for system user operations."""
 
+import contextlib
+
 import pytest
 
 from pyvergeos import VergeClient
@@ -89,10 +91,8 @@ class TestUserCRUD:
         )
         yield user
         # Cleanup
-        try:
+        with contextlib.suppress(NotFoundError):
             live_client.users.delete(user.key)
-        except NotFoundError:
-            pass  # Already deleted
 
     def test_create_user(self, live_client: VergeClient) -> None:
         """Test creating a user."""

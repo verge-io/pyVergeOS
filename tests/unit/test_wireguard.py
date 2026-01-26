@@ -243,9 +243,7 @@ class TestWireGuardPeer:
         """Test has_preshared_key when set."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(wireguard_manager._client, iface)
-        peer = WireGuardPeer(
-            {"$key": 1, "preshared_key": "somesecretkey"}, peer_manager
-        )
+        peer = WireGuardPeer({"$key": 1, "preshared_key": "somesecretkey"}, peer_manager)
         assert peer.has_preshared_key is True
 
     def test_allowed_ips(
@@ -284,20 +282,14 @@ class TestWireGuardPeer:
         peer = WireGuardPeer(sample_peer_data, peer_manager)
         assert peer.firewall_config_display == "Site-to-Site"
 
-    def test_firewall_config_display_remote_user(
-        self, wireguard_manager: WireGuardManager
-    ) -> None:
+    def test_firewall_config_display_remote_user(self, wireguard_manager: WireGuardManager) -> None:
         """Test firewall_config_display for remote-user."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(wireguard_manager._client, iface)
-        peer = WireGuardPeer(
-            {"$key": 1, "configure_firewall": "remote-user"}, peer_manager
-        )
+        peer = WireGuardPeer({"$key": 1, "configure_firewall": "remote-user"}, peer_manager)
         assert peer.firewall_config_display == "Remote User"
 
-    def test_firewall_config_display_none(
-        self, wireguard_manager: WireGuardManager
-    ) -> None:
+    def test_firewall_config_display_none(self, wireguard_manager: WireGuardManager) -> None:
         """Test firewall_config_display for none."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(wireguard_manager._client, iface)
@@ -393,9 +385,7 @@ class TestWireGuardManagerGet:
         with pytest.raises(NotFoundError):
             wireguard_manager.get(name="NonExistent")
 
-    def test_get_requires_key_or_name(
-        self, wireguard_manager: WireGuardManager
-    ) -> None:
+    def test_get_requires_key_or_name(self, wireguard_manager: WireGuardManager) -> None:
         """Test get raises ValueError when neither key nor name provided."""
         with pytest.raises(ValueError, match="Either key or name"):
             wireguard_manager.get()
@@ -500,9 +490,7 @@ class TestWireGuardManagerUpdate:
         assert body["ip"] == "10.100.0.2/24"
         assert body["listenport"] == 51821
 
-    def test_update_requires_parameters(
-        self, wireguard_manager: WireGuardManager
-    ) -> None:
+    def test_update_requires_parameters(self, wireguard_manager: WireGuardManager) -> None:
         """Test update raises ValueError when no parameters provided."""
         with pytest.raises(ValueError, match="No update parameters"):
             wireguard_manager.update(1)
@@ -735,9 +723,7 @@ class TestWireGuardPeerManagerUpdate:
 class TestWireGuardPeerManagerDelete:
     """Tests for WireGuardPeerManager.delete() method."""
 
-    def test_delete_peer(
-        self, wireguard_manager: WireGuardManager, mock_client: MagicMock
-    ) -> None:
+    def test_delete_peer(self, wireguard_manager: WireGuardManager, mock_client: MagicMock) -> None:
         """Test delete peer."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
@@ -749,9 +735,7 @@ class TestWireGuardPeerManagerDelete:
 class TestWireGuardPeerManagerGetConfig:
     """Tests for WireGuardPeerManager.get_config() method."""
 
-    def test_get_config(
-        self, wireguard_manager: WireGuardManager, mock_client: MagicMock
-    ) -> None:
+    def test_get_config(self, wireguard_manager: WireGuardManager, mock_client: MagicMock) -> None:
         """Test get_config returns configuration."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)

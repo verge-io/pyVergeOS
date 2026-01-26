@@ -7,8 +7,8 @@ Configure with environment variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
-import time
 
 import pytest
 
@@ -62,10 +62,8 @@ def cleanup_rules(test_network: Network):
 
     # Cleanup any rules we created
     for key in created_keys:
-        try:
+        with contextlib.suppress(NotFoundError, ValidationError):
             test_network.rules.delete(key)
-        except (NotFoundError, ValidationError):
-            pass  # Already deleted or system rule
 
 
 class TestNetworkRuleManagerIntegration:
@@ -110,9 +108,7 @@ class TestNetworkRuleManagerIntegration:
         for rule in enabled:
             assert rule.is_enabled is True
 
-    def test_create_and_delete_rule(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_create_and_delete_rule(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test creating and deleting a rule."""
         # Create a test rule
         rule = test_network.rules.create(
@@ -141,9 +137,7 @@ class TestNetworkRuleManagerIntegration:
         with pytest.raises(NotFoundError):
             test_network.rules.get(rule.key)
 
-    def test_create_nat_rule(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_create_nat_rule(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test creating a NAT/translate rule."""
         rule = test_network.rules.create(
             name="PyTest-IntegrationTest-NAT",
@@ -161,9 +155,7 @@ class TestNetworkRuleManagerIntegration:
         assert rule.target_ip == "192.168.100.99"
         assert rule.target_ports == "80"
 
-    def test_create_drop_rule(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_create_drop_rule(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test creating a drop rule."""
         rule = test_network.rules.create(
             name="PyTest-IntegrationTest-Drop",
@@ -179,9 +171,7 @@ class TestNetworkRuleManagerIntegration:
         assert rule.protocol == "any"
         assert rule.source_ip == "10.255.255.0/24"
 
-    def test_get_rule_by_key(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_get_rule_by_key(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test getting a rule by key."""
         # Create a rule
         created = test_network.rules.create(
@@ -199,9 +189,7 @@ class TestNetworkRuleManagerIntegration:
         assert fetched.key == created.key
         assert fetched.name == created.name
 
-    def test_get_rule_by_name(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_get_rule_by_name(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test getting a rule by name."""
         rule_name = "PyTest-IntegrationTest-GetByName"
 
@@ -221,9 +209,7 @@ class TestNetworkRuleManagerIntegration:
         assert fetched.key == created.key
         assert fetched.name == rule_name
 
-    def test_update_rule(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_update_rule(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test updating a rule."""
         # Create a rule
         rule = test_network.rules.create(
@@ -246,9 +232,7 @@ class TestNetworkRuleManagerIntegration:
         assert updated.get("description") == "Updated description"
         assert updated.destination_ports == "7777,7778"
 
-    def test_enable_disable_rule(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_enable_disable_rule(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test enabling and disabling a rule."""
         # Create a rule
         rule = test_network.rules.create(
@@ -270,9 +254,7 @@ class TestNetworkRuleManagerIntegration:
         enabled = disabled.enable()
         assert enabled.is_enabled is True
 
-    def test_create_with_logging(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_create_with_logging(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test creating a rule with logging enabled."""
         rule = test_network.rules.create(
             name="PyTest-IntegrationTest-Logging",
@@ -288,9 +270,7 @@ class TestNetworkRuleManagerIntegration:
         assert rule.is_logging is True
         assert rule.has_statistics is True
 
-    def test_create_with_pin_top(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_create_with_pin_top(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test creating a rule pinned to top."""
         rule = test_network.rules.create(
             name="PyTest-IntegrationTest-PinTop",
@@ -333,9 +313,7 @@ class TestNetworkRuleManagerIntegration:
         with pytest.raises(NotFoundError, match="not found on this network"):
             test_network.rules.get(name="NonExistent-Rule-12345")
 
-    def test_rule_properties(
-        self, test_network: Network, cleanup_rules: list[int]
-    ) -> None:
+    def test_rule_properties(self, test_network: Network, cleanup_rules: list[int]) -> None:
         """Test all rule properties."""
         rule = test_network.rules.create(
             name="PyTest-IntegrationTest-Properties",
