@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.nas_volumes import NASVolumeManager, NASVolumeSnapshotManager
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
+    from pyvergeos.resources.permissions import PermissionManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenants import TenantManager
@@ -107,6 +108,7 @@ class VergeClient:
         self._users: UserManager | None = None
         self._api_keys: APIKeyManager | None = None
         self._groups: GroupManager | None = None
+        self._permissions: PermissionManager | None = None
         self._clusters: ClusterManager | None = None
         self._nodes: NodeManager | None = None
         self._tasks: TaskManager | None = None
@@ -433,6 +435,15 @@ class VergeClient:
 
             self._groups = GroupManager(self)
         return self._groups
+
+    @property
+    def permissions(self) -> PermissionManager:
+        """Access permission operations."""
+        if self._permissions is None:
+            from pyvergeos.resources.permissions import PermissionManager
+
+            self._permissions = PermissionManager(self)
+        return self._permissions
 
     @property
     def clusters(self) -> ClusterManager:

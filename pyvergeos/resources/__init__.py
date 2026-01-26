@@ -19,6 +19,7 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshot,
     NASVolumeSnapshotManager,
 )
+from pyvergeos.resources.permissions import Permission, PermissionManager
 
 __all__ = [
     "APIKey",
@@ -42,6 +43,8 @@ __all__ = [
     "NASVolumeSync",
     "NASVolumeSyncManager",
     "NFSSettings",
+    "Permission",
+    "PermissionManager",
     "ResourceManager",
     "ResourceObject",
 ]

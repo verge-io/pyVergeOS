@@ -146,7 +146,7 @@ class FileManager(ResourceManager[File]):
     def _to_model(self, data: dict[str, Any]) -> File:
         return File(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,

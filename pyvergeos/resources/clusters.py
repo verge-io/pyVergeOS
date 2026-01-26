@@ -104,7 +104,7 @@ class VSANStatus(ResourceObject):
     @property
     def status(self) -> str:
         """Cluster status (Online, Offline, etc.)."""
-        raw = self.get("status", "")
+        raw = str(self.get("status", ""))
         return STATUS_DISPLAY.get(raw, raw)
 
     @property
@@ -115,7 +115,7 @@ class VSANStatus(ResourceObject):
     @property
     def state(self) -> str:
         """Cluster state (Online, Warning, Error, Offline)."""
-        raw = self.get("state", "")
+        raw = str(self.get("state", ""))
         return STATE_DISPLAY.get(raw, raw)
 
     @property

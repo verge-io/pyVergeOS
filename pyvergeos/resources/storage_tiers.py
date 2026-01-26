@@ -229,7 +229,7 @@ class StorageTierManager(ResourceManager[StorageTier]):
 
         return super().list(filter=filter, fields=fields, **filter_kwargs)
 
-    def get(
+    def get(  # type: ignore[override]
         self,
         key: int | None = None,
         *,
