@@ -331,3 +331,206 @@ class TestTenantClone:
         except NotFoundError:
             # Clone may still be provisioning
             pass
+
+
+@pytest.mark.integration
+class TestTenantSnapshots:
+    """Integration tests for Tenant Snapshot operations."""
+
+    @pytest.fixture
+    def test_tenant(self, live_client: VergeClient):
+        """Get the test tenant, or skip if not available."""
+        try:
+            return live_client.tenants.get(name="test")
+        except NotFoundError:
+            pytest.skip("Test tenant 'test' not available")
+
+    def test_list_snapshots_empty(self, live_client: VergeClient, test_tenant) -> None:
+        """Test listing snapshots returns a list."""
+        snapshots = test_tenant.snapshots.list()
+        assert isinstance(snapshots, list)
+
+    def test_create_snapshot(self, live_client: VergeClient, test_tenant) -> None:
+        """Test creating a tenant snapshot."""
+        snapshot_name = "pyvergeos-test-snapshot"
+
+        # Clean up any existing test snapshot
+        for snap in test_tenant.snapshots.list():
+            if snap.name == snapshot_name:
+                test_tenant.snapshots.delete(snap.key)
+
+        # Create snapshot
+        snapshot = test_tenant.snapshots.create(
+            name=snapshot_name,
+            description="Test snapshot for pyvergeos integration tests",
+            expires_in_days=1,
+        )
+
+        assert snapshot.name == snapshot_name
+        assert snapshot.tenant_key == test_tenant.key
+        assert snapshot.get("description") == "Test snapshot for pyvergeos integration tests"
+        assert not snapshot.never_expires
+        assert snapshot.expires_at is not None
+        assert snapshot.created_at is not None
+
+        # Cleanup
+        test_tenant.snapshots.delete(snapshot.key)
+
+    def test_create_snapshot_no_expiration(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test creating a snapshot that never expires."""
+        snapshot_name = "pyvergeos-no-expire-test"
+
+        # Clean up any existing test snapshot
+        for snap in test_tenant.snapshots.list():
+            if snap.name == snapshot_name:
+                test_tenant.snapshots.delete(snap.key)
+
+        # Create snapshot with no expiration
+        snapshot = test_tenant.snapshots.create(name=snapshot_name)
+
+        assert snapshot.name == snapshot_name
+        assert snapshot.never_expires is True
+        assert snapshot.expires_at is None
+
+        # Cleanup
+        test_tenant.snapshots.delete(snapshot.key)
+
+    def test_get_snapshot_by_key(self, live_client: VergeClient, test_tenant) -> None:
+        """Test getting a snapshot by key."""
+        # Create a snapshot first
+        snapshot = test_tenant.snapshots.create(name="pyvergeos-get-by-key-test")
+
+        try:
+            # Get by key
+            fetched = test_tenant.snapshots.get(snapshot.key)
+            assert fetched.key == snapshot.key
+            assert fetched.name == snapshot.name
+        finally:
+            test_tenant.snapshots.delete(snapshot.key)
+
+    def test_get_snapshot_by_name(self, live_client: VergeClient, test_tenant) -> None:
+        """Test getting a snapshot by name."""
+        snapshot_name = "pyvergeos-get-by-name-test"
+
+        # Create a snapshot first
+        snapshot = test_tenant.snapshots.create(name=snapshot_name)
+
+        try:
+            # Get by name
+            fetched = test_tenant.snapshots.get(name=snapshot_name)
+            assert fetched.key == snapshot.key
+            assert fetched.name == snapshot_name
+        finally:
+            test_tenant.snapshots.delete(snapshot.key)
+
+    def test_get_snapshot_not_found(self, live_client: VergeClient, test_tenant) -> None:
+        """Test getting a non-existent snapshot."""
+        with pytest.raises(NotFoundError):
+            test_tenant.snapshots.get(name="nonexistent-snapshot-12345")
+
+    def test_delete_snapshot(self, live_client: VergeClient, test_tenant) -> None:
+        """Test deleting a snapshot."""
+        # Create a snapshot
+        snapshot = test_tenant.snapshots.create(name="pyvergeos-delete-test")
+        snapshot_key = snapshot.key
+
+        # Delete it
+        test_tenant.snapshots.delete(snapshot_key)
+
+        # Verify it's gone
+        remaining = [s for s in test_tenant.snapshots.list() if s.key == snapshot_key]
+        assert len(remaining) == 0
+
+    def test_snapshot_list_with_filter(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test listing snapshots with an additional filter."""
+        # Create two snapshots
+        snap1 = test_tenant.snapshots.create(name="pyvergeos-filter-test-1")
+        snap2 = test_tenant.snapshots.create(name="pyvergeos-filter-test-2")
+
+        try:
+            # Filter by name
+            filtered = test_tenant.snapshots.list(
+                filter="name eq 'pyvergeos-filter-test-1'"
+            )
+            assert len(filtered) == 1
+            assert filtered[0].name == "pyvergeos-filter-test-1"
+        finally:
+            test_tenant.snapshots.delete(snap1.key)
+            test_tenant.snapshots.delete(snap2.key)
+
+    def test_snapshot_properties(self, live_client: VergeClient, test_tenant) -> None:
+        """Test snapshot property accessors."""
+        snapshot = test_tenant.snapshots.create(
+            name="pyvergeos-properties-test",
+            description="Test description",
+            expires_in_days=7,
+        )
+
+        try:
+            assert snapshot.name == "pyvergeos-properties-test"
+            assert snapshot.tenant_key == test_tenant.key
+            assert snapshot.created_at is not None
+            assert snapshot.expires_at is not None
+            assert snapshot.never_expires is False
+
+            # Profile-related properties (None for manual snapshots)
+            assert snapshot.profile is None or isinstance(snapshot.profile, str)
+            assert snapshot.period is None or isinstance(snapshot.period, str)
+            assert isinstance(snapshot.min_snapshots, int)
+        finally:
+            test_tenant.snapshots.delete(snapshot.key)
+
+    def test_restore_validation_running_tenant(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that restore raises error if tenant is running."""
+        # Skip if tenant is not running
+        tenant = live_client.tenants.get(test_tenant.key)
+        if not tenant.is_running:
+            pytest.skip("Tenant not running - cannot test running validation")
+
+        # Create a snapshot
+        snapshot = test_tenant.snapshots.create(name="pyvergeos-restore-val-test")
+
+        try:
+            with pytest.raises(ValueError, match="must be powered off"):
+                test_tenant.snapshots.restore(snapshot.key)
+        finally:
+            test_tenant.snapshots.delete(snapshot.key)
+
+    def test_snapshot_via_object_restore_method(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test restore method on snapshot object."""
+        # Skip if tenant is not running
+        tenant = live_client.tenants.get(test_tenant.key)
+        if not tenant.is_running:
+            pytest.skip("Tenant not running - cannot test running validation")
+
+        # Create a snapshot
+        snapshot = test_tenant.snapshots.create(name="pyvergeos-obj-restore-test")
+
+        try:
+            with pytest.raises(ValueError, match="must be powered off"):
+                snapshot.restore()
+        finally:
+            test_tenant.snapshots.delete(snapshot.key)
+
+    def test_create_snapshot_on_snapshot_raises(
+        self, live_client: VergeClient
+    ) -> None:
+        """Test that creating a snapshot on a tenant snapshot raises error."""
+        # Find a tenant snapshot in the list
+        all_items = live_client.tenants.list(include_snapshots=True, limit=50)
+        tenant_snapshots = [t for t in all_items if t.is_snapshot]
+
+        if not tenant_snapshots:
+            pytest.skip("No tenant snapshots available to test")
+
+        tenant_snapshot = tenant_snapshots[0]
+        with pytest.raises(ValueError, match="Cannot create snapshot of a tenant snapshot"):
+            tenant_snapshot.snapshots.create(name="should-fail")

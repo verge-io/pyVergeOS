@@ -20,6 +20,12 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshotManager,
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
+from pyvergeos.resources.tenants import (
+    Tenant,
+    TenantManager,
+    TenantSnapshot,
+    TenantSnapshotManager,
+)
 
 __all__ = [
     "APIKey",
@@ -47,4 +53,8 @@ __all__ = [
     "PermissionManager",
     "ResourceManager",
     "ResourceObject",
+    "Tenant",
+    "TenantManager",
+    "TenantSnapshot",
+    "TenantSnapshotManager",
 ]

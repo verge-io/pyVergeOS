@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.tenants import Tenant, TenantManager
+from pyvergeos.resources.tenants import (
+    Tenant,
+    TenantManager,
+    TenantSnapshot,
+    TenantSnapshotManager,
+)
 
 
 class TestTenantManager:
@@ -622,3 +629,509 @@ class TestTenantDefaultFields:
         fields = params.get("fields", "")
         assert "$key" in fields
         assert "name" in fields
+
+
+class TestTenantSnapshot:
+    """Unit tests for TenantSnapshot object."""
+
+    @pytest.fixture
+    def snapshot_data(self) -> dict[str, Any]:
+        """Sample tenant snapshot data."""
+        return {
+            "$key": 10,
+            "tenant": 100,
+            "name": "test-snapshot",
+            "description": "Test snapshot description",
+            "profile": "daily",
+            "period": "daily",
+            "min_snapshots": 7,
+            "created": 1737900000,  # Unix timestamp
+            "expires": 1738504800,  # Unix timestamp, 7 days later
+        }
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_snapshot_properties(
+        self, snapshot_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test snapshot property accessors."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        assert snapshot.key == 10
+        assert snapshot.tenant_key == 100
+        assert snapshot.name == "test-snapshot"
+        assert snapshot.profile == "daily"
+        assert snapshot.period == "daily"
+        assert snapshot.min_snapshots == 7
+
+    def test_snapshot_created_at(
+        self, snapshot_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test created_at datetime conversion."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        created = snapshot.created_at
+        assert created is not None
+        assert isinstance(created, datetime)
+        assert created.tzinfo == timezone.utc
+
+    def test_snapshot_expires_at(
+        self, snapshot_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test expires_at datetime conversion."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        expires = snapshot.expires_at
+        assert expires is not None
+        assert isinstance(expires, datetime)
+
+    def test_snapshot_never_expires_false(
+        self, snapshot_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test never_expires is False when expires is set."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        assert snapshot.never_expires is False
+
+    def test_snapshot_never_expires_true(
+        self, snapshot_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test never_expires is True when expires is 0."""
+        snapshot_data["expires"] = 0
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        assert snapshot.never_expires is True
+        assert snapshot.expires_at is None
+
+    def test_snapshot_never_expires_none(
+        self, snapshot_data: dict[str, Any], mock_client: VergeClient, tenant_data: dict[str, Any]
+    ) -> None:
+        """Test never_expires is True when expires is None."""
+        snapshot_data["expires"] = None
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        assert snapshot.never_expires is True
+
+
+class TestTenantSnapshotManager:
+    """Unit tests for TenantSnapshotManager."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def snapshot_data(self) -> dict[str, Any]:
+        """Sample snapshot data."""
+        return {
+            "$key": 10,
+            "tenant": 100,
+            "name": "test-snapshot",
+            "description": "Test description",
+            "created": 1737900000,
+            "expires": 0,
+        }
+
+    def test_list_snapshots(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test listing tenant snapshots."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "tenant": 100, "name": "snap1", "created": 1737900000},
+            {"$key": 2, "tenant": 100, "name": "snap2", "created": 1737900100},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        snapshots = tenant.snapshots.list()
+
+        assert len(snapshots) == 2
+        assert snapshots[0].name == "snap1"
+        assert snapshots[1].name == "snap2"
+
+    def test_list_snapshots_filters_by_tenant(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that list() filters by tenant key."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.snapshots.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "tenant eq 100" in params.get("filter", "")
+
+    def test_list_snapshots_with_additional_filter(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() combines tenant filter with additional filter."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.snapshots.list(filter="name eq 'daily'")
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        filter_str = params.get("filter", "")
+        assert "tenant eq 100" in filter_str
+        assert "name eq 'daily'" in filter_str
+
+    def test_get_snapshot_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test getting a snapshot by key."""
+        mock_session.request.return_value.json.return_value = snapshot_data
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        snapshot = tenant.snapshots.get(10)
+
+        assert snapshot.key == 10
+        assert snapshot.name == "test-snapshot"
+
+    def test_get_snapshot_by_name(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test getting a snapshot by name."""
+        mock_session.request.return_value.json.return_value = [snapshot_data]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        snapshot = tenant.snapshots.get(name="test-snapshot")
+
+        assert snapshot.name == "test-snapshot"
+
+    def test_get_snapshot_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when snapshot not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.snapshots.get(name="nonexistent")
+
+    def test_get_snapshot_requires_key_or_name(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither key nor name provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either key or name must be provided"):
+            tenant.snapshots.get()
+
+    @patch("time.sleep")
+    def test_create_snapshot(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test creating a snapshot."""
+        mock_session.request.return_value.json.side_effect = [
+            {},  # POST response
+            [snapshot_data],  # GET to fetch created snapshot
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        snapshot = tenant.snapshots.create(
+            name="test-snapshot",
+            description="Test description",
+        )
+
+        assert snapshot.name == "test-snapshot"
+
+        # Find the POST request to tenant_snapshots
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_snapshots" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["name"] == "test-snapshot"
+        assert body["description"] == "Test description"
+
+    @patch("time.sleep")
+    def test_create_snapshot_with_expiration_days(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test creating a snapshot with expiration in days."""
+        mock_session.request.return_value.json.side_effect = [
+            {},  # POST response
+            [snapshot_data],  # GET to fetch created snapshot
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.snapshots.create(name="test", expires_in_days=7)
+
+        # Find the POST request to tenant_snapshots
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_snapshots" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        # Should have an expires timestamp
+        assert "expires" in body
+        assert body["expires"] > int(time.time())
+
+    @patch("time.sleep")
+    def test_create_snapshot_with_expires_at(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test creating a snapshot with specific expiration datetime."""
+        mock_session.request.return_value.json.side_effect = [
+            {},
+            [snapshot_data],
+        ]
+
+        expire_time = datetime(2026, 2, 1, 12, 0, 0, tzinfo=timezone.utc)
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.snapshots.create(name="test", expires_at=expire_time)
+
+        # Find the POST request to tenant_snapshots
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_snapshots" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["expires"] == int(expire_time.timestamp())
+
+    def test_create_snapshot_on_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating snapshot on a tenant snapshot raises ValueError."""
+        tenant_data["is_snapshot"] = True
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Cannot create snapshot of a tenant snapshot"):
+            tenant.snapshots.create(name="test")
+
+    def test_delete_snapshot(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a snapshot."""
+        mock_session.request.return_value.status_code = 204
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.snapshots.delete(10)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "DELETE"
+        assert "tenant_snapshots/10" in call_args.kwargs["url"]
+
+    def test_restore_snapshot(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test restoring from a snapshot."""
+        mock_session.request.return_value.json.side_effect = [
+            tenant_data,  # Refresh tenant
+            {},  # Restore response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.snapshots.restore(10)
+
+        # Find the POST call to tenant_actions
+        restore_call = None
+        for call in mock_session.request.call_args_list:
+            if "tenant_actions" in call.kwargs.get("url", ""):
+                restore_call = call
+                break
+
+        assert restore_call is not None
+        body = restore_call.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["action"] == "restore"
+        assert body["params"]["snapshot"] == 10
+
+    def test_restore_running_tenant_raises(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that restore raises ValueError if tenant is running."""
+        tenant_data["running"] = True
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="must be powered off"):
+            tenant.snapshots.restore(10)
+
+
+class TestTenantSnapshotViaObject:
+    """Test snapshot operations via TenantSnapshot object."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def snapshot_data(self) -> dict[str, Any]:
+        """Sample snapshot data."""
+        return {
+            "$key": 10,
+            "tenant": 100,
+            "name": "test-snapshot",
+            "created": 1737900000,
+            "expires": 0,
+        }
+
+    def test_snapshot_restore_method(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test restore via snapshot object."""
+        mock_session.request.return_value.json.side_effect = [
+            tenant_data,  # Refresh tenant
+            {},  # Restore response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = TenantSnapshotManager(mock_client, tenant)
+        snapshot = TenantSnapshot(snapshot_data, manager)
+
+        snapshot.restore()
+
+        # Verify restore was called
+        restore_call = None
+        for call in mock_session.request.call_args_list:
+            if "tenant_actions" in call.kwargs.get("url", ""):
+                restore_call = call
+                break
+
+        assert restore_call is not None
+        body = restore_call.kwargs.get("json", {})
+        assert body["action"] == "restore"
+        assert body["params"]["snapshot"] == 10
+
+
+class TestTenantSnapshotsProperty:
+    """Test accessing snapshots via tenant.snapshots property."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_snapshots_property_returns_manager(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenant.snapshots returns TenantSnapshotManager."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.snapshots
+
+        assert isinstance(manager, TenantSnapshotManager)
+
+    def test_snapshots_manager_has_correct_tenant(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that snapshot manager references the correct tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.snapshots
+
+        assert manager._tenant.key == tenant.key
