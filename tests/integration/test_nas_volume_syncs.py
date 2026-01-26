@@ -15,13 +15,12 @@ from pyvergeos.exceptions import NotFoundError, ValidationError
 
 @pytest.fixture(scope="module")
 def client():
-    """Create a live client for integration tests."""
-    client = VergeClient(
-        host="192.168.1.100",
-        username="admin",
-        password="REDACTED",
-        verify_ssl=False,
-    )
+    """Create a live client for integration tests.
+
+    Requires environment variables:
+        VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    """
+    client = VergeClient.from_env()
     yield client
     client.disconnect()
 
