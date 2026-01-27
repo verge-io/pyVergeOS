@@ -13,6 +13,8 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.tenants import (
     Tenant,
+    TenantExternalIP,
+    TenantExternalIPManager,
     TenantManager,
     TenantNetworkBlock,
     TenantNetworkBlockManager,
@@ -2230,4 +2232,532 @@ class TestTenantManagerNetworkBlocksMethod:
         manager = mock_client.tenants.network_blocks(100)
 
         assert isinstance(manager, TenantNetworkBlockManager)
+        assert manager._tenant.key == 100
+
+
+# =============================================================================
+# TenantExternalIP Tests
+# =============================================================================
+
+
+class TestTenantExternalIP:
+    """Unit tests for TenantExternalIP resource object."""
+
+    @pytest.fixture
+    def ip_data(self) -> dict[str, Any]:
+        """Sample external IP data."""
+        return {
+            "$key": 42,
+            "vnet": 3,
+            "network_name": "External",
+            "ip": "192.168.1.100",
+            "type": "virtual",
+            "hostname": "tenant-service",
+            "description": "Test external IP",
+            "owner": "tenants/100",
+            "mac": None,
+        }
+
+    def test_tenant_key_from_owner(self, ip_data: dict[str, Any]) -> None:
+        """Test extracting tenant key from owner field."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.tenant_key == 100
+
+    def test_tenant_key_invalid_owner(self) -> None:
+        """Test tenant_key with invalid owner."""
+        ip = TenantExternalIP({"owner": "vms/123"}, None)  # type: ignore[arg-type]
+        assert ip.tenant_key == 0
+
+    def test_tenant_key_empty_owner(self) -> None:
+        """Test tenant_key with empty owner."""
+        ip = TenantExternalIP({}, None)  # type: ignore[arg-type]
+        assert ip.tenant_key == 0
+
+    def test_network_key(self, ip_data: dict[str, Any]) -> None:
+        """Test network_key property."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.network_key == 3
+
+    def test_network_name(self, ip_data: dict[str, Any]) -> None:
+        """Test network_name property."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.network_name == "External"
+
+    def test_ip_address(self, ip_data: dict[str, Any]) -> None:
+        """Test ip_address property."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.ip_address == "192.168.1.100"
+
+    def test_ip_address_empty(self) -> None:
+        """Test ip_address with no data."""
+        ip = TenantExternalIP({}, None)  # type: ignore[arg-type]
+        assert ip.ip_address == ""
+
+    def test_hostname(self, ip_data: dict[str, Any]) -> None:
+        """Test hostname property."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.hostname == "tenant-service"
+
+    def test_hostname_none(self) -> None:
+        """Test hostname when not set."""
+        ip = TenantExternalIP({}, None)  # type: ignore[arg-type]
+        assert ip.hostname is None
+
+    def test_ip_type(self, ip_data: dict[str, Any]) -> None:
+        """Test ip_type property."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.ip_type == "virtual"
+
+    def test_mac_address(self, ip_data: dict[str, Any]) -> None:
+        """Test mac_address property."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        assert ip.mac_address is None
+
+    def test_repr_with_hostname(self, ip_data: dict[str, Any]) -> None:
+        """Test __repr__ method with hostname."""
+        ip = TenantExternalIP(ip_data, None)  # type: ignore[arg-type]
+        repr_str = repr(ip)
+        assert "192.168.1.100" in repr_str
+        assert "tenant-service" in repr_str
+        assert "External" in repr_str
+
+    def test_repr_without_hostname(self) -> None:
+        """Test __repr__ method without hostname."""
+        ip = TenantExternalIP(
+            {"ip": "10.0.0.1", "network_name": "Test"}, None  # type: ignore[arg-type]
+        )
+        repr_str = repr(ip)
+        assert "10.0.0.1" in repr_str
+        assert "Test" in repr_str
+
+
+class TestTenantExternalIPManager:
+    """Unit tests for TenantExternalIPManager."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def ip_data(self) -> dict[str, Any]:
+        """Sample external IP data."""
+        return {
+            "$key": 42,
+            "vnet": 3,
+            "network_name": "External",
+            "ip": "192.168.1.100",
+            "type": "virtual",
+            "hostname": "tenant-service",
+            "description": "Test external IP",
+            "owner": "tenants/100",
+        }
+
+    def test_list_external_ips(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test listing tenant external IPs."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "ip": "10.0.0.1", "vnet": 3, "type": "virtual", "owner": "tenants/100"},
+            {"$key": 2, "ip": "10.0.0.2", "vnet": 3, "type": "virtual", "owner": "tenants/100"},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ips = tenant.external_ips.list()
+
+        assert len(ips) == 2
+        assert ips[0].ip_address == "10.0.0.1"
+        assert ips[1].ip_address == "10.0.0.2"
+
+    def test_list_external_ips_filters_by_owner_and_type(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that list() filters by tenant owner and type."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.external_ips.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        filter_str = params.get("filter", "")
+        assert "owner eq 'tenants/100'" in filter_str
+        assert "type eq 'virtual'" in filter_str
+
+    def test_list_external_ips_with_ip_filter(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() with IP filter."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "ip": "10.0.0.1", "vnet": 3, "type": "virtual", "owner": "tenants/100"},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.external_ips.list(ip="10.0.0.1")
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        filter_value = params.get("filter", "")
+        assert "ip eq '10.0.0.1'" in filter_value
+
+    def test_list_external_ips_empty(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() returns empty list when no IPs."""
+        mock_session.request.return_value.json.return_value = None
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ips = tenant.external_ips.list()
+
+        assert ips == []
+
+    def test_get_external_ip_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        ip_data: dict[str, Any],
+    ) -> None:
+        """Test getting external IP by key."""
+        mock_session.request.return_value.json.return_value = ip_data
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ip = tenant.external_ips.get(42)
+
+        assert ip.key == 42
+        assert ip.ip_address == "192.168.1.100"
+
+    def test_get_external_ip_by_ip(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        ip_data: dict[str, Any],
+    ) -> None:
+        """Test getting external IP by IP address."""
+        mock_session.request.return_value.json.return_value = [ip_data]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ip = tenant.external_ips.get(ip="192.168.1.100")
+
+        assert ip.ip_address == "192.168.1.100"
+
+    def test_get_external_ip_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when external IP not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.external_ips.get(ip="10.99.99.99")
+
+    def test_get_external_ip_not_found_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when external IP key not found."""
+        mock_session.request.return_value.json.return_value = None
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.external_ips.get(999)
+
+    def test_get_external_ip_requires_key_or_ip(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither key nor ip provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either key or ip must be provided"):
+            tenant.external_ips.get()
+
+    @patch("time.sleep")
+    def test_create_external_ip_by_network_key(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        ip_data: dict[str, Any],
+    ) -> None:
+        """Test creating an external IP with network key."""
+        mock_session.request.return_value.json.side_effect = [
+            {},  # POST response
+            [ip_data],  # GET to fetch created IP
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ip = tenant.external_ips.create(
+            ip="192.168.1.100",
+            network=3,
+            hostname="tenant-service",
+            description="Test external IP",
+        )
+
+        assert ip.ip_address == "192.168.1.100"
+
+        # Find the POST request to vnet_addresses
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "vnet_addresses" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["vnet"] == 3
+        assert body["ip"] == "192.168.1.100"
+        assert body["type"] == "virtual"
+        assert body["owner"] == "tenants/100"
+        assert body["hostname"] == "tenant-service"
+        assert body["description"] == "Test external IP"
+
+    @patch("time.sleep")
+    def test_create_external_ip_by_network_name(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        ip_data: dict[str, Any],
+    ) -> None:
+        """Test creating an external IP with network name."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 3, "name": "External"}],  # GET vnets
+            {},  # POST response
+            [ip_data],  # GET to fetch created IP
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ip = tenant.external_ips.create(
+            ip="192.168.1.100",
+            network_name="External",
+        )
+
+        assert ip.ip_address == "192.168.1.100"
+
+    def test_create_external_ip_requires_network(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither network nor network_name provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either network or network_name must be provided"):
+            tenant.external_ips.create(ip="10.0.0.1")
+
+    def test_create_external_ip_snapshot_raises_error(
+        self,
+        mock_client: VergeClient,
+    ) -> None:
+        """Test ValueError when creating external IP on snapshot."""
+        tenant_data = {
+            "$key": 100,
+            "name": "test-tenant",
+            "is_snapshot": True,
+        }
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Cannot assign external IP to a tenant snapshot"):
+            tenant.external_ips.create(ip="10.0.0.1", network=1)
+
+    def test_create_external_ip_network_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when network not found by name."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError, match="Network 'NonExistent' not found"):
+            tenant.external_ips.create(ip="10.0.0.1", network_name="NonExistent")
+
+    def test_delete_external_ip(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting an external IP."""
+        mock_session.request.return_value.json.return_value = {}
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.external_ips.delete(42)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs.get("method") == "DELETE"
+        assert "vnet_addresses/42" in call_args.kwargs.get("url", "")
+
+    def test_delete_external_ip_by_ip(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        ip_data: dict[str, Any],
+    ) -> None:
+        """Test deleting an external IP by IP address."""
+        mock_session.request.return_value.json.side_effect = [
+            [ip_data],  # GET to find IP
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.external_ips.delete_by_ip("192.168.1.100")
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "vnet_addresses/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantExternalIPViaObject:
+    """Test TenantExternalIP actions via the object itself."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def ip_data(self) -> dict[str, Any]:
+        """Sample external IP data."""
+        return {
+            "$key": 42,
+            "vnet": 3,
+            "network_name": "External",
+            "ip": "192.168.1.100",
+            "type": "virtual",
+            "hostname": "tenant-service",
+            "description": "Test external IP",
+            "owner": "tenants/100",
+        }
+
+    def test_delete_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        ip_data: dict[str, Any],
+    ) -> None:
+        """Test deleting IP via object.delete()."""
+        mock_session.request.return_value.json.side_effect = [
+            [ip_data],  # GET to list IPs
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        ips = tenant.external_ips.list()
+        ips[0].delete()
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "vnet_addresses/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantExternalIPsProperty:
+    """Test Tenant.external_ips property."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_external_ips_property_returns_manager(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenant.external_ips returns TenantExternalIPManager."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.external_ips
+
+        assert isinstance(manager, TenantExternalIPManager)
+
+    def test_external_ips_manager_has_correct_tenant(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that external_ips manager references the correct tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.external_ips
+
+        assert manager._tenant.key == tenant.key
+
+
+class TestTenantManagerExternalIPsMethod:
+    """Test TenantManager.external_ips() method."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_external_ips_method_returns_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenants.external_ips(key) returns TenantExternalIPManager."""
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        manager = mock_client.tenants.external_ips(100)
+
+        assert isinstance(manager, TenantExternalIPManager)
         assert manager._tenant.key == 100

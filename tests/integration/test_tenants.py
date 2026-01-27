@@ -1072,3 +1072,279 @@ class TestTenantNetworkBlocks:
 
                 with contextlib.suppress(Exception):
                     test_tenant.network_blocks.delete(block.key)
+
+
+@pytest.mark.integration
+class TestTenantExternalIPs:
+    """Integration tests for Tenant External IP operations."""
+
+    @pytest.fixture
+    def test_tenant(self, live_client: VergeClient):
+        """Create a test tenant for external IP tests."""
+        import random
+
+        tenant_name = f"pysdk-extip-integ-{random.randint(10000, 99999)}"
+
+        tenant = live_client.tenants.create(
+            name=tenant_name,
+            description="Test tenant for external IP integration tests",
+        )
+
+        yield tenant
+
+        # Cleanup: delete tenant (external IPs will be removed with the tenant)
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            live_client.tenants.delete(tenant.key)
+
+    @pytest.fixture
+    def external_network(self, live_client: VergeClient):
+        """Get an external network for testing.
+
+        Uses the 'External' network which should exist in most deployments.
+        Falls back to first non-reserved external network.
+        """
+        networks = live_client.networks.list_external()
+        if not networks:
+            pytest.skip("No external networks available")
+
+        # Try to find External network first
+        for net in networks:
+            if net.name == "External":
+                return net
+
+        # Fall back to first non-reserved network
+        for net in networks:
+            if net.name not in ["Core", "DMZ"]:
+                return net
+
+        # Last resort
+        return networks[0]
+
+    def test_list_external_ips_empty(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test listing external IPs on a new tenant returns empty list."""
+        ips = test_tenant.external_ips.list()
+        assert isinstance(ips, list)
+        assert len(ips) == 0
+
+    def test_create_external_ip_by_network_key(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test creating an external IP with network key."""
+        ip = test_tenant.external_ips.create(
+            ip="10.99.200.50",
+            network=external_network.key,
+            hostname="test-service",
+            description="Integration test external IP",
+        )
+
+        assert ip.ip_address == "10.99.200.50"
+        assert ip.network_key == external_network.key
+        assert ip.network_name == external_network.name
+        assert ip.hostname == "test-service"
+        assert ip.ip_type == "virtual"
+
+        # Cleanup
+        test_tenant.external_ips.delete(ip.key)
+
+    def test_create_external_ip_by_network_name(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test creating an external IP with network name."""
+        ip = test_tenant.external_ips.create(
+            ip="10.99.200.51",
+            network_name=external_network.name,
+        )
+
+        assert ip.ip_address == "10.99.200.51"
+        assert ip.network_name == external_network.name
+
+        # Cleanup
+        test_tenant.external_ips.delete(ip.key)
+
+    def test_list_external_ips_after_create(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test listing external IPs after creating one."""
+        test_tenant.external_ips.create(
+            ip="10.99.200.52",
+            network=external_network.key,
+        )
+
+        ips = test_tenant.external_ips.list()
+        assert len(ips) == 1
+        assert ips[0].ip_address == "10.99.200.52"
+
+        # Cleanup
+        test_tenant.external_ips.delete(ips[0].key)
+
+    def test_list_external_ips_with_ip_filter(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test filtering external IPs by IP address."""
+        # Create two IPs
+        ip1 = test_tenant.external_ips.create(
+            ip="10.99.200.53", network=external_network.key
+        )
+        ip2 = test_tenant.external_ips.create(
+            ip="10.99.200.54", network=external_network.key
+        )
+
+        try:
+            # Filter by first IP
+            filtered = test_tenant.external_ips.list(ip="10.99.200.53")
+            assert len(filtered) == 1
+            assert filtered[0].ip_address == "10.99.200.53"
+        finally:
+            test_tenant.external_ips.delete(ip1.key)
+            test_tenant.external_ips.delete(ip2.key)
+
+    def test_get_external_ip_by_ip(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test getting an external IP by IP address."""
+        created = test_tenant.external_ips.create(
+            ip="10.99.200.55", network=external_network.key
+        )
+
+        # Get by IP
+        ip = test_tenant.external_ips.get(ip="10.99.200.55")
+        assert ip.ip_address == "10.99.200.55"
+        assert ip.key == created.key
+
+        # Cleanup
+        test_tenant.external_ips.delete(ip.key)
+
+    def test_get_external_ip_by_key(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test getting an external IP by key."""
+        created = test_tenant.external_ips.create(
+            ip="10.99.200.56", network=external_network.key
+        )
+
+        # Get by key
+        ip = test_tenant.external_ips.get(created.key)
+        assert ip.key == created.key
+        assert ip.ip_address == "10.99.200.56"
+
+        # Cleanup
+        test_tenant.external_ips.delete(ip.key)
+
+    def test_get_external_ip_not_found(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test getting a non-existent external IP."""
+        with pytest.raises(NotFoundError):
+            test_tenant.external_ips.get(ip="10.255.255.255")
+
+    def test_delete_external_ip_by_ip(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test deleting an external IP by IP address."""
+        test_tenant.external_ips.create(
+            ip="10.99.200.57", network=external_network.key
+        )
+
+        # Delete by IP
+        test_tenant.external_ips.delete_by_ip("10.99.200.57")
+
+        # Verify deletion
+        ips = test_tenant.external_ips.list()
+        assert len(ips) == 0
+
+    def test_delete_external_ip_via_object(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test deleting an external IP via object.delete()."""
+        ip = test_tenant.external_ips.create(
+            ip="10.99.200.58", network=external_network.key
+        )
+
+        # Delete via object method
+        ip.delete()
+
+        # Verify deletion
+        ips = test_tenant.external_ips.list()
+        assert len(ips) == 0
+
+    def test_external_ip_properties(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test external IP property accessors."""
+        ip = test_tenant.external_ips.create(
+            ip="10.99.200.59",
+            network=external_network.key,
+            hostname="test-hostname",
+            description="Test description",
+        )
+
+        try:
+            # Test all properties
+            assert ip.ip_address == "10.99.200.59"
+            assert ip.network_key == external_network.key
+            assert ip.network_name == external_network.name
+            assert ip.tenant_key == test_tenant.key
+            assert ip.hostname == "test-hostname"
+            assert ip.ip_type == "virtual"
+
+            # Test repr
+            repr_str = repr(ip)
+            assert "10.99.200.59" in repr_str
+            assert "test-hostname" in repr_str
+            assert external_network.name in repr_str
+        finally:
+            test_tenant.external_ips.delete(ip.key)
+
+    def test_manager_external_ips_method(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test TenantManager.external_ips() direct access method."""
+        # Create IP via tenant.external_ips
+        test_tenant.external_ips.create(
+            ip="10.99.200.60", network=external_network.key
+        )
+
+        # Access via manager method
+        ip_manager = live_client.tenants.external_ips(test_tenant.key)
+        ips = ip_manager.list()
+
+        assert len(ips) == 1
+        assert ips[0].ip_address == "10.99.200.60"
+
+        # Cleanup
+        ip_manager.delete(ips[0].key)
+
+    def test_multiple_external_ips(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test creating and managing multiple external IPs."""
+        ips_created = []
+        try:
+            # Create multiple IPs
+            for i in range(3):
+                ip = test_tenant.external_ips.create(
+                    ip=f"10.99.200.{61 + i}",
+                    network=external_network.key,
+                )
+                ips_created.append(ip)
+
+            # Verify all IPs are listed
+            ips = test_tenant.external_ips.list()
+            assert len(ips) == 3
+
+            # Verify each IP is present
+            ip_addresses = [ip.ip_address for ip in ips]
+            assert "10.99.200.61" in ip_addresses
+            assert "10.99.200.62" in ip_addresses
+            assert "10.99.200.63" in ip_addresses
+        finally:
+            # Cleanup
+            for ip in ips_created:
+                import contextlib
+
+                with contextlib.suppress(Exception):
+                    test_tenant.external_ips.delete(ip.key)
