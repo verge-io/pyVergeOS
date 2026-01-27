@@ -796,3 +796,279 @@ class TestTenantStorage:
 
         # Cleanup
         storage_manager.delete(allocations[0].key)
+
+
+@pytest.mark.integration
+class TestTenantNetworkBlocks:
+    """Integration tests for Tenant Network Block operations."""
+
+    @pytest.fixture
+    def test_tenant(self, live_client: VergeClient):
+        """Create a test tenant for network block tests."""
+        import random
+
+        tenant_name = f"pysdk-netblock-integ-{random.randint(10000, 99999)}"
+
+        tenant = live_client.tenants.create(
+            name=tenant_name,
+            description="Test tenant for network block integration tests",
+        )
+
+        yield tenant
+
+        # Cleanup: delete tenant (network blocks will be removed with the tenant)
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            live_client.tenants.delete(tenant.key)
+
+    @pytest.fixture
+    def external_network(self, live_client: VergeClient):
+        """Get an external network for testing.
+
+        Uses the 'External' network which should exist in most deployments.
+        Falls back to first non-reserved external network.
+        """
+        networks = live_client.networks.list_external()
+        if not networks:
+            pytest.skip("No external networks available")
+
+        # Try to find External network first
+        for net in networks:
+            if net.name == "External":
+                return net
+
+        # Fall back to first non-reserved network
+        for net in networks:
+            if net.name not in ["Core", "DMZ"]:
+                return net
+
+        # Last resort
+        return networks[0]
+
+    def test_list_network_blocks_empty(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test listing network blocks on a new tenant returns empty list."""
+        blocks = test_tenant.network_blocks.list()
+        assert isinstance(blocks, list)
+        assert len(blocks) == 0
+
+    def test_create_network_block_by_network_key(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test creating a network block with network key."""
+        block = test_tenant.network_blocks.create(
+            cidr="10.99.100.0/24",
+            network=external_network.key,
+            description="Integration test block",
+        )
+
+        assert block.cidr == "10.99.100.0/24"
+        assert block.network_key == external_network.key
+        assert block.network_name == external_network.name
+        assert block.network_address == "10.99.100.0"
+        assert block.prefix_length == 24
+        assert block.address_count == 256
+
+        # Cleanup
+        test_tenant.network_blocks.delete(block.key)
+
+    def test_create_network_block_by_network_name(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test creating a network block with network name."""
+        block = test_tenant.network_blocks.create(
+            cidr="10.99.101.0/24",
+            network_name=external_network.name,
+        )
+
+        assert block.cidr == "10.99.101.0/24"
+        assert block.network_name == external_network.name
+
+        # Cleanup
+        test_tenant.network_blocks.delete(block.key)
+
+    def test_list_network_blocks_after_create(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test listing network blocks after creating one."""
+        test_tenant.network_blocks.create(
+            cidr="10.99.102.0/24",
+            network=external_network.key,
+        )
+
+        blocks = test_tenant.network_blocks.list()
+        assert len(blocks) == 1
+        assert blocks[0].cidr == "10.99.102.0/24"
+
+        # Cleanup
+        test_tenant.network_blocks.delete(blocks[0].key)
+
+    def test_list_network_blocks_with_cidr_filter(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test filtering network blocks by CIDR."""
+        # Create two blocks
+        block1 = test_tenant.network_blocks.create(
+            cidr="10.99.103.0/24", network=external_network.key
+        )
+        block2 = test_tenant.network_blocks.create(
+            cidr="10.99.104.0/24", network=external_network.key
+        )
+
+        try:
+            # Filter by first CIDR
+            filtered = test_tenant.network_blocks.list(cidr="10.99.103.0/24")
+            assert len(filtered) == 1
+            assert filtered[0].cidr == "10.99.103.0/24"
+        finally:
+            test_tenant.network_blocks.delete(block1.key)
+            test_tenant.network_blocks.delete(block2.key)
+
+    def test_get_network_block_by_cidr(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test getting a network block by CIDR."""
+        created = test_tenant.network_blocks.create(
+            cidr="10.99.105.0/24", network=external_network.key
+        )
+
+        # Get by CIDR
+        block = test_tenant.network_blocks.get(cidr="10.99.105.0/24")
+        assert block.cidr == "10.99.105.0/24"
+        assert block.key == created.key
+
+        # Cleanup
+        test_tenant.network_blocks.delete(block.key)
+
+    def test_get_network_block_by_key(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test getting a network block by key."""
+        created = test_tenant.network_blocks.create(
+            cidr="10.99.106.0/24", network=external_network.key
+        )
+
+        # Get by key
+        block = test_tenant.network_blocks.get(created.key)
+        assert block.key == created.key
+        assert block.cidr == "10.99.106.0/24"
+
+        # Cleanup
+        test_tenant.network_blocks.delete(block.key)
+
+    def test_get_network_block_not_found(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test getting a non-existent network block."""
+        with pytest.raises(NotFoundError):
+            test_tenant.network_blocks.get(cidr="10.255.255.0/24")
+
+    def test_delete_network_block_by_cidr(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test deleting a network block by CIDR."""
+        test_tenant.network_blocks.create(
+            cidr="10.99.107.0/24", network=external_network.key
+        )
+
+        # Delete by CIDR
+        test_tenant.network_blocks.delete_by_cidr("10.99.107.0/24")
+
+        # Verify deletion
+        blocks = test_tenant.network_blocks.list()
+        assert len(blocks) == 0
+
+    def test_delete_network_block_via_object(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test deleting a network block via object.delete()."""
+        block = test_tenant.network_blocks.create(
+            cidr="10.99.108.0/24", network=external_network.key
+        )
+
+        # Delete via object method
+        block.delete()
+
+        # Verify deletion
+        blocks = test_tenant.network_blocks.list()
+        assert len(blocks) == 0
+
+    def test_network_block_properties(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test network block property accessors."""
+        block = test_tenant.network_blocks.create(
+            cidr="10.99.109.0/25",  # /25 for different address count
+            network=external_network.key,
+            description="Test description",
+        )
+
+        try:
+            # Test all properties
+            assert block.cidr == "10.99.109.0/25"
+            assert block.network_address == "10.99.109.0"
+            assert block.prefix_length == 25
+            assert block.address_count == 128
+            assert block.network_key == external_network.key
+            assert block.network_name == external_network.name
+            assert block.tenant_key == test_tenant.key
+            assert block.description == "Test description"
+
+            # Test repr
+            repr_str = repr(block)
+            assert "10.99.109.0/25" in repr_str
+            assert external_network.name in repr_str
+        finally:
+            test_tenant.network_blocks.delete(block.key)
+
+    def test_manager_network_blocks_method(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test TenantManager.network_blocks() direct access method."""
+        # Create block via tenant.network_blocks
+        test_tenant.network_blocks.create(
+            cidr="10.99.110.0/24", network=external_network.key
+        )
+
+        # Access via manager method
+        block_manager = live_client.tenants.network_blocks(test_tenant.key)
+        blocks = block_manager.list()
+
+        assert len(blocks) == 1
+        assert blocks[0].cidr == "10.99.110.0/24"
+
+        # Cleanup
+        block_manager.delete(blocks[0].key)
+
+    def test_multiple_network_blocks(
+        self, live_client: VergeClient, test_tenant, external_network
+    ) -> None:
+        """Test creating and managing multiple network blocks."""
+        blocks_created = []
+        try:
+            # Create multiple blocks
+            for i in range(3):
+                block = test_tenant.network_blocks.create(
+                    cidr=f"10.99.{111 + i}.0/24",
+                    network=external_network.key,
+                )
+                blocks_created.append(block)
+
+            # Verify all blocks are listed
+            blocks = test_tenant.network_blocks.list()
+            assert len(blocks) == 3
+
+            # Verify each CIDR is present
+            cidrs = [b.cidr for b in blocks]
+            assert "10.99.111.0/24" in cidrs
+            assert "10.99.112.0/24" in cidrs
+            assert "10.99.113.0/24" in cidrs
+        finally:
+            # Cleanup
+            for block in blocks_created:
+                import contextlib
+
+                with contextlib.suppress(Exception):
+                    test_tenant.network_blocks.delete(block.key)

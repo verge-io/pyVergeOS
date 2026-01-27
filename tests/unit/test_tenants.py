@@ -14,6 +14,8 @@ from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.tenants import (
     Tenant,
     TenantManager,
+    TenantNetworkBlock,
+    TenantNetworkBlockManager,
     TenantSnapshot,
     TenantSnapshotManager,
     TenantStorage,
@@ -1702,4 +1704,530 @@ class TestTenantManagerStorageMethod:
         manager = mock_client.tenants.storage(100)
 
         assert isinstance(manager, TenantStorageManager)
+        assert manager._tenant.key == 100
+
+
+# =============================================================================
+# TenantNetworkBlock Tests
+# =============================================================================
+
+
+class TestTenantNetworkBlock:
+    """Unit tests for TenantNetworkBlock resource object."""
+
+    @pytest.fixture
+    def block_data(self) -> dict[str, Any]:
+        """Sample network block data."""
+        return {
+            "$key": 42,
+            "vnet": 3,
+            "network_name": "External",
+            "cidr": "192.168.100.0/24",
+            "description": "Test block",
+            "owner": "tenants/100",
+        }
+
+    def test_tenant_key_from_owner(self, block_data: dict[str, Any]) -> None:
+        """Test extracting tenant key from owner field."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.tenant_key == 100
+
+    def test_tenant_key_invalid_owner(self) -> None:
+        """Test tenant_key with invalid owner."""
+        block = TenantNetworkBlock({"owner": "vms/123"}, None)  # type: ignore[arg-type]
+        assert block.tenant_key == 0
+
+    def test_tenant_key_empty_owner(self) -> None:
+        """Test tenant_key with empty owner."""
+        block = TenantNetworkBlock({}, None)  # type: ignore[arg-type]
+        assert block.tenant_key == 0
+
+    def test_network_key(self, block_data: dict[str, Any]) -> None:
+        """Test network_key property."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.network_key == 3
+
+    def test_network_name(self, block_data: dict[str, Any]) -> None:
+        """Test network_name property."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.network_name == "External"
+
+    def test_cidr(self, block_data: dict[str, Any]) -> None:
+        """Test cidr property."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.cidr == "192.168.100.0/24"
+
+    def test_cidr_empty(self) -> None:
+        """Test cidr with no data."""
+        block = TenantNetworkBlock({}, None)  # type: ignore[arg-type]
+        assert block.cidr == ""
+
+    def test_network_address(self, block_data: dict[str, Any]) -> None:
+        """Test network_address property."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.network_address == "192.168.100.0"
+
+    def test_network_address_no_slash(self) -> None:
+        """Test network_address without prefix."""
+        block = TenantNetworkBlock({"cidr": "10.0.0.0"}, None)  # type: ignore[arg-type]
+        assert block.network_address == "10.0.0.0"
+
+    def test_prefix_length(self, block_data: dict[str, Any]) -> None:
+        """Test prefix_length property."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.prefix_length == 24
+
+    def test_prefix_length_no_slash(self) -> None:
+        """Test prefix_length without prefix."""
+        block = TenantNetworkBlock({"cidr": "10.0.0.0"}, None)  # type: ignore[arg-type]
+        assert block.prefix_length == 0
+
+    def test_address_count_24(self, block_data: dict[str, Any]) -> None:
+        """Test address_count for /24 block."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        assert block.address_count == 256
+
+    def test_address_count_16(self) -> None:
+        """Test address_count for /16 block."""
+        block = TenantNetworkBlock({"cidr": "10.0.0.0/16"}, None)  # type: ignore[arg-type]
+        assert block.address_count == 65536
+
+    def test_address_count_32(self) -> None:
+        """Test address_count for /32 block."""
+        block = TenantNetworkBlock({"cidr": "10.0.0.1/32"}, None)  # type: ignore[arg-type]
+        assert block.address_count == 1
+
+    def test_address_count_no_prefix(self) -> None:
+        """Test address_count without prefix."""
+        block = TenantNetworkBlock({"cidr": "10.0.0.0"}, None)  # type: ignore[arg-type]
+        assert block.address_count == 0
+
+    def test_repr(self, block_data: dict[str, Any]) -> None:
+        """Test __repr__ method."""
+        block = TenantNetworkBlock(block_data, None)  # type: ignore[arg-type]
+        repr_str = repr(block)
+        assert "192.168.100.0/24" in repr_str
+        assert "External" in repr_str
+
+
+class TestTenantNetworkBlockManager:
+    """Unit tests for TenantNetworkBlockManager."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def block_data(self) -> dict[str, Any]:
+        """Sample network block data."""
+        return {
+            "$key": 42,
+            "vnet": 3,
+            "network_name": "External",
+            "cidr": "192.168.100.0/24",
+            "description": "Test block",
+            "owner": "tenants/100",
+        }
+
+    def test_list_network_blocks(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test listing tenant network blocks."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "cidr": "10.0.0.0/24", "vnet": 3, "owner": "tenants/100"},
+            {"$key": 2, "cidr": "10.0.1.0/24", "vnet": 3, "owner": "tenants/100"},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        blocks = tenant.network_blocks.list()
+
+        assert len(blocks) == 2
+        assert blocks[0].cidr == "10.0.0.0/24"
+        assert blocks[1].cidr == "10.0.1.0/24"
+
+    def test_list_network_blocks_filters_by_owner(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that list() filters by tenant owner."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.network_blocks.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "owner eq 'tenants/100'" in params.get("filter", "")
+
+    def test_list_network_blocks_with_cidr_filter(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() with CIDR filter."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "cidr": "10.0.0.0/24", "vnet": 3, "owner": "tenants/100"},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.network_blocks.list(cidr="10.0.0.0/24")
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        filter_value = params.get("filter", "")
+        assert "cidr eq '10.0.0.0/24'" in filter_value
+
+    def test_list_network_blocks_empty(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() returns empty list when no blocks."""
+        mock_session.request.return_value.json.return_value = None
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        blocks = tenant.network_blocks.list()
+
+        assert blocks == []
+
+    def test_get_network_block_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        block_data: dict[str, Any],
+    ) -> None:
+        """Test getting network block by key."""
+        mock_session.request.return_value.json.return_value = block_data
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        block = tenant.network_blocks.get(42)
+
+        assert block.key == 42
+        assert block.cidr == "192.168.100.0/24"
+
+    def test_get_network_block_by_cidr(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        block_data: dict[str, Any],
+    ) -> None:
+        """Test getting network block by CIDR."""
+        mock_session.request.return_value.json.return_value = [block_data]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        block = tenant.network_blocks.get(cidr="192.168.100.0/24")
+
+        assert block.cidr == "192.168.100.0/24"
+
+    def test_get_network_block_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when network block not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.network_blocks.get(cidr="10.99.99.0/24")
+
+    def test_get_network_block_not_found_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when network block key not found."""
+        mock_session.request.return_value.json.return_value = None
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.network_blocks.get(999)
+
+    def test_get_network_block_requires_key_or_cidr(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither key nor cidr provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either key or cidr must be provided"):
+            tenant.network_blocks.get()
+
+    @patch("time.sleep")
+    def test_create_network_block_by_network_key(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        block_data: dict[str, Any],
+    ) -> None:
+        """Test creating a network block with network key."""
+        mock_session.request.return_value.json.side_effect = [
+            {},  # POST response
+            [block_data],  # GET to fetch created block
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        block = tenant.network_blocks.create(
+            cidr="192.168.100.0/24",
+            network=3,
+            description="Test block",
+        )
+
+        assert block.cidr == "192.168.100.0/24"
+
+        # Find the POST request to vnet_cidrs
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "vnet_cidrs" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["vnet"] == 3
+        assert body["cidr"] == "192.168.100.0/24"
+        assert body["owner"] == "tenants/100"
+        assert body["description"] == "Test block"
+
+    @patch("time.sleep")
+    def test_create_network_block_by_network_name(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        block_data: dict[str, Any],
+    ) -> None:
+        """Test creating a network block with network name."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 3, "name": "External"}],  # GET vnets
+            {},  # POST response
+            [block_data],  # GET to fetch created block
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        block = tenant.network_blocks.create(
+            cidr="192.168.100.0/24",
+            network_name="External",
+        )
+
+        assert block.cidr == "192.168.100.0/24"
+
+    def test_create_network_block_requires_network(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither network nor network_name provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either network or network_name must be provided"):
+            tenant.network_blocks.create(cidr="10.0.0.0/24")
+
+    def test_create_network_block_snapshot_raises_error(
+        self,
+        mock_client: VergeClient,
+    ) -> None:
+        """Test ValueError when creating block on snapshot."""
+        tenant_data = {
+            "$key": 100,
+            "name": "test-tenant",
+            "is_snapshot": True,
+        }
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Cannot assign network block to a tenant snapshot"):
+            tenant.network_blocks.create(cidr="10.0.0.0/24", network=1)
+
+    def test_create_network_block_network_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when network not found by name."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError, match="Network 'NonExistent' not found"):
+            tenant.network_blocks.create(cidr="10.0.0.0/24", network_name="NonExistent")
+
+    def test_delete_network_block(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a network block."""
+        mock_session.request.return_value.json.return_value = {}
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.network_blocks.delete(42)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs.get("method") == "DELETE"
+        assert "vnet_cidrs/42" in call_args.kwargs.get("url", "")
+
+    def test_delete_network_block_by_cidr(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        block_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a network block by CIDR."""
+        mock_session.request.return_value.json.side_effect = [
+            [block_data],  # GET to find block
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.network_blocks.delete_by_cidr("192.168.100.0/24")
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "vnet_cidrs/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantNetworkBlockViaObject:
+    """Test TenantNetworkBlock actions via the object itself."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def block_data(self) -> dict[str, Any]:
+        """Sample network block data."""
+        return {
+            "$key": 42,
+            "vnet": 3,
+            "network_name": "External",
+            "cidr": "192.168.100.0/24",
+            "description": "Test block",
+            "owner": "tenants/100",
+        }
+
+    def test_delete_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        block_data: dict[str, Any],
+    ) -> None:
+        """Test deleting block via object.delete()."""
+        mock_session.request.return_value.json.side_effect = [
+            [block_data],  # GET to list blocks
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        blocks = tenant.network_blocks.list()
+        blocks[0].delete()
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "vnet_cidrs/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantNetworkBlocksProperty:
+    """Test Tenant.network_blocks property."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_network_blocks_property_returns_manager(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenant.network_blocks returns TenantNetworkBlockManager."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.network_blocks
+
+        assert isinstance(manager, TenantNetworkBlockManager)
+
+    def test_network_blocks_manager_has_correct_tenant(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that network_blocks manager references the correct tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.network_blocks
+
+        assert manager._tenant.key == tenant.key
+
+
+class TestTenantManagerNetworkBlocksMethod:
+    """Test TenantManager.network_blocks() method."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_network_blocks_method_returns_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenants.network_blocks(key) returns TenantNetworkBlockManager."""
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        manager = mock_client.tenants.network_blocks(100)
+
+        assert isinstance(manager, TenantNetworkBlockManager)
         assert manager._tenant.key == 100
