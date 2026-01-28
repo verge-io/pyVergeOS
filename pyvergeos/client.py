@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.permissions import PermissionManager
+    from pyvergeos.resources.shared_objects import SharedObjectManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenant_manager import TenantManager
@@ -121,6 +122,7 @@ class VergeClient:
         self._nfs_shares: NASNFSShareManager | None = None
         self._nas_users: NASUserManager | None = None
         self._volume_syncs: NASVolumeSyncManager | None = None
+        self._shared_objects: SharedObjectManager | None = None
 
         if auto_connect:
             self.connect()
@@ -552,3 +554,12 @@ class VergeClient:
 
             self._volume_syncs = NASVolumeSyncManager(self)
         return self._volume_syncs
+
+    @property
+    def shared_objects(self) -> SharedObjectManager:
+        """Access shared object operations for tenant VM sharing."""
+        if self._shared_objects is None:
+            from pyvergeos.resources.shared_objects import SharedObjectManager
+
+            self._shared_objects = SharedObjectManager(self)
+        return self._shared_objects

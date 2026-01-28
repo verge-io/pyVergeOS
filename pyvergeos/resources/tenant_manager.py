@@ -18,6 +18,9 @@ from pyvergeos.resources.tenant_storage import TenantStorageManager
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
+# Import VergeClient for connect method (not type-checking only)
+# This is needed at runtime for creating tenant context connections
+
 logger = logging.getLogger(__name__)
 
 # Default fields to request for tenants (includes status info via field aliases)
@@ -328,6 +331,106 @@ class Tenant(ResourceObject):
 
         manager = cast("TenantManager", self._manager)
         return TenantLayer2Manager(manager._client, self)
+
+    @property
+    def shared_objects(self) -> builtins.list[Any]:
+        """Get shared objects for this tenant.
+
+        Returns a list of shared objects (VMs) shared with this tenant.
+
+        Returns:
+            List of SharedObject objects.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> for obj in tenant.shared_objects:
+            ...     print(f"{obj.name}: {obj.object_type}")
+        """
+        from typing import cast
+
+        manager = cast("TenantManager", self._manager)
+        return manager._client.shared_objects.list(tenant_key=self.key)
+
+    def connect(
+        self,
+        username: str,
+        password: str,
+        verify_ssl: bool | None = None,
+        timeout: int = 30,
+    ) -> VergeClient:
+        """Connect to the tenant's VergeOS context.
+
+        Creates a new VergeClient connected to the tenant's environment,
+        allowing you to execute commands within the tenant's context.
+        The tenant must be running to connect.
+
+        Args:
+            username: Username for authenticating to the tenant.
+            password: Password for authenticating to the tenant.
+            verify_ssl: Whether to verify SSL certificates. If None, inherits
+                from the parent client.
+            timeout: Connection timeout in seconds.
+
+        Returns:
+            A new VergeClient connected to the tenant.
+
+        Raises:
+            ValueError: If tenant is a snapshot or not running.
+            ValueError: If tenant has no UI address configured.
+            VergeConnectionError: If connection to tenant fails.
+            AuthenticationError: If tenant credentials are invalid.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> tenant.power_on()
+            >>> # Wait for tenant to start...
+            >>> tenant_client = tenant.connect(
+            ...     username="admin",
+            ...     password="tenant-password"
+            ... )
+            >>> # Now use tenant_client to manage resources within the tenant
+            >>> tenant_vms = tenant_client.vms.list()
+            >>> tenant_client.disconnect()
+        """
+        from typing import cast
+
+        from pyvergeos.client import VergeClient as Client
+
+        if self.is_snapshot:
+            raise ValueError("Cannot connect to a tenant snapshot")
+
+        if not self.is_running:
+            raise ValueError(
+                f"Cannot connect to tenant '{self.name}': tenant is not running. "
+                "Start the tenant first with tenant.power_on()"
+            )
+
+        ui_address = self.ui_address_ip
+        if not ui_address:
+            raise ValueError(
+                f"Cannot connect to tenant '{self.name}': no UI address configured"
+            )
+
+        # Inherit SSL verification setting from parent client if not specified
+        manager = cast("TenantManager", self._manager)
+        if verify_ssl is None:
+            verify_ssl = manager._client._verify_ssl
+
+        # Create new client connected to the tenant
+        tenant_client = Client(
+            host=ui_address,
+            username=username,
+            password=password,
+            verify_ssl=verify_ssl,
+            timeout=timeout,
+        )
+
+        # Mark the client as a tenant context for tracking
+        tenant_client._is_tenant_context = True  # type: ignore[attr-defined]
+        tenant_client._parent_tenant_name = self.name  # type: ignore[attr-defined]
+        tenant_client._parent_tenant_key = self.key  # type: ignore[attr-defined]
+
+        return tenant_client
 
 
 class TenantManager(ResourceManager[Tenant]):
@@ -683,3 +786,80 @@ class TenantManager(ResourceManager[Tenant]):
         """
         tenant = self.get(tenant_key)
         return TenantLayer2Manager(self._client, tenant)
+
+    def connect_context(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        username: str,
+        password: str,
+        verify_ssl: bool | None = None,
+        timeout: int = 30,
+    ) -> VergeClient:
+        """Connect to a tenant's VergeOS context.
+
+        Creates a new VergeClient connected to the tenant's environment,
+        allowing you to execute commands within the tenant's context.
+        The tenant must be running to connect.
+
+        Args:
+            key: Tenant $key (ID).
+            name: Tenant name (alternative to key).
+            username: Username for authenticating to the tenant.
+            password: Password for authenticating to the tenant.
+            verify_ssl: Whether to verify SSL certificates. If None, inherits
+                from the parent client.
+            timeout: Connection timeout in seconds.
+
+        Returns:
+            A new VergeClient connected to the tenant.
+
+        Raises:
+            NotFoundError: If tenant not found.
+            ValueError: If tenant is a snapshot or not running.
+            ValueError: If tenant has no UI address configured.
+            VergeConnectionError: If connection to tenant fails.
+            AuthenticationError: If tenant credentials are invalid.
+
+        Example:
+            >>> # Connect to tenant by name
+            >>> tenant_client = client.tenants.connect_context(
+            ...     name="my-tenant",
+            ...     username="admin",
+            ...     password="tenant-password"
+            ... )
+            >>> # Now use tenant_client to manage resources within the tenant
+            >>> tenant_vms = tenant_client.vms.list()
+            >>> tenant_client.disconnect()
+
+            >>> # Or connect by key
+            >>> tenant_client = client.tenants.connect_context(
+            ...     key=123,
+            ...     username="admin",
+            ...     password="tenant-password"
+            ... )
+        """
+        tenant = self.get(key, name=name)
+        return tenant.connect(
+            username=username,
+            password=password,
+            verify_ssl=verify_ssl,
+            timeout=timeout,
+        )
+
+    def shared_objects(self, tenant_key: int) -> builtins.list[Any]:
+        """Get shared objects for a specific tenant.
+
+        Args:
+            tenant_key: Tenant $key (ID).
+
+        Returns:
+            List of SharedObject objects shared with the tenant.
+
+        Example:
+            >>> shared = client.tenants.shared_objects(123)
+            >>> for obj in shared:
+            ...     print(f"{obj.name}: {obj.object_type}")
+        """
+        return self._client.shared_objects.list(tenant_key=tenant_key)

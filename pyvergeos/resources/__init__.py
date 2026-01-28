@@ -20,6 +20,7 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshotManager,
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
+from pyvergeos.resources.shared_objects import SharedObject, SharedObjectManager
 from pyvergeos.resources.tenant_external_ips import (
     TenantExternalIP,
     TenantExternalIPManager,
@@ -59,6 +60,8 @@ __all__ = [
     "PermissionManager",
     "ResourceManager",
     "ResourceObject",
+    "SharedObject",
+    "SharedObjectManager",
     "Tenant",
     "TenantExternalIP",
     "TenantExternalIPManager",
