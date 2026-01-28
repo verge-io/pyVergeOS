@@ -42,6 +42,8 @@ class VergeConnection:
     verify_ssl: bool = True
     connected_at: Optional[datetime] = None
     vergeos_version: Optional[str] = None
+    os_version: Optional[str] = None
+    cloud_name: Optional[str] = None
     is_connected: bool = False
 
     _session: Optional[requests.Session] = field(default=None, repr=False)

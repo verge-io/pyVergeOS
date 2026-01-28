@@ -244,6 +244,8 @@ class VergeClient:
                     response = response[0]
                 if isinstance(response, dict):
                     self._connection.vergeos_version = response.get("yb_version")
+                    self._connection.os_version = response.get("os_version")
+                    self._connection.cloud_name = response.get("cloud_name")
                     self._connection.connected_at = datetime.now(timezone.utc)
                     self._connection.is_connected = True
                     return
@@ -270,9 +272,23 @@ class VergeClient:
 
     @property
     def version(self) -> str | None:
-        """Get VergeOS version."""
+        """Get VergeOS version (yb_version)."""
         if self._connection:
             return self._connection.vergeos_version
+        return None
+
+    @property
+    def os_version(self) -> str | None:
+        """Get VergeOS OS version."""
+        if self._connection:
+            return self._connection.os_version
+        return None
+
+    @property
+    def cloud_name(self) -> str | None:
+        """Get the cloud name of the connected system."""
+        if self._connection:
+            return self._connection.cloud_name
         return None
 
     def __enter__(self) -> VergeClient:
