@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.permissions import PermissionManager
     from pyvergeos.resources.shared_objects import SharedObjectManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
+    from pyvergeos.resources.system import SystemManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenant_manager import TenantManager
     from pyvergeos.resources.users import UserManager
@@ -123,6 +124,7 @@ class VergeClient:
         self._nas_users: NASUserManager | None = None
         self._volume_syncs: NASVolumeSyncManager | None = None
         self._shared_objects: SharedObjectManager | None = None
+        self._system: SystemManager | None = None
 
         if auto_connect:
             self.connect()
@@ -579,3 +581,12 @@ class VergeClient:
 
             self._shared_objects = SharedObjectManager(self)
         return self._shared_objects
+
+    @property
+    def system(self) -> SystemManager:
+        """Access system operations (settings, statistics, licenses, inventory)."""
+        if self._system is None:
+            from pyvergeos.resources.system import SystemManager
+
+            self._system = SystemManager(self)
+        return self._system
