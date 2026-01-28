@@ -1348,3 +1348,325 @@ class TestTenantExternalIPs:
 
                 with contextlib.suppress(Exception):
                     test_tenant.external_ips.delete(ip.key)
+
+
+@pytest.mark.integration
+class TestTenantLayer2Networks:
+    """Integration tests for Tenant Layer 2 Network operations."""
+
+    @pytest.fixture
+    def test_tenant(self, live_client: VergeClient):
+        """Create a test tenant for L2 network tests."""
+        import random
+
+        tenant_name = f"pysdk-l2-integ-{random.randint(10000, 99999)}"
+
+        tenant = live_client.tenants.create(
+            name=tenant_name,
+            description="Test tenant for L2 network integration tests",
+        )
+
+        yield tenant
+
+        # Cleanup: delete tenant (L2 networks will be removed with the tenant)
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            live_client.tenants.delete(tenant.key)
+
+    @pytest.fixture
+    def test_network(self, live_client: VergeClient):
+        """Create a test internal network for L2 testing.
+
+        Creates a new internal network that can be assigned as a Layer 2 network.
+        """
+        import random
+
+        net_name = f"pysdk-l2-test-{random.randint(10000, 99999)}"
+
+        network = live_client.networks.create(
+            name=net_name,
+            description="Test network for L2 integration tests",
+            type="internal",
+            network_address="10.88.0.0/24",
+            ip_address="10.88.0.1",
+            dhcp_enabled=False,
+        )
+
+        yield network
+
+        # Cleanup: delete network
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            live_client.networks.delete(network.key)
+
+    def test_list_l2_networks_empty(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test listing L2 networks on a new tenant returns empty list."""
+        l2_networks = test_tenant.l2_networks.list()
+        assert isinstance(l2_networks, list)
+        assert len(l2_networks) == 0
+
+    def test_create_l2_network_by_network_key(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test creating a Layer 2 network with network key."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        assert l2.network_key == test_network.key
+        assert l2.network_name == test_network.name
+        assert l2.is_enabled is True
+        assert l2.tenant_key == test_tenant.key
+        assert l2.network_type == "internal"
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_create_l2_network_by_network_name(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test creating a Layer 2 network with network name."""
+        l2 = test_tenant.l2_networks.create(
+            network_name=test_network.name,
+            enabled=True,
+        )
+
+        assert l2.network_name == test_network.name
+        assert l2.is_enabled is True
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_create_l2_network_disabled(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test creating a Layer 2 network in disabled state."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=False,
+        )
+
+        assert l2.is_enabled is False
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_list_l2_networks_after_create(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test listing L2 networks after creating one."""
+        test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        l2_networks = test_tenant.l2_networks.list()
+        assert len(l2_networks) == 1
+        assert l2_networks[0].network_name == test_network.name
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2_networks[0].key)
+
+    def test_get_l2_network_by_key(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test getting a Layer 2 network by key."""
+        created = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Get by key
+        l2 = test_tenant.l2_networks.get(created.key)
+        assert l2.key == created.key
+        assert l2.network_name == test_network.name
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_get_l2_network_by_network_name(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test getting a Layer 2 network by network name."""
+        created = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Get by network name
+        l2 = test_tenant.l2_networks.get(network_name=test_network.name)
+        assert l2.key == created.key
+        assert l2.network_name == test_network.name
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_get_l2_network_not_found(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test getting a non-existent Layer 2 network."""
+        with pytest.raises(NotFoundError):
+            test_tenant.l2_networks.get(network_name="NonExistent-Network-12345")
+
+    def test_update_l2_network_disable(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test disabling a Layer 2 network."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Disable it
+        updated = test_tenant.l2_networks.update(l2.key, enabled=False)
+        assert updated.is_enabled is False
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_update_l2_network_enable(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test enabling a Layer 2 network."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=False,
+        )
+
+        # Enable it
+        updated = test_tenant.l2_networks.update(l2.key, enabled=True)
+        assert updated.is_enabled is True
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_enable_via_object_method(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test enabling L2 network via object.enable() method."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=False,
+        )
+
+        # Enable via object method
+        enabled = l2.enable()
+        assert enabled.is_enabled is True
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_disable_via_object_method(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test disabling L2 network via object.disable() method."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Disable via object method
+        disabled = l2.disable()
+        assert disabled.is_enabled is False
+
+        # Cleanup
+        test_tenant.l2_networks.delete(l2.key)
+
+    def test_delete_l2_network(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test deleting a Layer 2 network."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+        l2_key = l2.key
+
+        # Delete it
+        test_tenant.l2_networks.delete(l2_key)
+
+        # Verify deletion
+        l2_networks = test_tenant.l2_networks.list()
+        assert len(l2_networks) == 0
+
+    def test_delete_l2_network_by_network(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test deleting a Layer 2 network by network name."""
+        test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Delete by network name
+        test_tenant.l2_networks.delete_by_network(test_network.name)
+
+        # Verify deletion
+        l2_networks = test_tenant.l2_networks.list()
+        assert len(l2_networks) == 0
+
+    def test_delete_l2_network_via_object(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test deleting L2 network via object.delete() method."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Delete via object method
+        l2.delete()
+
+        # Verify deletion
+        l2_networks = test_tenant.l2_networks.list()
+        assert len(l2_networks) == 0
+
+    def test_l2_network_properties(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test Layer 2 network property accessors."""
+        l2 = test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        try:
+            # Test all properties
+            assert l2.tenant_key == test_tenant.key
+            assert l2.tenant_name == test_tenant.name
+            assert l2.network_key == test_network.key
+            assert l2.network_name == test_network.name
+            assert l2.network_type == "internal"
+            assert l2.is_enabled is True
+
+            # Test repr
+            repr_str = repr(l2)
+            assert test_network.name in repr_str
+            assert "enabled" in repr_str
+        finally:
+            test_tenant.l2_networks.delete(l2.key)
+
+    def test_manager_l2_networks_method(
+        self, live_client: VergeClient, test_tenant, test_network
+    ) -> None:
+        """Test TenantManager.l2_networks() direct access method."""
+        # Create L2 network via tenant.l2_networks
+        test_tenant.l2_networks.create(
+            network=test_network.key,
+            enabled=True,
+        )
+
+        # Access via manager method
+        l2_manager = live_client.tenants.l2_networks(test_tenant.key)
+        l2_networks = l2_manager.list()
+
+        assert len(l2_networks) == 1
+        assert l2_networks[0].network_name == test_network.name
+
+        # Cleanup
+        l2_manager.delete(l2_networks[0].key)

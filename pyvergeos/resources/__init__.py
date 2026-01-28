@@ -20,12 +20,18 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshotManager,
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
-from pyvergeos.resources.tenants import (
-    Tenant,
-    TenantManager,
-    TenantSnapshot,
-    TenantSnapshotManager,
+from pyvergeos.resources.tenant_external_ips import (
+    TenantExternalIP,
+    TenantExternalIPManager,
 )
+from pyvergeos.resources.tenant_layer2 import TenantLayer2Manager, TenantLayer2Network
+from pyvergeos.resources.tenant_manager import Tenant, TenantManager
+from pyvergeos.resources.tenant_network_blocks import (
+    TenantNetworkBlock,
+    TenantNetworkBlockManager,
+)
+from pyvergeos.resources.tenant_snapshots import TenantSnapshot, TenantSnapshotManager
+from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
 
 __all__ = [
     "APIKey",
@@ -54,7 +60,15 @@ __all__ = [
     "ResourceManager",
     "ResourceObject",
     "Tenant",
+    "TenantExternalIP",
+    "TenantExternalIPManager",
+    "TenantLayer2Manager",
+    "TenantLayer2Network",
     "TenantManager",
+    "TenantNetworkBlock",
+    "TenantNetworkBlockManager",
     "TenantSnapshot",
     "TenantSnapshotManager",
+    "TenantStorage",
+    "TenantStorageManager",
 ]

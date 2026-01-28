@@ -11,18 +11,18 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.tenants import (
-    Tenant,
+from pyvergeos.resources.tenant_external_ips import (
     TenantExternalIP,
     TenantExternalIPManager,
-    TenantManager,
+)
+from pyvergeos.resources.tenant_layer2 import TenantLayer2Manager, TenantLayer2Network
+from pyvergeos.resources.tenant_manager import Tenant, TenantManager
+from pyvergeos.resources.tenant_network_blocks import (
     TenantNetworkBlock,
     TenantNetworkBlockManager,
-    TenantSnapshot,
-    TenantSnapshotManager,
-    TenantStorage,
-    TenantStorageManager,
 )
+from pyvergeos.resources.tenant_snapshots import TenantSnapshot, TenantSnapshotManager
+from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
 
 
 class TestTenantManager:
@@ -2760,4 +2760,639 @@ class TestTenantManagerExternalIPsMethod:
         manager = mock_client.tenants.external_ips(100)
 
         assert isinstance(manager, TenantExternalIPManager)
+        assert manager._tenant.key == 100
+
+
+class TestTenantLayer2Network:
+    """Unit tests for TenantLayer2Network object."""
+
+    @pytest.fixture
+    def l2_data(self) -> dict[str, Any]:
+        """Sample Layer 2 network data."""
+        return {
+            "$key": 42,
+            "tenant": 100,
+            "tenant_name": "test-tenant",
+            "vnet": 10,
+            "network_name": "VLAN100",
+            "network_type": "internal",
+            "enabled": True,
+        }
+
+    def test_tenant_key(self, l2_data: dict[str, Any]) -> None:
+        """Test tenant_key property."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.tenant_key == 100
+
+    def test_tenant_name(self, l2_data: dict[str, Any]) -> None:
+        """Test tenant_name property."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.tenant_name == "test-tenant"
+
+    def test_network_key(self, l2_data: dict[str, Any]) -> None:
+        """Test network_key property."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.network_key == 10
+
+    def test_network_name(self, l2_data: dict[str, Any]) -> None:
+        """Test network_name property."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.network_name == "VLAN100"
+
+    def test_network_type(self, l2_data: dict[str, Any]) -> None:
+        """Test network_type property."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.network_type == "internal"
+
+    def test_is_enabled_true(self, l2_data: dict[str, Any]) -> None:
+        """Test is_enabled property when True."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.is_enabled is True
+
+    def test_is_enabled_false(self, l2_data: dict[str, Any]) -> None:
+        """Test is_enabled property when False."""
+        l2_data["enabled"] = False
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        assert l2.is_enabled is False
+
+    def test_is_enabled_missing(self) -> None:
+        """Test is_enabled when field is missing."""
+        l2 = TenantLayer2Network({"$key": 1}, None)  # type: ignore[arg-type]
+        assert l2.is_enabled is False
+
+    def test_repr_enabled(self, l2_data: dict[str, Any]) -> None:
+        """Test __repr__ when enabled."""
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        repr_str = repr(l2)
+        assert "VLAN100" in repr_str
+        assert "enabled" in repr_str
+
+    def test_repr_disabled(self, l2_data: dict[str, Any]) -> None:
+        """Test __repr__ when disabled."""
+        l2_data["enabled"] = False
+        l2 = TenantLayer2Network(l2_data, None)  # type: ignore[arg-type]
+        repr_str = repr(l2)
+        assert "VLAN100" in repr_str
+        assert "disabled" in repr_str
+
+
+class TestTenantLayer2Manager:
+    """Unit tests for TenantLayer2Manager."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "status": "offline",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def l2_data(self) -> dict[str, Any]:
+        """Sample Layer 2 network data."""
+        return {
+            "$key": 42,
+            "tenant": 100,
+            "tenant_name": "test-tenant",
+            "vnet": 10,
+            "network_name": "VLAN100",
+            "network_type": "internal",
+            "enabled": True,
+        }
+
+    def test_list_l2_networks(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test listing tenant Layer 2 networks."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "tenant": 100, "vnet": 10, "network_name": "VLAN100", "enabled": True},
+            {"$key": 2, "tenant": 100, "vnet": 11, "network_name": "VLAN200", "enabled": False},
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2_networks = tenant.l2_networks.list()
+
+        assert len(l2_networks) == 2
+        assert l2_networks[0].network_name == "VLAN100"
+        assert l2_networks[1].network_name == "VLAN200"
+
+    def test_list_l2_networks_filters_by_tenant(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that list() filters by tenant."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.l2_networks.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "tenant eq 100" in params.get("filter", "")
+
+    def test_list_l2_networks_with_additional_filter(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() with additional filter."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.l2_networks.list(filter="enabled eq true")
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        filter_value = params.get("filter", "")
+        assert "tenant eq 100" in filter_value
+        assert "enabled eq true" in filter_value
+
+    def test_list_l2_networks_empty(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test list() returns empty list when no L2 networks."""
+        mock_session.request.return_value.json.return_value = None
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2_networks = tenant.l2_networks.list()
+
+        assert l2_networks == []
+
+    def test_get_l2_network_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test getting Layer 2 network by key."""
+        mock_session.request.return_value.json.return_value = [l2_data]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2 = tenant.l2_networks.get(42)
+
+        assert l2.key == 42
+        assert l2.network_name == "VLAN100"
+
+    def test_get_l2_network_by_network_name(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test getting Layer 2 network by network name."""
+        mock_session.request.return_value.json.return_value = [l2_data]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2 = tenant.l2_networks.get(network_name="VLAN100")
+
+        assert l2.network_name == "VLAN100"
+
+    def test_get_l2_network_not_found_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when Layer 2 network key not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.l2_networks.get(999)
+
+    def test_get_l2_network_not_found_by_name(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when Layer 2 network not found by name."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError):
+            tenant.l2_networks.get(network_name="NonExistent")
+
+    def test_get_l2_network_requires_key_or_name(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither key nor network_name provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either key or network_name must be provided"):
+            tenant.l2_networks.get()
+
+    @patch("time.sleep")
+    def test_create_l2_network_by_network_key(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test creating Layer 2 network with network key."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42},  # POST response
+            [l2_data],  # GET to fetch created L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2 = tenant.l2_networks.create(network=10, enabled=True)
+
+        assert l2.network_name == "VLAN100"
+
+        # Find the POST request to tenant_layer2_vnets
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_layer2_vnets" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["vnet"] == 10
+        assert body["enabled"] is True
+
+    @patch("time.sleep")
+    def test_create_l2_network_by_network_name(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test creating Layer 2 network with network name."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 10, "name": "VLAN100"}],  # GET vnets
+            {"$key": 42},  # POST response
+            [l2_data],  # GET to fetch created L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2 = tenant.l2_networks.create(network_name="VLAN100", enabled=True)
+
+        assert l2.network_name == "VLAN100"
+
+    @patch("time.sleep")
+    def test_create_l2_network_disabled(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test creating Layer 2 network in disabled state."""
+        l2_data["enabled"] = False
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42},  # POST response
+            [l2_data],  # GET to fetch created L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.l2_networks.create(network=10, enabled=False)
+
+        # Find the POST request
+        post_call = None
+        for call in mock_session.request.call_args_list:
+            if (
+                call.kwargs.get("method") == "POST"
+                and "tenant_layer2_vnets" in call.kwargs.get("url", "")
+            ):
+                post_call = call
+                break
+
+        assert post_call is not None
+        body = post_call.kwargs.get("json", {})
+        assert body["enabled"] is False
+
+    def test_create_l2_network_requires_network(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test ValueError when neither network nor network_name provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Either network or network_name must be provided"):
+            tenant.l2_networks.create()
+
+    def test_create_l2_network_snapshot_raises_error(
+        self,
+        mock_client: VergeClient,
+    ) -> None:
+        """Test ValueError when creating L2 network on snapshot."""
+        tenant_data = {
+            "$key": 100,
+            "name": "test-tenant",
+            "is_snapshot": True,
+        }
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(ValueError, match="Cannot assign Layer 2 network to a tenant snapshot"):
+            tenant.l2_networks.create(network=10)
+
+    def test_create_l2_network_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when network not found by name."""
+        mock_session.request.return_value.json.return_value = []
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        with pytest.raises(NotFoundError, match="Network 'NonExistent' not found"):
+            tenant.l2_networks.create(network_name="NonExistent")
+
+    def test_update_l2_network_enable(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test updating Layer 2 network to enabled."""
+        mock_session.request.return_value.json.side_effect = [
+            {},  # PUT response
+            [l2_data],  # GET to fetch updated L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2 = tenant.l2_networks.update(42, enabled=True)
+
+        assert l2.is_enabled is True
+
+        # Find the PUT request
+        put_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "PUT":
+                put_call = call
+                break
+
+        assert put_call is not None
+        assert "tenant_layer2_vnets/42" in put_call.kwargs.get("url", "")
+        body = put_call.kwargs.get("json", {})
+        assert body["enabled"] is True
+
+    def test_update_l2_network_disable(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test updating Layer 2 network to disabled."""
+        l2_data["enabled"] = False
+        mock_session.request.return_value.json.side_effect = [
+            {},  # PUT response
+            [l2_data],  # GET to fetch updated L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2 = tenant.l2_networks.update(42, enabled=False)
+
+        assert l2.is_enabled is False
+
+    def test_delete_l2_network(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a Layer 2 network."""
+        mock_session.request.return_value.json.return_value = {}
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.l2_networks.delete(42)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs.get("method") == "DELETE"
+        assert "tenant_layer2_vnets/42" in call_args.kwargs.get("url", "")
+
+    def test_delete_l2_network_by_network(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test deleting Layer 2 network by network name."""
+        mock_session.request.return_value.json.side_effect = [
+            [l2_data],  # GET to find L2 network
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        tenant.l2_networks.delete_by_network("VLAN100")
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "tenant_layer2_vnets/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantLayer2ViaObject:
+    """Test TenantLayer2Network actions via the object itself."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def l2_data(self) -> dict[str, Any]:
+        """Sample Layer 2 network data."""
+        return {
+            "$key": 42,
+            "tenant": 100,
+            "tenant_name": "test-tenant",
+            "vnet": 10,
+            "network_name": "VLAN100",
+            "network_type": "internal",
+            "enabled": True,
+        }
+
+    def test_enable_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test enabling L2 network via object.enable()."""
+        mock_session.request.return_value.json.side_effect = [
+            [l2_data],  # GET to list L2 networks
+            {},  # PUT response
+            [l2_data],  # GET to fetch updated L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2_networks = tenant.l2_networks.list()
+        result = l2_networks[0].enable()
+
+        assert result.is_enabled is True
+
+        # Find the PUT request
+        put_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "PUT":
+                put_call = call
+                break
+
+        assert put_call is not None
+        body = put_call.kwargs.get("json", {})
+        assert body["enabled"] is True
+
+    def test_disable_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test disabling L2 network via object.disable()."""
+        l2_data_disabled = l2_data.copy()
+        l2_data_disabled["enabled"] = False
+        mock_session.request.return_value.json.side_effect = [
+            [l2_data],  # GET to list L2 networks
+            {},  # PUT response
+            [l2_data_disabled],  # GET to fetch updated L2 network
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2_networks = tenant.l2_networks.list()
+        result = l2_networks[0].disable()
+
+        assert result.is_enabled is False
+
+        # Find the PUT request
+        put_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "PUT":
+                put_call = call
+                break
+
+        assert put_call is not None
+        body = put_call.kwargs.get("json", {})
+        assert body["enabled"] is False
+
+    def test_delete_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        l2_data: dict[str, Any],
+    ) -> None:
+        """Test deleting L2 network via object.delete()."""
+        mock_session.request.return_value.json.side_effect = [
+            [l2_data],  # GET to list L2 networks
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        l2_networks = tenant.l2_networks.list()
+        l2_networks[0].delete()
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "tenant_layer2_vnets/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantL2NetworksProperty:
+    """Test Tenant.l2_networks property."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_l2_networks_property_returns_manager(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenant.l2_networks returns TenantLayer2Manager."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.l2_networks
+
+        assert isinstance(manager, TenantLayer2Manager)
+
+    def test_l2_networks_manager_has_correct_tenant(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that l2_networks manager references the correct tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.l2_networks
+
+        assert manager._tenant.key == tenant.key
+
+
+class TestTenantManagerL2NetworksMethod:
+    """Test TenantManager.l2_networks() method."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_l2_networks_method_returns_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenants.l2_networks(key) returns TenantLayer2Manager."""
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        manager = mock_client.tenants.l2_networks(100)
+
+        assert isinstance(manager, TenantLayer2Manager)
         assert manager._tenant.key == 100

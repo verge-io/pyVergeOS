@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.permissions import PermissionManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.tasks import TaskManager
-    from pyvergeos.resources.tenants import TenantManager
+    from pyvergeos.resources.tenant_manager import TenantManager
     from pyvergeos.resources.users import UserManager
     from pyvergeos.resources.vms import VMManager
 
@@ -404,7 +404,7 @@ class VergeClient:
     def tenants(self) -> TenantManager:
         """Access tenant operations."""
         if self._tenants is None:
-            from pyvergeos.resources.tenants import TenantManager
+            from pyvergeos.resources.tenant_manager import TenantManager
 
             self._tenants = TenantManager(self)
         return self._tenants
