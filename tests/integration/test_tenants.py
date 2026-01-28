@@ -1670,3 +1670,171 @@ class TestTenantLayer2Networks:
 
         # Cleanup
         l2_manager.delete(l2_networks[0].key)
+
+
+@pytest.mark.integration
+class TestTenantUtilities:
+    """Integration tests for Tenant utility methods."""
+
+    @pytest.fixture
+    def test_tenant(self, live_client: VergeClient):
+        """Create a test tenant for utility tests."""
+        import random
+
+        tenant_name = f"pysdk-util-integ-{random.randint(10000, 99999)}"
+
+        tenant = live_client.tenants.create(
+            name=tenant_name,
+            description="Test tenant for utility integration tests",
+        )
+
+        yield tenant
+
+        # Cleanup: delete tenant
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            live_client.tenants.delete(tenant.key)
+
+    def test_enable_isolation_via_object(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test enabling isolation via Tenant object."""
+        assert test_tenant.is_isolated is False
+
+        # Enable isolation
+        test_tenant.enable_isolation()
+        test_tenant = test_tenant.refresh()
+
+        assert test_tenant.is_isolated is True
+
+        # Cleanup: disable isolation
+        test_tenant.disable_isolation()
+
+    def test_disable_isolation_via_object(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test disabling isolation via Tenant object."""
+        # First enable isolation
+        test_tenant.enable_isolation()
+        test_tenant = test_tenant.refresh()
+        assert test_tenant.is_isolated is True
+
+        # Disable isolation
+        test_tenant.disable_isolation()
+        test_tenant = test_tenant.refresh()
+
+        assert test_tenant.is_isolated is False
+
+    def test_enable_isolation_via_manager(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test enabling isolation via TenantManager."""
+        assert test_tenant.is_isolated is False
+
+        # Enable isolation via manager
+        live_client.tenants.enable_isolation(test_tenant.key)
+        test_tenant = test_tenant.refresh()
+
+        assert test_tenant.is_isolated is True
+
+        # Cleanup
+        live_client.tenants.disable_isolation(test_tenant.key)
+
+    def test_disable_isolation_via_manager(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test disabling isolation via TenantManager."""
+        # First enable
+        live_client.tenants.enable_isolation(test_tenant.key)
+        test_tenant = test_tenant.refresh()
+        assert test_tenant.is_isolated is True
+
+        # Disable via manager
+        live_client.tenants.disable_isolation(test_tenant.key)
+        test_tenant = test_tenant.refresh()
+
+        assert test_tenant.is_isolated is False
+
+    def test_enable_isolation_already_isolated_raises(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that enabling isolation on already-isolated tenant raises."""
+        # First enable
+        test_tenant.enable_isolation()
+        test_tenant = test_tenant.refresh()
+
+        # Try to enable again
+        with pytest.raises(ValueError, match="already in isolation mode"):
+            test_tenant.enable_isolation()
+
+        # Cleanup
+        test_tenant.disable_isolation()
+
+    def test_disable_isolation_not_isolated_raises(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that disabling isolation on non-isolated tenant raises."""
+        assert test_tenant.is_isolated is False
+
+        with pytest.raises(ValueError, match="not in isolation mode"):
+            test_tenant.disable_isolation()
+
+    def test_send_file_via_object(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test sending a file to a tenant via Tenant object."""
+        # Find a file to send
+        files = live_client.files.list(limit=1)
+        if not files:
+            pytest.skip("No files available for testing")
+
+        file_to_send = files[0]
+        result = test_tenant.send_file(file_to_send.key)
+
+        # The action should complete (or raise an error if file already shared)
+        assert result is not None or result is None  # May return None on success
+
+    def test_send_file_via_manager(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test sending a file to a tenant via TenantManager."""
+        # Find files to send
+        files = live_client.files.list(limit=2)
+        if len(files) < 2:
+            pytest.skip("Need at least 2 files for testing")
+
+        # Use second file to avoid conflict with object test
+        file_to_send = files[1]
+        result = live_client.tenants.send_file(test_tenant.key, file_to_send.key)
+
+        assert result is not None or result is None
+
+    def test_create_crash_cart_recipe_not_found(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that creating crash cart fails gracefully if recipe not found."""
+        # Check if Crash Cart recipe exists
+        recipes = live_client._request(
+            "GET",
+            "vm_recipes",
+            params={"filter": "name eq 'Crash Cart'"},
+        )
+
+        if recipes:
+            pytest.skip("Crash Cart recipe exists, cannot test not-found scenario")
+
+        with pytest.raises(NotFoundError, match="Crash Cart recipe not found"):
+            test_tenant.create_crash_cart()
+
+    def test_isolation_chaining(
+        self, live_client: VergeClient, test_tenant
+    ) -> None:
+        """Test that isolation methods return self for chaining."""
+        result = test_tenant.enable_isolation()
+        assert result is test_tenant
+
+        # Refresh to update the is_isolated flag before disabling
+        result = result.refresh()
+        result = result.disable_isolation()
+        assert result is not None

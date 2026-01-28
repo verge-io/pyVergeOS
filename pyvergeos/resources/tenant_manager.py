@@ -12,6 +12,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 from pyvergeos.resources.tenant_external_ips import TenantExternalIPManager
 from pyvergeos.resources.tenant_layer2 import TenantLayer2Manager
 from pyvergeos.resources.tenant_network_blocks import TenantNetworkBlockManager
+from pyvergeos.resources.tenant_nodes import TenantNodeManager
 from pyvergeos.resources.tenant_snapshots import TenantSnapshotManager
 from pyvergeos.resources.tenant_storage import TenantStorageManager
 
@@ -273,6 +274,26 @@ class Tenant(ResourceObject):
         return TenantStorageManager(manager._client, self)
 
     @property
+    def nodes(self) -> TenantNodeManager:
+        """Get the node manager for this tenant.
+
+        Returns:
+            TenantNodeManager for managing tenant compute nodes.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> # List nodes
+            >>> for node in tenant.nodes.list():
+            ...     print(f"{node.name}: {node.cpu_cores} cores, {node.ram_gb} GB")
+            >>> # Add a node with 4 cores and 16 GB RAM
+            >>> tenant.nodes.create(cpu_cores=4, ram_gb=16, cluster=1)
+        """
+        from typing import cast
+
+        manager = cast("TenantManager", self._manager)
+        return TenantNodeManager(manager._client, self)
+
+    @property
     def network_blocks(self) -> TenantNetworkBlockManager:
         """Get the network block manager for this tenant.
 
@@ -350,6 +371,241 @@ class Tenant(ResourceObject):
 
         manager = cast("TenantManager", self._manager)
         return manager._client.shared_objects.list(tenant_key=self.key)
+
+    def set_ui_ip(
+        self, ip: str, network_name: str = "External"
+    ) -> dict[str, Any] | None:
+        """Set the UI IP address for this tenant.
+
+        Creates a virtual IP address on the specified network that allows
+        external access to the tenant's UI. This is the proper way to assign
+        a tenant UI address.
+
+        Args:
+            ip: IP address for tenant UI access.
+            network_name: Network to create the IP on (default: "External").
+
+        Returns:
+            Created vnet_address response.
+
+        Raises:
+            ValueError: If tenant is a snapshot.
+            NotFoundError: If the network is not found.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> tenant.set_ui_ip("192.168.10.79")
+        """
+        from typing import cast
+
+        if self.is_snapshot:
+            raise ValueError("Cannot set UI IP for a tenant snapshot")
+
+        manager = cast("TenantManager", self._manager)
+
+        # Get the network to find its key
+        network = manager._client.networks.get(name=network_name)
+
+        # Create the virtual IP address with owner pointing to this tenant
+        body: dict[str, Any] = {
+            "vnet": network.key,
+            "type": "virtual",
+            "ip": ip,
+            "owner": f"tenants/{self.key}",
+        }
+
+        result = manager._client._request("POST", "vnet_addresses", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def send_file(self, file_key: int) -> dict[str, Any] | None:
+        """Send a file to this tenant.
+
+        Shares a file from the parent vSAN with the tenant. This allows tenants
+        to access specific files (ISOs, disk images, etc.) within their own
+        Files section. The process is near-instant as it uses a branch command
+        rather than copying the file.
+
+        Args:
+            file_key: The $key of the file to share with the tenant.
+
+        Returns:
+            Action response, or None if no response body.
+
+        Raises:
+            ValueError: If tenant is a snapshot.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> # Get the file to share
+            >>> file = client.files.get(name="ubuntu-22.04.iso")
+            >>> tenant.send_file(file.key)
+        """
+        if self.is_snapshot:
+            raise ValueError("Cannot send file to a tenant snapshot")
+
+        body: dict[str, Any] = {
+            "tenant": self.key,
+            "action": "give_file",
+            "params": {"file": file_key},
+        }
+
+        result = self._manager._client._request("POST", "tenant_actions", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def create_crash_cart(self, name: str | None = None) -> dict[str, Any] | None:
+        """Deploy a Crash Cart VM for emergency access to this tenant.
+
+        Deploys a Crash Cart VM that provides emergency UI access to a tenant.
+        This is useful when normal tenant access is unavailable. The Crash Cart
+        VM connects to the tenant's internal network and provides a web-based
+        console for troubleshooting.
+
+        Args:
+            name: The name for the Crash Cart VM. Defaults to
+                "Crash Cart - {tenant_name}".
+
+        Returns:
+            Recipe deployment response, or None if no response body.
+
+        Raises:
+            ValueError: If tenant is a snapshot.
+            NotFoundError: If the Crash Cart recipe is not available.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> tenant.create_crash_cart()
+            >>> # Access the crash cart VM console
+            >>> vm = client.vms.get(name="Crash Cart - my-tenant")
+        """
+        from pyvergeos.exceptions import NotFoundError
+
+        if self.is_snapshot:
+            raise ValueError("Cannot deploy Crash Cart for a tenant snapshot")
+
+        # Find the Crash Cart recipe
+        response = self._manager._client._request(
+            "GET",
+            "vm_recipes",
+            params={"filter": "name eq 'Crash Cart'", "fields": "id,name"},
+        )
+
+        recipes = response if isinstance(response, list) else []
+        if not recipes:
+            raise NotFoundError("Crash Cart recipe not found")
+
+        recipe_id = recipes[0].get("id")
+        if recipe_id is None:
+            raise NotFoundError("Crash Cart recipe not found")
+
+        # Determine the Crash Cart VM name
+        crash_cart_name = name if name else f"Crash Cart - {self.name}"
+
+        # Deploy the crash cart
+        body: dict[str, Any] = {
+            "recipe": recipe_id,
+            "name": crash_cart_name,
+            "answers": {"tenant": self.key},
+        }
+
+        result = self._manager._client._request(
+            "POST", "vm_recipe_instances", json_data=body
+        )
+        return result if isinstance(result, dict) else None
+
+    def delete_crash_cart(self, name: str | None = None) -> None:
+        """Remove a Crash Cart VM deployed for this tenant.
+
+        Removes the Crash Cart VM that was deployed for emergency tenant access.
+        The VM must be stopped before removal. This should be called after
+        troubleshooting is complete.
+
+        Args:
+            name: The name of the Crash Cart VM to remove. Defaults to
+                "Crash Cart - {tenant_name}".
+
+        Raises:
+            ValueError: If tenant is a snapshot.
+            NotFoundError: If the Crash Cart VM is not found.
+            APIError: If the VM is still running or cannot be deleted.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> # Stop the crash cart first
+            >>> vm = client.vms.get(name="Crash Cart - my-tenant")
+            >>> vm.power_off()
+            >>> # Wait for it to stop, then delete
+            >>> tenant.delete_crash_cart()
+        """
+        from pyvergeos.exceptions import NotFoundError
+
+        if self.is_snapshot:
+            raise ValueError("Cannot delete Crash Cart for a tenant snapshot")
+
+        # Determine the Crash Cart VM name
+        crash_cart_name = name if name else f"Crash Cart - {self.name}"
+
+        # Find the crash cart VM
+        vm = self._manager._client.vms.get(name=crash_cart_name)
+        if vm is None:
+            raise NotFoundError(f"Crash Cart VM '{crash_cart_name}' not found")
+
+        # Delete the VM
+        self._manager._client._request("DELETE", f"vms/{vm.key}")
+
+    def enable_isolation(self) -> Tenant:
+        """Enable network isolation mode for this tenant.
+
+        Enables isolation mode which disables the tenant's network connectivity.
+        This is useful for security purposes or when performing maintenance that
+        requires network isolation.
+
+        Returns:
+            Self for chaining.
+
+        Raises:
+            ValueError: If tenant is a snapshot or already isolated.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> tenant.enable_isolation()
+            >>> # Tenant network is now disabled
+        """
+        if self.is_snapshot:
+            raise ValueError("Cannot enable isolation for a tenant snapshot")
+
+        if self.is_isolated:
+            raise ValueError(f"Tenant '{self.name}' is already in isolation mode")
+
+        body: dict[str, Any] = {"tenant": self.key, "action": "isolateon"}
+        self._manager._client._request("POST", "tenant_actions", json_data=body)
+        return self
+
+    def disable_isolation(self) -> Tenant:
+        """Disable network isolation mode for this tenant.
+
+        Disables isolation mode which restores the tenant's network connectivity.
+        Use this after troubleshooting or security investigation is complete.
+
+        Returns:
+            Self for chaining.
+
+        Raises:
+            ValueError: If tenant is a snapshot or not isolated.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> tenant.disable_isolation()
+            >>> # Tenant network is now enabled
+        """
+        if self.is_snapshot:
+            raise ValueError("Cannot disable isolation for a tenant snapshot")
+
+        if not self.is_isolated:
+            raise ValueError(f"Tenant '{self.name}' is not in isolation mode")
+
+        body: dict[str, Any] = {"tenant": self.key, "action": "isolateoff"}
+        self._manager._client._request("POST", "tenant_actions", json_data=body)
+        return self
 
     def connect(
         self,
@@ -736,6 +992,23 @@ class TenantManager(ResourceManager[Tenant]):
         tenant = self.get(tenant_key)
         return TenantStorageManager(self._client, tenant)
 
+    def nodes(self, tenant_key: int) -> TenantNodeManager:
+        """Get the node manager for a specific tenant.
+
+        Args:
+            tenant_key: Tenant $key (ID).
+
+        Returns:
+            TenantNodeManager for managing tenant compute nodes.
+
+        Example:
+            >>> # Access node manager directly by tenant key
+            >>> node_manager = client.tenants.nodes(123)
+            >>> nodes = node_manager.list()
+        """
+        tenant = self.get(tenant_key)
+        return TenantNodeManager(self._client, tenant)
+
     def network_blocks(self, tenant_key: int) -> TenantNetworkBlockManager:
         """Get the network block manager for a specific tenant.
 
@@ -863,3 +1136,121 @@ class TenantManager(ResourceManager[Tenant]):
             ...     print(f"{obj.name}: {obj.object_type}")
         """
         return self._client.shared_objects.list(tenant_key=tenant_key)
+
+    def send_file(self, key: int, file_key: int) -> dict[str, Any] | None:
+        """Send a file to a tenant.
+
+        Shares a file from the parent vSAN with the tenant. This allows tenants
+        to access specific files (ISOs, disk images, etc.) within their own
+        Files section. The process is near-instant as it uses a branch command
+        rather than copying the file.
+
+        Args:
+            key: Tenant $key (ID).
+            file_key: The $key of the file to share with the tenant.
+
+        Returns:
+            Action response, or None if no response body.
+
+        Example:
+            >>> file = client.files.get(name="ubuntu-22.04.iso")
+            >>> client.tenants.send_file(123, file.key)
+        """
+        body: dict[str, Any] = {
+            "tenant": key,
+            "action": "give_file",
+            "params": {"file": file_key},
+        }
+
+        result = self._client._request("POST", "tenant_actions", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def create_crash_cart(
+        self, key: int, name: str | None = None
+    ) -> dict[str, Any] | None:
+        """Deploy a Crash Cart VM for emergency access to a tenant.
+
+        Deploys a Crash Cart VM that provides emergency UI access to a tenant.
+        This is useful when normal tenant access is unavailable. The Crash Cart
+        VM connects to the tenant's internal network and provides a web-based
+        console for troubleshooting.
+
+        Args:
+            key: Tenant $key (ID).
+            name: The name for the Crash Cart VM. Defaults to
+                "Crash Cart - {tenant_name}".
+
+        Returns:
+            Recipe deployment response, or None if no response body.
+
+        Raises:
+            NotFoundError: If the Crash Cart recipe is not available.
+
+        Example:
+            >>> client.tenants.create_crash_cart(123)
+            >>> # Or with a custom name
+            >>> client.tenants.create_crash_cart(123, name="Emergency Access VM")
+        """
+        tenant = self.get(key)
+        return tenant.create_crash_cart(name=name)
+
+    def delete_crash_cart(self, key: int, name: str | None = None) -> None:
+        """Remove a Crash Cart VM deployed for a tenant.
+
+        Removes the Crash Cart VM that was deployed for emergency tenant access.
+        The VM must be stopped before removal. This should be called after
+        troubleshooting is complete.
+
+        Args:
+            key: Tenant $key (ID).
+            name: The name of the Crash Cart VM to remove. Defaults to
+                "Crash Cart - {tenant_name}".
+
+        Raises:
+            NotFoundError: If the Crash Cart VM is not found.
+            APIError: If the VM is still running or cannot be deleted.
+
+        Example:
+            >>> client.tenants.delete_crash_cart(123)
+        """
+        tenant = self.get(key)
+        tenant.delete_crash_cart(name=name)
+
+    def enable_isolation(self, key: int) -> dict[str, Any] | None:
+        """Enable network isolation mode for a tenant.
+
+        Enables isolation mode which disables the tenant's network connectivity.
+        This is useful for security purposes or when performing maintenance that
+        requires network isolation.
+
+        Args:
+            key: Tenant $key (ID).
+
+        Returns:
+            Action response, or None if no response body.
+
+        Example:
+            >>> client.tenants.enable_isolation(123)
+        """
+        body: dict[str, Any] = {"tenant": key, "action": "isolateon"}
+        result = self._client._request("POST", "tenant_actions", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def disable_isolation(self, key: int) -> dict[str, Any] | None:
+        """Disable network isolation mode for a tenant.
+
+        Disables isolation mode which restores the tenant's network connectivity.
+        Use this after troubleshooting or security investigation is complete.
+
+        Args:
+            key: Tenant $key (ID).
+
+        Returns:
+            Action response, or None if no response body.
+
+        Example:
+            >>> client.tenants.disable_isolation(123)
+        """
+        body: dict[str, Any] = {"tenant": key, "action": "isolateoff"}
+        result = self._client._request("POST", "tenant_actions", json_data=body)
+        return result if isinstance(result, dict) else None

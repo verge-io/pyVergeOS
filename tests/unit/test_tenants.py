@@ -21,6 +21,7 @@ from pyvergeos.resources.tenant_network_blocks import (
     TenantNetworkBlock,
     TenantNetworkBlockManager,
 )
+from pyvergeos.resources.tenant_nodes import TenantNode, TenantNodeManager
 from pyvergeos.resources.tenant_snapshots import TenantSnapshot, TenantSnapshotManager
 from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
 
@@ -3395,4 +3396,965 @@ class TestTenantManagerL2NetworksMethod:
         manager = mock_client.tenants.l2_networks(100)
 
         assert isinstance(manager, TenantLayer2Manager)
+        assert manager._tenant.key == 100
+
+
+class TestTenantUtilities:
+    """Unit tests for Tenant utility methods (send_file, crash cart, isolation)."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": True,
+            "is_snapshot": False,
+            "isolate": False,
+        }
+
+    @pytest.fixture
+    def tenant_isolated_data(self) -> dict[str, Any]:
+        """Sample isolated tenant data."""
+        return {
+            "$key": 101,
+            "name": "isolated-tenant",
+            "running": True,
+            "is_snapshot": False,
+            "isolate": True,
+        }
+
+    @pytest.fixture
+    def tenant_snapshot_data(self) -> dict[str, Any]:
+        """Sample tenant snapshot data."""
+        return {
+            "$key": 102,
+            "name": "tenant-snapshot",
+            "running": False,
+            "is_snapshot": True,
+            "isolate": False,
+        }
+
+    # Tests for send_file()
+
+    def test_send_file(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test sending a file to a tenant."""
+        mock_session.request.return_value.json.return_value = {"$key": 1}
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        result = tenant.send_file(file_key=42)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["action"] == "give_file"
+        assert body["params"]["file"] == 42
+        assert result == {"$key": 1}
+
+    def test_send_file_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test that sending file to snapshot raises ValueError."""
+        tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Cannot send file to a tenant snapshot"):
+            tenant.send_file(file_key=42)
+
+    def test_send_file_via_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """Test sending a file via manager."""
+        mock_session.request.return_value.json.return_value = {"$key": 1}
+
+        result = mock_client.tenants.send_file(key=100, file_key=42)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["action"] == "give_file"
+        assert body["params"]["file"] == 42
+        assert result == {"$key": 1}
+
+    # Tests for enable_isolation()
+
+    def test_enable_isolation(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test enabling isolation for a tenant."""
+        mock_session.request.return_value.json.return_value = {}
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        result = tenant.enable_isolation()
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["action"] == "isolateon"
+        assert result is tenant  # Returns self for chaining
+
+    def test_enable_isolation_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test that enabling isolation on snapshot raises ValueError."""
+        tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
+
+        with pytest.raises(
+            ValueError, match="Cannot enable isolation for a tenant snapshot"
+        ):
+            tenant.enable_isolation()
+
+    def test_enable_isolation_already_isolated_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_isolated_data: dict[str, Any],
+    ) -> None:
+        """Test that enabling isolation when already isolated raises ValueError."""
+        tenant = Tenant(tenant_isolated_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="already in isolation mode"):
+            tenant.enable_isolation()
+
+    def test_enable_isolation_via_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """Test enabling isolation via manager."""
+        mock_session.request.return_value.json.return_value = {}
+
+        mock_client.tenants.enable_isolation(key=100)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["action"] == "isolateon"
+
+    # Tests for disable_isolation()
+
+    def test_disable_isolation(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_isolated_data: dict[str, Any],
+    ) -> None:
+        """Test disabling isolation for a tenant."""
+        mock_session.request.return_value.json.return_value = {}
+        tenant = Tenant(tenant_isolated_data, mock_client.tenants)
+
+        result = tenant.disable_isolation()
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["tenant"] == 101
+        assert body["action"] == "isolateoff"
+        assert result is tenant  # Returns self for chaining
+
+    def test_disable_isolation_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test that disabling isolation on snapshot raises ValueError."""
+        tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
+
+        with pytest.raises(
+            ValueError, match="Cannot disable isolation for a tenant snapshot"
+        ):
+            tenant.disable_isolation()
+
+    def test_disable_isolation_not_isolated_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that disabling isolation when not isolated raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="not in isolation mode"):
+            tenant.disable_isolation()
+
+    def test_disable_isolation_via_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """Test disabling isolation via manager."""
+        mock_session.request.return_value.json.return_value = {}
+
+        mock_client.tenants.disable_isolation(key=100)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["action"] == "isolateoff"
+
+    # Tests for create_crash_cart()
+
+    def test_create_crash_cart(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating a crash cart for a tenant."""
+        # First call gets the recipe, second creates the VM
+        mock_session.request.return_value.json.side_effect = [
+            [{"id": 5, "name": "Crash Cart"}],  # vm_recipes response
+            {"$key": 99},  # vm_recipe_instances response
+        ]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        result = tenant.create_crash_cart()
+
+        # Check the vm_recipe_instances call
+        calls = mock_session.request.call_args_list
+        recipe_instance_call = calls[-1]
+        body = recipe_instance_call.kwargs.get("json", {})
+        assert body["recipe"] == 5
+        assert body["name"] == "Crash Cart - test-tenant"
+        assert body["answers"]["tenant"] == 100
+        assert result == {"$key": 99}
+
+    def test_create_crash_cart_custom_name(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating a crash cart with a custom name."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"id": 5, "name": "Crash Cart"}],
+            {"$key": 99},
+        ]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        tenant.create_crash_cart(name="Emergency Access")
+
+        calls = mock_session.request.call_args_list
+        recipe_instance_call = calls[-1]
+        body = recipe_instance_call.kwargs.get("json", {})
+        assert body["name"] == "Emergency Access"
+
+    def test_create_crash_cart_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test that creating crash cart for snapshot raises ValueError."""
+        tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
+
+        with pytest.raises(
+            ValueError, match="Cannot deploy Crash Cart for a tenant snapshot"
+        ):
+            tenant.create_crash_cart()
+
+    def test_create_crash_cart_recipe_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that NotFoundError is raised when Crash Cart recipe not found."""
+        mock_session.request.return_value.json.return_value = []
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(NotFoundError, match="Crash Cart recipe not found"):
+            tenant.create_crash_cart()
+
+    def test_create_crash_cart_via_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test creating crash cart via manager."""
+        mock_session.request.return_value.json.side_effect = [
+            tenant_data,  # get tenant
+            [{"id": 5, "name": "Crash Cart"}],
+            {"$key": 99},
+        ]
+
+        result = mock_client.tenants.create_crash_cart(key=100)
+
+        calls = mock_session.request.call_args_list
+        recipe_instance_call = calls[-1]
+        body = recipe_instance_call.kwargs.get("json", {})
+        assert body["name"] == "Crash Cart - test-tenant"
+        assert result == {"$key": 99}
+
+    # Tests for delete_crash_cart()
+
+    def test_delete_crash_cart(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a crash cart for a tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        # Mock vms.get to return a VM object
+        vm_mock = MagicMock(key=200, name="Crash Cart - test-tenant")
+        with patch.object(mock_client.vms, "get", return_value=vm_mock):
+            tenant.delete_crash_cart()
+
+        # Verify DELETE was called with the VM key
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "DELETE"
+        assert "vms/200" in call_args.kwargs["url"]
+
+    def test_delete_crash_cart_custom_name(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a crash cart with a custom name."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        # Mock vms.get to return a VM object
+        vm_mock = MagicMock(key=201, name="Emergency Access")
+        with patch.object(mock_client.vms, "get", return_value=vm_mock):
+            tenant.delete_crash_cart(name="Emergency Access")
+
+        call_args = mock_session.request.call_args
+        assert "vms/201" in call_args.kwargs["url"]
+
+    def test_delete_crash_cart_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_snapshot_data: dict[str, Any],
+    ) -> None:
+        """Test that deleting crash cart for snapshot raises ValueError."""
+        tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
+
+        with pytest.raises(
+            ValueError, match="Cannot delete Crash Cart for a tenant snapshot"
+        ):
+            tenant.delete_crash_cart()
+
+    def test_delete_crash_cart_not_found(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that NotFoundError is raised when crash cart VM not found."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        # Mock vms.get to raise NotFoundError
+        with patch.object(
+            mock_client.vms, "get", side_effect=NotFoundError("VM not found")
+        ), pytest.raises(NotFoundError, match="not found"):
+            tenant.delete_crash_cart()
+
+    def test_delete_crash_cart_via_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting crash cart via manager."""
+        # Mock get tenant
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        # Mock vms.get to return a VM object
+        vm_mock = MagicMock(key=200, name="Crash Cart - test-tenant")
+        with patch.object(mock_client.vms, "get", return_value=vm_mock):
+            mock_client.tenants.delete_crash_cart(key=100)
+
+        # Verify DELETE was called - get the last call which should be DELETE
+        calls = [
+            c for c in mock_session.request.call_args_list
+            if c.kwargs.get("method") == "DELETE"
+        ]
+        assert len(calls) == 1
+        assert "vms/200" in calls[0].kwargs["url"]
+
+
+class TestTenantNode:
+    """Unit tests for TenantNode object."""
+
+    @pytest.fixture
+    def node_data(self) -> dict[str, Any]:
+        """Sample tenant node data."""
+        return {
+            "$key": 42,
+            "tenant": 100,
+            "name": "node1",
+            "nodeid": 1,
+            "cpu_cores": 4,
+            "ram": 16384,
+            "enabled": True,
+            "running": True,
+            "status": "online",
+            "host_node": "verge-node1",
+            "cluster": 1,
+            "cluster_name": "default",
+            "preferred_node": 2,
+            "preferred_node_name": "verge-node2",
+            "on_power_loss": "last_state",
+            "machine": 500,
+        }
+
+    def test_tenant_key(self, node_data: dict[str, Any]) -> None:
+        """Test tenant_key property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.tenant_key == 100
+
+    def test_name(self, node_data: dict[str, Any]) -> None:
+        """Test name property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.name == "node1"
+
+    def test_node_id(self, node_data: dict[str, Any]) -> None:
+        """Test node_id property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.node_id == 1
+
+    def test_cpu_cores(self, node_data: dict[str, Any]) -> None:
+        """Test cpu_cores property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.cpu_cores == 4
+
+    def test_ram_mb(self, node_data: dict[str, Any]) -> None:
+        """Test ram_mb property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.ram_mb == 16384
+
+    def test_ram_gb(self, node_data: dict[str, Any]) -> None:
+        """Test ram_gb property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.ram_gb == 16.0
+
+    def test_is_enabled(self, node_data: dict[str, Any]) -> None:
+        """Test is_enabled property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.is_enabled is True
+
+    def test_is_enabled_false(self, node_data: dict[str, Any]) -> None:
+        """Test is_enabled property when disabled."""
+        node_data["enabled"] = False
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.is_enabled is False
+
+    def test_is_running(self, node_data: dict[str, Any]) -> None:
+        """Test is_running property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.is_running is True
+
+    def test_is_running_false(self, node_data: dict[str, Any]) -> None:
+        """Test is_running property when stopped."""
+        node_data["running"] = False
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.is_running is False
+
+    def test_status(self, node_data: dict[str, Any]) -> None:
+        """Test status property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.status == "online"
+
+    def test_host_node(self, node_data: dict[str, Any]) -> None:
+        """Test host_node property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.host_node == "verge-node1"
+
+    def test_cluster_key(self, node_data: dict[str, Any]) -> None:
+        """Test cluster_key property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.cluster_key == 1
+
+    def test_cluster_name(self, node_data: dict[str, Any]) -> None:
+        """Test cluster_name property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.cluster_name == "default"
+
+    def test_preferred_node_key(self, node_data: dict[str, Any]) -> None:
+        """Test preferred_node_key property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.preferred_node_key == 2
+
+    def test_preferred_node_name(self, node_data: dict[str, Any]) -> None:
+        """Test preferred_node_name property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.preferred_node_name == "verge-node2"
+
+    def test_on_power_loss(self, node_data: dict[str, Any]) -> None:
+        """Test on_power_loss property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.on_power_loss == "last_state"
+
+    def test_machine_key(self, node_data: dict[str, Any]) -> None:
+        """Test machine_key property."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        assert node.machine_key == 500
+
+    def test_repr(self, node_data: dict[str, Any]) -> None:
+        """Test __repr__ for running node."""
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        repr_str = repr(node)
+        assert "node1" in repr_str
+        assert "4 cores" in repr_str
+        assert "16.0 GB RAM" in repr_str
+        assert "running" in repr_str
+
+    def test_repr_stopped(self, node_data: dict[str, Any]) -> None:
+        """Test __repr__ for stopped node."""
+        node_data["running"] = False
+        node = TenantNode(node_data, None)  # type: ignore[arg-type]
+        repr_str = repr(node)
+        assert "stopped" in repr_str
+
+
+class TestTenantNodeManager:
+    """Unit tests for TenantNodeManager."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def node_data(self) -> dict[str, Any]:
+        """Sample tenant node data."""
+        return {
+            "$key": 42,
+            "tenant": 100,
+            "name": "node1",
+            "nodeid": 1,
+            "cpu_cores": 4,
+            "ram": 16384,
+            "enabled": True,
+            "running": True,
+            "status": "online",
+        }
+
+    def test_list_nodes(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test listing nodes for a tenant."""
+        mock_session.request.return_value.json.return_value = [node_data]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        nodes = tenant.nodes.list()
+
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], TenantNode)
+        assert nodes[0].name == "node1"
+
+    def test_list_nodes_filters_by_tenant(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test that list filters by tenant key."""
+        mock_session.request.return_value.json.return_value = [node_data]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        tenant.nodes.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "tenant eq 100" in params.get("filter", "")
+
+    def test_list_nodes_empty(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test listing nodes when tenant has none."""
+        mock_session.request.return_value.json.return_value = []
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        nodes = tenant.nodes.list()
+
+        assert nodes == []
+
+    def test_get_node_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test getting a node by key."""
+        mock_session.request.return_value.json.return_value = node_data
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        node = tenant.nodes.get(42)
+
+        assert isinstance(node, TenantNode)
+        assert node.key == 42
+        call_args = mock_session.request.call_args
+        assert "tenant_nodes/42" in call_args.kwargs.get("url", "")
+
+    def test_get_node_by_name(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test getting a node by name."""
+        mock_session.request.return_value.json.return_value = [node_data]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        node = tenant.nodes.get(name="node1")
+
+        assert node.name == "node1"
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "name eq 'node1'" in params.get("filter", "")
+
+    def test_get_node_not_found(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that NotFoundError is raised when node not found."""
+        mock_session.request.return_value.json.return_value = []
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(NotFoundError):
+            tenant.nodes.get(name="nonexistent")
+
+    def test_get_node_not_found_by_key(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test NotFoundError when fetching node by key that doesn't exist."""
+        mock_session.request.return_value.json.return_value = None
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(NotFoundError):
+            tenant.nodes.get(999)
+
+    def test_get_node_requires_key_or_name(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that ValueError is raised when neither key nor name provided."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Either key or name must be provided"):
+            tenant.nodes.get()
+
+    def test_create_node(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test creating a node."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42},  # POST response
+            node_data,  # GET to fetch created node
+        ]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        node = tenant.nodes.create(cpu_cores=4, ram_gb=16, cluster=1)
+
+        assert isinstance(node, TenantNode)
+        # Check the POST request body
+        calls = mock_session.request.call_args_list
+        post_call = [c for c in calls if c.kwargs.get("method") == "POST"][0]
+        body = post_call.kwargs.get("json", {})
+        assert body["tenant"] == 100
+        assert body["cpu_cores"] == 4
+        assert body["ram"] == 16384  # 16 GB = 16384 MB
+        assert body["cluster"] == 1
+
+    def test_create_node_with_ram_mb(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test creating a node with RAM specified in MB."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42},
+            node_data,
+        ]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        tenant.nodes.create(cpu_cores=4, ram_mb=8192)
+
+        calls = mock_session.request.call_args_list
+        post_call = [c for c in calls if c.kwargs.get("method") == "POST"][0]
+        body = post_call.kwargs.get("json", {})
+        assert body["ram"] == 8192
+
+    def test_create_node_with_preferred_node(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test creating a node with preferred node."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42},
+            node_data,
+        ]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        tenant.nodes.create(cpu_cores=4, ram_gb=16, cluster=1, preferred_node=2)
+
+        calls = mock_session.request.call_args_list
+        post_call = [c for c in calls if c.kwargs.get("method") == "POST"][0]
+        body = post_call.kwargs.get("json", {})
+        assert body["preferred_node"] == 2
+
+    def test_create_node_on_snapshot_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that creating node on snapshot raises ValueError."""
+        tenant_data["is_snapshot"] = True
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="Cannot add nodes to a tenant snapshot"):
+            tenant.nodes.create(cpu_cores=4, ram_gb=16)
+
+    def test_create_node_invalid_ram_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that creating node with too little RAM raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="RAM must be at least 2048 MB"):
+            tenant.nodes.create(cpu_cores=4, ram_mb=1024)
+
+    def test_create_node_invalid_cpu_raises(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that creating node with 0 CPU cores raises ValueError."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        with pytest.raises(ValueError, match="CPU cores must be at least 1"):
+            tenant.nodes.create(cpu_cores=0, ram_gb=16)
+
+    def test_update_node(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test updating a node."""
+        mock_session.request.return_value.json.side_effect = [
+            {},  # PUT response
+            node_data,  # GET to fetch updated node
+        ]
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        node = tenant.nodes.update(42, cpu_cores=8)
+
+        assert isinstance(node, TenantNode)
+        calls = mock_session.request.call_args_list
+        put_call = [c for c in calls if c.kwargs.get("method") == "PUT"][0]
+        body = put_call.kwargs.get("json", {})
+        assert body["cpu_cores"] == 8
+
+    def test_delete_node(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test deleting a node."""
+        mock_session.request.return_value.json.return_value = {}
+        tenant = Tenant(tenant_data, mock_client.tenants)
+
+        tenant.nodes.delete(42)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs.get("method") == "DELETE"
+        assert "tenant_nodes/42" in call_args.kwargs.get("url", "")
+
+
+class TestTenantNodeViaObject:
+    """Test TenantNode actions via the object itself."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    @pytest.fixture
+    def node_data(self) -> dict[str, Any]:
+        """Sample tenant node data."""
+        return {
+            "$key": 42,
+            "tenant": 100,
+            "name": "node1",
+            "nodeid": 1,
+            "cpu_cores": 4,
+            "ram": 16384,
+            "enabled": True,
+            "running": True,
+            "status": "online",
+        }
+
+    def test_save_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test saving node changes via object.save()."""
+        mock_session.request.return_value.json.side_effect = [
+            [node_data],  # GET to list nodes
+            {},  # PUT response
+            node_data,  # GET to fetch updated node
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        nodes = tenant.nodes.list()
+        result = nodes[0].save(cpu_cores=8)
+
+        assert isinstance(result, TenantNode)
+
+        # Find the PUT request
+        put_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "PUT":
+                put_call = call
+                break
+
+        assert put_call is not None
+        body = put_call.kwargs.get("json", {})
+        assert body["cpu_cores"] == 8
+
+    def test_delete_via_object(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+        node_data: dict[str, Any],
+    ) -> None:
+        """Test deleting node via object.delete()."""
+        mock_session.request.return_value.json.side_effect = [
+            [node_data],  # GET to list nodes
+            {},  # DELETE response
+        ]
+
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        nodes = tenant.nodes.list()
+        nodes[0].delete()
+
+        # Find the DELETE request
+        delete_call = None
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") == "DELETE":
+                delete_call = call
+                break
+
+        assert delete_call is not None
+        assert "tenant_nodes/42" in delete_call.kwargs.get("url", "")
+
+
+class TestTenantNodesProperty:
+    """Test Tenant.nodes property."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_nodes_property_returns_manager(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenant.nodes returns TenantNodeManager."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.nodes
+
+        assert isinstance(manager, TenantNodeManager)
+
+    def test_nodes_manager_has_correct_tenant(
+        self,
+        mock_client: VergeClient,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that nodes manager references the correct tenant."""
+        tenant = Tenant(tenant_data, mock_client.tenants)
+        manager = tenant.nodes
+
+        assert manager._tenant.key == tenant.key
+
+
+class TestTenantManagerNodesMethod:
+    """Test TenantManager.nodes() method."""
+
+    @pytest.fixture
+    def tenant_data(self) -> dict[str, Any]:
+        """Sample tenant data."""
+        return {
+            "$key": 100,
+            "name": "test-tenant",
+            "running": False,
+            "is_snapshot": False,
+        }
+
+    def test_nodes_method_returns_manager(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        tenant_data: dict[str, Any],
+    ) -> None:
+        """Test that tenants.nodes(key) returns TenantNodeManager."""
+        mock_session.request.return_value.json.return_value = tenant_data
+
+        manager = mock_client.tenants.nodes(100)
+
+        assert isinstance(manager, TenantNodeManager)
         assert manager._tenant.key == 100
