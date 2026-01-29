@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.snapshot_profiles import SnapshotProfileManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.system import SystemManager
+    from pyvergeos.resources.tags import TagCategoryManager, TagManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenant_manager import TenantManager
     from pyvergeos.resources.users import UserManager
@@ -151,6 +152,8 @@ class VergeClient:
         self._resource_groups: ResourceGroupManager | None = None
         self._webhooks: WebhookManager | None = None
         self._cloudinit_files: CloudInitFileManager | None = None
+        self._tags: TagManager | None = None
+        self._tag_categories: TagCategoryManager | None = None
 
         if auto_connect:
             self.connect()
@@ -740,3 +743,58 @@ class VergeClient:
 
             self._certificates = CertificateManager(self)
         return self._certificates
+
+    @property
+    def tags(self) -> TagManager:
+        """Access tag operations for resource organization.
+
+        Tags provide a flexible way to categorize and organize resources like
+        VMs, networks, and tenants. Tags are organized within categories.
+
+        Example:
+            >>> # List all tags
+            >>> for tag in client.tags.list():
+            ...     print(f"{tag.name} (Category: {tag.category_name})")
+
+            >>> # Create a tag
+            >>> tag = client.tags.create(
+            ...     name="Production",
+            ...     category_key=1,
+            ...     description="Production resources"
+            ... )
+
+            >>> # Tag a VM
+            >>> client.tags.members(tag.key).add_vm(vm.key)
+        """
+        if self._tags is None:
+            from pyvergeos.resources.tags import TagManager
+
+            self._tags = TagManager(self)
+        return self._tags
+
+    @property
+    def tag_categories(self) -> TagCategoryManager:
+        """Access tag category operations for organizing tags.
+
+        Tag categories organize tags and define which resource types can be
+        tagged with tags in each category.
+
+        Example:
+            >>> # List all categories
+            >>> for cat in client.tag_categories.list():
+            ...     print(f"{cat.name}: {cat.get_taggable_types()}")
+
+            >>> # Create a category
+            >>> category = client.tag_categories.create(
+            ...     name="Environment",
+            ...     description="Deployment environment",
+            ...     taggable_vms=True,
+            ...     taggable_networks=True,
+            ...     single_tag_selection=True
+            ... )
+        """
+        if self._tag_categories is None:
+            from pyvergeos.resources.tags import TagCategoryManager
+
+            self._tag_categories = TagCategoryManager(self)
+        return self._tag_categories
