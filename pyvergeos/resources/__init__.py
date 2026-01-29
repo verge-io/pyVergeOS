@@ -2,6 +2,14 @@
 
 from pyvergeos.resources.api_keys import APIKey, APIKeyCreated, APIKeyManager
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.cloud_snapshots import (
+    CloudSnapshot,
+    CloudSnapshotManager,
+    CloudSnapshotTenant,
+    CloudSnapshotTenantManager,
+    CloudSnapshotVM,
+    CloudSnapshotVMManager,
+)
 from pyvergeos.resources.nas_cifs import NASCIFSShare, NASCIFSShareManager
 from pyvergeos.resources.nas_nfs import NASNFSShare, NASNFSShareManager
 from pyvergeos.resources.nas_services import (
@@ -45,6 +53,12 @@ __all__ = [
     "APIKeyCreated",
     "APIKeyManager",
     "CIFSSettings",
+    "CloudSnapshot",
+    "CloudSnapshotManager",
+    "CloudSnapshotTenant",
+    "CloudSnapshotTenantManager",
+    "CloudSnapshotVM",
+    "CloudSnapshotVMManager",
     "NASCIFSShare",
     "NASCIFSShareManager",
     "NASNFSShare",

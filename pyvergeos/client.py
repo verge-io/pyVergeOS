@@ -24,6 +24,7 @@ from pyvergeos.exceptions import (
 if TYPE_CHECKING:
     from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
+    from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
@@ -130,6 +131,7 @@ class VergeClient:
         self._volume_syncs: NASVolumeSyncManager | None = None
         self._shared_objects: SharedObjectManager | None = None
         self._snapshot_profiles: SnapshotProfileManager | None = None
+        self._cloud_snapshots: CloudSnapshotManager | None = None
         self._system: SystemManager | None = None
 
         if auto_connect:
@@ -623,3 +625,12 @@ class VergeClient:
 
             self._snapshot_profiles = SnapshotProfileManager(self)
         return self._snapshot_profiles
+
+    @property
+    def cloud_snapshots(self) -> CloudSnapshotManager:
+        """Access cloud (system) snapshot operations for backup/DR."""
+        if self._cloud_snapshots is None:
+            from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
+
+            self._cloud_snapshots = CloudSnapshotManager(self)
+        return self._cloud_snapshots
