@@ -19,9 +19,7 @@ from pyvergeos.resources.system import (
     License,
     SystemInventory,
     SystemSetting,
-    SystemStatistics,
 )
-
 
 # =============================================================================
 # SystemSetting Tests

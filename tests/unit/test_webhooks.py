@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import time
-from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,9 +15,7 @@ from pyvergeos.resources.webhooks import (
     STATUS_DISPLAY,
     Webhook,
     WebhookHistory,
-    WebhookManager,
 )
-
 
 # =============================================================================
 # Webhook Model Tests
@@ -373,7 +369,7 @@ class TestWebhookManager:
             {"$key": 1, "name": "hook", "url": "https://example.com", "headers": "X-Test:value\n"},
         ]
 
-        webhook = mock_client.webhooks.create(
+        mock_client.webhooks.create(
             name="hook",
             url="https://example.com",
             headers={"X-Test": "value"},
@@ -394,7 +390,7 @@ class TestWebhookManager:
             {"$key": 1, "name": "hook", "url": "https://example.com"},
         ]
 
-        webhook = mock_client.webhooks.create(
+        mock_client.webhooks.create(
             name="hook",
             url="https://example.com",
             headers="X-Test:value",
@@ -414,7 +410,7 @@ class TestWebhookManager:
             {"$key": 1, "name": "hook", "url": "https://example.com", "authorization_type": "bearer"},
         ]
 
-        webhook = mock_client.webhooks.create(
+        mock_client.webhooks.create(
             name="hook",
             url="https://example.com",
             authorization_type="Bearer",
@@ -464,7 +460,7 @@ class TestWebhookManager:
             "headers": "",
         }
 
-        webhook = mock_client.webhooks.update(1, headers={})
+        mock_client.webhooks.update(1, headers={})
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -486,7 +482,7 @@ class TestWebhookManager:
         """Test sending a webhook message."""
         mock_session.request.return_value.json.return_value = {"task": 123}
 
-        result = mock_client.webhooks.send(1, message={"text": "Test message"})
+        mock_client.webhooks.send(1, message={"text": "Test message"})
 
         call_args = mock_session.request.call_args
         assert "webhook_urls/1/send" in call_args.kwargs.get("url", "")
@@ -551,7 +547,7 @@ class TestWebhookManager:
             {"$key": 1, "status": "queued"},
         ]
 
-        history = mock_client.webhooks.history(pending=True)
+        mock_client.webhooks.history(pending=True)
 
         # Verify filter was applied
         call_args = mock_session.request.call_args
@@ -565,7 +561,7 @@ class TestWebhookManager:
             {"$key": 1, "status": "error"},
         ]
 
-        history = mock_client.webhooks.history(failed=True)
+        mock_client.webhooks.history(failed=True)
 
         call_args = mock_session.request.call_args
         params = call_args.kwargs.get("params", {})

@@ -111,7 +111,7 @@ def main() -> int:
             wait_timeout=180,  # 3 minute timeout
         )
 
-        print(f"Snapshot created successfully!")
+        print("Snapshot created successfully!")
         print(f"  Name: {snapshot.name}")
         print(f"  Key: {snapshot.key}")
         print(f"  Created: {format_datetime(snapshot.created_at)}")

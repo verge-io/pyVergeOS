@@ -52,7 +52,7 @@ def test_cloudinit_file(live_client: VergeClient, test_vm, test_cloudinit_name: 
     yield file
 
     # Cleanup
-    try:
+    try:  # noqa: SIM105
         live_client.cloudinit_files.delete(file.key)
     except NotFoundError:
         pass  # Already deleted

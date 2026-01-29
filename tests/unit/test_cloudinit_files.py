@@ -14,9 +14,7 @@ from pyvergeos.resources.cloudinit_files import (
     RENDER_TYPE_DISPLAY,
     RENDER_TYPE_MAP,
     CloudInitFile,
-    CloudInitFileManager,
 )
-
 
 # =============================================================================
 # CloudInitFile Model Tests
@@ -325,7 +323,7 @@ class TestCloudInitFileManager:
             {"$key": 1, "name": "/user-data", "owner": "vms/100", "render": "jinja2"},
         ]
 
-        file = mock_client.cloudinit_files.create(
+        mock_client.cloudinit_files.create(
             vm_key=100,
             name="/user-data",
             contents="{{ hostname }}",
@@ -346,7 +344,7 @@ class TestCloudInitFileManager:
             {"$key": 1, "name": "/user-data", "owner": "vms/100", "render": "variables"},
         ]
 
-        file = mock_client.cloudinit_files.create(
+        mock_client.cloudinit_files.create(
             vm_key=100,
             name="/user-data",
             contents="${vm_name}",
@@ -366,7 +364,7 @@ class TestCloudInitFileManager:
             {"$key": 1, "name": "/user-data", "owner": "vms/100", "filesize": 0},
         ]
 
-        file = mock_client.cloudinit_files.create(
+        mock_client.cloudinit_files.create(
             vm_key=100,
             name="/user-data",
         )
@@ -413,7 +411,7 @@ class TestCloudInitFileManager:
             "owner": "vms/100",
         }
 
-        file = mock_client.cloudinit_files.update(1, name="/new-user-data")
+        mock_client.cloudinit_files.update(1, name="/new-user-data")
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -431,7 +429,7 @@ class TestCloudInitFileManager:
         }
 
         new_contents = "#cloud-config\nnew: content"
-        file = mock_client.cloudinit_files.update(1, contents=new_contents)
+        mock_client.cloudinit_files.update(1, contents=new_contents)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})

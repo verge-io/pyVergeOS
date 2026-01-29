@@ -221,7 +221,7 @@ def main() -> None:
         # Share 1: User data with restricted access
         print("Creating CIFS share: users (on UserData volume)...")
         try:
-            cifs_share1 = client.cifs_shares.create(
+            client.cifs_shares.create(
                 name="users",
                 volume="UserData",
                 comment="User home directories",
@@ -235,7 +235,7 @@ def main() -> None:
         # Share 2: Department shared with broader access
         print("Creating CIFS share: shared (on Shared volume)...")
         try:
-            cifs_share2 = client.cifs_shares.create(
+            client.cifs_shares.create(
                 name="shared",
                 volume="Shared",
                 comment="Department shared files",
@@ -265,7 +265,7 @@ def main() -> None:
         # NFS share for Linux clients
         print("Creating NFS share: linuxapps (on LinuxApps volume)...")
         try:
-            nfs_share = client.nfs_shares.create(
+            client.nfs_shares.create(
                 name="linuxapps",
                 volume="LinuxApps",
                 allowed_hosts=NFS_ALLOWED_NETWORK,

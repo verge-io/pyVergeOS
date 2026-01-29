@@ -155,7 +155,7 @@ def main() -> int:
         print()
 
         # Use the category.tags property
-        print(f"Tags via category.tags property:")
+        print("Tags via category.tags property:")
         for tag in app_category.tags:
             print(f"  - {tag.name}")
         print()
@@ -175,7 +175,7 @@ def main() -> int:
 
             # Tag the VM with Production environment
             prod_member = client.tags.members(prod_tag.key).add_vm(vm.key)
-            print(f"Tagged VM with: Production")
+            print("Tagged VM with: Production")
             print(f"  - Member key: {prod_member.key}")
             print(f"  - Resource type: {prod_member.resource_type_display}")
             print(f"  - Resource ref: {prod_member.resource_ref}")
@@ -183,12 +183,12 @@ def main() -> int:
             # Tag the VM with WebServer application tag
             webserver_tag = app_tags["WebServer"]
             webserver_member = client.tags.members(webserver_tag.key).add_vm(vm.key)
-            print(f"Tagged VM with: WebServer")
+            print("Tagged VM with: WebServer")
 
             # Can also use the tag.members property
             cache_tag = app_tags["Cache"]
-            cache_member = cache_tag.members.add_vm(vm.key)
-            print(f"Tagged VM with: Cache")
+            cache_tag.members.add_vm(vm.key)
+            print("Tagged VM with: Cache")
             print()
 
             # =====================================================================
@@ -197,14 +197,14 @@ def main() -> int:
             print("=== Step 5: Query Tagged Resources ===")
 
             # List all members of the Production tag
-            print(f"Resources tagged with 'Production':")
+            print("Resources tagged with 'Production':")
             members = client.tags.members(prod_tag.key).list()
             for m in members:
                 print(f"  - {m.resource_type_display}: key={m.resource_key}")
             print()
 
             # List only VMs tagged with Production
-            print(f"VMs tagged with 'Production':")
+            print("VMs tagged with 'Production':")
             vm_members = client.tags.members(prod_tag.key).list(resource_type="vms")
             for m in vm_members:
                 print(f"  - VM key={m.resource_key}")

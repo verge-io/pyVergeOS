@@ -295,7 +295,7 @@ class TestSharedObjectManager:
         ]
 
         manager = SharedObjectManager(mock_client)
-        results = manager.list(tenant_key=123, inbox_only=True)
+        manager.list(tenant_key=123, inbox_only=True)
 
         call_args = mock_client._request.call_args
         assert "inbox eq true" in call_args[1]["params"]["filter"]

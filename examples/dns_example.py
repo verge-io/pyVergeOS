@@ -22,15 +22,14 @@ Environment variables:
 from __future__ import annotations
 
 import os
-import sys
 
 # Disable SSL warnings for self-signed certificates
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos import VergeClient  # noqa: E402
+from pyvergeos.exceptions import NotFoundError  # noqa: E402
 
 
 def main() -> None:

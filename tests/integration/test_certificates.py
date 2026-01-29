@@ -38,7 +38,7 @@ def test_certificate(live_client: VergeClient, test_cert_domain: str):
     yield cert
 
     # Cleanup
-    try:
+    try:  # noqa: SIM105
         live_client.certificates.delete(cert.key)
     except NotFoundError:
         pass  # Already deleted

@@ -80,7 +80,7 @@ def main() -> None:
             print(f"Failed to deploy primary NAS: {e}")
             return
 
-        vm1 = client.vms.get(nas1.vm_key)
+        client.vms.get(nas1.vm_key)
         print(f"  Primary NAS deployed (Key: {nas1.key}, VM: {nas1.vm_key})")
 
         # Deploy replica NAS
@@ -91,7 +91,7 @@ def main() -> None:
             print(f"Failed to deploy replica NAS: {e}")
             return
 
-        vm2 = client.vms.get(nas2.vm_key)
+        client.vms.get(nas2.vm_key)
         print(f"  Replica NAS deployed (Key: {nas2.key}, VM: {nas2.vm_key})")
 
         # ============================================================================

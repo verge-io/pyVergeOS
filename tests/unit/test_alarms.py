@@ -17,7 +17,6 @@ from pyvergeos.resources.alarms import (
     AlarmHistory,
 )
 
-
 # =============================================================================
 # Alarm Model Tests
 # =============================================================================
@@ -609,7 +608,7 @@ class TestAlarmManagerResolve:
 
         # Verify POST was called to resolve endpoint
         calls = mock_session.request.call_args_list
-        resolve_calls = [c for c in calls if "resolve" in str(c) and c.kwargs.get("method") == "POST"]
+        [c for c in calls if "resolve" in str(c) and c.kwargs.get("method") == "POST"]
         # Actually let's check differently
         post_calls = [c for c in calls if "alarms/1/resolve" in str(c)]
         assert len(post_calls) == 1

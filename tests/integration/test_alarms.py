@@ -6,8 +6,6 @@ if the environment variables are not set.
 
 from __future__ import annotations
 
-import time
-
 import pytest
 
 from pyvergeos import VergeClient

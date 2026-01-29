@@ -848,7 +848,7 @@ class TestTagManager:
         ]
         manager = TagManager(mock_client)
 
-        result = manager.create(
+        manager.create(
             name="Production",
             category_key=1,
             description="Prod resources",
@@ -878,7 +878,7 @@ class TestTagManager:
         mock_client._request.return_value = {"$key": 123, "name": "Production"}
         manager = TagManager(mock_client)
 
-        result = manager.update(123)
+        manager.update(123)
 
         # Should just do GET, not PUT
         mock_client._request.assert_called_once()
@@ -1109,7 +1109,7 @@ class TestTagCategoryManager:
         mock_client._request.return_value = {"$key": 123, "name": "Environment"}
         manager = TagCategoryManager(mock_client)
 
-        result = manager.update(123)
+        manager.update(123)
 
         # Should just do GET, not PUT
         mock_client._request.assert_called_once()

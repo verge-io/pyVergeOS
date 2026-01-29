@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,9 +15,7 @@ from pyvergeos.resources.certificates import (
     KEY_TYPE_DISPLAY,
     KEY_TYPE_MAP,
     Certificate,
-    CertificateManager,
 )
-
 
 # =============================================================================
 # Certificate Model Tests
@@ -438,7 +435,7 @@ class TestCertificateManager:
             {"$key": 1, "domain": "test.local", "domainlist": "www.test.local,api.test.local"},
         ]
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.local",
             domain_list=["www.test.local", "api.test.local"],
         )
@@ -458,7 +455,7 @@ class TestCertificateManager:
             {"$key": 1, "domain": "test.local"},
         ]
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.local",
             domain_list="www.test.local,api.test.local",
         )
@@ -479,7 +476,7 @@ class TestCertificateManager:
         public_key = "-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----"
         private_key = "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----"
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.local",
             cert_type="Manual",
             public_key=public_key,
@@ -503,7 +500,7 @@ class TestCertificateManager:
 
         chain = "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.local",
             cert_type="Manual",
             public_key="-----BEGIN CERTIFICATE-----",
@@ -546,7 +543,7 @@ class TestCertificateManager:
             {"$key": 1, "domain": "public.example.com", "type": "letsencrypt"},
         ]
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="public.example.com",
             cert_type="LetsEncrypt",
             agree_tos=True,
@@ -578,7 +575,7 @@ class TestCertificateManager:
             {"$key": 1, "domain": "test.example.com", "type": "letsencrypt"},
         ]
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.example.com",
             cert_type="LetsEncrypt",
             agree_tos=True,
@@ -598,7 +595,7 @@ class TestCertificateManager:
             {"$key": 1, "domain": "test.example.com", "type": "letsencrypt"},
         ]
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.example.com",
             cert_type="LetsEncrypt",
             agree_tos=True,
@@ -620,7 +617,7 @@ class TestCertificateManager:
             {"$key": 1, "domain": "test.local", "key_type": "rsa"},
         ]
 
-        cert = mock_client.certificates.create(
+        mock_client.certificates.create(
             domain="test.local",
             key_type="RSA",
             rsa_key_size=4096,
@@ -655,7 +652,7 @@ class TestCertificateManager:
             "domainlist": "www.example.com,api.example.com",
         }
 
-        cert = mock_client.certificates.update(
+        mock_client.certificates.update(
             1, domain_list=["www.example.com", "api.example.com"]
         )
 
@@ -689,7 +686,7 @@ class TestCertificateManager:
         public_key = "-----BEGIN CERTIFICATE-----\nNEW...\n-----END CERTIFICATE-----"
         private_key = "-----BEGIN PRIVATE KEY-----\nNEW...\n-----END PRIVATE KEY-----"
 
-        cert = mock_client.certificates.update(
+        mock_client.certificates.update(
             1, public_key=public_key, private_key=private_key
         )
 
@@ -735,7 +732,7 @@ class TestCertificateManager:
             },
         ]
 
-        cert = mock_client.certificates.renew(1, force=True)
+        mock_client.certificates.renew(1, force=True)
 
         # Verify renew=True was sent
         put_call = mock_session.request.call_args_list[2]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,7 +15,6 @@ from pyvergeos.resources.logs import (
     OBJECT_TYPE_MAP,
     Log,
 )
-
 
 # =============================================================================
 # Log Model Tests

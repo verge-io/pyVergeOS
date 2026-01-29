@@ -191,3 +191,4 @@ Contributions welcome! Please read the contributing guidelines before submitting
 ## Related Projects
 
 - [PSVergeOS](https://github.com/verge-io/PSVergeOS) - PowerShell module for VergeOS
+- [govergeos](https://github.com/verge-io/govergeos) - Go SDK for VergeOS

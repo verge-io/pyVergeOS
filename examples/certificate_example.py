@@ -26,13 +26,11 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime
 
 # Add parent directory to path for development
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
 
 # =============================================================================
 # CONNECTION

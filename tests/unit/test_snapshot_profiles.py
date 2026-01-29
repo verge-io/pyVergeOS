@@ -18,7 +18,6 @@ from pyvergeos.resources.snapshot_profiles import (
     SnapshotProfilePeriod,
 )
 
-
 # =============================================================================
 # Sample Data Fixtures
 # =============================================================================

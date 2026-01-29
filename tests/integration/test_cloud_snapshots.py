@@ -6,7 +6,6 @@ if the environment variables are not set.
 
 from __future__ import annotations
 
-import time
 import uuid
 from datetime import timedelta
 
