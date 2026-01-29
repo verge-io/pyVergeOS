@@ -55,7 +55,12 @@ if TYPE_CHECKING:
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenant_manager import TenantManager
     from pyvergeos.resources.users import UserManager
+    from pyvergeos.resources.vm_imports import VmImportLogManager, VmImportManager
     from pyvergeos.resources.vms import VMManager
+    from pyvergeos.resources.volume_vm_exports import (
+        VolumeVmExportManager,
+        VolumeVmExportStatManager,
+    )
     from pyvergeos.resources.webhooks import WebhookManager
 
 logger = logging.getLogger(__name__)
@@ -154,6 +159,10 @@ class VergeClient:
         self._cloudinit_files: CloudInitFileManager | None = None
         self._tags: TagManager | None = None
         self._tag_categories: TagCategoryManager | None = None
+        self._vm_imports: VmImportManager | None = None
+        self._vm_import_logs: VmImportLogManager | None = None
+        self._volume_vm_exports: VolumeVmExportManager | None = None
+        self._volume_vm_export_stats: VolumeVmExportStatManager | None = None
 
         if auto_connect:
             self.connect()
@@ -798,3 +807,109 @@ class VergeClient:
 
             self._tag_categories = TagCategoryManager(self)
         return self._tag_categories
+
+    @property
+    def vm_imports(self) -> VmImportManager:
+        """Access VM import operations for importing VMs from files.
+
+        VM imports allow importing virtual machines from various formats
+        including VMDK, QCOW2, OVA, and OVF files.
+
+        Example:
+            >>> # List all imports
+            >>> for imp in client.vm_imports.list():
+            ...     print(f"{imp.name}: {imp.status}")
+
+            >>> # Create an import from a file
+            >>> imp = client.vm_imports.create(
+            ...     name="imported-vm",
+            ...     file=123,  # file key from media catalog
+            ...     preferred_tier="1"
+            ... )
+
+            >>> # Start the import
+            >>> imp.start()
+
+            >>> # Monitor import logs
+            >>> for log in imp.logs.list():
+            ...     print(f"{log.level}: {log.text}")
+        """
+        if self._vm_imports is None:
+            from pyvergeos.resources.vm_imports import VmImportManager
+
+            self._vm_imports = VmImportManager(self)
+        return self._vm_imports
+
+    @property
+    def vm_import_logs(self) -> VmImportLogManager:
+        """Access VM import log operations.
+
+        VM import logs provide detailed progress and error information
+        for VM import operations.
+
+        Example:
+            >>> # List all import logs
+            >>> for log in client.vm_import_logs.list():
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.vm_import_logs.list(level="error")
+        """
+        if self._vm_import_logs is None:
+            from pyvergeos.resources.vm_imports import VmImportLogManager
+
+            self._vm_import_logs = VmImportLogManager(self)
+        return self._vm_import_logs
+
+    @property
+    def volume_vm_exports(self) -> VolumeVmExportManager:
+        """Access volume VM export operations for exporting VMs to NAS volumes.
+
+        Volume VM exports allow exporting VMs to NAS volumes for backup
+        and migration purposes.
+
+        Example:
+            >>> # List all exports
+            >>> for exp in client.volume_vm_exports.list():
+            ...     print(f"{exp.volume_name}: {exp.status}")
+
+            >>> # Create an export configuration
+            >>> exp = client.volume_vm_exports.create(
+            ...     volume=123,
+            ...     max_exports=5,
+            ...     quiesced=True
+            ... )
+
+            >>> # Start an export
+            >>> exp.start(name="backup-2024")
+
+            >>> # View export stats
+            >>> for stat in exp.stats.list():
+            ...     print(f"{stat.file_name}: {stat.size_gb}GB")
+        """
+        if self._volume_vm_exports is None:
+            from pyvergeos.resources.volume_vm_exports import VolumeVmExportManager
+
+            self._volume_vm_exports = VolumeVmExportManager(self)
+        return self._volume_vm_exports
+
+    @property
+    def volume_vm_export_stats(self) -> VolumeVmExportStatManager:
+        """Access volume VM export statistics.
+
+        VM export stats provide information about completed export
+        operations including size, duration, and success/error counts.
+
+        Example:
+            >>> # List all export stats
+            >>> for stat in client.volume_vm_export_stats.list():
+            ...     print(f"{stat.file_name}: {stat.size_gb}GB")
+
+            >>> # List stats for a specific export
+            >>> stats = client.volume_vm_export_stats.list(volume_vm_exports=1)
+        """
+        if self._volume_vm_export_stats is None:
+            from pyvergeos.resources.volume_vm_exports import VolumeVmExportStatManager
+
+            self._volume_vm_export_stats = VolumeVmExportStatManager(self)
+        return self._volume_vm_export_stats

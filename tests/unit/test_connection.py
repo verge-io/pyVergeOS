@@ -1,6 +1,6 @@
 """Tests for connection module."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -80,8 +80,8 @@ class TestVergeConnection:
     def test_disconnect_clears_state(self) -> None:
         conn = VergeConnection(host="test.local")
         conn.token = "some-token"
-        conn.token_expires = datetime.now(UTC)
-        conn.connected_at = datetime.now(UTC)
+        conn.token_expires = datetime.now(timezone.utc)
+        conn.connected_at = datetime.now(timezone.utc)
         conn.is_connected = True
 
         conn.disconnect()
@@ -103,11 +103,11 @@ class TestVergeConnection:
     def test_is_token_valid_when_expired(self) -> None:
         conn = VergeConnection(host="test.local")
         conn.is_connected = True
-        conn.token_expires = datetime.now(UTC) - timedelta(hours=1)
+        conn.token_expires = datetime.now(timezone.utc) - timedelta(hours=1)
         assert not conn.is_token_valid()
 
     def test_is_token_valid_when_not_expired(self) -> None:
         conn = VergeConnection(host="test.local")
         conn.is_connected = True
-        conn.token_expires = datetime.now(UTC) + timedelta(hours=1)
+        conn.token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
         assert conn.is_token_valid()
