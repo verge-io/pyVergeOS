@@ -24,6 +24,18 @@ from pyvergeos.resources.groups import (
     GroupMemberManager,
 )
 from pyvergeos.resources.tenant_nodes import TenantNode, TenantNodeManager
+from pyvergeos.resources.vm_imports import (
+    VmImport,
+    VmImportLog,
+    VmImportLogManager,
+    VmImportManager,
+)
+from pyvergeos.resources.volume_vm_exports import (
+    VolumeVmExport,
+    VolumeVmExportManager,
+    VolumeVmExportStat,
+    VolumeVmExportStatManager,
+)
 
 __all__ = [
     # Version
@@ -54,4 +66,14 @@ __all__ = [
     # Tenant Nodes
     "TenantNode",
     "TenantNodeManager",
+    # VM Imports
+    "VmImport",
+    "VmImportManager",
+    "VmImportLog",
+    "VmImportLogManager",
+    # Volume VM Exports
+    "VolumeVmExport",
+    "VolumeVmExportManager",
+    "VolumeVmExportStat",
+    "VolumeVmExportStatManager",
 ]
