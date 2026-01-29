@@ -17,6 +17,13 @@ from pyvergeos.exceptions import (
     VergeTimeoutError,
 )
 from pyvergeos.filters import Filter, build_filter
+from pyvergeos.resources.groups import (
+    Group,
+    GroupManager,
+    GroupMember,
+    GroupMemberManager,
+)
+from pyvergeos.resources.tenant_nodes import TenantNode, TenantNodeManager
 
 __all__ = [
     # Version
@@ -39,4 +46,12 @@ __all__ = [
     # Filters
     "Filter",
     "build_filter",
+    # Groups
+    "Group",
+    "GroupManager",
+    "GroupMember",
+    "GroupMemberManager",
+    # Tenant Nodes
+    "TenantNode",
+    "TenantNodeManager",
 ]
