@@ -375,6 +375,8 @@ class VMManager(ResourceManager[VM]):
         description: str = "",
         os_family: str = "linux",
         machine_type: str = "pc-q35-10.0",
+        cloudinit_datasource: str | None = None,
+        cloud_init: str | dict[str, str] | builtins.list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> VM:
         """Create a new VM.
@@ -386,17 +388,78 @@ class VMManager(ResourceManager[VM]):
             description: VM description.
             os_family: OS family (linux, windows, freebsd, other).
             machine_type: QEMU machine type.
+            cloudinit_datasource: Cloud-init datasource type. Valid values:
+                - "ConfigDrive": Config Drive v2 (standard cloud-init config drive).
+                - "NoCloud": NoCloud datasource.
+                - None: Disabled (default).
+                Note: Automatically set to "ConfigDrive" if cloud_init files provided.
+            cloud_init: Cloud-init file configuration for VM provisioning. Supports:
+                - str: Content for /user-data file (most common case).
+                - dict: Mapping of file names to contents,
+                    e.g., {"/user-data": "...", "/meta-data": "..."}.
+                - list: List of file specs with full control,
+                    e.g., [{"name": "/user-data", "contents": "...", "render": "Variables"}].
+                When provided, cloudinit_datasource defaults to "ConfigDrive" if not set.
             **kwargs: Additional VM properties.
 
         Returns:
             Created VM object.
+
+        Example:
+            >>> # Simple user-data string (auto-enables ConfigDrive)
+            >>> vm = client.vms.create(
+            ...     name="web-server",
+            ...     cloud_init="#cloud-config\\npackages:\\n  - nginx"
+            ... )
+            >>>
+            >>> # Multiple files as dict
+            >>> vm = client.vms.create(
+            ...     name="web-server",
+            ...     cloud_init={
+            ...         "/user-data": "#cloud-config\\npackages:\\n  - nginx",
+            ...         "/meta-data": "instance-id: web-1\\nlocal-hostname: web-server"
+            ...     }
+            ... )
+            >>>
+            >>> # Full control with render options
+            >>> vm = client.vms.create(
+            ...     name="web-server",
+            ...     cloud_init=[
+            ...         {"name": "/user-data", "contents": "...", "render": "Jinja2"},
+            ...         {"name": "/meta-data", "contents": "..."}
+            ...     ]
+            ... )
+            >>>
+            >>> # Enable cloud-init datasource without files (files added later)
+            >>> vm = client.vms.create(
+            ...     name="web-server",
+            ...     cloudinit_datasource="ConfigDrive"
+            ... )
         """
         # Normalize RAM to 256 MB increments
         normalized_ram = ((ram + 255) // 256) * 256
         if normalized_ram != ram:
             logger.info("RAM normalized from %dMB to %dMB", ram, normalized_ram)
 
-        data = {
+        # Map friendly datasource names to API values
+        datasource_map = {
+            "ConfigDrive": "config_drive_v2",
+            "config_drive_v2": "config_drive_v2",
+            "NoCloud": "nocloud",
+            "nocloud": "nocloud",
+            "None": "none",
+            "none": "none",
+            None: None,
+        }
+
+        # Determine cloud-init datasource
+        # If cloud_init files provided, default to ConfigDrive
+        effective_datasource = cloudinit_datasource
+        if cloud_init is not None and cloudinit_datasource is None:
+            effective_datasource = "ConfigDrive"
+            logger.info("Enabling ConfigDrive datasource for cloud-init files")
+
+        data: dict[str, Any] = {
             "name": name,
             "ram": normalized_ram,
             "cpu_cores": cpu_cores,
@@ -406,7 +469,76 @@ class VMManager(ResourceManager[VM]):
             **kwargs,
         }
 
+        # Add cloudinit_datasource if specified
+        if effective_datasource is not None:
+            api_datasource = datasource_map.get(effective_datasource)
+            if api_datasource is None and effective_datasource not in datasource_map:
+                raise ValueError(
+                    f"Invalid cloudinit_datasource: {effective_datasource!r}. "
+                    "Valid values: 'ConfigDrive', 'NoCloud', or None."
+                )
+            if api_datasource and api_datasource != "none":
+                data["cloudinit_datasource"] = api_datasource
+
         # Create VM and fetch full data with all fields
         vm = super().create(**data)
         # The API only returns limited fields on create, so fetch the full VM
-        return self.get(vm.key)
+        vm = self.get(vm.key)
+
+        # Create cloud-init files if provided
+        if cloud_init is not None:
+            self._create_cloud_init_files(vm.key, cloud_init)
+
+        return vm
+
+    def _create_cloud_init_files(
+        self,
+        vm_key: int,
+        cloud_init: str | dict[str, str] | builtins.list[dict[str, Any]],
+    ) -> None:
+        """Create cloud-init files for a VM.
+
+        Args:
+            vm_key: VM $key (ID).
+            cloud_init: Cloud-init configuration (str, dict, or list).
+        """
+        from pyvergeos.resources.cloudinit_files import CloudInitFileManager
+
+        # Get or create the cloud-init file manager
+        cloudinit_mgr = CloudInitFileManager(self._client)
+
+        # Normalize input to list of file specs
+        file_specs: builtins.list[dict[str, Any]] = []
+
+        if isinstance(cloud_init, str):
+            # Simple string -> /user-data file
+            file_specs.append({
+                "name": "/user-data",
+                "contents": cloud_init,
+            })
+        elif isinstance(cloud_init, dict):
+            # Dict mapping file names to contents
+            for file_name, contents in cloud_init.items():
+                file_specs.append({
+                    "name": file_name,
+                    "contents": contents,
+                })
+        elif isinstance(cloud_init, builtins.list):
+            # List of file specs (already in correct format)
+            file_specs = cloud_init
+        else:
+            raise ValueError(
+                f"cloud_init must be str, dict, or list, got {type(cloud_init).__name__}"
+            )
+
+        # Create each file
+        for spec in file_specs:
+            if "name" not in spec:
+                raise ValueError("Each cloud_init file spec must have a 'name' key")
+
+            cloudinit_mgr.create(
+                vm_key=vm_key,
+                name=spec["name"],
+                contents=spec.get("contents"),
+                render=spec.get("render", "No"),
+            )

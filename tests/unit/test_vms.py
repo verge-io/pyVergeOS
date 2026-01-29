@@ -170,6 +170,174 @@ class TestVMManager:
         assert call_args.kwargs["method"] == "DELETE"
         assert "vms/123" in call_args.kwargs["url"]
 
+    def test_create_vm_with_cloudinit_datasource(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test creating a VM with cloud-init datasource enabled."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "cloud-vm", "ram": 1024},  # POST response
+            {"$key": 1, "name": "cloud-vm", "ram": 1024},  # GET response
+        ]
+
+        mock_client.vms.create(name="cloud-vm", cloudinit_datasource="ConfigDrive")
+
+        # Find the POST call to vms endpoint
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "vms" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body.get("cloudinit_datasource") == "config_drive_v2"
+
+    def test_create_vm_with_cloudinit_datasource_nocloud(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test creating a VM with NoCloud datasource."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "cloud-vm", "ram": 1024},
+            {"$key": 1, "name": "cloud-vm", "ram": 1024},
+        ]
+
+        mock_client.vms.create(name="cloud-vm", cloudinit_datasource="NoCloud")
+
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "vms" in call.kwargs.get("url", "")
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body.get("cloudinit_datasource") == "nocloud"
+
+    def test_create_vm_with_cloud_init_string(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test creating a VM with cloud_init as a string creates user-data file."""
+        # Setup mock responses: VM create, VM get, cloud-init file create, file get
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},  # POST vms
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},  # GET vms/100
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},  # POST cloudinit_files
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},  # GET cloudinit_files/1
+        ]
+
+        user_data = "#cloud-config\npackages:\n  - nginx"
+        mock_client.vms.create(name="cloud-vm", cloud_init=user_data)
+
+        # Find POST calls
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+
+        # Should have VM create and cloud-init file create
+        assert len(post_calls) == 2
+
+        # First POST is VM creation with ConfigDrive enabled
+        vm_body = post_calls[0].kwargs.get("json", {})
+        assert vm_body.get("cloudinit_datasource") == "config_drive_v2"
+
+        # Second POST is cloud-init file creation
+        file_body = post_calls[1].kwargs.get("json", {})
+        assert file_body.get("name") == "/user-data"
+        assert file_body.get("owner") == "vms/100"
+        assert file_body.get("contents") == user_data
+
+    def test_create_vm_with_cloud_init_dict(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test creating a VM with cloud_init as a dict creates multiple files."""
+        # Setup mock responses for VM and 2 cloud-init files
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},  # POST vms
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},  # GET vms/100
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},  # POST file 1
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},  # GET file 1
+            {"$key": 2, "name": "/meta-data", "owner": "vms/100"},  # POST file 2
+            {"$key": 2, "name": "/meta-data", "owner": "vms/100"},  # GET file 2
+        ]
+
+        cloud_init = {
+            "/user-data": "#cloud-config\npackages:\n  - nginx",
+            "/meta-data": "instance-id: test-1\nlocal-hostname: cloud-vm",
+        }
+        mock_client.vms.create(name="cloud-vm", cloud_init=cloud_init)
+
+        # Find POST calls to cloudinit_files
+        cloudinit_posts = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "cloudinit_files" in call.kwargs.get("url", "")
+        ]
+
+        assert len(cloudinit_posts) == 2
+
+    def test_create_vm_with_cloud_init_list(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test creating a VM with cloud_init as a list with render options."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},
+        ]
+
+        cloud_init = [
+            {"name": "/user-data", "contents": "#cloud-config", "render": "Jinja2"},
+        ]
+        mock_client.vms.create(name="cloud-vm", cloud_init=cloud_init)
+
+        # Find POST to cloudinit_files
+        cloudinit_posts = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "cloudinit_files" in call.kwargs.get("url", "")
+        ]
+
+        assert len(cloudinit_posts) == 1
+        body = cloudinit_posts[0].kwargs.get("json", {})
+        assert body.get("render") == "jinja2"
+
+    def test_create_vm_with_invalid_cloudinit_datasource(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that invalid cloudinit_datasource raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid cloudinit_datasource"):
+            mock_client.vms.create(name="test", cloudinit_datasource="InvalidType")
+
+    def test_create_vm_cloud_init_without_explicit_datasource(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that providing cloud_init auto-enables ConfigDrive datasource."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},
+            {"$key": 100, "name": "cloud-vm", "ram": 1024},
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},
+            {"$key": 1, "name": "/user-data", "owner": "vms/100"},
+        ]
+
+        # Don't explicitly set cloudinit_datasource, but provide cloud_init
+        mock_client.vms.create(name="cloud-vm", cloud_init="#cloud-config")
+
+        # Find the VM creation POST call
+        vm_post = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "/vms" in call.kwargs.get("url", "")
+            and "cloudinit_files" not in call.kwargs.get("url", "")
+        ]
+
+        assert len(vm_post) == 1
+        body = vm_post[0].kwargs.get("json", {})
+        # Should have auto-enabled ConfigDrive
+        assert body.get("cloudinit_datasource") == "config_drive_v2"
+
 
 class TestVM:
     """Unit tests for VM object."""
