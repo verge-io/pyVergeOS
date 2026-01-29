@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.tenant_manager import TenantManager
     from pyvergeos.resources.users import UserManager
     from pyvergeos.resources.vms import VMManager
+    from pyvergeos.resources.webhooks import WebhookManager
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,7 @@ class VergeClient:
         self._cloud_snapshots: CloudSnapshotManager | None = None
         self._system: SystemManager | None = None
         self._resource_groups: ResourceGroupManager | None = None
+        self._webhooks: WebhookManager | None = None
 
         if auto_connect:
             self.connect()
@@ -695,3 +697,16 @@ class VergeClient:
 
             self._resource_groups = ResourceGroupManager(self)
         return self._resource_groups
+
+    @property
+    def webhooks(self) -> WebhookManager:
+        """Access webhook operations for notification integrations.
+
+        Webhooks allow VergeOS to send notifications to external systems when
+        events occur. Configure webhook URLs and view delivery history.
+        """
+        if self._webhooks is None:
+            from pyvergeos.resources.webhooks import WebhookManager
+
+            self._webhooks = WebhookManager(self)
+        return self._webhooks

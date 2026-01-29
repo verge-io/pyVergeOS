@@ -57,6 +57,7 @@ from pyvergeos.resources.tenant_network_blocks import (
 )
 from pyvergeos.resources.tenant_snapshots import TenantSnapshot, TenantSnapshotManager
 from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
+from pyvergeos.resources.webhooks import Webhook, WebhookHistory, WebhookManager
 
 __all__ = [
     "APIKey",
@@ -118,4 +119,7 @@ __all__ = [
     "TenantSnapshotManager",
     "TenantStorage",
     "TenantStorageManager",
+    "Webhook",
+    "WebhookHistory",
+    "WebhookManager",
 ]
