@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
     from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
+    from pyvergeos.resources.cloudinit_files import CloudInitFileManager
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
@@ -147,6 +148,7 @@ class VergeClient:
         self._system: SystemManager | None = None
         self._resource_groups: ResourceGroupManager | None = None
         self._webhooks: WebhookManager | None = None
+        self._cloudinit_files: CloudInitFileManager | None = None
 
         if auto_connect:
             self.connect()
@@ -710,3 +712,16 @@ class VergeClient:
 
             self._webhooks = WebhookManager(self)
         return self._webhooks
+
+    @property
+    def cloudinit_files(self) -> CloudInitFileManager:
+        """Access cloud-init file operations for VM provisioning automation.
+
+        Cloud-init files provide user-data, meta-data, and other configuration
+        to VMs during boot for automated provisioning.
+        """
+        if self._cloudinit_files is None:
+            from pyvergeos.resources.cloudinit_files import CloudInitFileManager
+
+            self._cloudinit_files = CloudInitFileManager(self)
+        return self._cloudinit_files
