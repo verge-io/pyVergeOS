@@ -76,17 +76,17 @@ class TestNodeListIntegration:
         # Find a node with a cluster assigned
         node_with_cluster = None
         for node in all_nodes:
-            if node.cluster_name:
+            if node.cluster_key:
                 node_with_cluster = node
                 break
 
         if not node_with_cluster:
             pytest.skip("No nodes with clusters found")
 
-        # Filter by cluster
-        filtered = live_client.nodes.list(cluster=node_with_cluster.cluster_name)
+        # Filter by cluster key using OData filter
+        filtered = live_client.nodes.list(filter=f"cluster eq {node_with_cluster.cluster_key}")
         assert len(filtered) >= 1
-        assert all(n.cluster_name == node_with_cluster.cluster_name for n in filtered)
+        assert all(n.cluster_key == node_with_cluster.cluster_key for n in filtered)
 
 
 @pytest.mark.integration
