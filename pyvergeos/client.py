@@ -22,6 +22,7 @@ from pyvergeos.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
@@ -104,6 +105,7 @@ class VergeClient:
         self._connection: VergeConnection | None = None
 
         # Resource managers (lazy-loaded)
+        self._alarms: AlarmManager | None = None
         self._vms: VMManager | None = None
         self._networks: NetworkManager | None = None
         self._tenants: TenantManager | None = None
@@ -401,6 +403,15 @@ class VergeClient:
             return response.text or f"HTTP {response.status_code}"
 
     # Resource manager properties
+
+    @property
+    def alarms(self) -> AlarmManager:
+        """Access alarm operations."""
+        if self._alarms is None:
+            from pyvergeos.resources.alarms import AlarmManager
+
+            self._alarms = AlarmManager(self)
+        return self._alarms
 
     @property
     def vms(self) -> VMManager:
