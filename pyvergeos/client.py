@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.permissions import PermissionManager
     from pyvergeos.resources.shared_objects import SharedObjectManager
+    from pyvergeos.resources.snapshot_profiles import SnapshotProfileManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.system import SystemManager
     from pyvergeos.resources.tasks import TaskManager
@@ -128,6 +129,7 @@ class VergeClient:
         self._nas_users: NASUserManager | None = None
         self._volume_syncs: NASVolumeSyncManager | None = None
         self._shared_objects: SharedObjectManager | None = None
+        self._snapshot_profiles: SnapshotProfileManager | None = None
         self._system: SystemManager | None = None
 
         if auto_connect:
@@ -612,3 +614,12 @@ class VergeClient:
 
             self._system = SystemManager(self)
         return self._system
+
+    @property
+    def snapshot_profiles(self) -> SnapshotProfileManager:
+        """Access snapshot profile operations for backup/DR."""
+        if self._snapshot_profiles is None:
+            from pyvergeos.resources.snapshot_profiles import SnapshotProfileManager
+
+            self._snapshot_profiles = SnapshotProfileManager(self)
+        return self._snapshot_profiles
