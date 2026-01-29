@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.groups import GroupManager
+    from pyvergeos.resources.logs import LogManager
     from pyvergeos.resources.nas_cifs import NASCIFSShareManager
     from pyvergeos.resources.nas_nfs import NASNFSShareManager
     from pyvergeos.resources.nas_services import NASServiceManager
@@ -106,6 +107,7 @@ class VergeClient:
 
         # Resource managers (lazy-loaded)
         self._alarms: AlarmManager | None = None
+        self._logs: LogManager | None = None
         self._vms: VMManager | None = None
         self._networks: NetworkManager | None = None
         self._tenants: TenantManager | None = None
@@ -412,6 +414,15 @@ class VergeClient:
 
             self._alarms = AlarmManager(self)
         return self._alarms
+
+    @property
+    def logs(self) -> LogManager:
+        """Access log operations."""
+        if self._logs is None:
+            from pyvergeos.resources.logs import LogManager
+
+            self._logs = LogManager(self)
+        return self._logs
 
     @property
     def vms(self) -> VMManager:
