@@ -24,6 +24,7 @@ from pyvergeos.exceptions import (
 if TYPE_CHECKING:
     from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
+    from pyvergeos.resources.certificates import CertificateManager
     from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
     from pyvergeos.resources.cloudinit_files import CloudInitFileManager
     from pyvergeos.resources.clusters import ClusterManager
@@ -118,6 +119,7 @@ class VergeClient:
 
         # Resource managers (lazy-loaded)
         self._alarms: AlarmManager | None = None
+        self._certificates: CertificateManager | None = None
         self._logs: LogManager | None = None
         self._vms: VMManager | None = None
         self._networks: NetworkManager | None = None
@@ -725,3 +727,16 @@ class VergeClient:
 
             self._cloudinit_files = CloudInitFileManager(self)
         return self._cloudinit_files
+
+    @property
+    def certificates(self) -> CertificateManager:
+        """Access SSL/TLS certificate operations.
+
+        Manage SSL/TLS certificates including manual uploads, Let's Encrypt
+        (ACME) certificates, and self-signed certificates.
+        """
+        if self._certificates is None:
+            from pyvergeos.resources.certificates import CertificateManager
+
+            self._certificates = CertificateManager(self)
+        return self._certificates
