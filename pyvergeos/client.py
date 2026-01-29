@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.permissions import PermissionManager
+    from pyvergeos.resources.resource_groups import ResourceGroupManager
     from pyvergeos.resources.shared_objects import SharedObjectManager
     from pyvergeos.resources.site_syncs import (
         SiteSyncIncomingManager,
@@ -143,6 +144,7 @@ class VergeClient:
         self._snapshot_profiles: SnapshotProfileManager | None = None
         self._cloud_snapshots: CloudSnapshotManager | None = None
         self._system: SystemManager | None = None
+        self._resource_groups: ResourceGroupManager | None = None
 
         if auto_connect:
             self.connect()
@@ -680,3 +682,16 @@ class VergeClient:
 
             self._cloud_snapshots = CloudSnapshotManager(self)
         return self._cloud_snapshots
+
+    @property
+    def resource_groups(self) -> ResourceGroupManager:
+        """Access resource group operations for hardware device passthrough.
+
+        Resource groups define collections of hardware devices (GPU, PCI, USB,
+        SR-IOV NIC, vGPU) that can be assigned to VMs.
+        """
+        if self._resource_groups is None:
+            from pyvergeos.resources.resource_groups import ResourceGroupManager
+
+            self._resource_groups = ResourceGroupManager(self)
+        return self._resource_groups

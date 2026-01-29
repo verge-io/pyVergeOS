@@ -28,6 +28,7 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshotManager,
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
+from pyvergeos.resources.resource_groups import ResourceGroup, ResourceGroupManager
 from pyvergeos.resources.shared_objects import SharedObject, SharedObjectManager
 from pyvergeos.resources.site_syncs import (
     SiteSyncIncoming,
@@ -87,6 +88,8 @@ __all__ = [
     "NFSSettings",
     "Permission",
     "PermissionManager",
+    "ResourceGroup",
+    "ResourceGroupManager",
     "ResourceManager",
     "ResourceObject",
     "SharedObject",
