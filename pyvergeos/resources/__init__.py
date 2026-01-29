@@ -29,6 +29,14 @@ from pyvergeos.resources.nas_volumes import (
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
 from pyvergeos.resources.shared_objects import SharedObject, SharedObjectManager
+from pyvergeos.resources.site_syncs import (
+    SiteSyncIncoming,
+    SiteSyncIncomingManager,
+    SiteSyncOutgoing,
+    SiteSyncOutgoingManager,
+    SiteSyncSchedule,
+    SiteSyncScheduleManager,
+)
 from pyvergeos.resources.sites import Site, SiteManager
 from pyvergeos.resources.snapshot_profiles import (
     SnapshotProfile,
@@ -85,6 +93,12 @@ __all__ = [
     "SharedObjectManager",
     "Site",
     "SiteManager",
+    "SiteSyncIncoming",
+    "SiteSyncIncomingManager",
+    "SiteSyncOutgoing",
+    "SiteSyncOutgoingManager",
+    "SiteSyncSchedule",
+    "SiteSyncScheduleManager",
     "SnapshotProfile",
     "SnapshotProfileManager",
     "SnapshotProfilePeriod",

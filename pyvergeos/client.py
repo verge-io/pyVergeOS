@@ -39,6 +39,11 @@ if TYPE_CHECKING:
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.permissions import PermissionManager
     from pyvergeos.resources.shared_objects import SharedObjectManager
+    from pyvergeos.resources.site_syncs import (
+        SiteSyncIncomingManager,
+        SiteSyncOutgoingManager,
+        SiteSyncScheduleManager,
+    )
     from pyvergeos.resources.sites import SiteManager
     from pyvergeos.resources.snapshot_profiles import SnapshotProfileManager
     from pyvergeos.resources.storage_tiers import StorageTierManager
@@ -132,6 +137,9 @@ class VergeClient:
         self._volume_syncs: NASVolumeSyncManager | None = None
         self._shared_objects: SharedObjectManager | None = None
         self._sites: SiteManager | None = None
+        self._site_syncs: SiteSyncOutgoingManager | None = None
+        self._site_syncs_incoming: SiteSyncIncomingManager | None = None
+        self._site_sync_schedules: SiteSyncScheduleManager | None = None
         self._snapshot_profiles: SnapshotProfileManager | None = None
         self._cloud_snapshots: CloudSnapshotManager | None = None
         self._system: SystemManager | None = None
@@ -627,6 +635,33 @@ class VergeClient:
 
             self._sites = SiteManager(self)
         return self._sites
+
+    @property
+    def site_syncs(self) -> SiteSyncOutgoingManager:
+        """Access outgoing site sync operations for backup/DR."""
+        if self._site_syncs is None:
+            from pyvergeos.resources.site_syncs import SiteSyncOutgoingManager
+
+            self._site_syncs = SiteSyncOutgoingManager(self)
+        return self._site_syncs
+
+    @property
+    def site_syncs_incoming(self) -> SiteSyncIncomingManager:
+        """Access incoming site sync operations for backup/DR."""
+        if self._site_syncs_incoming is None:
+            from pyvergeos.resources.site_syncs import SiteSyncIncomingManager
+
+            self._site_syncs_incoming = SiteSyncIncomingManager(self)
+        return self._site_syncs_incoming
+
+    @property
+    def site_sync_schedules(self) -> SiteSyncScheduleManager:
+        """Access site sync schedule operations for backup/DR."""
+        if self._site_sync_schedules is None:
+            from pyvergeos.resources.site_syncs import SiteSyncScheduleManager
+
+            self._site_sync_schedules = SiteSyncScheduleManager(self)
+        return self._site_sync_schedules
 
     @property
     def snapshot_profiles(self) -> SnapshotProfileManager:
