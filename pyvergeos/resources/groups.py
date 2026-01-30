@@ -284,9 +284,7 @@ class GroupMemberManager(ResourceManager[GroupMember]):
                 self.remove(m.key)
                 return
 
-        raise NotFoundError(
-            f"Group {member_group_key} is not a member of group {self._group_key}"
-        )
+        raise NotFoundError(f"Group {member_group_key} is not a member of group {self._group_key}")
 
 
 class Group(ResourceObject):

@@ -840,39 +840,27 @@ class TestEIGRPRouterManagerCreate:
 class TestNetworkRoutingManager:
     """Tests for NetworkRoutingManager."""
 
-    def test_bgp_routers_property(
-        self, routing_manager: NetworkRoutingManager
-    ) -> None:
+    def test_bgp_routers_property(self, routing_manager: NetworkRoutingManager) -> None:
         """Test bgp_routers property returns manager."""
         assert isinstance(routing_manager.bgp_routers, BGPRouterManager)
 
-    def test_bgp_interfaces_property(
-        self, routing_manager: NetworkRoutingManager
-    ) -> None:
+    def test_bgp_interfaces_property(self, routing_manager: NetworkRoutingManager) -> None:
         """Test bgp_interfaces property returns manager."""
         assert isinstance(routing_manager.bgp_interfaces, BGPInterfaceManager)
 
-    def test_bgp_route_maps_property(
-        self, routing_manager: NetworkRoutingManager
-    ) -> None:
+    def test_bgp_route_maps_property(self, routing_manager: NetworkRoutingManager) -> None:
         """Test bgp_route_maps property returns manager."""
         assert isinstance(routing_manager.bgp_route_maps, BGPRouteMapManager)
 
-    def test_bgp_ip_commands_property(
-        self, routing_manager: NetworkRoutingManager
-    ) -> None:
+    def test_bgp_ip_commands_property(self, routing_manager: NetworkRoutingManager) -> None:
         """Test bgp_ip_commands property returns manager."""
         assert isinstance(routing_manager.bgp_ip_commands, BGPIPCommandManager)
 
-    def test_ospf_commands_property(
-        self, routing_manager: NetworkRoutingManager
-    ) -> None:
+    def test_ospf_commands_property(self, routing_manager: NetworkRoutingManager) -> None:
         """Test ospf_commands property returns manager."""
         assert isinstance(routing_manager.ospf_commands, OSPFCommandManager)
 
-    def test_eigrp_routers_property(
-        self, routing_manager: NetworkRoutingManager
-    ) -> None:
+    def test_eigrp_routers_property(self, routing_manager: NetworkRoutingManager) -> None:
         """Test eigrp_routers property returns manager."""
         assert isinstance(routing_manager.eigrp_routers, EIGRPRouterManager)
 

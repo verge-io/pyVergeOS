@@ -182,7 +182,9 @@ class CloudInitFile(ResourceObject):
         manager.delete(self.key)
 
     def __repr__(self) -> str:
-        return f"<CloudInitFile key={self.get('$key', '?')} name={self.name!r} vm_key={self.vm_key}>"
+        return (
+            f"<CloudInitFile key={self.get('$key', '?')} name={self.name!r} vm_key={self.vm_key}>"
+        )
 
 
 class CloudInitFileManager(ResourceManager[CloudInitFile]):

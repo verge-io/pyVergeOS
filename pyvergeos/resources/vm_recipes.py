@@ -212,9 +212,7 @@ class VmRecipe(ResourceObject):
         from typing import cast
 
         manager = cast("VmRecipeManager", self._manager)
-        return manager.deploy(
-            self.key, name=name, answers=answers, auto_update=auto_update
-        )
+        return manager.deploy(self.key, name=name, answers=answers, auto_update=auto_update)
 
 
 class VmRecipeInstance(ResourceObject):
@@ -381,9 +379,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                 filters.append(f"catalog eq {catalog}")
             elif isinstance(catalog, str):
                 # Check if it looks like a catalog key (40-char hex) or a name
-                if len(catalog) == 40 and all(
-                    c in "0123456789abcdef" for c in catalog.lower()
-                ):
+                if len(catalog) == 40 and all(c in "0123456789abcdef" for c in catalog.lower()):
                     filters.append(f"catalog eq '{catalog}'")
                 else:
                     # Look up catalog by name
@@ -597,9 +593,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
             ... )
         """
         instance_mgr = VmRecipeInstanceManager(self._client)
-        return instance_mgr.create(
-            recipe=key, name=name, answers=answers, auto_update=auto_update
-        )
+        return instance_mgr.create(recipe=key, name=name, answers=answers, auto_update=auto_update)
 
     def instances(self, key: str) -> VmRecipeInstanceManager:
         """Get an instance manager scoped to a specific recipe.
@@ -661,9 +655,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         "modified",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, recipe_key: str | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, recipe_key: str | None = None) -> None:
         super().__init__(client)
         self._recipe_key = recipe_key
 
@@ -759,15 +751,11 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Recipe instance with key {key} not found")
             if not isinstance(response, dict):
-                raise NotFoundError(
-                    f"Recipe instance with key {key} returned invalid response"
-                )
+                raise NotFoundError(f"Recipe instance with key {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -898,9 +886,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
         "user",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, recipe_key: str | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, recipe_key: str | None = None) -> None:
         super().__init__(client)
         self._recipe_key = recipe_key
 
@@ -1005,9 +991,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
         else:
             params["fields"] = ",".join(self._default_fields)
 
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"Recipe log with key {key} not found")
         if not isinstance(response, dict):

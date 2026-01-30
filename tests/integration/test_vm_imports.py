@@ -83,7 +83,14 @@ class TestVmImportManagerIntegration:
         # Basic properties should be accessible
         assert isinstance(imp.name, str)
         assert isinstance(imp.status, str)
-        assert imp.status in ["initializing", "importing", "complete", "aborted", "error", "warning"]
+        assert imp.status in [
+            "initializing",
+            "importing",
+            "complete",
+            "aborted",
+            "error",
+            "warning",
+        ]
         assert isinstance(imp.is_complete, bool)
         assert isinstance(imp.is_importing, bool)
         assert isinstance(imp.has_error, bool)

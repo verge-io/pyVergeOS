@@ -376,9 +376,7 @@ class TestTenantSnapshots:
         # Cleanup
         test_tenant.snapshots.delete(snapshot.key)
 
-    def test_create_snapshot_no_expiration(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_create_snapshot_no_expiration(self, live_client: VergeClient, test_tenant) -> None:
         """Test creating a snapshot that never expires."""
         snapshot_name = "pyvergeos-no-expire-test"
 
@@ -443,9 +441,7 @@ class TestTenantSnapshots:
         remaining = [s for s in test_tenant.snapshots.list() if s.key == snapshot_key]
         assert len(remaining) == 0
 
-    def test_snapshot_list_with_filter(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_snapshot_list_with_filter(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing snapshots with an additional filter."""
         # Create two snapshots
         snap1 = test_tenant.snapshots.create(name="pyvergeos-filter-test-1")
@@ -453,9 +449,7 @@ class TestTenantSnapshots:
 
         try:
             # Filter by name
-            filtered = test_tenant.snapshots.list(
-                filter="name eq 'pyvergeos-filter-test-1'"
-            )
+            filtered = test_tenant.snapshots.list(filter="name eq 'pyvergeos-filter-test-1'")
             assert len(filtered) == 1
             assert filtered[0].name == "pyvergeos-filter-test-1"
         finally:
@@ -484,9 +478,7 @@ class TestTenantSnapshots:
         finally:
             test_tenant.snapshots.delete(snapshot.key)
 
-    def test_restore_validation_running_tenant(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_restore_validation_running_tenant(self, live_client: VergeClient, test_tenant) -> None:
         """Test that restore raises error if tenant is running."""
         # Skip if tenant is not running
         tenant = live_client.tenants.get(test_tenant.key)
@@ -520,9 +512,7 @@ class TestTenantSnapshots:
         finally:
             test_tenant.snapshots.delete(snapshot.key)
 
-    def test_create_snapshot_on_snapshot_raises(
-        self, live_client: VergeClient
-    ) -> None:
+    def test_create_snapshot_on_snapshot_raises(self, live_client: VergeClient) -> None:
         """Test that creating a snapshot on a tenant snapshot raises error."""
         # Find a tenant snapshot in the list
         all_items = live_client.tenants.list(include_snapshots=True, limit=50)
@@ -566,9 +556,7 @@ class TestTenantStorage:
         assert isinstance(allocations, list)
         assert len(allocations) == 0
 
-    def test_create_storage_allocation(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_create_storage_allocation(self, live_client: VergeClient, test_tenant) -> None:
         """Test creating a storage allocation."""
         allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
 
@@ -582,13 +570,9 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(allocation.key)
 
-    def test_create_storage_with_bytes(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_create_storage_with_bytes(self, live_client: VergeClient, test_tenant) -> None:
         """Test creating a storage allocation with bytes."""
-        allocation = test_tenant.storage.create(
-            tier=1, provisioned_bytes=5 * 1073741824
-        )
+        allocation = test_tenant.storage.create(tier=1, provisioned_bytes=5 * 1073741824)
 
         assert allocation.tier == 1
         assert allocation.provisioned_gb == 5.0
@@ -596,9 +580,7 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(allocation.key)
 
-    def test_get_storage_by_tier(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_storage_by_tier(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a storage allocation by tier number."""
         # Create allocation first
         test_tenant.storage.create(tier=1, provisioned_gb=15)
@@ -612,9 +594,7 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(allocation.key)
 
-    def test_get_storage_by_key(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_storage_by_key(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a storage allocation by key."""
         # Create allocation first
         created = test_tenant.storage.create(tier=1, provisioned_gb=10)
@@ -628,16 +608,12 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(allocation.key)
 
-    def test_get_storage_not_found(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_storage_not_found(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a non-existent storage allocation."""
         with pytest.raises(NotFoundError):
             test_tenant.storage.get(tier=2)
 
-    def test_list_storage_after_create(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_storage_after_create(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing storage allocations after creating one."""
         test_tenant.storage.create(tier=1, provisioned_gb=10)
 
@@ -648,9 +624,7 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(allocations[0].key)
 
-    def test_list_storage_filter_by_tier(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_storage_filter_by_tier(self, live_client: VergeClient, test_tenant) -> None:
         """Test filtering storage allocations by tier."""
         # Create multiple allocations (if tiers available)
         alloc1 = test_tenant.storage.create(tier=1, provisioned_gb=10)
@@ -676,9 +650,7 @@ class TestTenantStorage:
             if has_tier3:
                 test_tenant.storage.delete(alloc3.key)
 
-    def test_update_storage_allocation(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_update_storage_allocation(self, live_client: VergeClient, test_tenant) -> None:
         """Test updating a storage allocation."""
         # Create allocation
         allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
@@ -692,9 +664,7 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(allocation.key)
 
-    def test_delete_storage_by_tier(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_delete_storage_by_tier(self, live_client: VergeClient, test_tenant) -> None:
         """Test deleting a storage allocation by tier."""
         # Create allocation
         test_tenant.storage.create(tier=1, provisioned_gb=10)
@@ -706,9 +676,7 @@ class TestTenantStorage:
         allocations = test_tenant.storage.list()
         assert len(allocations) == 0
 
-    def test_storage_via_object_save(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_storage_via_object_save(self, live_client: VergeClient, test_tenant) -> None:
         """Test updating storage via the save method."""
         allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
 
@@ -720,9 +688,7 @@ class TestTenantStorage:
         # Cleanup
         test_tenant.storage.delete(updated.key)
 
-    def test_storage_via_object_delete(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_storage_via_object_delete(self, live_client: VergeClient, test_tenant) -> None:
         """Test deleting storage via the delete method."""
         allocation = test_tenant.storage.create(tier=1, provisioned_gb=10)
 
@@ -733,9 +699,7 @@ class TestTenantStorage:
         allocations = test_tenant.storage.list()
         assert len(allocations) == 0
 
-    def test_storage_properties(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_storage_properties(self, live_client: VergeClient, test_tenant) -> None:
         """Test storage allocation property accessors."""
         allocation = test_tenant.storage.create(tier=1, provisioned_gb=20)
 
@@ -773,16 +737,12 @@ class TestTenantStorage:
         with pytest.raises(ValueError, match="Invalid tier 6"):
             test_tenant.storage.create(tier=6, provisioned_gb=10)
 
-    def test_create_storage_no_size_raises(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_create_storage_no_size_raises(self, live_client: VergeClient, test_tenant) -> None:
         """Test that creating storage without size raises ValueError."""
         with pytest.raises(ValueError, match="Either provisioned_gb or provisioned_bytes"):
             test_tenant.storage.create(tier=1)
 
-    def test_manager_storage_method(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_manager_storage_method(self, live_client: VergeClient, test_tenant) -> None:
         """Test TenantManager.storage() direct access method."""
         # Create allocation via tenant.storage
         test_tenant.storage.create(tier=1, provisioned_gb=10)
@@ -846,9 +806,7 @@ class TestTenantNetworkBlocks:
         # Last resort
         return networks[0]
 
-    def test_list_network_blocks_empty(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_network_blocks_empty(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing network blocks on a new tenant returns empty list."""
         blocks = test_tenant.network_blocks.list()
         assert isinstance(blocks, list)
@@ -958,9 +916,7 @@ class TestTenantNetworkBlocks:
         # Cleanup
         test_tenant.network_blocks.delete(block.key)
 
-    def test_get_network_block_not_found(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_network_block_not_found(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a non-existent network block."""
         with pytest.raises(NotFoundError):
             test_tenant.network_blocks.get(cidr="10.255.255.0/24")
@@ -969,9 +925,7 @@ class TestTenantNetworkBlocks:
         self, live_client: VergeClient, test_tenant, external_network
     ) -> None:
         """Test deleting a network block by CIDR."""
-        test_tenant.network_blocks.create(
-            cidr="10.99.107.0/24", network=external_network.key
-        )
+        test_tenant.network_blocks.create(cidr="10.99.107.0/24", network=external_network.key)
 
         # Delete by CIDR
         test_tenant.network_blocks.delete_by_cidr("10.99.107.0/24")
@@ -1028,9 +982,7 @@ class TestTenantNetworkBlocks:
     ) -> None:
         """Test TenantManager.network_blocks() direct access method."""
         # Create block via tenant.network_blocks
-        test_tenant.network_blocks.create(
-            cidr="10.99.110.0/24", network=external_network.key
-        )
+        test_tenant.network_blocks.create(cidr="10.99.110.0/24", network=external_network.key)
 
         # Access via manager method
         block_manager = live_client.tenants.network_blocks(test_tenant.key)
@@ -1122,9 +1074,7 @@ class TestTenantExternalIPs:
         # Last resort
         return networks[0]
 
-    def test_list_external_ips_empty(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_external_ips_empty(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing external IPs on a new tenant returns empty list."""
         ips = test_tenant.external_ips.list()
         assert isinstance(ips, list)
@@ -1186,12 +1136,8 @@ class TestTenantExternalIPs:
     ) -> None:
         """Test filtering external IPs by IP address."""
         # Create two IPs
-        ip1 = test_tenant.external_ips.create(
-            ip="10.99.200.53", network=external_network.key
-        )
-        ip2 = test_tenant.external_ips.create(
-            ip="10.99.200.54", network=external_network.key
-        )
+        ip1 = test_tenant.external_ips.create(ip="10.99.200.53", network=external_network.key)
+        ip2 = test_tenant.external_ips.create(ip="10.99.200.54", network=external_network.key)
 
         try:
             # Filter by first IP
@@ -1206,9 +1152,7 @@ class TestTenantExternalIPs:
         self, live_client: VergeClient, test_tenant, external_network
     ) -> None:
         """Test getting an external IP by IP address."""
-        created = test_tenant.external_ips.create(
-            ip="10.99.200.55", network=external_network.key
-        )
+        created = test_tenant.external_ips.create(ip="10.99.200.55", network=external_network.key)
 
         # Get by IP
         ip = test_tenant.external_ips.get(ip="10.99.200.55")
@@ -1222,9 +1166,7 @@ class TestTenantExternalIPs:
         self, live_client: VergeClient, test_tenant, external_network
     ) -> None:
         """Test getting an external IP by key."""
-        created = test_tenant.external_ips.create(
-            ip="10.99.200.56", network=external_network.key
-        )
+        created = test_tenant.external_ips.create(ip="10.99.200.56", network=external_network.key)
 
         # Get by key
         ip = test_tenant.external_ips.get(created.key)
@@ -1234,9 +1176,7 @@ class TestTenantExternalIPs:
         # Cleanup
         test_tenant.external_ips.delete(ip.key)
 
-    def test_get_external_ip_not_found(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_external_ip_not_found(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a non-existent external IP."""
         with pytest.raises(NotFoundError):
             test_tenant.external_ips.get(ip="10.255.255.255")
@@ -1245,9 +1185,7 @@ class TestTenantExternalIPs:
         self, live_client: VergeClient, test_tenant, external_network
     ) -> None:
         """Test deleting an external IP by IP address."""
-        test_tenant.external_ips.create(
-            ip="10.99.200.57", network=external_network.key
-        )
+        test_tenant.external_ips.create(ip="10.99.200.57", network=external_network.key)
 
         # Delete by IP
         test_tenant.external_ips.delete_by_ip("10.99.200.57")
@@ -1260,9 +1198,7 @@ class TestTenantExternalIPs:
         self, live_client: VergeClient, test_tenant, external_network
     ) -> None:
         """Test deleting an external IP via object.delete()."""
-        ip = test_tenant.external_ips.create(
-            ip="10.99.200.58", network=external_network.key
-        )
+        ip = test_tenant.external_ips.create(ip="10.99.200.58", network=external_network.key)
 
         # Delete via object method
         ip.delete()
@@ -1304,9 +1240,7 @@ class TestTenantExternalIPs:
     ) -> None:
         """Test TenantManager.external_ips() direct access method."""
         # Create IP via tenant.external_ips
-        test_tenant.external_ips.create(
-            ip="10.99.200.60", network=external_network.key
-        )
+        test_tenant.external_ips.create(ip="10.99.200.60", network=external_network.key)
 
         # Access via manager method
         ip_manager = live_client.tenants.external_ips(test_tenant.key)
@@ -1401,9 +1335,7 @@ class TestTenantLayer2Networks:
         with contextlib.suppress(Exception):
             live_client.networks.delete(network.key)
 
-    def test_list_l2_networks_empty(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_l2_networks_empty(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing L2 networks on a new tenant returns empty list."""
         l2_networks = test_tenant.l2_networks.list()
         assert isinstance(l2_networks, list)
@@ -1506,9 +1438,7 @@ class TestTenantLayer2Networks:
         # Cleanup
         test_tenant.l2_networks.delete(l2.key)
 
-    def test_get_l2_network_not_found(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_l2_network_not_found(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a non-existent Layer 2 network."""
         with pytest.raises(NotFoundError):
             test_tenant.l2_networks.get(network_name="NonExistent-Network-12345")
@@ -1577,9 +1507,7 @@ class TestTenantLayer2Networks:
         # Cleanup
         test_tenant.l2_networks.delete(l2.key)
 
-    def test_delete_l2_network(
-        self, live_client: VergeClient, test_tenant, test_network
-    ) -> None:
+    def test_delete_l2_network(self, live_client: VergeClient, test_tenant, test_network) -> None:
         """Test deleting a Layer 2 network."""
         l2 = test_tenant.l2_networks.create(
             network=test_network.key,
@@ -1696,9 +1624,7 @@ class TestTenantUtilities:
         with contextlib.suppress(Exception):
             live_client.tenants.delete(tenant.key)
 
-    def test_enable_isolation_via_object(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_enable_isolation_via_object(self, live_client: VergeClient, test_tenant) -> None:
         """Test enabling isolation via Tenant object."""
         assert test_tenant.is_isolated is False
 
@@ -1711,9 +1637,7 @@ class TestTenantUtilities:
         # Cleanup: disable isolation
         test_tenant.disable_isolation()
 
-    def test_disable_isolation_via_object(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_disable_isolation_via_object(self, live_client: VergeClient, test_tenant) -> None:
         """Test disabling isolation via Tenant object."""
         # First enable isolation
         test_tenant.enable_isolation()
@@ -1726,9 +1650,7 @@ class TestTenantUtilities:
 
         assert test_tenant.is_isolated is False
 
-    def test_enable_isolation_via_manager(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_enable_isolation_via_manager(self, live_client: VergeClient, test_tenant) -> None:
         """Test enabling isolation via TenantManager."""
         assert test_tenant.is_isolated is False
 
@@ -1741,9 +1663,7 @@ class TestTenantUtilities:
         # Cleanup
         live_client.tenants.disable_isolation(test_tenant.key)
 
-    def test_disable_isolation_via_manager(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_disable_isolation_via_manager(self, live_client: VergeClient, test_tenant) -> None:
         """Test disabling isolation via TenantManager."""
         # First enable
         live_client.tenants.enable_isolation(test_tenant.key)
@@ -1780,9 +1700,7 @@ class TestTenantUtilities:
         with pytest.raises(ValueError, match="not in isolation mode"):
             test_tenant.disable_isolation()
 
-    def test_send_file_via_object(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_send_file_via_object(self, live_client: VergeClient, test_tenant) -> None:
         """Test sending a file to a tenant via Tenant object."""
         # Find a file to send
         files = live_client.files.list(limit=1)
@@ -1795,9 +1713,7 @@ class TestTenantUtilities:
         # The action should complete (or raise an error if file already shared)
         assert result is not None or result is None  # May return None on success
 
-    def test_send_file_via_manager(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_send_file_via_manager(self, live_client: VergeClient, test_tenant) -> None:
         """Test sending a file to a tenant via TenantManager."""
         # Find files to send
         files = live_client.files.list(limit=2)
@@ -1827,9 +1743,7 @@ class TestTenantUtilities:
         with pytest.raises(NotFoundError, match="Crash Cart recipe not found"):
             test_tenant.create_crash_cart()
 
-    def test_isolation_chaining(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_isolation_chaining(self, live_client: VergeClient, test_tenant) -> None:
         """Test that isolation methods return self for chaining."""
         result = test_tenant.enable_isolation()
         assert result is test_tenant

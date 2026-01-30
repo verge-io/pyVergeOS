@@ -320,9 +320,7 @@ class TestWebhookManager:
 
         assert webhook.name == "test-webhook"
 
-    def test_get_webhook_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_webhook_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting non-existent webhook raises NotFoundError."""
         mock_session.request.return_value.status_code = 404
         mock_session.request.return_value.json.return_value = {"error": "Not found"}
@@ -407,7 +405,12 @@ class TestWebhookManager:
         """Test creating a webhook with bearer auth."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 1},
-            {"$key": 1, "name": "hook", "url": "https://example.com", "authorization_type": "bearer"},
+            {
+                "$key": 1,
+                "name": "hook",
+                "url": "https://example.com",
+                "authorization_type": "bearer",
+            },
         ]
 
         mock_client.webhooks.create(
@@ -569,18 +572,14 @@ class TestWebhookManager:
 
     def test_get_history(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting specific history entry."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "status": "sent"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "status": "sent"}]
 
         entry = mock_client.webhooks.get_history(1)
 
         assert entry.key == 1
         assert entry.status == "sent"
 
-    def test_get_history_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_history_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting non-existent history entry raises NotFoundError."""
         mock_session.request.return_value.json.return_value = []
 

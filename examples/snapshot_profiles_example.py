@@ -150,9 +150,7 @@ def main() -> int:
         # Step 4: View profile with periods
         # =====================================================================
         print("=== Step 4: View Profile Summary ===")
-        profile_with_periods = client.snapshot_profiles.get(
-            profile.key, include_periods=True
-        )
+        profile_with_periods = client.snapshot_profiles.get(profile.key, include_periods=True)
         print(f"Profile: {profile_with_periods.name}")
         print(f"  Description: {profile_with_periods.description}")
         if profile_with_periods.periods:
@@ -194,9 +192,7 @@ def main() -> int:
         # Step 6: Demonstrate getting period by name
         # =====================================================================
         print("=== Step 6: Get Period by Name ===")
-        fetched_weekly = client.snapshot_profiles.periods(profile.key).get(
-            name="Weekly"
-        )
+        fetched_weekly = client.snapshot_profiles.periods(profile.key).get(name="Weekly")
         print(f"Found period: {fetched_weekly.name}")
         print(f"  Key: {fetched_weekly.key}")
         print(f"  Day: {fetched_weekly.day_of_week_display}")

@@ -211,7 +211,9 @@ def main() -> None:
             include_clusters=False,
             include_tenants=False,
         )
-        print(f"Partial inventory: {len(partial_inv.vms)} VMs, {len(partial_inv.storage)} storage tiers")
+        print(
+            f"Partial inventory: {len(partial_inv.vms)} VMs, {len(partial_inv.storage)} storage tiers"
+        )
         print(f"Excluded: networks={len(partial_inv.networks)}, nodes={len(partial_inv.nodes)}")
 
         print("\n" + "=" * 60)

@@ -441,8 +441,7 @@ class CertificateManager(ResourceManager[Certificate]):
         """
         certs = self.list(**kwargs)
         return [
-            c for c in certs
-            if c.days_until_expiry is not None and 0 <= c.days_until_expiry < days
+            c for c in certs if c.days_until_expiry is not None and 0 <= c.days_until_expiry < days
         ]
 
     def list_expired(self, **kwargs: Any) -> builtins.list[Certificate]:
@@ -455,10 +454,7 @@ class CertificateManager(ResourceManager[Certificate]):
             List of expired Certificate objects.
         """
         certs = self.list(**kwargs)
-        return [
-            c for c in certs
-            if c.days_until_expiry is not None and c.days_until_expiry < 0
-        ]
+        return [c for c in certs if c.days_until_expiry is not None and c.days_until_expiry < 0]
 
     def get(  # type: ignore[override]
         self,
@@ -506,7 +502,9 @@ class CertificateManager(ResourceManager[Certificate]):
             results = self.list(filter=f"domain eq '{escaped_domain}'", fields=field_list, limit=1)
             if not results:
                 # Try domainname field as fallback
-                results = self.list(filter=f"domainname eq '{escaped_domain}'", fields=field_list, limit=1)
+                results = self.list(
+                    filter=f"domainname eq '{escaped_domain}'", fields=field_list, limit=1
+                )
             if not results:
                 raise NotFoundError(f"Certificate for domain '{domain}' not found")
             return results[0]
@@ -753,8 +751,7 @@ class CertificateManager(ResourceManager[Certificate]):
 
         if cert.cert_type == "manual":
             raise ValueError(
-                "Manual certificates cannot be renewed. "
-                "Use update() to upload new keys instead."
+                "Manual certificates cannot be renewed. Use update() to upload new keys instead."
             )
 
         # Check if renewal is needed (unless forced)

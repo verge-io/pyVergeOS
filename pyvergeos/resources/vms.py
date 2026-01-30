@@ -512,17 +512,21 @@ class VMManager(ResourceManager[VM]):
 
         if isinstance(cloud_init, str):
             # Simple string -> /user-data file
-            file_specs.append({
-                "name": "/user-data",
-                "contents": cloud_init,
-            })
+            file_specs.append(
+                {
+                    "name": "/user-data",
+                    "contents": cloud_init,
+                }
+            )
         elif isinstance(cloud_init, dict):
             # Dict mapping file names to contents
             for file_name, contents in cloud_init.items():
-                file_specs.append({
-                    "name": file_name,
-                    "contents": contents,
-                })
+                file_specs.append(
+                    {
+                        "name": file_name,
+                        "contents": contents,
+                    }
+                )
         elif isinstance(cloud_init, builtins.list):
             # List of file specs (already in correct format)
             file_specs = cloud_init

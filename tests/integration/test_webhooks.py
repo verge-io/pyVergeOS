@@ -87,18 +87,14 @@ class TestWebhookListIntegration:
 class TestWebhookGetIntegration:
     """Integration tests for WebhookManager get operations."""
 
-    def test_get_webhook_by_key(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_get_webhook_by_key(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test getting a webhook by key."""
         fetched = live_client.webhooks.get(test_webhook.key)
 
         assert fetched.key == test_webhook.key
         assert fetched.name == test_webhook.name
 
-    def test_get_webhook_by_name(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_get_webhook_by_name(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test getting a webhook by name."""
         fetched = live_client.webhooks.get(name=test_webhook.name)
 
@@ -167,9 +163,7 @@ class TestWebhookCRUDIntegration:
         finally:
             live_client.webhooks.delete(webhook.key)
 
-    def test_update_webhook(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_update_webhook(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test updating a webhook."""
         updated = live_client.webhooks.update(
             test_webhook.key,
@@ -182,9 +176,7 @@ class TestWebhookCRUDIntegration:
         assert updated.timeout == 30
         assert updated.retries == 5
 
-    def test_update_webhook_headers(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_update_webhook_headers(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test updating webhook headers."""
         updated = live_client.webhooks.update(
             test_webhook.key,
@@ -242,9 +234,7 @@ class TestWebhookSendIntegration:
 
         assert result is None or isinstance(result, dict)
 
-    def test_send_via_object_method(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_send_via_object_method(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test sending via webhook object method."""
         result = test_webhook.send(message={"test": "object-method"})
 
@@ -255,9 +245,7 @@ class TestWebhookSendIntegration:
 class TestWebhookHistoryIntegration:
     """Integration tests for webhook history operations."""
 
-    def test_history_basic(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_history_basic(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test getting webhook history."""
         # Send a message first
         live_client.webhooks.send(test_webhook.key, message={"test": "history"})
@@ -289,9 +277,7 @@ class TestWebhookHistoryIntegration:
         assert isinstance(history, list)
         assert len(history) >= 1
 
-    def test_get_history_entry(
-        self, live_client: VergeClient, test_webhook: Webhook
-    ) -> None:
+    def test_get_history_entry(self, live_client: VergeClient, test_webhook: Webhook) -> None:
         """Test getting a specific history entry."""
         # Send a message first
         live_client.webhooks.send(test_webhook.key, message={"test": "get-entry"})
@@ -328,9 +314,7 @@ class TestWebhookHistoryIntegration:
 class TestWebhookEdgeCasesIntegration:
     """Integration tests for webhook edge cases."""
 
-    def test_webhook_with_special_chars_in_name(
-        self, live_client: VergeClient
-    ) -> None:
+    def test_webhook_with_special_chars_in_name(self, live_client: VergeClient) -> None:
         """Test creating webhook with special characters in name."""
         name = unique_name("pyvergeos-test_webhook")
 

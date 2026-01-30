@@ -209,9 +209,7 @@ class TestLogManagerList:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test listing logs filtered by single level."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "critical"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "critical"}]
 
         logs = mock_client.logs.list(level="critical")
 
@@ -243,9 +241,7 @@ class TestLogManagerList:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test listing logs filtered by object type."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "object_type": "vm"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "object_type": "vm"}]
 
         logs = mock_client.logs.list(object_type="VM")
 
@@ -254,13 +250,9 @@ class TestLogManagerList:
         params = call_args.kwargs.get("params", {})
         assert "object_type eq 'vm'" in params.get("filter", "")
 
-    def test_list_logs_user_filter(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_logs_user_filter(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing logs filtered by user."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "user": "admin"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "user": "admin"}]
 
         logs = mock_client.logs.list(user="admin")
 
@@ -269,13 +261,9 @@ class TestLogManagerList:
         params = call_args.kwargs.get("params", {})
         assert "user ct 'admin'" in params.get("filter", "")
 
-    def test_list_logs_text_filter(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_logs_text_filter(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing logs filtered by text content."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "text": "powered on"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "text": "powered on"}]
 
         logs = mock_client.logs.list(text="power")
 
@@ -312,9 +300,7 @@ class TestLogManagerList:
         filter_str = params.get("filter", "")
         assert "timestamp lt" in filter_str
 
-    def test_list_logs_time_range(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_logs_time_range(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing logs with time range."""
         mock_session.request.return_value.json.return_value = []
 
@@ -328,9 +314,7 @@ class TestLogManagerList:
         assert "timestamp ge" in filter_str
         assert "timestamp lt" in filter_str
 
-    def test_list_logs_errors_only(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_logs_errors_only(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test errors_only shortcut."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "level": "error"},
@@ -417,9 +401,7 @@ class TestLogManagerConvenienceMethods:
 
     def test_list_errors(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_errors convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "error"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "error"}]
 
         logs = mock_client.logs.list_errors()
 
@@ -446,9 +428,7 @@ class TestLogManagerConvenienceMethods:
 
     def test_list_by_level(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_by_level convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "warning"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "warning"}]
 
         logs = mock_client.logs.list_by_level("warning")
 
@@ -457,13 +437,9 @@ class TestLogManagerConvenienceMethods:
         params = call_args.kwargs.get("params", {})
         assert "level eq 'warning'" in params.get("filter", "")
 
-    def test_list_by_object_type(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_by_object_type(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_by_object_type convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "object_type": "vnet"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "object_type": "vnet"}]
 
         logs = mock_client.logs.list_by_object_type("Network")
 
@@ -474,9 +450,7 @@ class TestLogManagerConvenienceMethods:
 
     def test_list_by_user(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_by_user convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "user": "admin"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "user": "admin"}]
 
         logs = mock_client.logs.list_by_user("admin")
 
@@ -498,9 +472,7 @@ class TestLogManagerConvenienceMethods:
         params = call_args.kwargs.get("params", {})
         assert "text ct 'snapshot'" in params.get("filter", "")
 
-    def test_search_with_filters(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_search_with_filters(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test search with additional filters."""
         mock_session.request.return_value.json.return_value = []
 
@@ -535,9 +507,7 @@ class TestLogManagerGet:
         assert log.key == 123
         assert log.text == "Test log"
 
-    def test_get_log_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_log_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test NotFoundError when log not found by key."""
         mock_session.request.return_value.json.return_value = None
         mock_session.request.return_value.text = ""

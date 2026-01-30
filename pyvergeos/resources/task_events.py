@@ -324,9 +324,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         else:
             params["fields"] = ",".join(self._default_fields)
 
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"Task event {key} not found")
         if not isinstance(response, dict):

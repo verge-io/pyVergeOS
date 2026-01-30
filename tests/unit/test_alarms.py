@@ -304,9 +304,7 @@ class TestAlarmManagerList:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test listing alarms filtered by single level."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "critical"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "critical"}]
 
         alarms = mock_client.alarms.list(level="critical")
 
@@ -338,9 +336,7 @@ class TestAlarmManagerList:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test listing alarms filtered by owner type."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "owner_type": "vms"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "owner_type": "vms"}]
 
         alarms = mock_client.alarms.list(owner_type="VM")
 
@@ -363,9 +359,7 @@ class TestAlarmManagerList:
 
     def test_list_critical(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_critical convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "critical"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "critical"}]
 
         alarms = mock_client.alarms.list_critical()
 
@@ -376,9 +370,7 @@ class TestAlarmManagerList:
 
     def test_list_errors(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_errors convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "error"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "error"}]
 
         alarms = mock_client.alarms.list_errors()
 
@@ -389,9 +381,7 @@ class TestAlarmManagerList:
 
     def test_list_warnings(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_warnings convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "level": "warning"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "level": "warning"}]
 
         alarms = mock_client.alarms.list_warnings()
 
@@ -402,9 +392,7 @@ class TestAlarmManagerList:
 
     def test_list_by_owner_type(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_by_owner_type convenience method."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "owner_type": "vnets"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "owner_type": "vnets"}]
 
         alarms = mock_client.alarms.list_by_owner_type("Network")
 
@@ -445,9 +433,7 @@ class TestAlarmManagerGet:
         assert alarm.key == 1
         assert alarm.status == "Test alarm"
 
-    def test_get_alarm_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_alarm_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test NotFoundError when alarm not found by key."""
         mock_session.request.return_value.json.return_value = None
         mock_session.request.return_value.text = ""
@@ -557,9 +543,7 @@ class TestAlarmManagerSnooze:
         put_calls = [c for c in calls if c.kwargs.get("json") == {"snooze": 0}]
         assert len(put_calls) == 1
 
-    def test_alarm_object_snooze(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_alarm_object_snooze(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test snoozing via Alarm object method."""
         mock_session.request.return_value.json.side_effect = [
             None,
@@ -572,9 +556,7 @@ class TestAlarmManagerSnooze:
 
         assert updated.is_snoozed is True
 
-    def test_alarm_object_unsnooze(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_alarm_object_unsnooze(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test unsnoozing via Alarm object method."""
         mock_session.request.return_value.json.side_effect = [
             None,
@@ -625,9 +607,7 @@ class TestAlarmManagerResolve:
         with pytest.raises(ValueError, match="is not resolvable"):
             mock_client.alarms.resolve(1)
 
-    def test_alarm_object_resolve(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_alarm_object_resolve(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test resolving via Alarm object method."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 1, "resolvable": True},
@@ -702,9 +682,7 @@ class TestAlarmManagerHistory:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test listing history filtered by level."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 100, "level": "critical"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 100, "level": "critical"}]
 
         mock_client.alarms.list_history(level="critical")
 
@@ -724,9 +702,7 @@ class TestAlarmManagerHistory:
         params = call_args.kwargs.get("params", {})
         assert params.get("limit") == 50
 
-    def test_get_history_by_key(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_history_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting history entry by key."""
         mock_session.request.return_value.json.return_value = {
             "$key": 100,
@@ -739,9 +715,7 @@ class TestAlarmManagerHistory:
         assert history.key == 100
         assert history.level == "error"
 
-    def test_get_history_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_history_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test NotFoundError when history not found."""
         mock_session.request.return_value.json.return_value = None
         mock_session.request.return_value.text = ""

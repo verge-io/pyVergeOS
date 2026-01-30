@@ -450,9 +450,7 @@ class TestVolumeVmExportStatManagerList:
 
         assert result == []
 
-    def test_list_scoped_to_export(
-        self, scoped_stat_manager, mock_client, sample_export_stat
-    ):
+    def test_list_scoped_to_export(self, scoped_stat_manager, mock_client, sample_export_stat):
         """Test listing stats scoped to an export."""
         mock_client._request.return_value = [sample_export_stat]
 

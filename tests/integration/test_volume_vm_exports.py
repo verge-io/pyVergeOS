@@ -136,9 +136,7 @@ class TestVolumeVmExportStatManagerIntegration:
             assert hasattr(stat, "virtual_machines")
             assert hasattr(stat, "duration")
 
-    def test_list_volume_vm_export_stats_with_pagination(
-        self, live_client: VergeClient
-    ) -> None:
+    def test_list_volume_vm_export_stats_with_pagination(self, live_client: VergeClient) -> None:
         """Test listing VM export stats with pagination."""
         stats = live_client.volume_vm_export_stats.list(limit=5)
 

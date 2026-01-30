@@ -408,7 +408,9 @@ class FileManager(ResourceManager[File]):
 
         # Build download URL
         encoded_name = download_name.replace(" ", "%20")
-        download_url = f"{connection.api_base_url}/files/{file_key}?download=1&asname={encoded_name}"
+        download_url = (
+            f"{connection.api_base_url}/files/{file_key}?download=1&asname={encoded_name}"
+        )
 
         logger.info("Downloading '%s' to '%s'", download_name, output_path)
 

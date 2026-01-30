@@ -19,9 +19,7 @@ from pyvergeos.resources.resource_groups import (
 class TestResourceGroupManager:
     """Unit tests for ResourceGroupManager."""
 
-    def test_list_resource_groups(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_resource_groups(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing resource groups."""
         mock_session.request.return_value.json.return_value = [
             {
@@ -327,9 +325,7 @@ class TestResourceGroupManager:
         assert "class eq 'gpu'" in str(call_args)
         assert "enabled eq true" in str(call_args)
 
-    def test_list_all_device_types(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_all_device_types(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that all device types can be queried."""
         for api_value, display_name in DEVICE_TYPE_MAP.items():
             mock_session.request.return_value.json.return_value = []
@@ -384,9 +380,7 @@ class TestResourceGroup:
         assert rg.created_at is not None
         assert rg.modified_at is not None
 
-    def test_resource_group_type_display_fallback(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_resource_group_type_display_fallback(self, mock_client: VergeClient) -> None:
         """Test device type display falls back to mapping when not provided."""
         data = {
             "$key": 1,
@@ -398,9 +392,7 @@ class TestResourceGroup:
 
         assert rg.device_type_display == "SR-IOV NIC"
 
-    def test_resource_group_class_display_fallback(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_resource_group_class_display_fallback(self, mock_client: VergeClient) -> None:
         """Test device class display falls back to mapping when not provided."""
         data = {
             "$key": 1,

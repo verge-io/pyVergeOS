@@ -313,9 +313,7 @@ class TestSharedObjectManager:
     def test_get_by_key(self) -> None:
         """Test getting shared object by key."""
         mock_client = MagicMock()
-        mock_client._request.return_value = [
-            {"$key": 42, "name": "My Template", "recipient": 123}
-        ]
+        mock_client._request.return_value = [{"$key": 42, "name": "My Template", "recipient": 123}]
 
         manager = SharedObjectManager(mock_client)
         result = manager.get(42)
@@ -326,9 +324,7 @@ class TestSharedObjectManager:
     def test_get_by_tenant_and_name(self) -> None:
         """Test getting shared object by tenant key and name."""
         mock_client = MagicMock()
-        mock_client._request.return_value = [
-            {"$key": 42, "name": "My Template", "recipient": 123}
-        ]
+        mock_client._request.return_value = [{"$key": 42, "name": "My Template", "recipient": 123}]
 
         manager = SharedObjectManager(mock_client)
         result = manager.get(tenant_key=123, name="My Template")
@@ -472,9 +468,7 @@ class TestSharedObjectManager:
     def test_list_for_tenant(self) -> None:
         """Test list_for_tenant convenience method."""
         mock_client = MagicMock()
-        mock_client._request.return_value = [
-            {"$key": 1, "name": "Template", "recipient": 123}
-        ]
+        mock_client._request.return_value = [{"$key": 1, "name": "Template", "recipient": 123}]
 
         mock_tenant = MagicMock()
         mock_tenant.key = 123

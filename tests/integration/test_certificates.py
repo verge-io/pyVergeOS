@@ -87,9 +87,7 @@ class TestCertificateListIntegration:
         for cert in certs:
             assert cert.is_valid is True
 
-    def test_list_by_type(
-        self, live_client: VergeClient, test_certificate: Certificate
-    ) -> None:
+    def test_list_by_type(self, live_client: VergeClient, test_certificate: Certificate) -> None:
         """Test list_by_type convenience method."""
         certs = live_client.certificates.list_by_type("SelfSigned")
 
@@ -150,9 +148,7 @@ class TestCertificateGetIntegration:
         self, live_client: VergeClient, test_certificate: Certificate
     ) -> None:
         """Test getting certificate with key material."""
-        fetched = live_client.certificates.get(
-            test_certificate.key, include_keys=True
-        )
+        fetched = live_client.certificates.get(test_certificate.key, include_keys=True)
 
         assert fetched.key == test_certificate.key
         # Public key should be present for self-signed
@@ -305,9 +301,7 @@ class TestCertificateObjectMethodsIntegration:
 
         assert saved.description == "Saved via object method"
 
-    def test_certificate_delete(
-        self, live_client: VergeClient, test_cert_domain: str
-    ) -> None:
+    def test_certificate_delete(self, live_client: VergeClient, test_cert_domain: str) -> None:
         """Test deleting certificate via object method."""
         # Create a cert specifically for this test
         cert = live_client.certificates.create(
@@ -364,9 +358,7 @@ class TestCertificatePropertiesIntegration:
 class TestCertificateEdgeCasesIntegration:
     """Integration tests for certificate edge cases."""
 
-    def test_certificate_with_long_domain(
-        self, live_client: VergeClient
-    ) -> None:
+    def test_certificate_with_long_domain(self, live_client: VergeClient) -> None:
         """Test creating certificate with longer domain name."""
         long_domain = f"pyvergeos-test-{uuid.uuid4().hex}.local"
 

@@ -153,16 +153,12 @@ class TestTenantRecipe:
         recipe = TenantRecipe(sample_tenant_recipe, tenant_recipe_manager)
         assert recipe.is_downloaded is True
 
-    def test_is_downloaded_false(
-        self, tenant_recipe_manager, sample_tenant_recipe_not_downloaded
-    ):
+    def test_is_downloaded_false(self, tenant_recipe_manager, sample_tenant_recipe_not_downloaded):
         """Test is_downloaded returns False when not downloaded."""
         recipe = TenantRecipe(sample_tenant_recipe_not_downloaded, tenant_recipe_manager)
         assert recipe.is_downloaded is False
 
-    def test_has_update_true(
-        self, tenant_recipe_manager, sample_tenant_recipe_not_downloaded
-    ):
+    def test_has_update_true(self, tenant_recipe_manager, sample_tenant_recipe_not_downloaded):
         """Test has_update returns True when update available."""
         recipe = TenantRecipe(sample_tenant_recipe_not_downloaded, tenant_recipe_manager)
         assert recipe.has_update is True
@@ -187,9 +183,7 @@ class TestTenantRecipe:
         recipe = TenantRecipe(sample_tenant_recipe, tenant_recipe_manager)
         assert recipe.tenant_key == 5
 
-    def test_tenant_key_none(
-        self, tenant_recipe_manager, sample_tenant_recipe_not_downloaded
-    ):
+    def test_tenant_key_none(self, tenant_recipe_manager, sample_tenant_recipe_not_downloaded):
         """Test tenant_key returns None when not set."""
         recipe = TenantRecipe(sample_tenant_recipe_not_downloaded, tenant_recipe_manager)
         assert recipe.tenant_key is None
@@ -224,9 +218,7 @@ class TestTenantRecipeManagerList:
 
         assert result == []
 
-    def test_list_with_filter(
-        self, tenant_recipe_manager, mock_client, sample_tenant_recipe
-    ):
+    def test_list_with_filter(self, tenant_recipe_manager, mock_client, sample_tenant_recipe):
         """Test listing with filter."""
         mock_client._request.return_value = [sample_tenant_recipe]
 
@@ -257,17 +249,12 @@ class TestTenantRecipeManagerGet:
         """Test getting recipe by key."""
         mock_client._request.return_value = [sample_tenant_recipe]
 
-        result = tenant_recipe_manager.get(
-            key="8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-        )
+        result = tenant_recipe_manager.get(key="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         assert result.name == "Standard Tenant"
         args = mock_client._request.call_args
         assert args[0][0] == "GET"
-        assert (
-            "id eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'"
-            in args[1]["params"]["filter"]
-        )
+        assert "id eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
 
     def test_get_by_name(self, tenant_recipe_manager, mock_client, sample_tenant_recipe):
         """Test getting recipe by name."""
@@ -295,9 +282,7 @@ class TestTenantRecipeManagerGet:
 class TestTenantRecipeManagerUpdate:
     """Tests for TenantRecipeManager.update()."""
 
-    def test_update_description(
-        self, tenant_recipe_manager, mock_client, sample_tenant_recipe
-    ):
+    def test_update_description(self, tenant_recipe_manager, mock_client, sample_tenant_recipe):
         """Test updating recipe description."""
         mock_client._request.side_effect = [
             None,  # Update
@@ -315,9 +300,7 @@ class TestTenantRecipeManagerUpdate:
         assert "8f73f8bcc9c9f1aaba32f733bfc295acaf548554" in update_call[0][1]
         assert update_call[1]["json_data"]["description"] == "New description"
 
-    def test_update_preserve_certs(
-        self, tenant_recipe_manager, mock_client, sample_tenant_recipe
-    ):
+    def test_update_preserve_certs(self, tenant_recipe_manager, mock_client, sample_tenant_recipe):
         """Test updating preserve_certs setting."""
         mock_client._request.side_effect = [
             None,  # Update
@@ -354,9 +337,7 @@ class TestTenantRecipeManagerActions:
         """Test downloading a recipe."""
         mock_client._request.return_value = {"task": 123}
 
-        result = tenant_recipe_manager.download(
-            "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-        )
+        result = tenant_recipe_manager.download("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         assert result == {"task": 123}
         action_call = mock_client._request.call_args
@@ -365,18 +346,14 @@ class TestTenantRecipeManagerActions:
 
     def test_get_instances_manager(self, tenant_recipe_manager, mock_client):
         """Test getting a scoped instances manager."""
-        inst_mgr = tenant_recipe_manager.instances(
-            "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-        )
+        inst_mgr = tenant_recipe_manager.instances("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         assert isinstance(inst_mgr, TenantRecipeInstanceManager)
         assert inst_mgr._recipe_key == "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
 
     def test_get_logs_manager(self, tenant_recipe_manager, mock_client):
         """Test getting a scoped logs manager."""
-        log_mgr = tenant_recipe_manager.logs(
-            "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-        )
+        log_mgr = tenant_recipe_manager.logs("8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         assert isinstance(log_mgr, TenantRecipeLogManager)
         assert log_mgr._recipe_key == "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
@@ -390,22 +367,14 @@ class TestTenantRecipeManagerActions:
 class TestTenantRecipeInstance:
     """Tests for TenantRecipeInstance model."""
 
-    def test_recipe_key(
-        self, tenant_recipe_instance_manager, sample_tenant_recipe_instance
-    ):
+    def test_recipe_key(self, tenant_recipe_instance_manager, sample_tenant_recipe_instance):
         """Test recipe_key property."""
-        inst = TenantRecipeInstance(
-            sample_tenant_recipe_instance, tenant_recipe_instance_manager
-        )
+        inst = TenantRecipeInstance(sample_tenant_recipe_instance, tenant_recipe_instance_manager)
         assert inst.recipe_key == "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
 
-    def test_tenant_key(
-        self, tenant_recipe_instance_manager, sample_tenant_recipe_instance
-    ):
+    def test_tenant_key(self, tenant_recipe_instance_manager, sample_tenant_recipe_instance):
         """Test tenant_key property."""
-        inst = TenantRecipeInstance(
-            sample_tenant_recipe_instance, tenant_recipe_instance_manager
-        )
+        inst = TenantRecipeInstance(sample_tenant_recipe_instance, tenant_recipe_instance_manager)
         assert inst.tenant_key == 10
 
 
@@ -437,10 +406,7 @@ class TestTenantRecipeInstanceManagerList:
 
         assert len(result) == 1
         args = mock_client._request.call_args
-        assert (
-            "recipe eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'"
-            in args[1]["params"]["filter"]
-        )
+        assert "recipe eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
 
 
 class TestTenantRecipeInstanceManagerCreate:
@@ -505,9 +471,7 @@ class TestTenantRecipeLog:
 class TestTenantRecipeLogManagerList:
     """Tests for TenantRecipeLogManager.list()."""
 
-    def test_list_all(
-        self, tenant_recipe_log_manager, mock_client, sample_tenant_recipe_log
-    ):
+    def test_list_all(self, tenant_recipe_log_manager, mock_client, sample_tenant_recipe_log):
         """Test listing all logs."""
         mock_client._request.return_value = [sample_tenant_recipe_log]
 
@@ -520,9 +484,7 @@ class TestTenantRecipeLogManagerList:
         assert args[0][0] == "GET"
         assert args[0][1] == "tenant_recipe_logs"
 
-    def test_list_scoped_to_recipe(
-        self, scoped_log_manager, mock_client, sample_tenant_recipe_log
-    ):
+    def test_list_scoped_to_recipe(self, scoped_log_manager, mock_client, sample_tenant_recipe_log):
         """Test listing logs scoped to a recipe."""
         mock_client._request.return_value = [sample_tenant_recipe_log]
 
@@ -548,14 +510,9 @@ class TestTenantRecipeLogManagerHelpers:
 
         assert len(result) == 1
         args = mock_client._request.call_args
-        assert (
-            "(level eq 'error') or (level eq 'critical')"
-            in args[1]["params"]["filter"]
-        )
+        assert "(level eq 'error') or (level eq 'critical')" in args[1]["params"]["filter"]
 
-    def test_list_warnings(
-        self, scoped_log_manager, mock_client, sample_tenant_recipe_log
-    ):
+    def test_list_warnings(self, scoped_log_manager, mock_client, sample_tenant_recipe_log):
         """Test list_warnings helper."""
         sample_tenant_recipe_log["level"] = "warning"
         mock_client._request.return_value = [sample_tenant_recipe_log]

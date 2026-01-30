@@ -93,9 +93,7 @@ def sample_tenant_data() -> dict[str, Any]:
 class TestCloudSnapshotVM:
     """Unit tests for CloudSnapshotVM model."""
 
-    def test_vm_properties(
-        self, mock_client: VergeClient, sample_vm_data: dict[str, Any]
-    ) -> None:
+    def test_vm_properties(self, mock_client: VergeClient, sample_vm_data: dict[str, Any]) -> None:
         """Test CloudSnapshotVM property accessors."""
         vm = CloudSnapshotVM(sample_vm_data, mock_client.cloud_snapshots.vms(1))
 
@@ -113,9 +111,7 @@ class TestCloudSnapshotVM:
         assert vm.original_key == 50
         assert vm.cloud_snapshot_key == 1
 
-    def test_vm_repr(
-        self, mock_client: VergeClient, sample_vm_data: dict[str, Any]
-    ) -> None:
+    def test_vm_repr(self, mock_client: VergeClient, sample_vm_data: dict[str, Any]) -> None:
         """Test CloudSnapshotVM string representation."""
         vm = CloudSnapshotVM(sample_vm_data, mock_client.cloud_snapshots.vms(1))
         assert repr(vm) == "<CloudSnapshotVM key=100 name='TestVM'>"
@@ -150,9 +146,7 @@ class TestCloudSnapshotTenant:
         self, mock_client: VergeClient, sample_tenant_data: dict[str, Any]
     ) -> None:
         """Test CloudSnapshotTenant property accessors."""
-        tenant = CloudSnapshotTenant(
-            sample_tenant_data, mock_client.cloud_snapshots.tenants(1)
-        )
+        tenant = CloudSnapshotTenant(sample_tenant_data, mock_client.cloud_snapshots.tenants(1))
 
         assert tenant.key == 200
         assert tenant.name == "TestTenant"
@@ -171,9 +165,7 @@ class TestCloudSnapshotTenant:
         self, mock_client: VergeClient, sample_tenant_data: dict[str, Any]
     ) -> None:
         """Test CloudSnapshotTenant string representation."""
-        tenant = CloudSnapshotTenant(
-            sample_tenant_data, mock_client.cloud_snapshots.tenants(1)
-        )
+        tenant = CloudSnapshotTenant(sample_tenant_data, mock_client.cloud_snapshots.tenants(1))
         assert repr(tenant) == "<CloudSnapshotTenant key=200 name='TestTenant'>"
 
     def test_tenant_missing_optional_fields(self, mock_client: VergeClient) -> None:
@@ -277,9 +269,7 @@ class TestCloudSnapshot:
     ) -> None:
         """Test CloudSnapshot with pre-loaded VMs and tenants."""
         vm = CloudSnapshotVM(sample_vm_data, mock_client.cloud_snapshots.vms(1))
-        tenant = CloudSnapshotTenant(
-            sample_tenant_data, mock_client.cloud_snapshots.tenants(1)
-        )
+        tenant = CloudSnapshotTenant(sample_tenant_data, mock_client.cloud_snapshots.tenants(1))
 
         snapshot = CloudSnapshot(
             sample_snapshot_data,
@@ -331,9 +321,7 @@ class TestCloudSnapshotVMManager:
 
         # Verify the filter includes cloud_snapshot
         call_args = mock_session.request.call_args
-        assert "cloud_snapshot eq 1" in call_args.kwargs.get("params", {}).get(
-            "filter", ""
-        )
+        assert "cloud_snapshot eq 1" in call_args.kwargs.get("params", {}).get("filter", "")
 
     def test_get_vm_by_key(
         self,
@@ -378,9 +366,7 @@ class TestCloudSnapshotVMManager:
 
         assert vm.name == "TestVM"
 
-    def test_get_vm_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_vm_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a VM that doesn't exist."""
         mock_session.request.return_value.json.return_value = []
 
@@ -420,9 +406,7 @@ class TestCloudSnapshotTenantManager:
 
         # Verify the filter includes cloud_snapshot
         call_args = mock_session.request.call_args
-        assert "cloud_snapshot eq 1" in call_args.kwargs.get("params", {}).get(
-            "filter", ""
-        )
+        assert "cloud_snapshot eq 1" in call_args.kwargs.get("params", {}).get("filter", "")
 
     def test_get_tenant_by_key(
         self,
@@ -573,9 +557,7 @@ class TestCloudSnapshotManager:
         created_data = {"$key": 6, "name": "Custom Retention"}
         mock_session.request.return_value.json.return_value = created_data
 
-        mock_client.cloud_snapshots.create(
-            name="Custom Retention", retention_seconds=3600
-        )
+        mock_client.cloud_snapshots.create(name="Custom Retention", retention_seconds=3600)
 
         found = False
         for call in mock_session.request.call_args_list:
@@ -593,9 +575,7 @@ class TestCloudSnapshotManager:
         created_data = {"$key": 7, "name": "Timedelta Retention"}
         mock_session.request.return_value.json.return_value = created_data
 
-        mock_client.cloud_snapshots.create(
-            name="Timedelta Retention", retention=timedelta(hours=2)
-        )
+        mock_client.cloud_snapshots.create(name="Timedelta Retention", retention=timedelta(hours=2))
 
         found = False
         for call in mock_session.request.call_args_list:
@@ -660,9 +640,7 @@ class TestCloudSnapshotManager:
                 break
         assert found, "Create call not found"
 
-    def test_delete_snapshot(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_snapshot(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a snapshot."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""

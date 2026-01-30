@@ -480,9 +480,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             if fields:
                 params["fields"] = ",".join(fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Period {key} not found")
             if not isinstance(response, dict):
@@ -491,18 +489,14 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             # Verify this period belongs to our profile
             period = self._to_model(response)
             if period.profile_key != self._profile_key:
-                raise NotFoundError(
-                    f"Period {key} does not belong to profile {self._profile_key}"
-                )
+                raise NotFoundError(f"Period {key} does not belong to profile {self._profile_key}")
             return period
 
         if name is not None:
             escaped_name = name.replace("'", "''")
             results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
             if not results:
-                raise NotFoundError(
-                    f"Period '{name}' not found in profile {self._profile_key}"
-                )
+                raise NotFoundError(f"Period '{name}' not found in profile {self._profile_key}")
             return results[0]
 
         raise ValueError("Either key or name must be provided")
@@ -555,8 +549,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
 
         if day_of_week not in DAYS_OF_WEEK:
             raise ValueError(
-                f"Invalid day_of_week '{day_of_week}'. "
-                f"Must be one of: {', '.join(DAYS_OF_WEEK)}"
+                f"Invalid day_of_week '{day_of_week}'. Must be one of: {', '.join(DAYS_OF_WEEK)}"
             )
 
         if not 0 <= minute <= 59:
@@ -615,13 +608,9 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         """
         # Validate parameters if provided
         if "frequency" in kwargs and kwargs["frequency"] not in FREQUENCIES:
-            raise ValueError(
-                f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}"
-            )
+            raise ValueError(f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}")
         if "day_of_week" in kwargs and kwargs["day_of_week"] not in DAYS_OF_WEEK:
-            raise ValueError(
-                f"Invalid day_of_week. Must be one of: {', '.join(DAYS_OF_WEEK)}"
-            )
+            raise ValueError(f"Invalid day_of_week. Must be one of: {', '.join(DAYS_OF_WEEK)}")
         if "max_tier" in kwargs:
             kwargs["max_tier"] = str(kwargs["max_tier"])
 
@@ -811,9 +800,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
             if fields:
                 params["fields"] = ",".join(fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Snapshot profile {key} not found")
             if not isinstance(response, dict):
@@ -830,9 +817,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
 
         if name is not None:
             escaped_name = name.replace("'", "''")
-            results = self.list(
-                filter=f"name eq '{escaped_name}'", fields=fields, limit=1
-            )
+            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Snapshot profile '{name}' not found")
 

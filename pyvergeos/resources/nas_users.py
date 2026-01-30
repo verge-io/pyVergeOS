@@ -590,9 +590,7 @@ class NASUserManager(ResourceManager["NASUser"]):
                 return response.get("$key")
         return None
 
-    def _resolve_cifs_share_key(
-        self, share: int | str, service_key: int
-    ) -> int | None:
+    def _resolve_cifs_share_key(self, share: int | str, service_key: int) -> int | None:
         """Resolve a CIFS share identifier to its key.
 
         Args:

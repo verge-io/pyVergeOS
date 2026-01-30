@@ -314,11 +314,7 @@ class TestLogCombinedFiltersIntegration:
 
     def test_combined_level_and_object_type(self, live_client: VergeClient) -> None:
         """Test combining level and object type filters."""
-        logs = live_client.logs.list(
-            level=["message", "audit"],
-            object_type="VM",
-            limit=20
-        )
+        logs = live_client.logs.list(level=["message", "audit"], object_type="VM", limit=20)
 
         for log in logs:
             assert log.level in ["message", "audit"]
@@ -327,11 +323,7 @@ class TestLogCombinedFiltersIntegration:
     def test_combined_time_and_level(self, live_client: VergeClient) -> None:
         """Test combining time and level filters."""
         since = datetime.now(timezone.utc) - timedelta(hours=48)
-        logs = live_client.logs.list(
-            since=since,
-            level="message",
-            limit=20
-        )
+        logs = live_client.logs.list(since=since, level="message", limit=20)
 
         for log in logs:
             assert log.level == "message"
@@ -340,12 +332,7 @@ class TestLogCombinedFiltersIntegration:
 
     def test_search_with_level_and_object_type(self, live_client: VergeClient) -> None:
         """Test search with additional filters."""
-        logs = live_client.logs.search(
-            "power",
-            level="audit",
-            object_type="VM",
-            limit=10
-        )
+        logs = live_client.logs.search("power", level="audit", object_type="VM", limit=10)
 
         for log in logs:
             assert "power" in log.text.lower()

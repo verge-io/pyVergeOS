@@ -343,15 +343,11 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Recipe question with key {key} not found")
             if not isinstance(response, dict):
-                raise NotFoundError(
-                    f"Recipe question with key {key} returned invalid response"
-                )
+                raise NotFoundError(f"Recipe question with key {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -507,9 +503,7 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
                 return self.get(key=q_key)
 
         # Fallback: search by name in the recipe
-        results = self.list(
-            recipe_ref=recipe_ref, filter=f"name eq '{name}'", limit=1
-        )
+        results = self.list(recipe_ref=recipe_ref, filter=f"name eq '{name}'", limit=1)
         if results:
             return results[0]
 
@@ -745,15 +739,11 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Recipe section with key {key} not found")
             if not isinstance(response, dict):
-                raise NotFoundError(
-                    f"Recipe section with key {key} returned invalid response"
-                )
+                raise NotFoundError(f"Recipe section with key {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -806,9 +796,7 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
                 return self.get(key=s_key)
 
         # Fallback: search by name in the recipe
-        results = self.list(
-            recipe_ref=recipe_ref, filter=f"name eq '{name}'", limit=1
-        )
+        results = self.list(recipe_ref=recipe_ref, filter=f"name eq '{name}'", limit=1)
         if results:
             return results[0]
 

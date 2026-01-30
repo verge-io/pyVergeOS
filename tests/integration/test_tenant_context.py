@@ -40,9 +40,7 @@ class TestSharedObjects:
         except NotFoundError:
             pytest.skip("Test VM 'test' not available")
 
-    def test_list_shared_objects_empty(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_shared_objects_empty(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing shared objects for a new tenant returns empty list."""
         shared = live_client.shared_objects.list(tenant_key=test_tenant.key)
         assert isinstance(shared, list)
@@ -56,33 +54,25 @@ class TestSharedObjects:
         assert isinstance(shared, list)
         assert len(shared) == 0
 
-    def test_list_for_tenant_method(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_list_for_tenant_method(self, live_client: VergeClient, test_tenant) -> None:
         """Test list_for_tenant convenience method."""
         shared = live_client.shared_objects.list_for_tenant(test_tenant)
         assert isinstance(shared, list)
         assert len(shared) == 0
 
-    def test_tenant_shared_objects_property(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_tenant_shared_objects_property(self, live_client: VergeClient, test_tenant) -> None:
         """Test accessing shared objects via tenant property."""
         shared = test_tenant.shared_objects
         assert isinstance(shared, list)
         assert len(shared) == 0
 
-    def test_manager_shared_objects_method(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_manager_shared_objects_method(self, live_client: VergeClient, test_tenant) -> None:
         """Test TenantManager.shared_objects() method."""
         shared = live_client.tenants.shared_objects(test_tenant.key)
         assert isinstance(shared, list)
         assert len(shared) == 0
 
-    def test_create_shared_object(
-        self, live_client: VergeClient, test_tenant, test_vm
-    ) -> None:
+    def test_create_shared_object(self, live_client: VergeClient, test_tenant, test_vm) -> None:
         """Test creating a shared object (sharing a VM with a tenant)."""
         shared = live_client.shared_objects.create(
             tenant_key=test_tenant.key,
@@ -136,9 +126,7 @@ class TestSharedObjects:
         finally:
             live_client.shared_objects.delete(shared.key)
 
-    def test_get_shared_object_by_key(
-        self, live_client: VergeClient, test_tenant, test_vm
-    ) -> None:
+    def test_get_shared_object_by_key(self, live_client: VergeClient, test_tenant, test_vm) -> None:
         """Test getting a shared object by key."""
         created = live_client.shared_objects.create(
             tenant_key=test_tenant.key,
@@ -172,14 +160,10 @@ class TestSharedObjects:
         finally:
             live_client.shared_objects.delete(created.key)
 
-    def test_get_shared_object_not_found(
-        self, live_client: VergeClient, test_tenant
-    ) -> None:
+    def test_get_shared_object_not_found(self, live_client: VergeClient, test_tenant) -> None:
         """Test getting a non-existent shared object."""
         with pytest.raises(NotFoundError):
-            live_client.shared_objects.get(
-                tenant_key=test_tenant.key, name="NonExistent-12345"
-            )
+            live_client.shared_objects.get(tenant_key=test_tenant.key, name="NonExistent-12345")
 
     def test_list_shared_objects_after_create(
         self, live_client: VergeClient, test_tenant, test_vm
@@ -225,9 +209,7 @@ class TestSharedObjects:
             live_client.shared_objects.delete(shared1.key)
             live_client.shared_objects.delete(shared2.key)
 
-    def test_delete_shared_object(
-        self, live_client: VergeClient, test_tenant, test_vm
-    ) -> None:
+    def test_delete_shared_object(self, live_client: VergeClient, test_tenant, test_vm) -> None:
         """Test deleting a shared object."""
         shared = live_client.shared_objects.create(
             tenant_key=test_tenant.key,
@@ -260,9 +242,7 @@ class TestSharedObjects:
         shared_list = live_client.shared_objects.list(tenant_key=test_tenant.key)
         assert len(shared_list) == 0
 
-    def test_shared_object_properties(
-        self, live_client: VergeClient, test_tenant, test_vm
-    ) -> None:
+    def test_shared_object_properties(self, live_client: VergeClient, test_tenant, test_vm) -> None:
         """Test shared object property accessors."""
         shared = live_client.shared_objects.create(
             tenant_key=test_tenant.key,
@@ -291,9 +271,7 @@ class TestSharedObjects:
         finally:
             live_client.shared_objects.delete(shared.key)
 
-    def test_refresh_shared_object(
-        self, live_client: VergeClient, test_tenant, test_vm
-    ) -> None:
+    def test_refresh_shared_object(self, live_client: VergeClient, test_tenant, test_vm) -> None:
         """Test refreshing a shared object."""
         shared = live_client.shared_objects.create(
             tenant_key=test_tenant.key,
@@ -309,9 +287,7 @@ class TestSharedObjects:
         finally:
             live_client.shared_objects.delete(shared.key)
 
-    def test_multiple_shared_objects(
-        self, live_client: VergeClient, test_tenant, test_vm
-    ) -> None:
+    def test_multiple_shared_objects(self, live_client: VergeClient, test_tenant, test_vm) -> None:
         """Test creating and managing multiple shared objects."""
         shared_objects = []
         try:
@@ -526,9 +502,7 @@ class TestTenantConnectLive:
         finally:
             tenant_client.disconnect()
 
-    def test_connect_context_method(
-        self, live_client: VergeClient, running_tenant_config
-    ) -> None:
+    def test_connect_context_method(self, live_client: VergeClient, running_tenant_config) -> None:
         """Test connecting via connect_context method."""
         tenant_client = live_client.tenants.connect_context(
             name=running_tenant_config["name"],

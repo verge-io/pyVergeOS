@@ -43,15 +43,40 @@ HEALTH_STATUS = {
 
 # Valid CPU types for clusters
 CPU_TYPES = [
-    "qemu64", "kvm64", "host",
-    "Broadwell", "Cascadelake-Server", "Conroe", "Cooperlake",
-    "core2duo", "coreduo", "Denverton",
-    "EPYC", "EPYC-Genoa", "EPYC-Milan", "EPYC-Rome",
-    "GraniteRapids", "Haswell", "Icelake-Server", "IvyBridge",
-    "KnightsMill", "n270", "Nehalem",
-    "Opteron_G1", "Opteron_G2", "Opteron_G3", "Opteron_G4", "Opteron_G5",
-    "Penryn", "phenom", "SandyBridge", "SapphireRapids",
-    "Skylake-Client", "Skylake-Server", "Snowridge", "Westmere",
+    "qemu64",
+    "kvm64",
+    "host",
+    "Broadwell",
+    "Cascadelake-Server",
+    "Conroe",
+    "Cooperlake",
+    "core2duo",
+    "coreduo",
+    "Denverton",
+    "EPYC",
+    "EPYC-Genoa",
+    "EPYC-Milan",
+    "EPYC-Rome",
+    "GraniteRapids",
+    "Haswell",
+    "Icelake-Server",
+    "IvyBridge",
+    "KnightsMill",
+    "n270",
+    "Nehalem",
+    "Opteron_G1",
+    "Opteron_G2",
+    "Opteron_G3",
+    "Opteron_G4",
+    "Opteron_G5",
+    "Penryn",
+    "phenom",
+    "SandyBridge",
+    "SapphireRapids",
+    "Skylake-Client",
+    "Skylake-Server",
+    "Snowridge",
+    "Westmere",
 ]
 
 # Energy performance policy mappings
@@ -413,17 +438,19 @@ class VSANStatus(ResourceObject):
             capacity_gb = round(capacity / 1073741824, 2) if capacity else 0
             used_pct = round((used / capacity) * 100, 1) if capacity else 0
 
-            result.append({
-                "tier": tier.get("tier"),
-                "status": tier.get("status"),
-                "used_gb": used_gb,
-                "capacity_gb": capacity_gb,
-                "used_percent": used_pct,
-                "read_ops": tier.get("read_ops") or 0,
-                "write_ops": tier.get("write_ops") or 0,
-                "read_bps": tier.get("read_bps") or 0,
-                "write_bps": tier.get("write_bps") or 0,
-            })
+            result.append(
+                {
+                    "tier": tier.get("tier"),
+                    "status": tier.get("status"),
+                    "used_gb": used_gb,
+                    "capacity_gb": capacity_gb,
+                    "used_percent": used_pct,
+                    "read_ops": tier.get("read_ops") or 0,
+                    "write_ops": tier.get("write_ops") or 0,
+                    "read_bps": tier.get("read_bps") or 0,
+                    "write_bps": tier.get("write_bps") or 0,
+                }
+            )
         return result
 
     def __repr__(self) -> str:
@@ -805,7 +832,8 @@ class ClusterManager(ResourceManager[Cluster]):
         enable_split_lock_detection: bool | None = None,
         energy_perf_policy: Literal[
             "performance", "balance-performance", "balance-power", "normal", "power"
-        ] | None = None,
+        ]
+        | None = None,
         scaling_governor: Literal["performance", "ondemand", "powersave"] | None = None,
         ram_per_unit: int | None = None,
         cores_per_unit: int | None = None,

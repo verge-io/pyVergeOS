@@ -213,9 +213,7 @@ class TestRecipeQuestion:
         question = RecipeQuestion(sample_list_question, recipe_question_manager)
         assert question.list_options == {"ssd": "SSD", "hdd": "HDD", "nvme": "NVMe"}
 
-    def test_list_options_none_for_non_list(
-        self, recipe_question_manager, sample_recipe_question
-    ):
+    def test_list_options_none_for_non_list(self, recipe_question_manager, sample_recipe_question):
         """Test list_options returns None for non-list type."""
         question = RecipeQuestion(sample_recipe_question, recipe_question_manager)
         assert question.list_options is None
@@ -290,9 +288,7 @@ class TestRecipeQuestionManagerList:
 class TestRecipeQuestionManagerGet:
     """Tests for RecipeQuestionManager.get()."""
 
-    def test_get_by_key(
-        self, recipe_question_manager, mock_client, sample_recipe_question
-    ):
+    def test_get_by_key(self, recipe_question_manager, mock_client, sample_recipe_question):
         """Test getting question by key."""
         mock_client._request.return_value = sample_recipe_question
 
@@ -303,9 +299,7 @@ class TestRecipeQuestionManagerGet:
         assert args[0][0] == "GET"
         assert args[0][1] == "recipe_questions/1"
 
-    def test_get_by_name(
-        self, recipe_question_manager, mock_client, sample_recipe_question
-    ):
+    def test_get_by_name(self, recipe_question_manager, mock_client, sample_recipe_question):
         """Test getting question by name."""
         mock_client._request.return_value = [sample_recipe_question]
 
@@ -477,9 +471,7 @@ class TestRecipeSectionManagerGet:
         assert args[0][0] == "GET"
         assert args[0][1] == "recipe_sections/10"
 
-    def test_get_by_name(
-        self, recipe_section_manager, mock_client, sample_recipe_section
-    ):
+    def test_get_by_name(self, recipe_section_manager, mock_client, sample_recipe_section):
         """Test getting section by name."""
         mock_client._request.return_value = [sample_recipe_section]
 

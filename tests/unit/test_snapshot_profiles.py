@@ -69,9 +69,7 @@ class TestSnapshotProfilePeriod:
         self, mock_client: VergeClient, sample_period_data: dict[str, Any]
     ) -> None:
         """Test SnapshotProfilePeriod property accessors."""
-        period = SnapshotProfilePeriod(
-            sample_period_data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(sample_period_data, mock_client.snapshot_profiles.periods(1))
 
         assert period.key == 10
         assert period.profile_key == 1
@@ -97,151 +95,109 @@ class TestSnapshotProfilePeriod:
     def test_period_frequency_hourly(self, mock_client: VergeClient) -> None:
         """Test frequency_display for hourly period."""
         data = {"$key": 1, "profile": 1, "frequency": "hourly"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.frequency_display == "Hourly"
 
     def test_period_frequency_weekly(self, mock_client: VergeClient) -> None:
         """Test frequency_display for weekly period."""
         data = {"$key": 1, "profile": 1, "frequency": "weekly"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.frequency_display == "Weekly"
 
     def test_period_frequency_monthly(self, mock_client: VergeClient) -> None:
         """Test frequency_display for monthly period."""
         data = {"$key": 1, "profile": 1, "frequency": "monthly"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.frequency_display == "Monthly"
 
     def test_period_frequency_yearly(self, mock_client: VergeClient) -> None:
         """Test frequency_display for yearly period."""
         data = {"$key": 1, "profile": 1, "frequency": "yearly"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.frequency_display == "Yearly"
 
     def test_period_day_of_week_display_sunday(self, mock_client: VergeClient) -> None:
         """Test day_of_week_display for Sunday."""
         data = {"$key": 1, "profile": 1, "day_of_week": "sun"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.day_of_week_display == "Sunday"
 
     def test_period_day_of_week_display_monday(self, mock_client: VergeClient) -> None:
         """Test day_of_week_display for Monday."""
         data = {"$key": 1, "profile": 1, "day_of_week": "mon"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.day_of_week_display == "Monday"
 
     def test_period_day_of_week_display_friday(self, mock_client: VergeClient) -> None:
         """Test day_of_week_display for Friday."""
         data = {"$key": 1, "profile": 1, "day_of_week": "fri"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.day_of_week_display == "Friday"
 
-    def test_period_retention_display_days_and_hours(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_period_retention_display_days_and_hours(self, mock_client: VergeClient) -> None:
         """Test retention_display with days and hours."""
         data = {"$key": 1, "profile": 1, "retention": 90000}  # 1 day 1 hour
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.retention_display == "1d 1h"
 
-    def test_period_retention_display_hours_only(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_period_retention_display_hours_only(self, mock_client: VergeClient) -> None:
         """Test retention_display with hours only."""
         data = {"$key": 1, "profile": 1, "retention": 7200}  # 2 hours
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.retention_display == "2h"
 
     def test_period_retention_display_none(self, mock_client: VergeClient) -> None:
         """Test retention_display with zero retention."""
         data = {"$key": 1, "profile": 1, "retention": 0}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.retention_display == "None"
 
     def test_period_immutable_true(self, mock_client: VergeClient) -> None:
         """Test is_immutable returns True when immutable."""
         data = {"$key": 1, "profile": 1, "immutable": True}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.is_immutable is True
 
     def test_period_immutable_default(self, mock_client: VergeClient) -> None:
         """Test is_immutable defaults to False."""
         data = {"$key": 1, "profile": 1}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.is_immutable is False
 
     def test_period_quiesce_true(self, mock_client: VergeClient) -> None:
         """Test quiesce returns True when enabled."""
         data = {"$key": 1, "profile": 1, "quiesce": True}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.quiesce is True
 
     def test_period_skip_missed_true(self, mock_client: VergeClient) -> None:
         """Test skip_missed returns True when enabled."""
         data = {"$key": 1, "profile": 1, "skip_missed": True}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.skip_missed is True
 
     def test_period_max_tier_default(self, mock_client: VergeClient) -> None:
         """Test max_tier defaults to 1."""
         data = {"$key": 1, "profile": 1}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.max_tier == 1
 
     def test_period_max_tier_string(self, mock_client: VergeClient) -> None:
         """Test max_tier handles string value."""
         data = {"$key": 1, "profile": 1, "max_tier": "3"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.max_tier == 3
 
-    def test_period_estimated_snapshot_count_none(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_period_estimated_snapshot_count_none(self, mock_client: VergeClient) -> None:
         """Test estimated_snapshot_count returns None when not set."""
         data = {"$key": 1, "profile": 1}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.estimated_snapshot_count is None
 
     def test_period_repr(self, mock_client: VergeClient) -> None:
         """Test period string representation."""
         data = {"$key": 1, "profile": 1, "name": "Daily", "frequency": "daily"}
-        period = SnapshotProfilePeriod(
-            data, mock_client.snapshot_profiles.periods(1)
-        )
+        period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert repr(period) == "<SnapshotProfilePeriod key=1 name='Daily' frequency='Daily'>"
 
 
@@ -322,9 +278,7 @@ class TestSnapshotProfile:
 class TestSnapshotProfilePeriodManager:
     """Unit tests for SnapshotProfilePeriodManager."""
 
-    def test_list_periods(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_periods(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing periods for a profile."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "profile": 1, "name": "Hourly", "frequency": "hourly"},
@@ -337,9 +291,7 @@ class TestSnapshotProfilePeriodManager:
         assert periods[0].name == "Hourly"
         assert periods[1].name == "Daily"
 
-    def test_list_periods_empty(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_periods_empty(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing periods when none exist."""
         mock_session.request.return_value.json.return_value = []
 
@@ -347,9 +299,7 @@ class TestSnapshotProfilePeriodManager:
 
         assert periods == []
 
-    def test_get_period_by_key(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_period_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a period by key."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -363,9 +313,7 @@ class TestSnapshotProfilePeriodManager:
         assert period.key == 1
         assert period.name == "Daily"
 
-    def test_get_period_by_name(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_period_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a period by name."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "profile": 1, "name": "Daily", "frequency": "daily"}
@@ -376,9 +324,7 @@ class TestSnapshotProfilePeriodManager:
         assert period.key == 1
         assert period.name == "Daily"
 
-    def test_get_period_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_period_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a period that doesn't exist."""
         mock_session.request.return_value.json.return_value = []
 
@@ -390,9 +336,7 @@ class TestSnapshotProfilePeriodManager:
         with pytest.raises(ValueError, match="Either key or name must be provided"):
             mock_client.snapshot_profiles.periods(1).get()
 
-    def test_create_period(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_create_period(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test creating a period."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -469,9 +413,7 @@ class TestSnapshotProfilePeriodManager:
                 retention=-1,
             )
 
-    def test_update_period(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_update_period(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating a period."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -489,9 +431,7 @@ class TestSnapshotProfilePeriodManager:
         with pytest.raises(ValueError, match="Invalid frequency"):
             mock_client.snapshot_profiles.periods(1).update(1, frequency="invalid")
 
-    def test_delete_period(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_period(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a period."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""
@@ -508,9 +448,7 @@ class TestSnapshotProfilePeriodManager:
 class TestSnapshotProfileManager:
     """Unit tests for SnapshotProfileManager."""
 
-    def test_list_profiles(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_profiles(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing profiles."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "Profile 1"},
@@ -523,9 +461,7 @@ class TestSnapshotProfileManager:
         assert profiles[0].name == "Profile 1"
         assert profiles[1].name == "Profile 2"
 
-    def test_list_profiles_empty(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_profiles_empty(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing profiles when none exist."""
         mock_session.request.return_value.json.return_value = []
 
@@ -533,9 +469,7 @@ class TestSnapshotProfileManager:
 
         assert profiles == []
 
-    def test_list_profiles_single(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_profiles_single(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing profiles returns single item as list."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -547,9 +481,7 @@ class TestSnapshotProfileManager:
         assert len(profiles) == 1
         assert profiles[0].name == "Profile 1"
 
-    def test_get_profile_by_key(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_profile_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a profile by key."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -561,22 +493,16 @@ class TestSnapshotProfileManager:
         assert profile.key == 1
         assert profile.name == "Test Profile"
 
-    def test_get_profile_by_name(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_profile_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a profile by name."""
-        mock_session.request.return_value.json.return_value = [
-            {"$key": 1, "name": "Test Profile"}
-        ]
+        mock_session.request.return_value.json.return_value = [{"$key": 1, "name": "Test Profile"}]
 
         profile = mock_client.snapshot_profiles.get(name="Test Profile")
 
         assert profile.key == 1
         assert profile.name == "Test Profile"
 
-    def test_get_profile_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_profile_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a profile that doesn't exist."""
         mock_session.request.return_value.json.return_value = []
 
@@ -588,9 +514,7 @@ class TestSnapshotProfileManager:
         with pytest.raises(ValueError, match="Either key or name must be provided"):
             mock_client.snapshot_profiles.get()
 
-    def test_create_profile(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_create_profile(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test creating a profile."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -628,9 +552,7 @@ class TestSnapshotProfileManager:
 
         assert profile.ignore_warnings is True
 
-    def test_update_profile(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_update_profile(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating a profile."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -638,15 +560,11 @@ class TestSnapshotProfileManager:
             "description": "Updated description",
         }
 
-        profile = mock_client.snapshot_profiles.update(
-            1, description="Updated description"
-        )
+        profile = mock_client.snapshot_profiles.update(1, description="Updated description")
 
         assert profile.description == "Updated description"
 
-    def test_delete_profile(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_profile(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a profile."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""

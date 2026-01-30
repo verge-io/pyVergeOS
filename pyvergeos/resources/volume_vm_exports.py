@@ -290,9 +290,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume VM export with key {key} not found")
             if not isinstance(response, dict):
@@ -433,9 +431,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
         if params:
             body["params"] = params
 
-        result = self._client._request(
-            "POST", "volume_vm_export_actions", json_data=body
-        )
+        result = self._client._request("POST", "volume_vm_export_actions", json_data=body)
         if isinstance(result, dict):
             return result
         return None
@@ -457,9 +453,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
             "action": "stop_export",
         }
 
-        result = self._client._request(
-            "POST", "volume_vm_export_actions", json_data=body
-        )
+        result = self._client._request("POST", "volume_vm_export_actions", json_data=body)
         if isinstance(result, dict):
             return result
         return None
@@ -481,9 +475,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
             "action": "cleanup",
         }
 
-        result = self._client._request(
-            "POST", "volume_vm_export_actions", json_data=body
-        )
+        result = self._client._request("POST", "volume_vm_export_actions", json_data=body)
         if isinstance(result, dict):
             return result
         return None
@@ -540,9 +532,7 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
         "timestamp",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, export_key: int | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, export_key: int | None = None) -> None:
         super().__init__(client)
         self._export_key = export_key
 
@@ -646,9 +636,7 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume VM export stat with key {key} not found")
             if not isinstance(response, dict):
