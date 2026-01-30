@@ -1,4 +1,49 @@
-"""Task resource manager with wait functionality."""
+"""Task resource manager with wait functionality and scheduling support.
+
+The VergeOS Task Engine enables automated operations triggered either by
+specific events or scheduled times. Tasks define the action to perform
+(e.g., power off a VM, send a notification, take a snapshot).
+
+Task Engine Components:
+    - **Tasks**: Define the action to perform on a target object
+    - **Schedules**: Specify when and how often a task should run
+    - **Events**: Define conditions that trigger a task (e.g., user login)
+    - **Schedule Triggers**: Link tasks to schedules
+    - **Event Triggers**: Link tasks to events
+
+Event-Based Examples:
+    - Power on a VM when a designated user logs into VergeOS
+    - Send email notification when a system update completes
+    - Use a webhook to notify an external system when sync errors occur
+
+Schedule-Based Examples:
+    - Check for system updates every Saturday at 5:00 PM
+    - Power off a tenant on a specific date
+    - Run backup tasks daily at 2 AM
+
+Example:
+    >>> # List all tasks
+    >>> for task in client.tasks.list():
+    ...     print(f"{task.name}: {task.status}")
+
+    >>> # Create a task to power on VMs with a specific tag
+    >>> task = client.tasks.create(
+    ...     name="Power On Dev VMs",
+    ...     owner=vm.key,
+    ...     action="poweron",
+    ...     description="Power on development VMs when user logs in",
+    ... )
+
+    >>> # Link task to a schedule (e.g., Fridays at 6 PM)
+    >>> trigger = client.task_schedule_triggers.create(
+    ...     task=task.key,
+    ...     schedule=friday_schedule.key,
+    ... )
+
+    >>> # Execute a task manually
+    >>> task.execute()
+    >>> task.wait(timeout=300)
+"""
 
 from __future__ import annotations
 
@@ -12,6 +57,8 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.task_events import TaskEventManager
+    from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
 
 
 # Default fields to request for task list operations
@@ -30,7 +77,10 @@ _DEFAULT_LIST_FIELDS = [
     "creator#$display as creator_display",
     "last_run",
     "delete_after_run",
+    "system_created",
     "id",
+    "count(triggers) as triggers_count",
+    "count(events) as events_count",
 ]
 
 
@@ -110,6 +160,77 @@ class Task(ResourceObject):
     def task_id(self) -> str:
         """Get unique task ID (40-char hex string)."""
         return str(self.get("id", ""))
+
+    @property
+    def owner_table(self) -> str | None:
+        """Get owner table name (resource type)."""
+        return self.get("table")
+
+    @property
+    def action_type(self) -> str | None:
+        """Get the action type this task performs."""
+        return self.get("action")
+
+    @property
+    def action_display_name(self) -> str | None:
+        """Get human-readable action description."""
+        return self.get("action_display")
+
+    @property
+    def is_delete_after_run(self) -> bool:
+        """Check if task deletes itself after running."""
+        return bool(self.get("delete_after_run", False))
+
+    @property
+    def is_system_created(self) -> bool:
+        """Check if task was created by system."""
+        return bool(self.get("system_created", False))
+
+    @property
+    def trigger_count(self) -> int:
+        """Get number of schedule triggers."""
+        return int(self.get("triggers_count", 0))
+
+    @property
+    def event_count(self) -> int:
+        """Get number of event triggers."""
+        return int(self.get("events_count", 0))
+
+    @property
+    def triggers(self) -> TaskScheduleTriggerManager:
+        """Get trigger manager scoped to this task.
+
+        Returns:
+            TaskScheduleTriggerManager for this task's triggers.
+
+        Example:
+            >>> for trigger in task.triggers.list():
+            ...     print(f"Schedule: {trigger.schedule_display}")
+        """
+        from typing import cast
+
+        from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
+
+        manager = cast("TaskManager", self._manager)
+        return TaskScheduleTriggerManager(manager._client, task_key=self.key)
+
+    @property
+    def events(self) -> TaskEventManager:
+        """Get event manager scoped to this task.
+
+        Returns:
+            TaskEventManager for this task's events.
+
+        Example:
+            >>> for event in task.events.list():
+            ...     print(f"Event: {event.event_name_display}")
+        """
+        from typing import cast
+
+        from pyvergeos.resources.task_events import TaskEventManager
+
+        manager = cast("TaskManager", self._manager)
+        return TaskEventManager(manager._client, task_key=self.key)
 
     def enable(self) -> Task:
         """Enable this task.
@@ -554,3 +675,208 @@ class TaskManager(ResourceManager[Task]):
         """
         self.action(key, "cancel")
         return self.get(key)
+
+    def create(  # type: ignore[override]
+        self,
+        name: str,
+        owner: int,
+        action: str,
+        *,
+        table: str | None = None,
+        description: str | None = None,
+        enabled: bool = True,
+        delete_after_run: bool = False,
+        settings_args: dict[str, Any] | None = None,
+    ) -> Task:
+        """Create a new task.
+
+        Args:
+            name: Task name (required).
+            owner: Owner resource $key (required).
+            action: Action type to perform (required).
+            table: Owner table name (usually auto-detected).
+            description: Task description.
+            enabled: Whether task is enabled (default True).
+            delete_after_run: Delete task after execution (default False).
+            settings_args: Task settings arguments (JSON).
+
+        Returns:
+            Created Task object.
+
+        Example:
+            >>> # Create a snapshot task for a VM
+            >>> task = client.tasks.create(
+            ...     name="Daily Snapshot",
+            ...     owner=vm.key,
+            ...     action="snapshot",
+            ...     description="Daily snapshot of production VM",
+            ... )
+
+            >>> # Create a one-time task that deletes itself
+            >>> task = client.tasks.create(
+            ...     name="One-time Backup",
+            ...     owner=vm.key,
+            ...     action="snapshot",
+            ...     delete_after_run=True,
+            ... )
+        """
+        body: dict[str, Any] = {
+            "name": name,
+            "owner": owner,
+            "action": action,
+            "enabled": enabled,
+            "delete_after_run": delete_after_run,
+        }
+
+        if table is not None:
+            body["table"] = table
+        if description is not None:
+            body["description"] = description
+        if settings_args is not None:
+            body["settings_args"] = settings_args
+
+        response = self._client._request("POST", self._endpoint, json_data=body)
+
+        if response is None:
+            raise ValueError("No response from create operation")
+        if not isinstance(response, dict):
+            raise ValueError("Create operation returned invalid response")
+
+        # Get the full object
+        key = response.get("$key")
+        if key is not None:
+            return self.get(int(key))
+
+        return self._to_model(response)
+
+    def update(  # type: ignore[override]
+        self,
+        key: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        enabled: bool | None = None,
+        delete_after_run: bool | None = None,
+        settings_args: dict[str, Any] | None = None,
+    ) -> Task:
+        """Update an existing task.
+
+        Args:
+            key: Task $key (ID).
+            name: New name.
+            description: New description.
+            enabled: Enable/disable task.
+            delete_after_run: Update delete after run setting.
+            settings_args: New task settings.
+
+        Returns:
+            Updated Task object.
+
+        Example:
+            >>> task = client.tasks.update(
+            ...     task.key,
+            ...     description="Updated description",
+            ...     enabled=False,
+            ... )
+        """
+        body: dict[str, Any] = {}
+
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if enabled is not None:
+            body["enabled"] = enabled
+        if delete_after_run is not None:
+            body["delete_after_run"] = delete_after_run
+        if settings_args is not None:
+            body["settings_args"] = settings_args
+
+        if not body:
+            return self.get(key)
+
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
+        return self.get(key)
+
+    def delete(self, key: int) -> None:
+        """Delete a task.
+
+        Removes the task and its associated triggers and events.
+
+        Args:
+            key: Task $key (ID).
+
+        Example:
+            >>> client.tasks.delete(task.key)
+        """
+        self._client._request("DELETE", f"{self._endpoint}/{key}")
+
+    def triggers(self, key: int) -> TaskScheduleTriggerManager:
+        """Get trigger manager scoped to a specific task.
+
+        Args:
+            key: Task $key (ID).
+
+        Returns:
+            TaskScheduleTriggerManager for the task.
+
+        Example:
+            >>> for trigger in client.tasks.triggers(task.key).list():
+            ...     print(f"Schedule: {trigger.schedule_display}")
+        """
+        from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
+
+        return TaskScheduleTriggerManager(self._client, task_key=key)
+
+    def events(self, key: int) -> TaskEventManager:
+        """Get event manager scoped to a specific task.
+
+        Args:
+            key: Task $key (ID).
+
+        Returns:
+            TaskEventManager for the task.
+
+        Example:
+            >>> for event in client.tasks.events(task.key).list():
+            ...     print(f"Event: {event.event_name_display}")
+        """
+        from pyvergeos.resources.task_events import TaskEventManager
+
+        return TaskEventManager(self._client, task_key=key)
+
+    def list_by_owner(
+        self,
+        owner_key: int,
+        fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+    ) -> builtins.list[Task]:
+        """List tasks for a specific owner resource.
+
+        Args:
+            owner_key: Owner resource $key.
+            fields: List of fields to return.
+            limit: Maximum number of results.
+
+        Returns:
+            List of Task objects.
+        """
+        return self.list(filter=f"owner eq {owner_key}", fields=fields, limit=limit)
+
+    def list_by_action(
+        self,
+        action: str,
+        fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+    ) -> builtins.list[Task]:
+        """List tasks by action type.
+
+        Args:
+            action: Action type (e.g., "snapshot", "poweron").
+            fields: List of fields to return.
+            limit: Maximum number of results.
+
+        Returns:
+            List of Task objects.
+        """
+        return self.list(filter=f"action eq '{action}'", fields=fields, limit=limit)

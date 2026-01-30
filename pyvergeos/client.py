@@ -56,6 +56,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.system import SystemManager
     from pyvergeos.resources.tags import TagCategoryManager, TagManager
+    from pyvergeos.resources.task_events import TaskEventManager
+    from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
+    from pyvergeos.resources.task_schedules import TaskScheduleManager
+    from pyvergeos.resources.task_scripts import TaskScriptManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenant_manager import TenantManager
     from pyvergeos.resources.tenant_recipes import (
@@ -185,6 +189,10 @@ class VergeClient:
         self._tenant_recipe_logs: TenantRecipeLogManager | None = None
         self._recipe_questions: RecipeQuestionManager | None = None
         self._recipe_sections: RecipeSectionManager | None = None
+        self._task_schedules: TaskScheduleManager | None = None
+        self._task_schedule_triggers: TaskScheduleTriggerManager | None = None
+        self._task_events: TaskEventManager | None = None
+        self._task_scripts: TaskScriptManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1106,3 +1114,113 @@ class VergeClient:
 
             self._recipe_sections = RecipeSectionManager(self)
         return self._recipe_sections
+
+    @property
+    def task_schedules(self) -> TaskScheduleManager:
+        """Access task schedule operations.
+
+        Task schedules define when scheduled tasks should run. They support
+        various repeat intervals (minute, hour, day, week, month, year).
+
+        Example:
+            >>> # List all schedules
+            >>> for schedule in client.task_schedules.list():
+            ...     print(f"{schedule.name}: {schedule.repeat_every_display}")
+
+            >>> # Create a daily schedule
+            >>> schedule = client.task_schedules.create(
+            ...     name="Nightly Backup",
+            ...     repeat_every="day",
+            ...     start_time_of_day=7200,  # 2 AM
+            ... )
+
+            >>> # Get upcoming execution times
+            >>> times = schedule.get_schedule(max_results=10)
+        """
+        if self._task_schedules is None:
+            from pyvergeos.resources.task_schedules import TaskScheduleManager
+
+            self._task_schedules = TaskScheduleManager(self)
+        return self._task_schedules
+
+    @property
+    def task_schedule_triggers(self) -> TaskScheduleTriggerManager:
+        """Access task schedule trigger operations.
+
+        Task schedule triggers link tasks to schedules. When a schedule fires,
+        all linked tasks are executed.
+
+        Example:
+            >>> # List all triggers
+            >>> for trigger in client.task_schedule_triggers.list():
+            ...     print(f"{trigger.task_display} -> {trigger.schedule_display}")
+
+            >>> # Link a task to a schedule
+            >>> trigger = client.task_schedule_triggers.create(
+            ...     task=task.key,
+            ...     schedule=schedule.key,
+            ... )
+
+            >>> # List triggers for a specific task
+            >>> triggers = client.task_schedule_triggers.list(task=task.key)
+        """
+        if self._task_schedule_triggers is None:
+            from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
+
+            self._task_schedule_triggers = TaskScheduleTriggerManager(self)
+        return self._task_schedule_triggers
+
+    @property
+    def task_events(self) -> TaskEventManager:
+        """Access task event operations.
+
+        Task events enable event-driven automation by linking tasks to system
+        events. When a specific event occurs on a resource, linked tasks execute.
+
+        Example:
+            >>> # List all task events
+            >>> for event in client.task_events.list():
+            ...     print(f"{event.event_name_display}: {event.task_display}")
+
+            >>> # List events for a specific task
+            >>> events = client.task_events.list(task=task.key)
+
+            >>> # List events for VMs only
+            >>> events = client.task_events.list(table="vms")
+
+            >>> # Manually trigger an event
+            >>> client.task_events.trigger(event.key, context={"key": "value"})
+        """
+        if self._task_events is None:
+            from pyvergeos.resources.task_events import TaskEventManager
+
+            self._task_events = TaskEventManager(self)
+        return self._task_events
+
+    @property
+    def task_scripts(self) -> TaskScriptManager:
+        """Access task script operations.
+
+        Task scripts are GCS (VergeOS scripting) code that can be executed
+        as tasks. Scripts can define questions that are prompted when running.
+
+        Example:
+            >>> # List all scripts
+            >>> for script in client.task_scripts.list():
+            ...     print(f"{script.name}: {script.task_count} tasks")
+
+            >>> # Create a script
+            >>> script = client.task_scripts.create(
+            ...     name="Cleanup Script",
+            ...     script="log('Cleanup started')",
+            ...     task_settings={"questions": []},
+            ... )
+
+            >>> # Run a script
+            >>> result = script.run()
+        """
+        if self._task_scripts is None:
+            from pyvergeos.resources.task_scripts import TaskScriptManager
+
+            self._task_scripts = TaskScriptManager(self)
+        return self._task_scripts
