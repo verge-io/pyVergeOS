@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.dns import DNSZoneManager
     from pyvergeos.resources.hosts import NetworkHostManager
     from pyvergeos.resources.ipsec import IPSecConnectionManager
+    from pyvergeos.resources.routing import NetworkRoutingManager
     from pyvergeos.resources.rules import NetworkRuleManager
     from pyvergeos.resources.wireguard import WireGuardManager
 
@@ -418,6 +419,58 @@ class Network(ResourceObject):
 
         return WireGuardManager(self._manager._client, self)
 
+    @property
+    def routing(self) -> NetworkRoutingManager:
+        """Access routing protocols (BGP, OSPF, EIGRP) for this network.
+
+        Returns:
+            NetworkRoutingManager for this network.
+
+        Examples:
+            Configure BGP::
+
+                # Create a BGP router
+                bgp = network.routing.bgp_routers.create(asn=65000)
+
+                # Add a neighbor
+                bgp.commands.create(
+                    command="neighbor",
+                    params="192.168.1.1 remote-as 65001"
+                )
+
+            Configure OSPF::
+
+                # Set router ID
+                network.routing.ospf_commands.create(
+                    command="router-id",
+                    params="1.1.1.1"
+                )
+
+                # Add network to area 0
+                network.routing.ospf_commands.create(
+                    command="network",
+                    params="10.0.0.0/24 area 0"
+                )
+
+            Configure EIGRP::
+
+                # Create an EIGRP router
+                eigrp = network.routing.eigrp_routers.create(asn=100)
+
+                # Add network
+                eigrp.commands.create(
+                    command="network",
+                    params="10.0.0.0/24"
+                )
+
+        Note:
+            Routing configuration changes require restarting the network
+            for changes to take effect.
+        """
+        from pyvergeos.resources.routing import NetworkRoutingManager
+
+        return NetworkRoutingManager(self._manager._client, self)
+
     def diagnostics(
         self,
         diagnostic_type: DiagnosticType = "all",
@@ -559,9 +612,7 @@ class NetworkManager(ResourceManager[Network]):
     def _to_model(self, data: dict[str, Any]) -> Network:
         return Network(data, self)
 
-    def _power_action(
-        self, key: int, action: str, **params: Any
-    ) -> dict[str, Any] | None:
+    def _power_action(self, key: int, action: str, **params: Any) -> dict[str, Any] | None:
         """Execute a power action on a network.
 
         Uses the vnet_actions endpoint for power operations.
@@ -811,9 +862,7 @@ class NetworkManager(ResourceManager[Network]):
                 "fields": "$key,ip,mac,hostname,expiration,vendor",
                 "sort": "ip",
             }
-            lease_response = self._client._request(
-                "GET", "vnet_addresses", params=lease_params
-            )
+            lease_response = self._client._request("GET", "vnet_addresses", params=lease_params)
 
             leases: builtins.list[dict[str, Any]] = []
             if lease_response:
@@ -831,9 +880,7 @@ class NetworkManager(ResourceManager[Network]):
                                 "mac": lease.get("mac"),
                                 "hostname": lease.get("hostname"),
                                 "vendor": lease.get("vendor"),
-                                "expiration": _timestamp_to_datetime(
-                                    lease.get("expiration")
-                                ),
+                                "expiration": _timestamp_to_datetime(lease.get("expiration")),
                             }
                         )
 
@@ -847,9 +894,7 @@ class NetworkManager(ResourceManager[Network]):
                 "fields": "$key,ip,mac,hostname,type,expiration,vendor,description",
                 "sort": "ip",
             }
-            address_response = self._client._request(
-                "GET", "vnet_addresses", params=address_params
-            )
+            address_response = self._client._request("GET", "vnet_addresses", params=address_params)
 
             addresses: builtins.list[dict[str, Any]] = []
             if address_response:
@@ -871,9 +916,7 @@ class NetworkManager(ResourceManager[Network]):
                                 "type_raw": addr_type,
                                 "vendor": addr.get("vendor"),
                                 "description": addr.get("description"),
-                                "expiration": _timestamp_to_datetime(
-                                    addr.get("expiration")
-                                ),
+                                "expiration": _timestamp_to_datetime(addr.get("expiration")),
                             }
                         )
 
@@ -979,9 +1022,7 @@ class NetworkManager(ResourceManager[Network]):
                         latency_peak = entry.get("latency_usec_peak", 0)
                         history.append(
                             {
-                                "timestamp": _timestamp_to_datetime(
-                                    entry.get("timestamp")
-                                ),
+                                "timestamp": _timestamp_to_datetime(entry.get("timestamp")),
                                 "sent": entry.get("sent"),
                                 "dropped": entry.get("dropped"),
                                 "quality": entry.get("quality"),
