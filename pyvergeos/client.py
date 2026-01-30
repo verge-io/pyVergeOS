@@ -40,6 +40,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.permissions import PermissionManager
+    from pyvergeos.resources.recipe_common import (
+        RecipeQuestionManager,
+        RecipeSectionManager,
+    )
     from pyvergeos.resources.resource_groups import ResourceGroupManager
     from pyvergeos.resources.shared_objects import SharedObjectManager
     from pyvergeos.resources.site_syncs import (
@@ -54,8 +58,18 @@ if TYPE_CHECKING:
     from pyvergeos.resources.tags import TagCategoryManager, TagManager
     from pyvergeos.resources.tasks import TaskManager
     from pyvergeos.resources.tenant_manager import TenantManager
+    from pyvergeos.resources.tenant_recipes import (
+        TenantRecipeInstanceManager,
+        TenantRecipeLogManager,
+        TenantRecipeManager,
+    )
     from pyvergeos.resources.users import UserManager
     from pyvergeos.resources.vm_imports import VmImportLogManager, VmImportManager
+    from pyvergeos.resources.vm_recipes import (
+        VmRecipeInstanceManager,
+        VmRecipeLogManager,
+        VmRecipeManager,
+    )
     from pyvergeos.resources.vms import VMManager
     from pyvergeos.resources.volume_vm_exports import (
         VolumeVmExportManager,
@@ -163,6 +177,14 @@ class VergeClient:
         self._vm_import_logs: VmImportLogManager | None = None
         self._volume_vm_exports: VolumeVmExportManager | None = None
         self._volume_vm_export_stats: VolumeVmExportStatManager | None = None
+        self._vm_recipes: VmRecipeManager | None = None
+        self._vm_recipe_instances: VmRecipeInstanceManager | None = None
+        self._vm_recipe_logs: VmRecipeLogManager | None = None
+        self._tenant_recipes: TenantRecipeManager | None = None
+        self._tenant_recipe_instances: TenantRecipeInstanceManager | None = None
+        self._tenant_recipe_logs: TenantRecipeLogManager | None = None
+        self._recipe_questions: RecipeQuestionManager | None = None
+        self._recipe_sections: RecipeSectionManager | None = None
 
         if auto_connect:
             self.connect()
@@ -913,3 +935,174 @@ class VergeClient:
 
             self._volume_vm_export_stats = VolumeVmExportStatManager(self)
         return self._volume_vm_export_stats
+
+    @property
+    def vm_recipes(self) -> VmRecipeManager:
+        """Access VM recipe operations for automated VM provisioning.
+
+        VM recipes are templates that can be deployed to create new VMs
+        with pre-configured settings and software.
+
+        Example:
+            >>> # List all VM recipes
+            >>> for recipe in client.vm_recipes.list():
+            ...     print(f"{recipe.name}: {recipe.version}")
+
+            >>> # Get a specific recipe
+            >>> recipe = client.vm_recipes.get(name="Ubuntu Server")
+
+            >>> # Deploy a recipe
+            >>> instance = recipe.deploy("my-ubuntu", answers={"ram": 4096})
+        """
+        if self._vm_recipes is None:
+            from pyvergeos.resources.vm_recipes import VmRecipeManager
+
+            self._vm_recipes = VmRecipeManager(self)
+        return self._vm_recipes
+
+    @property
+    def vm_recipe_instances(self) -> VmRecipeInstanceManager:
+        """Access VM recipe instance operations.
+
+        VM recipe instances represent deployed VMs created from recipes.
+
+        Example:
+            >>> # List all VM recipe instances
+            >>> for inst in client.vm_recipe_instances.list():
+            ...     print(f"{inst.name}: {inst.version}")
+
+            >>> # List instances for a specific recipe
+            >>> insts = client.vm_recipe_instances.list(recipe="8f73f8bcc9...")
+        """
+        if self._vm_recipe_instances is None:
+            from pyvergeos.resources.vm_recipes import VmRecipeInstanceManager
+
+            self._vm_recipe_instances = VmRecipeInstanceManager(self)
+        return self._vm_recipe_instances
+
+    @property
+    def vm_recipe_logs(self) -> VmRecipeLogManager:
+        """Access VM recipe log operations.
+
+        VM recipe logs provide detailed progress and error information
+        for recipe operations.
+
+        Example:
+            >>> # List all recipe logs
+            >>> for log in client.vm_recipe_logs.list():
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.vm_recipe_logs.list_errors()
+        """
+        if self._vm_recipe_logs is None:
+            from pyvergeos.resources.vm_recipes import VmRecipeLogManager
+
+            self._vm_recipe_logs = VmRecipeLogManager(self)
+        return self._vm_recipe_logs
+
+    @property
+    def tenant_recipes(self) -> TenantRecipeManager:
+        """Access tenant recipe operations for automated tenant provisioning.
+
+        Tenant recipes are templates that can be deployed to create new
+        tenants with pre-configured settings and resources.
+
+        Example:
+            >>> # List all tenant recipes
+            >>> for recipe in client.tenant_recipes.list():
+            ...     print(f"{recipe.name}: {recipe.version}")
+
+            >>> # Get a specific recipe
+            >>> recipe = client.tenant_recipes.get(name="Standard Tenant")
+
+            >>> # Deploy a recipe
+            >>> instance = recipe.deploy("my-tenant", answers={"storage_gb": 500})
+        """
+        if self._tenant_recipes is None:
+            from pyvergeos.resources.tenant_recipes import TenantRecipeManager
+
+            self._tenant_recipes = TenantRecipeManager(self)
+        return self._tenant_recipes
+
+    @property
+    def tenant_recipe_instances(self) -> TenantRecipeInstanceManager:
+        """Access tenant recipe instance operations.
+
+        Tenant recipe instances represent deployed tenants created from recipes.
+
+        Example:
+            >>> # List all tenant recipe instances
+            >>> for inst in client.tenant_recipe_instances.list():
+            ...     print(f"{inst.name}: {inst.version}")
+
+            >>> # List instances for a specific recipe
+            >>> insts = client.tenant_recipe_instances.list(recipe="8f73f8bcc9...")
+        """
+        if self._tenant_recipe_instances is None:
+            from pyvergeos.resources.tenant_recipes import TenantRecipeInstanceManager
+
+            self._tenant_recipe_instances = TenantRecipeInstanceManager(self)
+        return self._tenant_recipe_instances
+
+    @property
+    def tenant_recipe_logs(self) -> TenantRecipeLogManager:
+        """Access tenant recipe log operations.
+
+        Tenant recipe logs provide detailed progress and error information
+        for recipe operations.
+
+        Example:
+            >>> # List all recipe logs
+            >>> for log in client.tenant_recipe_logs.list():
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.tenant_recipe_logs.list_errors()
+        """
+        if self._tenant_recipe_logs is None:
+            from pyvergeos.resources.tenant_recipes import TenantRecipeLogManager
+
+            self._tenant_recipe_logs = TenantRecipeLogManager(self)
+        return self._tenant_recipe_logs
+
+    @property
+    def recipe_questions(self) -> RecipeQuestionManager:
+        """Access recipe question operations.
+
+        Recipe questions define the configuration options available when
+        deploying a recipe. Questions are organized into sections.
+
+        Example:
+            >>> # List all questions for a VM recipe
+            >>> questions = client.recipe_questions.list(
+            ...     recipe_ref="vm_recipes/8f73f8bcc9..."
+            ... )
+            >>> for q in questions:
+            ...     print(f"{q.name}: {q.question_type}")
+        """
+        if self._recipe_questions is None:
+            from pyvergeos.resources.recipe_common import RecipeQuestionManager
+
+            self._recipe_questions = RecipeQuestionManager(self)
+        return self._recipe_questions
+
+    @property
+    def recipe_sections(self) -> RecipeSectionManager:
+        """Access recipe section operations.
+
+        Recipe sections organize questions into logical groups.
+
+        Example:
+            >>> # List all sections for a VM recipe
+            >>> sections = client.recipe_sections.list(
+            ...     recipe_ref="vm_recipes/8f73f8bcc9..."
+            ... )
+            >>> for s in sections:
+            ...     print(f"{s.name}: {s.description}")
+        """
+        if self._recipe_sections is None:
+            from pyvergeos.resources.recipe_common import RecipeSectionManager
+
+            self._recipe_sections = RecipeSectionManager(self)
+        return self._recipe_sections
