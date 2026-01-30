@@ -24,6 +24,13 @@ from pyvergeos.exceptions import (
 if TYPE_CHECKING:
     from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
+    from pyvergeos.resources.catalogs import (
+        CatalogLogManager,
+        CatalogManager,
+        CatalogRepositoryLogManager,
+        CatalogRepositoryManager,
+        CatalogRepositoryStatusManager,
+    )
     from pyvergeos.resources.certificates import CertificateManager
     from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
     from pyvergeos.resources.cloudinit_files import CloudInitFileManager
@@ -193,6 +200,11 @@ class VergeClient:
         self._task_schedule_triggers: TaskScheduleTriggerManager | None = None
         self._task_events: TaskEventManager | None = None
         self._task_scripts: TaskScriptManager | None = None
+        self._catalog_repositories: CatalogRepositoryManager | None = None
+        self._catalogs: CatalogManager | None = None
+        self._catalog_logs: CatalogLogManager | None = None
+        self._catalog_repository_logs: CatalogRepositoryLogManager | None = None
+        self._catalog_repository_status: CatalogRepositoryStatusManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1224,3 +1236,116 @@ class VergeClient:
 
             self._task_scripts = TaskScriptManager(self)
         return self._task_scripts
+
+    @property
+    def catalog_repositories(self) -> CatalogRepositoryManager:
+        """Access catalog repository operations.
+
+        Catalog repositories define where catalogs and recipes are sourced from.
+        Types include local, remote, git, and Verge.io marketplace.
+
+        Example:
+            >>> # List all repositories
+            >>> for repo in client.catalog_repositories.list():
+            ...     print(f"{repo.name} ({repo.type})")
+
+            >>> # Get the Verge.io marketplace
+            >>> marketplace = client.catalog_repositories.get(name="Verge.io Recipes")
+
+            >>> # Refresh a repository
+            >>> repo.refresh()
+
+            >>> # List catalogs in a repository
+            >>> for catalog in repo.catalogs.list():
+            ...     print(f"  {catalog.name}")
+        """
+        if self._catalog_repositories is None:
+            from pyvergeos.resources.catalogs import CatalogRepositoryManager
+
+            self._catalog_repositories = CatalogRepositoryManager(self)
+        return self._catalog_repositories
+
+    @property
+    def catalogs(self) -> CatalogManager:
+        """Access catalog operations.
+
+        Catalogs organize recipes into logical groups within repositories.
+
+        Example:
+            >>> # List all catalogs
+            >>> for catalog in client.catalogs.list():
+            ...     print(f"{catalog.name}: {catalog.description}")
+
+            >>> # List catalogs in a specific repository
+            >>> for catalog in client.catalogs.list(repository=1):
+            ...     print(f"{catalog.name}")
+
+            >>> # Get a specific catalog
+            >>> catalog = client.catalogs.get(name="VergeOS Recipes")
+        """
+        if self._catalogs is None:
+            from pyvergeos.resources.catalogs import CatalogManager
+
+            self._catalogs = CatalogManager(self)
+        return self._catalogs
+
+    @property
+    def catalog_logs(self) -> CatalogLogManager:
+        """Access catalog log operations.
+
+        Catalog logs provide activity history for catalog operations.
+
+        Example:
+            >>> # List all catalog logs
+            >>> for log in client.catalog_logs.list():
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.catalog_logs.list_errors()
+        """
+        if self._catalog_logs is None:
+            from pyvergeos.resources.catalogs import CatalogLogManager
+
+            self._catalog_logs = CatalogLogManager(self)
+        return self._catalog_logs
+
+    @property
+    def catalog_repository_logs(self) -> CatalogRepositoryLogManager:
+        """Access catalog repository log operations.
+
+        Repository logs provide activity history for repository operations
+        including refresh, download, and sync activities.
+
+        Example:
+            >>> # List all repository logs
+            >>> for log in client.catalog_repository_logs.list():
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.catalog_repository_logs.list_errors()
+        """
+        if self._catalog_repository_logs is None:
+            from pyvergeos.resources.catalogs import CatalogRepositoryLogManager
+
+            self._catalog_repository_logs = CatalogRepositoryLogManager(self)
+        return self._catalog_repository_logs
+
+    @property
+    def catalog_repository_status(self) -> CatalogRepositoryStatusManager:
+        """Access catalog repository status operations.
+
+        Repository status provides current operational state information.
+
+        Example:
+            >>> # List all repository statuses
+            >>> for status in client.catalog_repository_status.list():
+            ...     print(f"{status.repository_key}: {status.status}")
+
+            >>> # Get status for a specific repository
+            >>> status = client.catalog_repository_status.get_for_repository(1)
+        """
+        if self._catalog_repository_status is None:
+            from pyvergeos.resources.catalogs import CatalogRepositoryStatusManager
+
+            self._catalog_repository_status = CatalogRepositoryStatusManager(self)
+        return self._catalog_repository_status
