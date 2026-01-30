@@ -11,13 +11,11 @@ from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.networks import Network
 from pyvergeos.resources.routing import (
     BGPInterface,
-    BGPInterfaceCommand,
     BGPInterfaceCommandManager,
     BGPInterfaceManager,
     BGPIPCommand,
     BGPIPCommandManager,
     BGPRouteMap,
-    BGPRouteMapCommand,
     BGPRouteMapCommandManager,
     BGPRouteMapManager,
     BGPRouter,
