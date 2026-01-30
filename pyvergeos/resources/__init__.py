@@ -30,6 +30,12 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshotManager,
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
+from pyvergeos.resources.recipe_common import (
+    RecipeQuestion,
+    RecipeQuestionManager,
+    RecipeSection,
+    RecipeSectionManager,
+)
 from pyvergeos.resources.resource_groups import ResourceGroup, ResourceGroupManager
 from pyvergeos.resources.shared_objects import SharedObject, SharedObjectManager
 from pyvergeos.resources.site_syncs import (
@@ -65,8 +71,24 @@ from pyvergeos.resources.tenant_network_blocks import (
     TenantNetworkBlock,
     TenantNetworkBlockManager,
 )
+from pyvergeos.resources.tenant_recipes import (
+    TenantRecipe,
+    TenantRecipeInstance,
+    TenantRecipeInstanceManager,
+    TenantRecipeLog,
+    TenantRecipeLogManager,
+    TenantRecipeManager,
+)
 from pyvergeos.resources.tenant_snapshots import TenantSnapshot, TenantSnapshotManager
 from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
+from pyvergeos.resources.vm_recipes import (
+    VmRecipe,
+    VmRecipeInstance,
+    VmRecipeInstanceManager,
+    VmRecipeLog,
+    VmRecipeLogManager,
+    VmRecipeManager,
+)
 from pyvergeos.resources.webhooks import Webhook, WebhookHistory, WebhookManager
 
 __all__ = [
@@ -142,4 +164,20 @@ __all__ = [
     "Webhook",
     "WebhookHistory",
     "WebhookManager",
+    "VmRecipe",
+    "VmRecipeInstance",
+    "VmRecipeInstanceManager",
+    "VmRecipeLog",
+    "VmRecipeLogManager",
+    "VmRecipeManager",
+    "TenantRecipe",
+    "TenantRecipeInstance",
+    "TenantRecipeInstanceManager",
+    "TenantRecipeLog",
+    "TenantRecipeLogManager",
+    "TenantRecipeManager",
+    "RecipeQuestion",
+    "RecipeQuestionManager",
+    "RecipeSection",
+    "RecipeSectionManager",
 ]
