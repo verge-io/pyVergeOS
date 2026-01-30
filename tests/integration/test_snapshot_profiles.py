@@ -98,9 +98,7 @@ class TestSnapshotProfileGetIntegration:
             pytest.skip("No snapshot profiles available for testing")
 
         profile = profiles[0]
-        fetched = live_client.snapshot_profiles.get(
-            profile.key, include_periods=True
-        )
+        fetched = live_client.snapshot_profiles.get(profile.key, include_periods=True)
 
         assert fetched.periods is not None
         assert isinstance(fetched.periods, list)
@@ -141,9 +139,7 @@ class TestSnapshotProfileCRUDIntegration:
         with pytest.raises(NotFoundError):
             live_client.snapshot_profiles.get(name=test_profile_name)
 
-    def test_update_profile(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_update_profile(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test updating a profile."""
         # Create profile
         profile = live_client.snapshot_profiles.create(
@@ -167,9 +163,7 @@ class TestSnapshotProfileCRUDIntegration:
             # Cleanup
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_profile_save_method(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_profile_save_method(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test profile save() method."""
         # Create profile
         profile = live_client.snapshot_profiles.create(
@@ -185,9 +179,7 @@ class TestSnapshotProfileCRUDIntegration:
             # Cleanup
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_profile_delete_method(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_profile_delete_method(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test profile delete() method."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
@@ -255,9 +247,7 @@ class TestSnapshotProfilePeriodIntegration:
             # Cleanup profile
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_add_period_via_profile(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_add_period_via_profile(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test adding a period via profile.add_period()."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
@@ -288,9 +278,7 @@ class TestSnapshotProfilePeriodIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_multiple_periods(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_multiple_periods(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test creating multiple periods on a profile."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
@@ -327,9 +315,7 @@ class TestSnapshotProfilePeriodIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_update_period(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_update_period(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test updating a period."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
@@ -353,9 +339,7 @@ class TestSnapshotProfilePeriodIntegration:
             assert updated.quiesce is True
 
             # Verify update persisted
-            fetched = live_client.snapshot_profiles.periods(profile.key).get(
-                period.key
-            )
+            fetched = live_client.snapshot_profiles.periods(profile.key).get(period.key)
             assert fetched.min_snapshots == 5
         finally:
             # Cleanup
@@ -363,9 +347,7 @@ class TestSnapshotProfilePeriodIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_period_save_method(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_period_save_method(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test period save() method."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
@@ -387,9 +369,7 @@ class TestSnapshotProfilePeriodIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_get_period_by_name(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_get_period_by_name(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test getting a period by name."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
@@ -403,9 +383,7 @@ class TestSnapshotProfilePeriodIntegration:
             )
 
             # Get by name
-            fetched = live_client.snapshot_profiles.periods(profile.key).get(
-                name="Daily"
-            )
+            fetched = live_client.snapshot_profiles.periods(profile.key).get(name="Daily")
             assert fetched.name == "Daily"
         finally:
             # Cleanup
@@ -413,18 +391,14 @@ class TestSnapshotProfilePeriodIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_period_not_found(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_period_not_found(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test getting a non-existent period."""
         # Create profile
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
 
         try:
             with pytest.raises(NotFoundError):
-                live_client.snapshot_profiles.periods(profile.key).get(
-                    name="NonExistent"
-                )
+                live_client.snapshot_profiles.periods(profile.key).get(name="NonExistent")
         finally:
             live_client.snapshot_profiles.delete(profile.key)
 
@@ -433,9 +407,7 @@ class TestSnapshotProfilePeriodIntegration:
 class TestSnapshotProfilePeriodOptionsIntegration:
     """Integration tests for period schedule options."""
 
-    def test_period_with_quiesce(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_period_with_quiesce(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test creating a period with quiesce enabled."""
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
 
@@ -473,9 +445,7 @@ class TestSnapshotProfilePeriodOptionsIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_period_with_max_tier(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_period_with_max_tier(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test creating a period with max_tier set."""
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
 
@@ -513,9 +483,7 @@ class TestSnapshotProfilePeriodOptionsIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_weekly_period_with_day(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_weekly_period_with_day(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test creating a weekly period with specific day."""
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
 
@@ -539,9 +507,7 @@ class TestSnapshotProfilePeriodOptionsIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_monthly_period(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
+    def test_monthly_period(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test creating a monthly period."""
         profile = live_client.snapshot_profiles.create(name=test_profile_name)
 

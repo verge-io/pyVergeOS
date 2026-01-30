@@ -53,9 +53,7 @@ def vm_recipe_log_manager(mock_client):
 @pytest.fixture
 def scoped_log_manager(mock_client):
     """Create a scoped VmRecipeLogManager with mock client."""
-    return VmRecipeLogManager(
-        mock_client, recipe_key="8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-    )
+    return VmRecipeLogManager(mock_client, recipe_key="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
 
 @pytest.fixture
@@ -229,9 +227,7 @@ class TestVmRecipeManagerList:
         assert "filter" in args[1]["params"]
         assert args[1]["params"]["filter"] == "name eq 'Ubuntu Server'"
 
-    def test_list_with_downloaded_filter(
-        self, vm_recipe_manager, mock_client, sample_vm_recipe
-    ):
+    def test_list_with_downloaded_filter(self, vm_recipe_manager, mock_client, sample_vm_recipe):
         """Test listing with downloaded filter."""
         mock_client._request.return_value = [sample_vm_recipe]
 
@@ -404,9 +400,7 @@ class TestVmRecipeInstance:
 class TestVmRecipeInstanceManagerList:
     """Tests for VmRecipeInstanceManager.list()."""
 
-    def test_list_all(
-        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
-    ):
+    def test_list_all(self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance):
         """Test listing all instances."""
         mock_client._request.return_value = [sample_vm_recipe_instance]
 
@@ -443,9 +437,7 @@ class TestVmRecipeInstanceManagerList:
 class TestVmRecipeInstanceManagerGet:
     """Tests for VmRecipeInstanceManager.get()."""
 
-    def test_get_by_key(
-        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
-    ):
+    def test_get_by_key(self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance):
         """Test getting instance by key."""
         mock_client._request.return_value = sample_vm_recipe_instance
 
@@ -456,9 +448,7 @@ class TestVmRecipeInstanceManagerGet:
         assert args[0][0] == "GET"
         assert args[0][1] == "vm_recipe_instances/1"
 
-    def test_get_by_name(
-        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
-    ):
+    def test_get_by_name(self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance):
         """Test getting instance by name."""
         mock_client._request.return_value = [sample_vm_recipe_instance]
 
@@ -484,9 +474,7 @@ class TestVmRecipeInstanceManagerGet:
 class TestVmRecipeInstanceManagerCreate:
     """Tests for VmRecipeInstanceManager.create()."""
 
-    def test_create(
-        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
-    ):
+    def test_create(self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance):
         """Test creating a recipe instance."""
         mock_client._request.side_effect = [
             {"$key": 1},  # Create
@@ -591,9 +579,7 @@ class TestVmRecipeLogManagerList:
 
         assert result == []
 
-    def test_list_scoped_to_recipe(
-        self, scoped_log_manager, mock_client, sample_vm_recipe_log
-    ):
+    def test_list_scoped_to_recipe(self, scoped_log_manager, mock_client, sample_vm_recipe_log):
         """Test listing logs scoped to a recipe."""
         mock_client._request.return_value = [sample_vm_recipe_log]
 
@@ -601,11 +587,11 @@ class TestVmRecipeLogManagerList:
 
         assert len(result) == 1
         args = mock_client._request.call_args
-        assert "vm_recipe eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
+        assert (
+            "vm_recipe eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
+        )
 
-    def test_list_with_level_filter(
-        self, vm_recipe_log_manager, mock_client, sample_vm_recipe_log
-    ):
+    def test_list_with_level_filter(self, vm_recipe_log_manager, mock_client, sample_vm_recipe_log):
         """Test listing with level filter."""
         sample_vm_recipe_log["level"] = "error"
         mock_client._request.return_value = [sample_vm_recipe_log]
@@ -616,9 +602,7 @@ class TestVmRecipeLogManagerList:
         args = mock_client._request.call_args
         assert "level eq 'error'" in args[1]["params"]["filter"]
 
-    def test_list_with_pagination(
-        self, vm_recipe_log_manager, mock_client, sample_vm_recipe_log
-    ):
+    def test_list_with_pagination(self, vm_recipe_log_manager, mock_client, sample_vm_recipe_log):
         """Test listing with pagination."""
         mock_client._request.return_value = [sample_vm_recipe_log]
 

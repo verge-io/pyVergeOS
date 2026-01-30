@@ -476,9 +476,7 @@ class TestOSPFCommandIntegration:
 
         # Verify all exist
         commands = routing.ospf_commands.list()
-        our_commands = [
-            c for c in commands if c.key in cleanup_ospf_commands
-        ]
+        our_commands = [c for c in commands if c.key in cleanup_ospf_commands]
         assert len(our_commands) == 3
 
 

@@ -727,7 +727,9 @@ class WebhookManager(ResourceManager[Webhook]):
             raise NotFoundError(f"Webhook history entry with key {key} not found")
         return results[0]
 
-    def list_pending(self, webhook_key: int | None = None, limit: int = 100) -> builtins.list[WebhookHistory]:
+    def list_pending(
+        self, webhook_key: int | None = None, limit: int = 100
+    ) -> builtins.list[WebhookHistory]:
         """List pending webhook messages (queued or running).
 
         Args:
@@ -739,7 +741,9 @@ class WebhookManager(ResourceManager[Webhook]):
         """
         return self.history(webhook_key=webhook_key, pending=True, limit=limit)
 
-    def list_failed(self, webhook_key: int | None = None, limit: int = 100) -> builtins.list[WebhookHistory]:
+    def list_failed(
+        self, webhook_key: int | None = None, limit: int = 100
+    ) -> builtins.list[WebhookHistory]:
         """List failed webhook messages.
 
         Args:

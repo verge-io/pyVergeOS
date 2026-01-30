@@ -159,9 +159,7 @@ class TestCloudInitFileManager:
         """Test manager has correct endpoint."""
         assert mock_client.cloudinit_files._endpoint == "cloudinit_files"
 
-    def test_list_cloudinit_files(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_cloudinit_files(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing cloud-init files."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "/user-data", "owner": "vms/100"},
@@ -289,9 +287,7 @@ class TestCloudInitFileManager:
         with pytest.raises(ValueError, match="vm_key is required"):
             mock_client.cloudinit_files.get(name="/user-data")
 
-    def test_create_cloudinit_file(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_create_cloudinit_file(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test creating a cloud-init file."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 1},  # POST response
@@ -373,9 +369,7 @@ class TestCloudInitFileManager:
         body = post_call.kwargs.get("json", {})
         assert "contents" not in body
 
-    def test_create_cloudinit_file_contents_too_large(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_create_cloudinit_file_contents_too_large(self, mock_client: VergeClient) -> None:
         """Test creating cloud-init file with contents exceeding max size raises ValueError."""
         large_contents = "x" * 65537  # > 64KB
 
@@ -386,9 +380,7 @@ class TestCloudInitFileManager:
                 contents=large_contents,
             )
 
-    def test_update_cloudinit_file(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_update_cloudinit_file(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating a cloud-init file."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -435,9 +427,7 @@ class TestCloudInitFileManager:
         body = call_args.kwargs.get("json", {})
         assert body.get("contents") == new_contents
 
-    def test_update_cloudinit_file_contents_too_large(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_update_cloudinit_file_contents_too_large(self, mock_client: VergeClient) -> None:
         """Test updating with contents exceeding max size raises ValueError."""
         large_contents = "x" * 65537
 
@@ -458,9 +448,7 @@ class TestCloudInitFileManager:
 
         assert file.key == 1
 
-    def test_delete_cloudinit_file(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_cloudinit_file(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a cloud-init file."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""
@@ -472,9 +460,7 @@ class TestCloudInitFileManager:
         assert call_args.kwargs.get("method") == "DELETE"
         assert "cloudinit_files/1" in call_args.kwargs.get("url", "")
 
-    def test_get_content(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_content(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting cloud-init file content."""
         mock_session.request.return_value.status_code = 200
         mock_session.request.return_value.content = b"#cloud-config\ntest: true"
@@ -486,9 +472,7 @@ class TestCloudInitFileManager:
         call_args = mock_session.request.call_args
         assert call_args.kwargs.get("params", {}).get("download") == 1
 
-    def test_get_content_as_bytes(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_content_as_bytes(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting cloud-init file content as bytes."""
         mock_session.request.return_value.status_code = 200
         mock_session.request.return_value.content = b"#cloud-config\ntest: true"
@@ -498,18 +482,14 @@ class TestCloudInitFileManager:
         assert content == b"#cloud-config\ntest: true"
         assert isinstance(content, bytes)
 
-    def test_get_content_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_content_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting content of non-existent file raises NotFoundError."""
         mock_session.request.return_value.status_code = 404
 
         with pytest.raises(NotFoundError):
             mock_client.cloudinit_files.get_content(999)
 
-    def test_list_for_vm(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_for_vm(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_for_vm convenience method."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "name": "/user-data", "owner": "vms/100"},
@@ -559,9 +539,7 @@ class TestCloudInitFileObjectMethods:
 
         assert isinstance(content, bytes)
 
-    def test_save_via_object(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_save_via_object(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating via file object save method."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -577,9 +555,7 @@ class TestCloudInitFileObjectMethods:
 
         assert updated.render == "jinja2"
 
-    def test_delete_via_object(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_via_object(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting via file object."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""

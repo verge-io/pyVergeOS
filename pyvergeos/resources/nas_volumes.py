@@ -650,9 +650,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         Example:
             >>> client.nas_volumes.reset(vol.key)
         """
-        result = self._client._request(
-            "PUT", f"{self._endpoint}/{key}?action=reset", json_data={}
-        )
+        result = self._client._request("PUT", f"{self._endpoint}/{key}?action=reset", json_data={})
         if isinstance(result, dict):
             return result
         return None
@@ -743,9 +741,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
         "snap_volume",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, volume_key: str | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, volume_key: str | None = None) -> None:
         super().__init__(client)
         self._volume_key = volume_key
 
@@ -874,9 +870,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume snapshot with key {key} not found")
             if not isinstance(response, dict):

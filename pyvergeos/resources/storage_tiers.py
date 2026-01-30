@@ -297,5 +297,7 @@ class StorageTierManager(ResourceManager[StorageTier]):
             "total_free_bytes": total_free,
             "total_free_gb": round(total_free / 1073741824, 2),
             "used_percent": round((total_used / total_capacity) * 100, 1) if total_capacity else 0,
-            "tiers": {t.tier: {"used_percent": t.used_percent, "free_gb": t.free_gb} for t in tiers},
+            "tiers": {
+                t.tier: {"used_percent": t.used_percent, "free_gb": t.free_gb} for t in tiers
+            },
         }

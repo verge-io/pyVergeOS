@@ -1196,7 +1196,9 @@ class SystemManager:
                     },
                 )
                 if node_response:
-                    node_list = node_response if isinstance(node_response, list) else [node_response]
+                    node_list = (
+                        node_response if isinstance(node_response, list) else [node_response]
+                    )
                     nodes = [InventoryNode(n) for n in node_list if n]
             except Exception as e:
                 logger.warning("Failed to collect node inventory: %s", e)
@@ -1217,7 +1219,9 @@ class SystemManager:
                 )
                 if cluster_response:
                     cluster_list = (
-                        cluster_response if isinstance(cluster_response, list) else [cluster_response]
+                        cluster_response
+                        if isinstance(cluster_response, list)
+                        else [cluster_response]
                     )
                     clusters = [InventoryCluster(c) for c in cluster_list if c]
             except Exception as e:

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.ipsec import IPSecConnectionManager
     from pyvergeos.resources.routing import NetworkRoutingManager
     from pyvergeos.resources.rules import NetworkRuleManager
+    from pyvergeos.resources.vnet_proxy import VnetProxyManager
     from pyvergeos.resources.wireguard import WireGuardManager
 
 
@@ -39,9 +40,11 @@ DEFAULT_NETWORK_FIELDS = [
     "domain",
     "need_fw_apply",
     "need_dns_apply",
+    "need_proxy_apply",
     "need_restart",
     "on_power_loss",
     "interface_vnet",
+    "proxy_enabled",
     "machine#status#running as running",
     "machine#status#status as status",
 ]
@@ -205,6 +208,16 @@ class Network(ResourceObject):
     def needs_dns_apply(self) -> bool:
         """Check if DNS configuration needs to be applied."""
         return bool(self.get("need_dns_apply", False))
+
+    @property
+    def needs_proxy_apply(self) -> bool:
+        """Check if proxy configuration needs to be applied."""
+        return bool(self.get("need_proxy_apply", False))
+
+    @property
+    def proxy_enabled(self) -> bool:
+        """Check if proxy service is enabled on this network."""
+        return bool(self.get("proxy_enabled", False))
 
     @property
     def rules(self) -> NetworkRuleManager:
@@ -470,6 +483,53 @@ class Network(ResourceObject):
         from pyvergeos.resources.routing import NetworkRoutingManager
 
         return NetworkRoutingManager(self._manager._client, self)
+
+    @property
+    def proxy(self) -> VnetProxyManager:
+        """Access proxy configuration for this network.
+
+        The proxy service enables multi-tenant access through a single IP
+        address using FQDN-based routing. Each tenant is assigned a unique
+        hostname that routes to their UI through the proxy.
+
+        Returns:
+            VnetProxyManager for this network.
+
+        Examples:
+            Check if proxy is configured::
+
+                if network.proxy.exists():
+                    proxy = network.proxy.get()
+                    print(f"Proxy listening on {proxy.listen_address}")
+
+            Enable proxy on a network::
+
+                proxy = network.proxy.create(
+                    listen_address="0.0.0.0",
+                    default_self=True
+                )
+
+            Add a tenant mapping::
+
+                mapping = proxy.tenants.create(
+                    tenant=tenant_key,
+                    fqdn="tenant1.example.com"
+                )
+
+            List all tenant mappings::
+
+                for mapping in proxy.tenants.list():
+                    print(f"{mapping.fqdn} -> {mapping.tenant_name}")
+
+        Note:
+            Proxy is typically used on external networks to allow multiple
+            tenants to share a single public IP address.
+            After adding/modifying tenant mappings, the tenant may need to
+            have proxy applied via the tenant dashboard.
+        """
+        from pyvergeos.resources.vnet_proxy import VnetProxyManager
+
+        return VnetProxyManager(self._manager._client, self)
 
     def diagnostics(
         self,

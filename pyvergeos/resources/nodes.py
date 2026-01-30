@@ -565,10 +565,7 @@ class NodePCIDevice(ResourceObject):
         return self.device_type_code == "01"
 
     def __repr__(self) -> str:
-        return (
-            f"<NodePCIDevice key={self.get('$key', '?')} "
-            f"slot={self.slot!r} name={self.name!r}>"
-        )
+        return f"<NodePCIDevice key={self.get('$key', '?')} slot={self.slot!r} name={self.name!r}>"
 
 
 class NodeUSBDevice(ResourceObject):
@@ -814,9 +811,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(fields)}
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Driver with key {key} not found")
             if not isinstance(response, dict):
@@ -997,9 +992,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
             fields = self._default_fields
 
         params: dict[str, Any] = {"fields": ",".join(fields)}
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"PCI device with key {key} not found")
         if not isinstance(response, dict):
@@ -1149,9 +1142,7 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
             fields = self._default_fields
 
         params: dict[str, Any] = {"fields": ",".join(fields)}
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"USB device with key {key} not found")
         if not isinstance(response, dict):
@@ -1387,9 +1378,7 @@ class NodeManager(ResourceManager[Node]):
             >>> print(f"Maintenance mode: {node.is_maintenance}")
         """
         body = {"node": key, "action": "leavemaintenance"}
-        self._client._request(
-            "POST", "node_actions/disable_maintenance", json_data=body
-        )
+        self._client._request("POST", "node_actions/disable_maintenance", json_data=body)
         return self.get(key)
 
     def restart(self, key: int) -> dict[str, Any] | None:
@@ -1410,9 +1399,7 @@ class NodeManager(ResourceManager[Node]):
             ...     client.tasks.wait(result["task"])
         """
         body = {"node": key, "action": "maintenance_reboot"}
-        response = self._client._request(
-            "POST", "node_actions/maintenance_reboot", json_data=body
-        )
+        response = self._client._request("POST", "node_actions/maintenance_reboot", json_data=body)
         if isinstance(response, dict):
             return response
         return None

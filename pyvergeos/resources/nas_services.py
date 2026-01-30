@@ -263,9 +263,7 @@ class NASServiceManager(ResourceManager[NASService]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NAS service with key {key} not found")
             if not isinstance(response, dict):
@@ -351,6 +349,7 @@ class NASServiceManager(ResourceManager[NASService]):
         # Determine hostname
         if not hostname:
             import re
+
             hostname = re.sub(r"[^a-zA-Z0-9\-]", "", name)
             hostname = hostname.strip("-")
             if len(hostname) > 63:
@@ -418,6 +417,7 @@ class NASServiceManager(ResourceManager[NASService]):
 
         # Wait for the service to be created
         import time
+
         max_attempts = 15
         for _ in range(max_attempts):
             time.sleep(2)

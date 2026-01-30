@@ -798,9 +798,7 @@ class TestTagManager:
     def test_get_by_name(self) -> None:
         """Test get by name returns Tag object."""
         mock_client = MagicMock()
-        mock_client._request.return_value = [
-            {"$key": 123, "name": "Production", "category": 1}
-        ]
+        mock_client._request.return_value = [{"$key": 123, "name": "Production", "category": 1}]
         manager = TagManager(mock_client)
 
         result = manager.get(name="Production")
@@ -870,7 +868,9 @@ class TestTagManager:
         result = manager.update(123, description="Updated")
 
         assert isinstance(result, Tag)
-        mock_client._request.assert_any_call("PUT", "tags/123", json_data={"description": "Updated"})
+        mock_client._request.assert_any_call(
+            "PUT", "tags/123", json_data={"description": "Updated"}
+        )
 
     def test_update_no_changes(self) -> None:
         """Test update with no changes returns current tag."""

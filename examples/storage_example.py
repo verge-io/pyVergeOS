@@ -86,7 +86,9 @@ def main() -> None:
         print(f"  Free: {tier.free_gb:,.1f} GB")
         print(f"  Allocated: {tier.allocated_gb:,.1f} GB")
         if tier.dedupe_ratio > 1.0:
-            print(f"  Dedupe ratio: {tier.dedupe_ratio:.2f}x ({tier.dedupe_savings_percent:.1f}% savings)")
+            print(
+                f"  Dedupe ratio: {tier.dedupe_ratio:.2f}x ({tier.dedupe_savings_percent:.1f}% savings)"
+            )
         if tier.read_ops or tier.write_ops:
             print(f"  IOPS: {tier.read_ops} read, {tier.write_ops} write")
 
@@ -108,8 +110,12 @@ def main() -> None:
         print(f"  Status: {status.status}")
         print(f"  Nodes: {status.online_nodes}/{status.total_nodes} online")
         print(f"  Running VMs: {status.running_machines}")
-        print(f"  RAM: {status.used_ram_gb:.1f}/{status.online_ram_gb:.1f} GB ({status.ram_used_percent}%)")
-        print(f"  CPU Cores: {status.used_cores}/{status.online_cores} ({status.core_used_percent}%)")
+        print(
+            f"  RAM: {status.used_ram_gb:.1f}/{status.online_ram_gb:.1f} GB ({status.ram_used_percent}%)"
+        )
+        print(
+            f"  CPU Cores: {status.used_cores}/{status.online_cores} ({status.core_used_percent}%)"
+        )
 
         if status.tiers:
             print("  Tier Status:")

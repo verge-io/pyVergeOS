@@ -37,9 +37,7 @@ def vm_import_log_manager(mock_client):
 @pytest.fixture
 def scoped_log_manager(mock_client):
     """Create a scoped VmImportLogManager with mock client."""
-    return VmImportLogManager(
-        mock_client, import_key="8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-    )
+    return VmImportLogManager(mock_client, import_key="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
 
 @pytest.fixture
@@ -310,7 +308,9 @@ class TestVmImportManagerCreate:
 
     def test_create_no_source(self, vm_import_manager):
         """Test creating import without source raises ValueError."""
-        with pytest.raises(ValueError, match="One of file, volume, or shared_object must be provided"):
+        with pytest.raises(
+            ValueError, match="One of file, volume, or shared_object must be provided"
+        ):
             vm_import_manager.create("imported-vm")
 
     def test_create_with_all_options(self, vm_import_manager, mock_client, sample_vm_import):
@@ -505,7 +505,9 @@ class TestVmImportLogManagerList:
 
         assert len(result) == 1
         args = mock_client._request.call_args
-        assert "vm_import eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
+        assert (
+            "vm_import eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
+        )
 
     def test_list_with_level_filter(self, vm_import_log_manager, mock_client, sample_vm_import_log):
         """Test listing with level filter."""
@@ -524,13 +526,13 @@ class TestVmImportLogManagerList:
         """Test listing with vm_import filter."""
         mock_client._request.return_value = [sample_vm_import_log]
 
-        result = vm_import_log_manager.list(
-            vm_import="8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
-        )
+        result = vm_import_log_manager.list(vm_import="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
 
         assert len(result) == 1
         args = mock_client._request.call_args
-        assert "vm_import eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
+        assert (
+            "vm_import eq '8f73f8bcc9c9f1aaba32f733bfc295acaf548554'" in args[1]["params"]["filter"]
+        )
 
     def test_list_with_pagination(self, vm_import_log_manager, mock_client, sample_vm_import_log):
         """Test listing with pagination."""

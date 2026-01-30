@@ -258,9 +258,7 @@ class TestTagCRUDIntegration:
                     live_client.tags.delete(tag.key)
             live_client.tag_categories.delete(category.key)
 
-    def test_create_and_delete_tag(
-        self, live_client: VergeClient, test_category
-    ) -> None:
+    def test_create_and_delete_tag(self, live_client: VergeClient, test_category) -> None:
         """Test creating and deleting a tag."""
         tag_name = f"pysdk-tag-{random.randint(10000, 99999)}"
 
@@ -299,9 +297,7 @@ class TestTagCRUDIntegration:
 
         try:
             # Update description
-            updated = live_client.tags.update(
-                tag.key, description="Updated description"
-            )
+            updated = live_client.tags.update(tag.key, description="Updated description")
             assert updated.description == "Updated description"
 
             # Verify via refresh

@@ -329,7 +329,8 @@ class TestVMManager:
         vm_post = [
             call
             for call in mock_session.request.call_args_list
-            if call.kwargs.get("method") == "POST" and "/vms" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST"
+            and "/vms" in call.kwargs.get("url", "")
             and "cloudinit_files" not in call.kwargs.get("url", "")
         ]
 

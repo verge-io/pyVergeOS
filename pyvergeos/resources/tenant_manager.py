@@ -372,9 +372,7 @@ class Tenant(ResourceObject):
         manager = cast("TenantManager", self._manager)
         return manager._client.shared_objects.list(tenant_key=self.key)
 
-    def set_ui_ip(
-        self, ip: str, network_name: str = "External"
-    ) -> dict[str, Any] | None:
+    def set_ui_ip(self, ip: str, network_name: str = "External") -> dict[str, Any] | None:
         """Set the UI IP address for this tenant.
 
         Creates a virtual IP address on the specified network that allows
@@ -507,9 +505,7 @@ class Tenant(ResourceObject):
             "answers": {"tenant": self.key},
         }
 
-        result = self._manager._client._request(
-            "POST", "vm_recipe_instances", json_data=body
-        )
+        result = self._manager._client._request("POST", "vm_recipe_instances", json_data=body)
         return result if isinstance(result, dict) else None
 
     def delete_crash_cart(self, name: str | None = None) -> None:
@@ -663,9 +659,7 @@ class Tenant(ResourceObject):
 
         ui_address = self.ui_address_ip
         if not ui_address:
-            raise ValueError(
-                f"Cannot connect to tenant '{self.name}': no UI address configured"
-            )
+            raise ValueError(f"Cannot connect to tenant '{self.name}': no UI address configured")
 
         # Inherit SSL verification setting from parent client if not specified
         manager = cast("TenantManager", self._manager)
@@ -1165,9 +1159,7 @@ class TenantManager(ResourceManager[Tenant]):
         result = self._client._request("POST", "tenant_actions", json_data=body)
         return result if isinstance(result, dict) else None
 
-    def create_crash_cart(
-        self, key: int, name: str | None = None
-    ) -> dict[str, Any] | None:
+    def create_crash_cart(self, key: int, name: str | None = None) -> dict[str, Any] | None:
         """Deploy a Crash Cart VM for emergency access to a tenant.
 
         Deploys a Crash Cart VM that provides emergency UI access to a tenant.

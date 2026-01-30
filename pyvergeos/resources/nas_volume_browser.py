@@ -36,9 +36,7 @@ class NASVolumeFile(dict[str, Any]):
         try:
             return self[name]
         except KeyError:
-            raise AttributeError(
-                f"'{type(self).__name__}' has no attribute '{name}'"
-            ) from None
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'") from None
 
     @property
     def name(self) -> str:
@@ -301,9 +299,7 @@ class NASVolumeFileManager:
             time.sleep(poll_interval)
 
             # Must explicitly request the result field - it's not returned by default
-            response = self._client._request(
-                "GET", endpoint, params={"fields": "id,status,result"}
-            )
+            response = self._client._request("GET", endpoint, params={"fields": "id,status,result"})
 
             if not response or not isinstance(response, dict):
                 continue
@@ -316,9 +312,7 @@ class NASVolumeFileManager:
                 error_msg = response.get("result", "Unknown error")
                 raise APIError(f"Browse operation failed: {error_msg}")
 
-        raise VergeTimeoutError(
-            f"Browse operation timed out after {timeout} seconds"
-        )
+        raise VergeTimeoutError(f"Browse operation timed out after {timeout} seconds")
 
 
 def _format_file_size(size_bytes: int) -> str:

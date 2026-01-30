@@ -368,9 +368,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
                 filters.append(f"catalog eq {catalog}")
             elif isinstance(catalog, str):
                 # Check if it looks like a catalog key (40-char hex) or a name
-                if len(catalog) == 40 and all(
-                    c in "0123456789abcdef" for c in catalog.lower()
-                ):
+                if len(catalog) == 40 and all(c in "0123456789abcdef" for c in catalog.lower()):
                     filters.append(f"catalog eq '{catalog}'")
                 else:
                     # Look up catalog by name
@@ -465,9 +463,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
                     raise NotFoundError(f"Tenant recipe with key {key} not found")
                 response = response[0]
             if not isinstance(response, dict):
-                raise NotFoundError(
-                    f"Tenant recipe with key {key} returned invalid response"
-                )
+                raise NotFoundError(f"Tenant recipe with key {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -650,9 +646,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         "modified",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, recipe_key: str | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, recipe_key: str | None = None) -> None:
         super().__init__(client)
         self._recipe_key = recipe_key
 
@@ -748,15 +742,11 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Recipe instance with key {key} not found")
             if not isinstance(response, dict):
-                raise NotFoundError(
-                    f"Recipe instance with key {key} returned invalid response"
-                )
+                raise NotFoundError(f"Recipe instance with key {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:
@@ -851,9 +841,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
         "user",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, recipe_key: str | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, recipe_key: str | None = None) -> None:
         super().__init__(client)
         self._recipe_key = recipe_key
 
@@ -958,9 +946,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
         else:
             params["fields"] = ",".join(self._default_fields)
 
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"Recipe log with key {key} not found")
         if not isinstance(response, dict):

@@ -95,9 +95,7 @@ class TestCloudInitFileListIntegration:
         for file in files:
             assert file.vm_key == test_vm.key
 
-    def test_list_cloudinit_files_with_render_filter(
-        self, live_client: VergeClient
-    ) -> None:
+    def test_list_cloudinit_files_with_render_filter(self, live_client: VergeClient) -> None:
         """Test listing cloud-init files with render type filter."""
         files = live_client.cloudinit_files.list(render="No")
 
@@ -110,9 +108,7 @@ class TestCloudInitFileListIntegration:
 class TestCloudInitFileGetIntegration:
     """Integration tests for CloudInitFileManager get operations."""
 
-    def test_get_cloudinit_file_by_key(
-        self, live_client: VergeClient, test_cloudinit_file
-    ) -> None:
+    def test_get_cloudinit_file_by_key(self, live_client: VergeClient, test_cloudinit_file) -> None:
         """Test getting a cloud-init file by key."""
         fetched = live_client.cloudinit_files.get(test_cloudinit_file.key)
 
@@ -131,9 +127,7 @@ class TestCloudInitFileGetIntegration:
         assert fetched.key == test_cloudinit_file.key
         assert fetched.name == test_cloudinit_file.name
 
-    def test_get_cloudinit_file_not_found(
-        self, live_client: VergeClient, test_vm
-    ) -> None:
+    def test_get_cloudinit_file_not_found(self, live_client: VergeClient, test_vm) -> None:
         """Test getting a non-existent cloud-init file."""
         with pytest.raises(NotFoundError):
             live_client.cloudinit_files.get(
@@ -249,9 +243,7 @@ runcmd:
         content = updated.get_content()
         assert "updated: true" in content
 
-    def test_update_cloudinit_file_name(
-        self, live_client: VergeClient, test_vm
-    ) -> None:
+    def test_update_cloudinit_file_name(self, live_client: VergeClient, test_vm) -> None:
         """Test updating cloud-init file name."""
         original_name = unique_name("pyvergeos-original")
         new_name = unique_name("pyvergeos-renamed")
@@ -277,9 +269,7 @@ runcmd:
         finally:
             live_client.cloudinit_files.delete(file.key)
 
-    def test_delete_via_object_method(
-        self, live_client: VergeClient, test_vm
-    ) -> None:
+    def test_delete_via_object_method(self, live_client: VergeClient, test_vm) -> None:
         """Test deleting via file object method."""
         name = unique_name("pyvergeos-delete-test")
 
@@ -302,9 +292,7 @@ runcmd:
 class TestCloudInitFileContentIntegration:
     """Integration tests for cloud-init file content operations."""
 
-    def test_get_content(
-        self, live_client: VergeClient, test_cloudinit_file
-    ) -> None:
+    def test_get_content(self, live_client: VergeClient, test_cloudinit_file) -> None:
         """Test getting cloud-init file content."""
         content = live_client.cloudinit_files.get_content(test_cloudinit_file.key)
 
@@ -312,9 +300,7 @@ class TestCloudInitFileContentIntegration:
         assert "#cloud-config" in content
         assert "test: true" in content
 
-    def test_get_content_as_bytes(
-        self, live_client: VergeClient, test_cloudinit_file
-    ) -> None:
+    def test_get_content_as_bytes(self, live_client: VergeClient, test_cloudinit_file) -> None:
         """Test getting cloud-init file content as bytes."""
         content = live_client.cloudinit_files.get_content(
             test_cloudinit_file.key,
@@ -341,9 +327,7 @@ class TestCloudInitFileContentIntegration:
 
         assert isinstance(content, bytes)
 
-    def test_roundtrip_content(
-        self, live_client: VergeClient, test_vm
-    ) -> None:
+    def test_roundtrip_content(self, live_client: VergeClient, test_vm) -> None:
         """Test creating file and retrieving same content."""
         name = unique_name("pyvergeos-roundtrip")
         original_content = """#cloud-config
@@ -376,24 +360,18 @@ write_files:
 class TestCloudInitFileObjectMethodsIntegration:
     """Integration tests for CloudInitFile object methods."""
 
-    def test_save_via_object_method(
-        self, live_client: VergeClient, test_cloudinit_file
-    ) -> None:
+    def test_save_via_object_method(self, live_client: VergeClient, test_cloudinit_file) -> None:
         """Test updating via file object save method."""
         updated = test_cloudinit_file.save(render="Jinja2")
 
         assert updated.render == "jinja2"
         assert updated.key == test_cloudinit_file.key
 
-    def test_vm_key_property(
-        self, live_client: VergeClient, test_vm, test_cloudinit_file
-    ) -> None:
+    def test_vm_key_property(self, live_client: VergeClient, test_vm, test_cloudinit_file) -> None:
         """Test vm_key property returns correct VM key."""
         assert test_cloudinit_file.vm_key == test_vm.key
 
-    def test_modified_at_property(
-        self, live_client: VergeClient, test_cloudinit_file
-    ) -> None:
+    def test_modified_at_property(self, live_client: VergeClient, test_cloudinit_file) -> None:
         """Test modified_at property returns datetime."""
         assert test_cloudinit_file.modified_at is not None
         # Verify it's a recent timestamp (within last hour)
@@ -408,9 +386,7 @@ class TestCloudInitFileObjectMethodsIntegration:
 class TestCloudInitFileEdgeCasesIntegration:
     """Integration tests for cloud-init file edge cases."""
 
-    def test_file_with_special_chars_in_name(
-        self, live_client: VergeClient, test_vm
-    ) -> None:
+    def test_file_with_special_chars_in_name(self, live_client: VergeClient, test_vm) -> None:
         """Test creating file with special characters in name."""
         name = "/pyvergeos-test_file-001"
 
@@ -429,9 +405,7 @@ class TestCloudInitFileEdgeCasesIntegration:
         finally:
             file.delete()
 
-    def test_file_with_empty_content(
-        self, live_client: VergeClient, test_vm
-    ) -> None:
+    def test_file_with_empty_content(self, live_client: VergeClient, test_vm) -> None:
         """Test creating file without content."""
         name = unique_name("pyvergeos-empty")
 
@@ -446,9 +420,7 @@ class TestCloudInitFileEdgeCasesIntegration:
         finally:
             file.delete()
 
-    def test_wildcard_name_search(
-        self, live_client: VergeClient, test_cloudinit_file
-    ) -> None:
+    def test_wildcard_name_search(self, live_client: VergeClient, test_cloudinit_file) -> None:
         """Test listing with wildcard name filter."""
         # Create a file with known pattern
         files = live_client.cloudinit_files.list(name="*pyvergeos*")

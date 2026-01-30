@@ -551,9 +551,7 @@ class VmImportManager(ResourceManager["VmImport"]):
             >>> if result and "task" in result:
             ...     client.tasks.wait(result["task"])
         """
-        result = self._client._request(
-            "PUT", f"{self._endpoint}/{key}?action=import", json_data={}
-        )
+        result = self._client._request("PUT", f"{self._endpoint}/{key}?action=import", json_data={})
         if isinstance(result, dict):
             return result
         return None
@@ -572,9 +570,7 @@ class VmImportManager(ResourceManager["VmImport"]):
         Example:
             >>> client.vm_imports.abort_import(imp.key)
         """
-        result = self._client._request(
-            "PUT", f"{self._endpoint}/{key}?action=abort", json_data={}
-        )
+        result = self._client._request("PUT", f"{self._endpoint}/{key}?action=abort", json_data={})
         if isinstance(result, dict):
             return result
         return None
@@ -631,9 +627,7 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         "user",
     ]
 
-    def __init__(
-        self, client: VergeClient, *, import_key: str | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, *, import_key: str | None = None) -> None:
         super().__init__(client)
         self._import_key = import_key
 
@@ -746,9 +740,7 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"VM import log with key {key} not found")
             if not isinstance(response, dict):

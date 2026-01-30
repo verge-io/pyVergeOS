@@ -41,7 +41,11 @@ VOLUMES = [
 USERS = [
     {"name": "nasadmin", "password": "NasAdminPass123!@", "displayname": "NAS Administrator"},
     {"name": "jdoe", "password": "JohnDoePass456!@", "displayname": "John Doe"},
-    {"name": "svcbackup", "password": "SvcBackupPass789!@", "displayname": "Backup Service Account"},
+    {
+        "name": "svcbackup",
+        "password": "SvcBackupPass789!@",
+        "displayname": "Backup Service Account",
+    },
 ]
 
 # Network for NFS access (CIDR notation)

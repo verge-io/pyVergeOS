@@ -97,9 +97,7 @@ class TestSettingsManager:
         assert setting.default_value == "500"
         assert setting.is_modified is True
 
-    def test_get_setting_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_setting_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that NotFoundError is raised when setting not found."""
         mock_session.request.return_value.json.return_value = []
 
@@ -195,9 +193,7 @@ class TestLicenseManager:
         assert licenses[0].name == "Standard License"
         assert licenses[1].name == "Enterprise License"
 
-    def test_get_license_by_key(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_license_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a license by key."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -211,9 +207,7 @@ class TestLicenseManager:
 
         assert lic.name == "Standard License"
 
-    def test_get_license_by_name(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_license_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a license by name."""
         mock_session.request.return_value.json.return_value = [
             {
@@ -229,9 +223,7 @@ class TestLicenseManager:
 
         assert lic.name == "Production"
 
-    def test_get_license_not_found(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_get_license_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that NotFoundError is raised when license not found."""
         mock_session.request.return_value.json.return_value = []
 
@@ -439,9 +431,7 @@ class TestSystemStatistics:
         assert stats.resource_instance_count == 10
         assert stats.resource_instance_max == 100
 
-    def test_statistics_to_dict(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_statistics_to_dict(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test statistics to_dict method."""
         mock_session.request.return_value.json.return_value = {
             "machines_count": 10,
@@ -457,9 +447,7 @@ class TestSystemStatistics:
         assert d["vms"]["total"] == 10
         assert d["vms"]["online"] == 8
 
-    def test_statistics_repr(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_statistics_repr(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test statistics string representation."""
         mock_session.request.return_value.json.return_value = {
             "machines_count": 10,
@@ -631,6 +619,7 @@ class TestSystemInventory:
 
     def test_get_inventory(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting system inventory."""
+
         # Setup mock responses for each resource type
         def mock_request(method: str, url: str, **kwargs: object) -> MagicMock:
             response = MagicMock()
@@ -638,8 +627,20 @@ class TestSystemInventory:
 
             if "vms" in url:
                 response.json.return_value = [
-                    {"$key": 1, "name": "vm1", "cpu_cores": 4, "ram": 4096, "power_state": "running"},
-                    {"$key": 2, "name": "vm2", "cpu_cores": 2, "ram": 2048, "power_state": "stopped"},
+                    {
+                        "$key": 1,
+                        "name": "vm1",
+                        "cpu_cores": 4,
+                        "ram": 4096,
+                        "power_state": "running",
+                    },
+                    {
+                        "$key": 2,
+                        "name": "vm2",
+                        "cpu_cores": 2,
+                        "ram": 2048,
+                        "power_state": "stopped",
+                    },
                 ]
             elif "vnets" in url:
                 response.json.return_value = [
@@ -658,9 +659,7 @@ class TestSystemInventory:
                     {"$key": 1, "name": "cluster1", "total_nodes": 2, "online_nodes": 2}
                 ]
             elif "tenants" in url:
-                response.json.return_value = [
-                    {"$key": 1, "name": "tenant1", "is_running": True}
-                ]
+                response.json.return_value = [{"$key": 1, "name": "tenant1", "is_running": True}]
             else:
                 response.json.return_value = {}
 
@@ -682,24 +681,20 @@ class TestSystemInventory:
         from datetime import datetime, timezone
 
         vms = [
-            InventoryVM({"$key": 1, "name": "vm1", "cpu_cores": 4, "ram": 4096, "power_state": "running"}),
-            InventoryVM({"$key": 2, "name": "vm2", "cpu_cores": 2, "ram": 2048, "power_state": "stopped"}),
+            InventoryVM(
+                {"$key": 1, "name": "vm1", "cpu_cores": 4, "ram": 4096, "power_state": "running"}
+            ),
+            InventoryVM(
+                {"$key": 2, "name": "vm2", "cpu_cores": 2, "ram": 2048, "power_state": "stopped"}
+            ),
         ]
-        networks = [
-            InventoryNetwork({"$key": 1, "name": "net1", "power_state": "running"})
-        ]
+        networks = [InventoryNetwork({"$key": 1, "name": "net1", "power_state": "running"})]
         storage = [
             InventoryStorageTier({"tier": 1, "capacity": 1073741824000, "used": 107374182400})
         ]
-        nodes = [
-            InventoryNode({"$key": 1, "name": "node1", "cores": 16, "ram": 65536})
-        ]
-        clusters = [
-            InventoryCluster({"$key": 1, "name": "cluster1", "total_nodes": 2})
-        ]
-        tenants = [
-            InventoryTenant({"$key": 1, "name": "tenant1", "is_running": True})
-        ]
+        nodes = [InventoryNode({"$key": 1, "name": "node1", "cores": 16, "ram": 65536})]
+        clusters = [InventoryCluster({"$key": 1, "name": "cluster1", "total_nodes": 2})]
+        tenants = [InventoryTenant({"$key": 1, "name": "tenant1", "is_running": True})]
 
         inventory = SystemInventory(
             vms=vms,

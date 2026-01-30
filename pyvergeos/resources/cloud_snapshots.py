@@ -345,9 +345,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
             if fields:
                 params["fields"] = ",".join(fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"VM {key} not found in cloud snapshot")
             if not isinstance(response, dict):
@@ -355,18 +353,14 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
 
             vm = self._to_model(response)
             if vm.cloud_snapshot_key != self._snapshot_key:
-                raise NotFoundError(
-                    f"VM {key} does not belong to snapshot {self._snapshot_key}"
-                )
+                raise NotFoundError(f"VM {key} does not belong to snapshot {self._snapshot_key}")
             return vm
 
         if name is not None:
             escaped_name = name.replace("'", "''")
             results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
             if not results:
-                raise NotFoundError(
-                    f"VM '{name}' not found in cloud snapshot {self._snapshot_key}"
-                )
+                raise NotFoundError(f"VM '{name}' not found in cloud snapshot {self._snapshot_key}")
             return results[0]
 
         raise ValueError("Either key or name must be provided")
@@ -475,9 +469,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
             if fields:
                 params["fields"] = ",".join(fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Tenant {key} not found in cloud snapshot")
             if not isinstance(response, dict):
@@ -656,9 +648,7 @@ class CloudSnapshot(ResourceObject):
             ValidationError: If snapshot is immutable and locked.
         """
         if self.is_immutable and self.is_locked:
-            raise ValidationError(
-                f"Cannot delete immutable snapshot '{self.name}' while locked"
-            )
+            raise ValidationError(f"Cannot delete immutable snapshot '{self.name}' while locked")
         from typing import cast
 
         manager = cast("CloudSnapshotManager", self._manager)
@@ -731,9 +721,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             CloudSnapshotVMManager for the snapshot.
         """
         if snapshot_key not in self._vm_managers:
-            self._vm_managers[snapshot_key] = CloudSnapshotVMManager(
-                self._client, snapshot_key
-            )
+            self._vm_managers[snapshot_key] = CloudSnapshotVMManager(self._client, snapshot_key)
         return self._vm_managers[snapshot_key]
 
     def tenants(self, snapshot_key: int) -> CloudSnapshotTenantManager:
@@ -846,9 +834,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
                     except Exception:
                         snapshot_tenants = []
 
-            snapshots.append(
-                self._to_model(item, vms=snapshot_vms, tenants=snapshot_tenants)
-            )
+            snapshots.append(self._to_model(item, vms=snapshot_vms, tenants=snapshot_tenants))
 
         return snapshots
 
@@ -887,9 +873,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             if fields:
                 params["fields"] = ",".join(fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Cloud snapshot {key} not found")
             if not isinstance(response, dict):
@@ -1106,9 +1090,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if new_name:
             body["params"]["name"] = new_name
 
-        response = self._client._request(
-            "POST", "cloud_snapshot_vm_actions", json_data=body
-        )
+        response = self._client._request("POST", "cloud_snapshot_vm_actions", json_data=body)
 
         result: dict[str, Any] = {
             "snapshot_key": snapshot_key,
@@ -1185,9 +1167,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if new_name:
             body["params"]["name"] = new_name
 
-        response = self._client._request(
-            "POST", "cloud_snapshot_tenant_actions", json_data=body
-        )
+        response = self._client._request("POST", "cloud_snapshot_tenant_actions", json_data=body)
 
         result: dict[str, Any] = {
             "snapshot_key": snapshot_key,

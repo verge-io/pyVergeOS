@@ -223,9 +223,7 @@ class TestCertificateManager:
         """Test manager has correct endpoint."""
         assert mock_client.certificates._endpoint == "certificates"
 
-    def test_list_certificates(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_certificates(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing certificates."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "domain": "example.com", "type": "self_signed"},
@@ -260,9 +258,7 @@ class TestCertificateManager:
         assert len(certs) == 1
         # Verify filter was applied
         call_args = mock_session.request.call_args
-        assert "type eq 'self_signed'" in call_args.kwargs.get("params", {}).get(
-            "filter", ""
-        )
+        assert "type eq 'self_signed'" in call_args.kwargs.get("params", {}).get("filter", "")
 
     def test_list_certificates_with_valid_filter(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -278,9 +274,7 @@ class TestCertificateManager:
         call_args = mock_session.request.call_args
         assert "valid eq true" in call_args.kwargs.get("params", {}).get("filter", "")
 
-    def test_list_valid(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_valid(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_valid convenience method."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "domain": "example.com", "valid": True}
@@ -292,9 +286,7 @@ class TestCertificateManager:
         call_args = mock_session.request.call_args
         assert "valid eq true" in call_args.kwargs.get("params", {}).get("filter", "")
 
-    def test_list_by_type(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_by_type(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_by_type convenience method."""
         mock_session.request.return_value.json.return_value = [
             {"$key": 1, "domain": "example.com", "type": "letsencrypt"}
@@ -304,13 +296,9 @@ class TestCertificateManager:
 
         assert len(certs) == 1
         call_args = mock_session.request.call_args
-        assert "type eq 'letsencrypt'" in call_args.kwargs.get("params", {}).get(
-            "filter", ""
-        )
+        assert "type eq 'letsencrypt'" in call_args.kwargs.get("params", {}).get("filter", "")
 
-    def test_list_expiring(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_expiring(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_expiring convenience method."""
         now_ts = int(time.time())
         mock_session.request.return_value.json.return_value = [
@@ -323,9 +311,7 @@ class TestCertificateManager:
         assert len(certs) == 1
         assert certs[0].domain == "expiring.com"
 
-    def test_list_expired(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_list_expired(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test list_expired convenience method."""
         now_ts = int(time.time())
         mock_session.request.return_value.json.return_value = [
@@ -512,9 +498,7 @@ class TestCertificateManager:
         body = post_call.kwargs.get("json", {})
         assert body.get("chain") == chain
 
-    def test_create_certificate_manual_missing_public_key(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_create_certificate_manual_missing_public_key(self, mock_client: VergeClient) -> None:
         """Test creating manual certificate without public key raises error."""
         with pytest.raises(ValueError, match="public_key is required"):
             mock_client.certificates.create(
@@ -523,9 +507,7 @@ class TestCertificateManager:
                 private_key="-----BEGIN PRIVATE KEY-----",
             )
 
-    def test_create_certificate_manual_missing_private_key(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_create_certificate_manual_missing_private_key(self, mock_client: VergeClient) -> None:
         """Test creating manual certificate without private key raises error."""
         with pytest.raises(ValueError, match="private_key is required"):
             mock_client.certificates.create(
@@ -556,9 +538,7 @@ class TestCertificateManager:
         assert body.get("agree_tos") is True
         assert body.get("contact") == 1
 
-    def test_create_certificate_letsencrypt_missing_tos(
-        self, mock_client: VergeClient
-    ) -> None:
+    def test_create_certificate_letsencrypt_missing_tos(self, mock_client: VergeClient) -> None:
         """Test creating Let's Encrypt certificate without TOS agreement raises error."""
         with pytest.raises(ValueError, match="agree_tos must be True"):
             mock_client.certificates.create(
@@ -628,9 +608,7 @@ class TestCertificateManager:
         assert body.get("key_type") == "rsa"
         assert body.get("rsa_key_size") == "4096"
 
-    def test_update_certificate(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_update_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating a certificate."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -652,9 +630,7 @@ class TestCertificateManager:
             "domainlist": "www.example.com,api.example.com",
         }
 
-        mock_client.certificates.update(
-            1, domain_list=["www.example.com", "api.example.com"]
-        )
+        mock_client.certificates.update(1, domain_list=["www.example.com", "api.example.com"])
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -686,18 +662,14 @@ class TestCertificateManager:
         public_key = "-----BEGIN CERTIFICATE-----\nNEW...\n-----END CERTIFICATE-----"
         private_key = "-----BEGIN PRIVATE KEY-----\nNEW...\n-----END PRIVATE KEY-----"
 
-        mock_client.certificates.update(
-            1, public_key=public_key, private_key=private_key
-        )
+        mock_client.certificates.update(1, public_key=public_key, private_key=private_key)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
         assert body.get("public") == public_key
         assert body.get("private") == private_key
 
-    def test_delete_certificate(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_delete_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a certificate."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""
@@ -708,9 +680,7 @@ class TestCertificateManager:
         assert call_args.kwargs.get("method") == "DELETE"
         assert "certificates/1" in call_args.kwargs.get("url", "")
 
-    def test_renew_certificate(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_renew_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test renewing a certificate."""
         now_ts = int(time.time())
         mock_session.request.return_value.json.side_effect = [
@@ -770,13 +740,16 @@ class TestCertificateManager:
         with pytest.raises(ValueError, match="Manual certificates cannot be renewed"):
             mock_client.certificates.renew(1, force=True)
 
-    def test_refresh_certificate(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_refresh_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test refresh is alias for renew with force=True."""
         now_ts = int(time.time())
         mock_session.request.return_value.json.side_effect = [
-            {"$key": 1, "domain": "example.com", "type": "self_signed", "expires": now_ts + 86400 * 90},
+            {
+                "$key": 1,
+                "domain": "example.com",
+                "type": "self_signed",
+                "expires": now_ts + 86400 * 90,
+            },
             {},
             {"$key": 1, "domain": "example.com", "type": "self_signed"},
         ]
@@ -794,9 +767,7 @@ class TestCertificateManager:
 class TestCertificateObjectMethods:
     """Unit tests for Certificate object methods."""
 
-    def test_certificate_refresh(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_certificate_refresh(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test refreshing certificate via object method."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -811,9 +782,7 @@ class TestCertificateObjectMethods:
 
         assert refreshed.description == "Refreshed"
 
-    def test_certificate_save(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_certificate_save(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test saving certificate via object method."""
         mock_session.request.return_value.json.return_value = {
             "$key": 1,
@@ -828,9 +797,7 @@ class TestCertificateObjectMethods:
 
         assert saved.description == "Saved"
 
-    def test_certificate_delete(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_certificate_delete(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting certificate via object method."""
         mock_session.request.return_value.status_code = 204
         mock_session.request.return_value.text = ""
@@ -843,18 +810,26 @@ class TestCertificateObjectMethods:
         call_args = mock_session.request.call_args
         assert call_args.kwargs.get("method") == "DELETE"
 
-    def test_certificate_renew(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_certificate_renew(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test renewing certificate via object method."""
         now_ts = int(time.time())
         mock_session.request.return_value.json.side_effect = [
-            {"$key": 1, "domain": "example.com", "type": "self_signed", "expires": now_ts + 86400 * 90},
+            {
+                "$key": 1,
+                "domain": "example.com",
+                "type": "self_signed",
+                "expires": now_ts + 86400 * 90,
+            },
             {},
             {"$key": 1, "domain": "example.com", "type": "self_signed"},
         ]
 
-        data = {"$key": 1, "domain": "example.com", "type": "self_signed", "expires": now_ts + 86400 * 90}
+        data = {
+            "$key": 1,
+            "domain": "example.com",
+            "type": "self_signed",
+            "expires": now_ts + 86400 * 90,
+        }
         cert = Certificate(data, mock_client.certificates)
 
         renewed = cert.renew(force=True)

@@ -900,9 +900,8 @@ class TestTenantSnapshotManager:
         # Find the POST request to tenant_snapshots
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_snapshots" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_snapshots" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -934,9 +933,8 @@ class TestTenantSnapshotManager:
         # Find the POST request to tenant_snapshots
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_snapshots" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_snapshots" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -969,9 +967,8 @@ class TestTenantSnapshotManager:
         # Find the POST request to tenant_snapshots
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_snapshots" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_snapshots" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -1387,9 +1384,8 @@ class TestTenantStorageManager:
         # Find the POST request to tenant_storage
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_storage" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_storage" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -1422,9 +1418,8 @@ class TestTenantStorageManager:
         # Find the POST request
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_storage" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_storage" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -2001,10 +1996,7 @@ class TestTenantNetworkBlockManager:
         # Find the POST request to vnet_cidrs
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "vnet_cidrs" in call.kwargs.get("url", "")
-            ):
+            if call.kwargs.get("method") == "POST" and "vnet_cidrs" in call.kwargs.get("url", ""):
                 post_call = call
                 break
 
@@ -2325,7 +2317,8 @@ class TestTenantExternalIP:
     def test_repr_without_hostname(self) -> None:
         """Test __repr__ method without hostname."""
         ip = TenantExternalIP(
-            {"ip": "10.0.0.1", "network_name": "Test"}, None  # type: ignore[arg-type]
+            {"ip": "10.0.0.1", "network_name": "Test"},
+            None,  # type: ignore[arg-type]
         )
         repr_str = repr(ip)
         assert "10.0.0.1" in repr_str
@@ -2525,9 +2518,8 @@ class TestTenantExternalIPManager:
         # Find the POST request to vnet_addresses
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "vnet_addresses" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "vnet_addresses" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -3021,9 +3013,8 @@ class TestTenantLayer2Manager:
         # Find the POST request to tenant_layer2_vnets
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_layer2_vnets" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_layer2_vnets" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -3077,9 +3068,8 @@ class TestTenantLayer2Manager:
         # Find the POST request
         post_call = None
         for call in mock_session.request.call_args_list:
-            if (
-                call.kwargs.get("method") == "POST"
-                and "tenant_layer2_vnets" in call.kwargs.get("url", "")
+            if call.kwargs.get("method") == "POST" and "tenant_layer2_vnets" in call.kwargs.get(
+                "url", ""
             ):
                 post_call = call
                 break
@@ -3512,9 +3502,7 @@ class TestTenantUtilities:
         """Test that enabling isolation on snapshot raises ValueError."""
         tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
 
-        with pytest.raises(
-            ValueError, match="Cannot enable isolation for a tenant snapshot"
-        ):
+        with pytest.raises(ValueError, match="Cannot enable isolation for a tenant snapshot"):
             tenant.enable_isolation()
 
     def test_enable_isolation_already_isolated_raises(
@@ -3571,9 +3559,7 @@ class TestTenantUtilities:
         """Test that disabling isolation on snapshot raises ValueError."""
         tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
 
-        with pytest.raises(
-            ValueError, match="Cannot disable isolation for a tenant snapshot"
-        ):
+        with pytest.raises(ValueError, match="Cannot disable isolation for a tenant snapshot"):
             tenant.disable_isolation()
 
     def test_disable_isolation_not_isolated_raises(
@@ -3657,9 +3643,7 @@ class TestTenantUtilities:
         """Test that creating crash cart for snapshot raises ValueError."""
         tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
 
-        with pytest.raises(
-            ValueError, match="Cannot deploy Crash Cart for a tenant snapshot"
-        ):
+        with pytest.raises(ValueError, match="Cannot deploy Crash Cart for a tenant snapshot"):
             tenant.create_crash_cart()
 
     def test_create_crash_cart_recipe_not_found(
@@ -3742,9 +3726,7 @@ class TestTenantUtilities:
         """Test that deleting crash cart for snapshot raises ValueError."""
         tenant = Tenant(tenant_snapshot_data, mock_client.tenants)
 
-        with pytest.raises(
-            ValueError, match="Cannot delete Crash Cart for a tenant snapshot"
-        ):
+        with pytest.raises(ValueError, match="Cannot delete Crash Cart for a tenant snapshot"):
             tenant.delete_crash_cart()
 
     def test_delete_crash_cart_not_found(
@@ -3756,9 +3738,10 @@ class TestTenantUtilities:
         tenant = Tenant(tenant_data, mock_client.tenants)
 
         # Mock vms.get to raise NotFoundError
-        with patch.object(
-            mock_client.vms, "get", side_effect=NotFoundError("VM not found")
-        ), pytest.raises(NotFoundError, match="not found"):
+        with (
+            patch.object(mock_client.vms, "get", side_effect=NotFoundError("VM not found")),
+            pytest.raises(NotFoundError, match="not found"),
+        ):
             tenant.delete_crash_cart()
 
     def test_delete_crash_cart_via_manager(
@@ -3778,8 +3761,7 @@ class TestTenantUtilities:
 
         # Verify DELETE was called - get the last call which should be DELETE
         calls = [
-            c for c in mock_session.request.call_args_list
-            if c.kwargs.get("method") == "DELETE"
+            c for c in mock_session.request.call_args_list if c.kwargs.get("method") == "DELETE"
         ]
         assert len(calls) == 1
         assert "vms/200" in calls[0].kwargs["url"]

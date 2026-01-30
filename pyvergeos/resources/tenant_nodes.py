@@ -154,8 +154,7 @@ class TenantNode(ResourceObject):
     def __repr__(self) -> str:
         status = "running" if self.is_running else "stopped"
         return (
-            f"<TenantNode {self.name}: {self.cpu_cores} cores, "
-            f"{self.ram_gb:.1f} GB RAM ({status})>"
+            f"<TenantNode {self.name}: {self.cpu_cores} cores, {self.ram_gb:.1f} GB RAM ({status})>"
         )
 
 
@@ -332,8 +331,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
             body["description"] = description
 
         logger.debug(
-            f"Creating node for tenant '{self._tenant.name}': "
-            f"{cpu_cores} cores, {ram} MB RAM"
+            f"Creating node for tenant '{self._tenant.name}': {cpu_cores} cores, {ram} MB RAM"
         )
         response = self._client._request("POST", self._endpoint, json_data=body)
 

@@ -372,9 +372,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(fields)}
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"WireGuard interface with key {key} not found")
             if not isinstance(response, dict):
@@ -636,9 +634,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(fields)}
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"WireGuard peer with key {key} not found")
             if not isinstance(response, dict):
@@ -835,9 +831,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         """
         try:
             params = {"fields": "wg_config"}
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         except NotFoundError:
             # The wg_config field may not be available if peer wasn't auto-generated
             raise ValueError(

@@ -287,9 +287,7 @@ class SharedObjectManager:
             # Get by tenant and name
             results = self.list(tenant_key=tenant_key, name=name, fields=fields)
             if not results:
-                raise NotFoundError(
-                    f"Shared object '{name}' not found for tenant {tenant_key}"
-                )
+                raise NotFoundError(f"Shared object '{name}' not found for tenant {tenant_key}")
             return results[0]
 
         else:
@@ -411,9 +409,7 @@ class SharedObjectManager:
             if description:
                 shared_body["description"] = description
 
-            response = self._client._request(
-                "POST", self._endpoint, json_data=shared_body
-            )
+            response = self._client._request("POST", self._endpoint, json_data=shared_body)
 
             if response and isinstance(response, dict) and "$key" in response:
                 # Fetch the full object with all fields

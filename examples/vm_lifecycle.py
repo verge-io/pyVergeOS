@@ -443,9 +443,7 @@ with open('vm-inventory.csv', 'w', newline='') as f:
 
     print("\n--- Large VMs (4+ cores or 8GB+ RAM) ---")
     large_vms = [
-        vm
-        for vm in vms
-        if (vm.get("cpu_cores") or 0) >= 4 or (vm.get("ram") or 0) >= 8192
+        vm for vm in vms if (vm.get("cpu_cores") or 0) >= 4 or (vm.get("ram") or 0) >= 8192
     ]
     print(f"Found {len(large_vms)} large VMs:")
     print(f"{'Name':<30} {'CPUs':>5} {'RAM(GB)':>8} {'Status':<10}")

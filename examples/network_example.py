@@ -556,8 +556,7 @@ def diagnostics_examples(client: VergeClient) -> None:
             ts = entry["timestamp"]
             ts_str = ts.strftime("%H:%M:%S") if ts else "N/A"
             print(
-                f"  {ts_str}: quality={entry['quality']}%, "
-                f"latency_avg={entry['latency_avg_ms']}ms"
+                f"  {ts_str}: quality={entry['quality']}%, latency_avg={entry['latency_avg_ms']}ms"
             )
 
     # Get network diagnostics (DHCP leases and address table)
@@ -584,10 +583,7 @@ def diagnostics_examples(client: VergeClient) -> None:
         print("\n--- Address Table ---")
         for addr in diag["addresses"][:10]:  # Show first 10
             hostname = addr["hostname"] or "-"
-            print(
-                f"  {addr['ip']:15} {addr['type']:12} {addr['mac'] or 'N/A':17} "
-                f"{hostname}"
-            )
+            print(f"  {addr['ip']:15} {addr['type']:12} {addr['mac'] or 'N/A':17} {hostname}")
 
     # Get only DHCP leases
     print("\n--- DHCP Leases Only ---")

@@ -701,9 +701,7 @@ class TagManager(ResourceManager[Tag]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Tag with key {key} not found")
             if not isinstance(response, dict):
@@ -1158,15 +1156,11 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             else:
                 params["fields"] = ",".join(self._default_fields)
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Tag category with key {key} not found")
             if not isinstance(response, dict):
-                raise NotFoundError(
-                    f"Tag category with key {key} returned invalid response"
-                )
+                raise NotFoundError(f"Tag category with key {key} returned invalid response")
             return self._to_model(response)
 
         if name is not None:

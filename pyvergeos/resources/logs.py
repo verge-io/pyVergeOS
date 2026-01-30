@@ -457,9 +457,7 @@ class LogManager(ResourceManager[Log]):
             ...     "snapshot", level=["error", "critical"]
             ... )
         """
-        return self.list(
-            text=text, limit=limit, since=since, level=level, object_type=object_type
-        )
+        return self.list(text=text, limit=limit, since=since, level=level, object_type=object_type)
 
     def get(
         self,

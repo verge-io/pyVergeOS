@@ -298,8 +298,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
 
         if tier < 1 or tier > 5:
             raise ValueError(
-                f"Invalid tier {tier}. Valid tiers are 1-5. "
-                "Tier 0 is reserved for system metadata."
+                f"Invalid tier {tier}. Valid tiers are 1-5. Tier 0 is reserved for system metadata."
             )
 
         if provisioned_gb is None and provisioned_bytes is None:

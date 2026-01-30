@@ -456,9 +456,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(fields)}
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"IPSec connection with key {key} not found")
             if not isinstance(response, dict):
@@ -802,9 +800,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(fields)}
 
-            response = self._client._request(
-                "GET", f"{self._endpoint}/{key}", params=params
-            )
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"IPSec policy with key {key} not found")
             if not isinstance(response, dict):
