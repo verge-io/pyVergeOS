@@ -12,6 +12,11 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.machine_stats import (
+        MachineLogManager,
+        MachineStatsManager,
+        MachineStatusManager,
+    )
 
 
 # Status display mappings
@@ -343,6 +348,69 @@ class Node(ResourceObject):
 
         manager = cast("NodeManager", self._manager)
         return manager.usb_devices(self.key)
+
+    @property
+    def stats(self) -> MachineStatsManager:
+        """Access performance stats for this node.
+
+        Returns:
+            MachineStatsManager scoped to this node.
+
+        Example:
+            >>> stats = node.stats.get()
+            >>> print(f"CPU: {stats.total_cpu}%, RAM: {stats.ram_used_mb}MB")
+
+            >>> # Get stats history
+            >>> history = node.stats.history_short(limit=100)
+
+        Raises:
+            ValueError: If node has no associated machine.
+        """
+        from pyvergeos.resources.machine_stats import MachineStatsManager
+
+        if self.machine_key is None:
+            raise ValueError("Node has no associated machine")
+        return MachineStatsManager(self._manager._client, self.machine_key)
+
+    @property
+    def machine_status(self) -> MachineStatusManager:
+        """Access detailed operational status for this node.
+
+        Returns:
+            MachineStatusManager scoped to this node.
+
+        Example:
+            >>> status = node.machine_status.get()
+            >>> print(f"Status: {status.status}")
+
+        Raises:
+            ValueError: If node has no associated machine.
+        """
+        from pyvergeos.resources.machine_stats import MachineStatusManager
+
+        if self.machine_key is None:
+            raise ValueError("Node has no associated machine")
+        return MachineStatusManager(self._manager._client, self.machine_key)
+
+    @property
+    def machine_logs(self) -> MachineLogManager:
+        """Access log entries for this node.
+
+        Returns:
+            MachineLogManager scoped to this node.
+
+        Example:
+            >>> logs = node.machine_logs.list(limit=20)
+            >>> errors = node.machine_logs.list(errors_only=True)
+
+        Raises:
+            ValueError: If node has no associated machine.
+        """
+        from pyvergeos.resources.machine_stats import MachineLogManager
+
+        if self.machine_key is None:
+            raise ValueError("Node has no associated machine")
+        return MachineLogManager(self._manager._client, self.machine_key)
 
     def __repr__(self) -> str:
         return (

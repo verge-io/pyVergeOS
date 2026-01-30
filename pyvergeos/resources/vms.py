@@ -11,6 +11,12 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.drives import DriveManager
+    from pyvergeos.resources.machine_stats import (
+        MachineDeviceManager,
+        MachineLogManager,
+        MachineStatsManager,
+        MachineStatusManager,
+    )
     from pyvergeos.resources.nics import NICManager
     from pyvergeos.resources.snapshots import VMSnapshotManager
 
@@ -49,6 +55,10 @@ class VM(ResourceObject):
     _drives: DriveManager | None = None
     _nics: NICManager | None = None
     _snapshots: VMSnapshotManager | None = None
+    _stats: MachineStatsManager | None = None
+    _machine_status: MachineStatusManager | None = None
+    _machine_logs: MachineLogManager | None = None
+    _devices: MachineDeviceManager | None = None
 
     @property
     def drives(self) -> DriveManager:
@@ -76,6 +86,73 @@ class VM(ResourceObject):
 
             self._snapshots = VMSnapshotManager(self._manager._client, self)
         return self._snapshots
+
+    @property
+    def machine_key(self) -> int:
+        """Get the underlying machine key for this VM."""
+        machine = self.get("machine")
+        if machine is None:
+            raise ValueError("VM has no machine key")
+        return int(machine)
+
+    @property
+    def stats(self) -> MachineStatsManager:
+        """Access performance stats for this VM.
+
+        Example:
+            >>> stats = vm.stats.get()
+            >>> print(f"CPU: {stats.total_cpu}%, RAM: {stats.ram_used_mb}MB")
+
+            >>> # Get stats history
+            >>> history = vm.stats.history_short(limit=100)
+        """
+        if self._stats is None:
+            from pyvergeos.resources.machine_stats import MachineStatsManager
+
+            self._stats = MachineStatsManager(self._manager._client, self.machine_key)
+        return self._stats
+
+    @property
+    def machine_status(self) -> MachineStatusManager:
+        """Access detailed operational status for this VM.
+
+        Example:
+            >>> status = vm.machine_status.get()
+            >>> print(f"Status: {status.status}, Node: {status.node_name}")
+        """
+        if self._machine_status is None:
+            from pyvergeos.resources.machine_stats import MachineStatusManager
+
+            self._machine_status = MachineStatusManager(self._manager._client, self.machine_key)
+        return self._machine_status
+
+    @property
+    def machine_logs(self) -> MachineLogManager:
+        """Access log entries for this VM.
+
+        Example:
+            >>> logs = vm.machine_logs.list(limit=20)
+            >>> errors = vm.machine_logs.list(errors_only=True)
+        """
+        if self._machine_logs is None:
+            from pyvergeos.resources.machine_stats import MachineLogManager
+
+            self._machine_logs = MachineLogManager(self._manager._client, self.machine_key)
+        return self._machine_logs
+
+    @property
+    def devices(self) -> MachineDeviceManager:
+        """Access devices (GPU, TPM, USB, etc.) attached to this VM.
+
+        Example:
+            >>> devices = vm.devices.list()
+            >>> gpus = vm.devices.list(device_type="node_nvidia_vgpu_devices")
+        """
+        if self._devices is None:
+            from pyvergeos.resources.machine_stats import MachineDeviceManager
+
+            self._devices = MachineDeviceManager(self._manager._client, self.machine_key)
+        return self._devices
 
     def power_on(self, preferred_node: int | None = None) -> VM:
         """Power on the VM.
