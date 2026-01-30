@@ -12,6 +12,17 @@ from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshotVMManager,
 )
 from pyvergeos.resources.cloudinit_files import CloudInitFile, CloudInitFileManager
+from pyvergeos.resources.machine_stats import (
+    MachineDevice,
+    MachineDeviceManager,
+    MachineLog,
+    MachineLogManager,
+    MachineStats,
+    MachineStatsHistory,
+    MachineStatsManager,
+    MachineStatus,
+    MachineStatusManager,
+)
 from pyvergeos.resources.nas_cifs import NASCIFSShare, NASCIFSShareManager
 from pyvergeos.resources.nas_nfs import NASNFSShare, NASNFSShareManager
 from pyvergeos.resources.nas_services import (
@@ -106,6 +117,15 @@ __all__ = [
     "CloudSnapshotTenantManager",
     "CloudSnapshotVM",
     "CloudSnapshotVMManager",
+    "MachineDevice",
+    "MachineDeviceManager",
+    "MachineLog",
+    "MachineLogManager",
+    "MachineStats",
+    "MachineStatsHistory",
+    "MachineStatsManager",
+    "MachineStatus",
+    "MachineStatusManager",
     "NASCIFSShare",
     "NASCIFSShareManager",
     "NASNFSShare",
