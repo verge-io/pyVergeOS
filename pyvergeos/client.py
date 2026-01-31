@@ -75,6 +75,7 @@ if TYPE_CHECKING:
         TenantRecipeLogManager,
         TenantRecipeManager,
     )
+    from pyvergeos.resources.tenant_stats import TenantDashboardManager
     from pyvergeos.resources.users import UserManager
     from pyvergeos.resources.vm_imports import VmImportLogManager, VmImportManager
     from pyvergeos.resources.vm_recipes import (
@@ -207,6 +208,7 @@ class VergeClient:
         self._catalog_repository_logs: CatalogRepositoryLogManager | None = None
         self._catalog_repository_status: CatalogRepositoryStatusManager | None = None
         self._vgpu_profiles: NvidiaVgpuProfileManager | None = None
+        self._tenant_dashboard: TenantDashboardManager | None = None
 
         if auto_connect:
             self.connect()
@@ -528,6 +530,24 @@ class VergeClient:
 
             self._tenants = TenantManager(self)
         return self._tenants
+
+    @property
+    def tenant_dashboard(self) -> TenantDashboardManager:
+        """Access tenant dashboard with aggregated metrics.
+
+        Provides high-level overview of all tenant status and resource
+        utilization for monitoring and capacity planning.
+
+        Example:
+            >>> dashboard = client.tenant_dashboard.get()
+            >>> print(f"Online: {dashboard.tenants_online}/{dashboard.tenants_count}")
+            >>> print(f"Errors: {dashboard.tenants_error}")
+        """
+        if self._tenant_dashboard is None:
+            from pyvergeos.resources.tenant_stats import TenantDashboardManager
+
+            self._tenant_dashboard = TenantDashboardManager(self)
+        return self._tenant_dashboard
 
     @property
     def users(self) -> UserManager:

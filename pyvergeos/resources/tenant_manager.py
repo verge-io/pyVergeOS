@@ -14,6 +14,7 @@ from pyvergeos.resources.tenant_layer2 import TenantLayer2Manager
 from pyvergeos.resources.tenant_network_blocks import TenantNetworkBlockManager
 from pyvergeos.resources.tenant_nodes import TenantNodeManager
 from pyvergeos.resources.tenant_snapshots import TenantSnapshotManager
+from pyvergeos.resources.tenant_stats import TenantLogManager, TenantStatsManager
 from pyvergeos.resources.tenant_storage import TenantStorageManager
 
 if TYPE_CHECKING:
@@ -371,6 +372,49 @@ class Tenant(ResourceObject):
 
         manager = cast("TenantManager", self._manager)
         return manager._client.shared_objects.list(tenant_key=self.key)
+
+    @property
+    def stats(self) -> TenantStatsManager:
+        """Get the stats manager for this tenant.
+
+        Returns:
+            TenantStatsManager for accessing tenant metrics and history.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> # Get current stats
+            >>> stats = tenant.stats.get()
+            >>> print(f"RAM: {stats.ram_used_mb}MB")
+            >>> # Get stats history for billing/capacity planning
+            >>> history = tenant.stats.history_short(limit=100)
+            >>> for point in history:
+            ...     print(f"{point.timestamp}: CPU {point.total_cpu}%")
+        """
+        from typing import cast
+
+        manager = cast("TenantManager", self._manager)
+        return TenantStatsManager(manager._client, self)
+
+    @property
+    def logs(self) -> TenantLogManager:
+        """Get the log manager for this tenant.
+
+        Returns:
+            TenantLogManager for accessing tenant-specific logs.
+
+        Example:
+            >>> tenant = client.tenants.get(name="my-tenant")
+            >>> # Get recent logs
+            >>> logs = tenant.logs.list(limit=20)
+            >>> # Get errors only
+            >>> errors = tenant.logs.list(errors_only=True)
+            >>> for log in errors:
+            ...     print(f"[{log.level}] {log.text}")
+        """
+        from typing import cast
+
+        manager = cast("TenantManager", self._manager)
+        return TenantLogManager(manager._client, self)
 
     def set_ui_ip(self, ip: str, network_name: str = "External") -> dict[str, Any] | None:
         """Set the UI IP address for this tenant.
