@@ -24,6 +24,7 @@ from pyvergeos.exceptions import (
 if TYPE_CHECKING:
     from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
+    from pyvergeos.resources.billing import BillingManager
     from pyvergeos.resources.catalogs import (
         CatalogLogManager,
         CatalogManager,
@@ -209,6 +210,7 @@ class VergeClient:
         self._catalog_repository_status: CatalogRepositoryStatusManager | None = None
         self._vgpu_profiles: NvidiaVgpuProfileManager | None = None
         self._tenant_dashboard: TenantDashboardManager | None = None
+        self._billing: BillingManager | None = None
 
         if auto_connect:
             self.connect()
@@ -548,6 +550,37 @@ class VergeClient:
 
             self._tenant_dashboard = TenantDashboardManager(self)
         return self._tenant_dashboard
+
+    @property
+    def billing(self) -> BillingManager:
+        """Access billing records for resource usage tracking and chargeback.
+
+        Provides access to system-wide resource utilization records
+        for billing, chargeback, and capacity planning purposes.
+
+        Example:
+            >>> # List billing records
+            >>> records = client.billing.list(limit=100)
+            >>> for record in records:
+            ...     print(f"{record.created}: {record.used_cores} cores")
+
+            >>> # Get the latest billing record
+            >>> latest = client.billing.get_latest()
+            >>> print(f"CPU: {latest.cpu_utilization_pct:.1f}%")
+
+            >>> # Generate a new billing report
+            >>> client.billing.generate()
+
+            >>> # Get summary over time
+            >>> from datetime import datetime, timedelta
+            >>> since = datetime.now() - timedelta(days=30)
+            >>> summary = client.billing.get_summary(since=since)
+        """
+        if self._billing is None:
+            from pyvergeos.resources.billing import BillingManager
+
+            self._billing = BillingManager(self)
+        return self._billing
 
     @property
     def users(self) -> UserManager:
