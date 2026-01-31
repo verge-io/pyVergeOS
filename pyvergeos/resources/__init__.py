@@ -132,6 +132,15 @@ from pyvergeos.resources.tenant_recipes import (
     TenantRecipeManager,
 )
 from pyvergeos.resources.tenant_snapshots import TenantSnapshot, TenantSnapshotManager
+from pyvergeos.resources.tenant_stats import (
+    TenantDashboard,
+    TenantDashboardManager,
+    TenantLog,
+    TenantLogManager,
+    TenantStats,
+    TenantStatsHistory,
+    TenantStatsManager,
+)
 from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
 from pyvergeos.resources.vm_recipes import (
     VmRecipe,
@@ -253,6 +262,13 @@ __all__ = [
     "TenantNetworkBlockManager",
     "TenantSnapshot",
     "TenantSnapshotManager",
+    "TenantStats",
+    "TenantStatsHistory",
+    "TenantStatsManager",
+    "TenantLog",
+    "TenantLogManager",
+    "TenantDashboard",
+    "TenantDashboardManager",
     "TenantStorage",
     "TenantStorageManager",
     "Webhook",
