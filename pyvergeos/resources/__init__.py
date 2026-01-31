@@ -2,6 +2,7 @@
 
 from pyvergeos.resources.api_keys import APIKey, APIKeyCreated, APIKeyManager
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.billing import BillingManager, BillingRecord
 from pyvergeos.resources.certificates import Certificate, CertificateManager
 from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshot,
@@ -156,6 +157,8 @@ __all__ = [
     "APIKey",
     "APIKeyCreated",
     "APIKeyManager",
+    "BillingManager",
+    "BillingRecord",
     "Certificate",
     "CertificateManager",
     "CIFSSettings",
