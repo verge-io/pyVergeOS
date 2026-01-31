@@ -12,6 +12,11 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.gpu import (
+        NodeGpuManager,
+        NodeHostGpuDeviceManager,
+        NodeVgpuDeviceManager,
+    )
     from pyvergeos.resources.machine_stats import (
         MachineLogManager,
         MachineStatsManager,
@@ -412,6 +417,76 @@ class Node(ResourceObject):
             raise ValueError("Node has no associated machine")
         return MachineLogManager(self._manager._client, self.machine_key)
 
+    @property
+    def gpus(self) -> NodeGpuManager:
+        """Access GPU configurations for this node.
+
+        Returns:
+            NodeGpuManager scoped to this node.
+
+        Example:
+            >>> for gpu in node.gpus.list():
+            ...     print(f"{gpu.name}: {gpu.mode_display}")
+        """
+        from typing import cast
+
+        from pyvergeos.resources.gpu import NodeGpuManager
+
+        manager = cast("NodeManager", self._manager)
+        return NodeGpuManager(manager._client, node_key=self.key)
+
+    @property
+    def vgpu_devices(self) -> NodeVgpuDeviceManager:
+        """Access NVIDIA vGPU-capable devices on this node.
+
+        Returns:
+            NodeVgpuDeviceManager scoped to this node.
+
+        Example:
+            >>> for device in node.vgpu_devices.list():
+            ...     print(f"{device.name}: {device.vendor} {device.device}")
+        """
+        from typing import cast
+
+        from pyvergeos.resources.gpu import NodeVgpuDeviceManager
+
+        manager = cast("NodeManager", self._manager)
+        return NodeVgpuDeviceManager(manager._client, node_key=self.key)
+
+    @property
+    def host_gpu_devices(self) -> NodeHostGpuDeviceManager:
+        """Access host GPU devices available for passthrough on this node.
+
+        Returns:
+            NodeHostGpuDeviceManager scoped to this node.
+
+        Example:
+            >>> for device in node.host_gpu_devices.list():
+            ...     print(f"{device.name}: {device.vendor} {device.device}")
+        """
+        from typing import cast
+
+        from pyvergeos.resources.gpu import NodeHostGpuDeviceManager
+
+        manager = cast("NodeManager", self._manager)
+        return NodeHostGpuDeviceManager(manager._client, node_key=self.key)
+
+    @property
+    def sriov_nics(self) -> NodeSriovNicDeviceManager:
+        """Access SR-IOV NIC devices on this node.
+
+        Returns:
+            NodeSriovNicDeviceManager scoped to this node.
+
+        Example:
+            >>> for device in node.sriov_nics.list():
+            ...     print(f"{device.name}: PF {device.physical_function}")
+        """
+        from typing import cast
+
+        manager = cast("NodeManager", self._manager)
+        return manager.sriov_nics(self.key)
+
     def __repr__(self) -> str:
         return (
             f"<Node key={self.get('$key', '?')} name={self.name!r} "
@@ -719,6 +794,111 @@ class NodeUSBDevice(ResourceObject):
         return (
             f"<NodeUSBDevice key={self.get('$key', '?')} "
             f"bus={self.bus} device={self.device_num} model={self.model!r}>"
+        )
+
+
+class NodeSriovNicDevice(ResourceObject):
+    """Node SR-IOV NIC device resource object.
+
+    Represents an SR-IOV capable NIC (Virtual Function) attached to a VergeOS node.
+    These are virtual network interfaces created from a physical NIC that supports SR-IOV.
+    """
+
+    @property
+    def node_key(self) -> int | None:
+        """Parent node key."""
+        node = self.get("node")
+        if node:
+            return int(node)
+        return None
+
+    @property
+    def node_name(self) -> str:
+        """Parent node name."""
+        return str(self.get("node_name", ""))
+
+    @property
+    def pci_device_key(self) -> int | None:
+        """Parent PCI device key (physical function)."""
+        pci = self.get("pci_device")
+        if pci:
+            return int(pci)
+        return None
+
+    @property
+    def name(self) -> str:
+        """Device name."""
+        return str(self.get("name", ""))
+
+    @property
+    def slot(self) -> str:
+        """PCI slot."""
+        return str(self.get("slot", ""))
+
+    @property
+    def vendor(self) -> str:
+        """Vendor name."""
+        return str(self.get("vendor", ""))
+
+    @property
+    def device(self) -> str:
+        """Device name."""
+        return str(self.get("device", ""))
+
+    @property
+    def vendor_device_hex(self) -> str:
+        """Vendor/device ID in hexadecimal."""
+        return str(self.get("vendor_device_hex", ""))
+
+    @property
+    def subsystem_vendor(self) -> str:
+        """Subsystem vendor."""
+        return str(self.get("svendor", ""))
+
+    @property
+    def subsystem_device(self) -> str:
+        """Subsystem device."""
+        return str(self.get("subsystem_device", ""))
+
+    @property
+    def physical_slot(self) -> str:
+        """Physical slot."""
+        return str(self.get("physical_slot", ""))
+
+    @property
+    def physical_function(self) -> str:
+        """Physical function (PF) slot for this VF."""
+        return str(self.get("physical_function", ""))
+
+    @property
+    def revision_number(self) -> str:
+        """Revision number."""
+        return str(self.get("revision_number", ""))
+
+    @property
+    def driver(self) -> str:
+        """Current driver."""
+        return str(self.get("driver", ""))
+
+    @property
+    def module(self) -> str:
+        """Kernel module."""
+        return str(self.get("module", ""))
+
+    @property
+    def numa_node(self) -> str:
+        """NUMA node."""
+        return str(self.get("numa", ""))
+
+    @property
+    def iommu_group(self) -> str:
+        """IOMMU group."""
+        return str(self.get("iommu_group", ""))
+
+    def __repr__(self) -> str:
+        return (
+            f"<NodeSriovNicDevice key={self.get('$key', '?')} "
+            f"slot={self.slot!r} name={self.name!r} pf={self.physical_function!r}>"
         )
 
 
@@ -1218,6 +1398,172 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
         return self._to_model(response)
 
 
+class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
+    """Manager for node SR-IOV NIC device operations.
+
+    Provides access to SR-IOV capable NIC virtual functions (VFs)
+    attached to VergeOS nodes. Can be used globally or scoped to a specific node.
+
+    SR-IOV (Single Root I/O Virtualization) allows a single physical NIC to
+    appear as multiple virtual network interfaces, each passable to a VM
+    for near-native network performance.
+
+    Example:
+        >>> # List all SR-IOV NIC devices
+        >>> devices = client.nodes.all_sriov_nics.list()
+
+        >>> # List SR-IOV NICs for a specific node
+        >>> node_devices = client.nodes.sriov_nics(node_key).list()
+
+        >>> # Or via node object
+        >>> for device in node.sriov_nics.list():
+        ...     print(f"{device.name} on {device.slot} (PF: {device.physical_function})")
+    """
+
+    _endpoint = "node_sriov_nic_devices"
+
+    # Default fields for list operations
+    _default_fields = [
+        "$key",
+        "node",
+        "node#name as node_name",
+        "pci_device",
+        "name",
+        "slot",
+        "vendor",
+        "device",
+        "vendor_device_hex",
+        "svendor",
+        "subsystem_device",
+        "physical_slot",
+        "physical_function",
+        "revision_number",
+        "driver",
+        "module",
+        "numa",
+        "iommu_group",
+    ]
+
+    def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
+        super().__init__(client)
+        self._node_key = node_key
+
+    def _to_model(self, data: dict[str, Any]) -> NodeSriovNicDevice:
+        return NodeSriovNicDevice(data, self)
+
+    def list(
+        self,
+        filter: str | None = None,
+        fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        *,
+        vendor: str | None = None,
+        physical_function: str | None = None,
+        **filter_kwargs: Any,
+    ) -> builtins.list[NodeSriovNicDevice]:
+        """List SR-IOV NIC devices with optional filtering.
+
+        Args:
+            filter: OData filter string.
+            fields: List of fields to return.
+            limit: Maximum number of results.
+            offset: Skip this many results.
+            vendor: Filter by vendor name (contains).
+            physical_function: Filter by physical function slot (exact match).
+            **filter_kwargs: Additional filter arguments.
+
+        Returns:
+            List of NodeSriovNicDevice objects.
+
+        Example:
+            >>> # List all SR-IOV NIC devices
+            >>> devices = client.nodes.all_sriov_nics.list()
+
+            >>> # List Intel SR-IOV NICs
+            >>> intel = client.nodes.all_sriov_nics.list(vendor="Intel")
+
+            >>> # List VFs for a specific physical function
+            >>> vfs = client.nodes.all_sriov_nics.list(
+            ...     physical_function="0000:3b:00.0"
+            ... )
+        """
+        params: dict[str, Any] = {}
+        filters = []
+
+        if filter:
+            filters.append(filter)
+
+        # Scope to node if configured
+        if self._node_key is not None:
+            filters.append(f"node eq {self._node_key}")
+
+        if vendor is not None:
+            escaped = vendor.replace("'", "''")
+            filters.append(f"vendor ct '{escaped}'")
+
+        if physical_function is not None:
+            escaped = physical_function.replace("'", "''")
+            filters.append(f"physical_function eq '{escaped}'")
+
+        if filter_kwargs:
+            filters.append(build_filter(**filter_kwargs))
+
+        if filters:
+            params["filter"] = " and ".join(filters)
+
+        # Use default fields if not specified
+        if fields:
+            params["fields"] = ",".join(fields)
+        else:
+            params["fields"] = ",".join(self._default_fields)
+
+        # Pagination
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+
+        response = self._client._request("GET", self._endpoint, params=params)
+
+        if response is None:
+            return []
+
+        if not isinstance(response, list):
+            return [self._to_model(response)]
+
+        return [self._to_model(item) for item in response]
+
+    def get(  # type: ignore[override]
+        self,
+        key: int,
+        *,
+        fields: builtins.list[str] | None = None,
+    ) -> NodeSriovNicDevice:
+        """Get a single SR-IOV NIC device by key.
+
+        Args:
+            key: Device $key (ID).
+            fields: List of fields to return.
+
+        Returns:
+            NodeSriovNicDevice object.
+
+        Raises:
+            NotFoundError: If device not found.
+        """
+        if fields is None:
+            fields = self._default_fields
+
+        params: dict[str, Any] = {"fields": ",".join(fields)}
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
+        if response is None:
+            raise NotFoundError(f"SR-IOV NIC device with key {key} not found")
+        if not isinstance(response, dict):
+            raise NotFoundError(f"SR-IOV NIC device with key {key} returned invalid response")
+        return self._to_model(response)
+
+
 class NodeManager(ResourceManager[Node]):
     """Manager for Node operations.
 
@@ -1291,6 +1637,10 @@ class NodeManager(ResourceManager[Node]):
         self._all_drivers: NodeDriverManager | None = None
         self._all_pci_devices: NodePCIDeviceManager | None = None
         self._all_usb_devices: NodeUSBDeviceManager | None = None
+        self._all_sriov_nics: NodeSriovNicDeviceManager | None = None
+        self._all_gpus: NodeGpuManager | None = None
+        self._all_vgpu_devices: NodeVgpuDeviceManager | None = None
+        self._all_host_gpu_devices: NodeHostGpuDeviceManager | None = None
 
     def _to_model(self, data: dict[str, Any]) -> Node:
         return Node(data, self)
@@ -1555,3 +1905,129 @@ class NodeManager(ResourceManager[Node]):
         if self._all_usb_devices is None:
             self._all_usb_devices = NodeUSBDeviceManager(self._client)
         return self._all_usb_devices
+
+    def sriov_nics(self, node_key: int) -> NodeSriovNicDeviceManager:
+        """Get SR-IOV NIC device manager scoped to a specific node.
+
+        Args:
+            node_key: Node $key (ID).
+
+        Returns:
+            NodeSriovNicDeviceManager for the specified node.
+
+        Example:
+            >>> devices = client.nodes.sriov_nics(node.key).list()
+        """
+        return NodeSriovNicDeviceManager(self._client, node_key=node_key)
+
+    @property
+    def all_sriov_nics(self) -> NodeSriovNicDeviceManager:
+        """Access all SR-IOV NIC devices across all nodes.
+
+        Returns:
+            NodeSriovNicDeviceManager (global, not scoped to a node).
+
+        Example:
+            >>> all_sriov = client.nodes.all_sriov_nics.list()
+            >>> intel_vfs = client.nodes.all_sriov_nics.list(vendor="Intel")
+        """
+        if self._all_sriov_nics is None:
+            self._all_sriov_nics = NodeSriovNicDeviceManager(self._client)
+        return self._all_sriov_nics
+
+    def gpus(self, node_key: int) -> NodeGpuManager:
+        """Get GPU manager scoped to a specific node.
+
+        Args:
+            node_key: Node $key (ID).
+
+        Returns:
+            NodeGpuManager for the specified node.
+
+        Example:
+            >>> gpus = client.nodes.gpus(node.key).list()
+        """
+        from pyvergeos.resources.gpu import NodeGpuManager
+
+        return NodeGpuManager(self._client, node_key=node_key)
+
+    def vgpu_devices(self, node_key: int) -> NodeVgpuDeviceManager:
+        """Get vGPU device manager scoped to a specific node.
+
+        Args:
+            node_key: Node $key (ID).
+
+        Returns:
+            NodeVgpuDeviceManager for the specified node.
+
+        Example:
+            >>> devices = client.nodes.vgpu_devices(node.key).list()
+        """
+        from pyvergeos.resources.gpu import NodeVgpuDeviceManager
+
+        return NodeVgpuDeviceManager(self._client, node_key=node_key)
+
+    def host_gpu_devices(self, node_key: int) -> NodeHostGpuDeviceManager:
+        """Get host GPU device manager scoped to a specific node.
+
+        Args:
+            node_key: Node $key (ID).
+
+        Returns:
+            NodeHostGpuDeviceManager for the specified node.
+
+        Example:
+            >>> devices = client.nodes.host_gpu_devices(node.key).list()
+        """
+        from pyvergeos.resources.gpu import NodeHostGpuDeviceManager
+
+        return NodeHostGpuDeviceManager(self._client, node_key=node_key)
+
+    @property
+    def all_gpus(self) -> NodeGpuManager:
+        """Access all GPU configurations across all nodes.
+
+        Returns:
+            NodeGpuManager (global, not scoped to a node).
+
+        Example:
+            >>> all_gpus = client.nodes.all_gpus.list()
+            >>> passthrough = client.nodes.all_gpus.list(mode="gpu")
+        """
+        from pyvergeos.resources.gpu import NodeGpuManager
+
+        if self._all_gpus is None:
+            self._all_gpus = NodeGpuManager(self._client)
+        return self._all_gpus
+
+    @property
+    def all_vgpu_devices(self) -> NodeVgpuDeviceManager:
+        """Access all vGPU-capable devices across all nodes.
+
+        Returns:
+            NodeVgpuDeviceManager (global, not scoped to a node).
+
+        Example:
+            >>> all_vgpu = client.nodes.all_vgpu_devices.list()
+        """
+        from pyvergeos.resources.gpu import NodeVgpuDeviceManager
+
+        if self._all_vgpu_devices is None:
+            self._all_vgpu_devices = NodeVgpuDeviceManager(self._client)
+        return self._all_vgpu_devices
+
+    @property
+    def all_host_gpu_devices(self) -> NodeHostGpuDeviceManager:
+        """Access all host GPU devices across all nodes.
+
+        Returns:
+            NodeHostGpuDeviceManager (global, not scoped to a node).
+
+        Example:
+            >>> all_host_gpu = client.nodes.all_host_gpu_devices.list()
+        """
+        from pyvergeos.resources.gpu import NodeHostGpuDeviceManager
+
+        if self._all_host_gpu_devices is None:
+            self._all_host_gpu_devices = NodeHostGpuDeviceManager(self._client)
+        return self._all_host_gpu_devices

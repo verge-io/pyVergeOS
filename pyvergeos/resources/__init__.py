@@ -12,9 +12,25 @@ from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshotVMManager,
 )
 from pyvergeos.resources.cloudinit_files import CloudInitFile, CloudInitFileManager
+from pyvergeos.resources.devices import Device, DeviceManager
+from pyvergeos.resources.gpu import (
+    NodeGpu,
+    NodeGpuInstance,
+    NodeGpuInstanceManager,
+    NodeGpuManager,
+    NodeGpuStats,
+    NodeGpuStatsHistory,
+    NodeGpuStatsManager,
+    NodeHostGpuDevice,
+    NodeHostGpuDeviceManager,
+    NodeVgpuDevice,
+    NodeVgpuDeviceManager,
+    NodeVgpuProfile,
+    NodeVgpuProfileManager,
+    NvidiaVgpuProfile,
+    NvidiaVgpuProfileManager,
+)
 from pyvergeos.resources.machine_stats import (
-    MachineDevice,
-    MachineDeviceManager,
     MachineLog,
     MachineLogManager,
     MachineStats,
@@ -40,6 +56,18 @@ from pyvergeos.resources.nas_volumes import (
     NASVolumeSnapshot,
     NASVolumeSnapshotManager,
 )
+from pyvergeos.resources.nodes import (
+    Node,
+    NodeDriver,
+    NodeDriverManager,
+    NodeManager,
+    NodePCIDevice,
+    NodePCIDeviceManager,
+    NodeSriovNicDevice,
+    NodeSriovNicDeviceManager,
+    NodeUSBDevice,
+    NodeUSBDeviceManager,
+)
 from pyvergeos.resources.permissions import Permission, PermissionManager
 from pyvergeos.resources.recipe_common import (
     RecipeQuestion,
@@ -47,7 +75,12 @@ from pyvergeos.resources.recipe_common import (
     RecipeSection,
     RecipeSectionManager,
 )
-from pyvergeos.resources.resource_groups import ResourceGroup, ResourceGroupManager
+from pyvergeos.resources.resource_groups import (
+    ResourceGroup,
+    ResourceGroupManager,
+    ResourceRule,
+    ResourceRuleManager,
+)
 from pyvergeos.resources.shared_objects import SharedObject, SharedObjectManager
 from pyvergeos.resources.site_syncs import (
     SiteSyncIncoming,
@@ -117,8 +150,8 @@ __all__ = [
     "CloudSnapshotTenantManager",
     "CloudSnapshotVM",
     "CloudSnapshotVMManager",
-    "MachineDevice",
-    "MachineDeviceManager",
+    "Device",
+    "DeviceManager",
     "MachineLog",
     "MachineLogManager",
     "MachineStats",
@@ -126,6 +159,31 @@ __all__ = [
     "MachineStatsManager",
     "MachineStatus",
     "MachineStatusManager",
+    "NodeGpu",
+    "NodeGpuInstance",
+    "NodeGpuInstanceManager",
+    "NodeGpuManager",
+    "NodeGpuStats",
+    "NodeGpuStatsHistory",
+    "NodeGpuStatsManager",
+    "NodeHostGpuDevice",
+    "NodeHostGpuDeviceManager",
+    "NodeVgpuDevice",
+    "NodeVgpuDeviceManager",
+    "NodeVgpuProfile",
+    "NodeVgpuProfileManager",
+    "NvidiaVgpuProfile",
+    "NvidiaVgpuProfileManager",
+    "Node",
+    "NodeDriver",
+    "NodeDriverManager",
+    "NodeManager",
+    "NodePCIDevice",
+    "NodePCIDeviceManager",
+    "NodeSriovNicDevice",
+    "NodeSriovNicDeviceManager",
+    "NodeUSBDevice",
+    "NodeUSBDeviceManager",
     "NASCIFSShare",
     "NASCIFSShareManager",
     "NASNFSShare",
@@ -147,6 +205,8 @@ __all__ = [
     "PermissionManager",
     "ResourceGroup",
     "ResourceGroupManager",
+    "ResourceRule",
+    "ResourceRuleManager",
     "ResourceManager",
     "ResourceObject",
     "SharedObject",

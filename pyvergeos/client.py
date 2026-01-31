@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.cloudinit_files import CloudInitFileManager
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.files import FileManager
+    from pyvergeos.resources.gpu import NvidiaVgpuProfileManager
     from pyvergeos.resources.groups import GroupManager
     from pyvergeos.resources.logs import LogManager
     from pyvergeos.resources.nas_cifs import NASCIFSShareManager
@@ -205,6 +206,7 @@ class VergeClient:
         self._catalog_logs: CatalogLogManager | None = None
         self._catalog_repository_logs: CatalogRepositoryLogManager | None = None
         self._catalog_repository_status: CatalogRepositoryStatusManager | None = None
+        self._vgpu_profiles: NvidiaVgpuProfileManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1349,3 +1351,28 @@ class VergeClient:
 
             self._catalog_repository_status = CatalogRepositoryStatusManager(self)
         return self._catalog_repository_status
+
+    @property
+    def vgpu_profiles(self) -> NvidiaVgpuProfileManager:
+        """Access NVIDIA vGPU profile operations.
+
+        vGPU profiles define the characteristics of virtual GPUs that can be
+        created. Profiles are read-only and determined by NVIDIA drivers and
+        available hardware.
+
+        Example:
+            >>> # List all vGPU profiles
+            >>> for profile in client.vgpu_profiles.list():
+            ...     print(f"{profile.name}: {profile.framebuffer}")
+
+            >>> # List AI/ML profiles only
+            >>> ml_profiles = client.vgpu_profiles.list(profile_type="C")
+
+            >>> # Get a specific profile
+            >>> profile = client.vgpu_profiles.get(name="nvidia-256")
+        """
+        if self._vgpu_profiles is None:
+            from pyvergeos.resources.gpu import NvidiaVgpuProfileManager
+
+            self._vgpu_profiles = NvidiaVgpuProfileManager(self)
+        return self._vgpu_profiles

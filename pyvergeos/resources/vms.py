@@ -10,9 +10,9 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.devices import DeviceManager
     from pyvergeos.resources.drives import DriveManager
     from pyvergeos.resources.machine_stats import (
-        MachineDeviceManager,
         MachineLogManager,
         MachineStatsManager,
         MachineStatusManager,
@@ -58,7 +58,7 @@ class VM(ResourceObject):
     _stats: MachineStatsManager | None = None
     _machine_status: MachineStatusManager | None = None
     _machine_logs: MachineLogManager | None = None
-    _devices: MachineDeviceManager | None = None
+    _devices: DeviceManager | None = None
 
     @property
     def drives(self) -> DriveManager:
@@ -141,17 +141,29 @@ class VM(ResourceObject):
         return self._machine_logs
 
     @property
-    def devices(self) -> MachineDeviceManager:
-        """Access devices (GPU, TPM, USB, etc.) attached to this VM.
+    def devices(self) -> DeviceManager:
+        """Access devices (GPU, TPM, USB, PCI, SR-IOV) attached to this VM.
+
+        Returns:
+            DeviceManager scoped to this VM.
 
         Example:
+            >>> # List all devices
             >>> devices = vm.devices.list()
-            >>> gpus = vm.devices.list(device_type="node_nvidia_vgpu_devices")
+
+            >>> # List vGPUs only
+            >>> vgpus = vm.devices.list(device_type="node_nvidia_vgpu_devices")
+
+            >>> # Attach a vGPU
+            >>> device = vm.devices.create_vgpu(
+            ...     resource_group=vgpu_pool.key,
+            ...     frame_rate_limit=60,
+            ... )
         """
         if self._devices is None:
-            from pyvergeos.resources.machine_stats import MachineDeviceManager
+            from pyvergeos.resources.devices import DeviceManager
 
-            self._devices = MachineDeviceManager(self._manager._client, self.machine_key)
+            self._devices = DeviceManager(self._manager._client, self.machine_key)
         return self._devices
 
     def power_on(self, preferred_node: int | None = None) -> VM:

@@ -53,6 +53,49 @@ uv run mypy pyvergeos                # Type check
 uv build                             # Build wheel & sdist
 ```
 
+## Linting Rules (Common Pitfalls)
+
+Ruff enforces these rules. Avoid these common errors:
+
+### F541: No empty f-strings
+```python
+# BAD - f-string without placeholders
+print(f"Starting process:")
+
+# GOOD - use regular string
+print("Starting process:")
+```
+
+### F841: No unused variables
+```python
+# BAD - variable assigned but never used
+result = manager.update(key=1, name="test")
+
+# GOOD - call without assignment if result unused
+manager.update(key=1, name="test")
+
+# GOOD - use underscore for intentionally ignored values
+_ = manager.update(key=1, name="test")
+```
+
+### F401: No unused imports
+```python
+# BAD - importing something you don't use
+from pyvergeos.client import VergeClient  # never referenced
+
+# GOOD - only import what you need
+from pyvergeos.resources.gpu import NodeGpuManager
+```
+
+### A002: Don't shadow builtins
+```python
+# BAD - shadows built-in filter
+def list(self, filter: str = None):
+
+# GOOD - use noqa comment when intentional (common in this codebase)
+def list(self, filter: str | None = None):  # noqa: A002
+```
+
 ## Code Conventions
 
 ### Naming

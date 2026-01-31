@@ -18,6 +18,8 @@ from pyvergeos.resources.nodes import (
     NodeManager,
     NodePCIDevice,
     NodePCIDeviceManager,
+    NodeSriovNicDevice,
+    NodeSriovNicDeviceManager,
     NodeUSBDevice,
     NodeUSBDeviceManager,
 )
@@ -1100,3 +1102,197 @@ class TestConstants:
         assert DRIVER_STATUS_DISPLAY["complete"] == "Installed"
         assert DRIVER_STATUS_DISPLAY["verifying"] == "Verifying"
         assert DRIVER_STATUS_DISPLAY["error"] == "Error"
+
+
+class TestNodeSriovNicDevice:
+    """Tests for NodeSriovNicDevice resource object."""
+
+    def test_key_property(self) -> None:
+        """Test key property returns int."""
+        data = {"$key": 123}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.key == 123
+
+    def test_node_key_property(self) -> None:
+        """Test node_key property."""
+        data = {"$key": 1, "node": 5}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.node_key == 5
+
+    def test_node_key_none(self) -> None:
+        """Test node_key property when not set."""
+        device = NodeSriovNicDevice({"$key": 1}, MagicMock())
+        assert device.node_key is None
+
+    def test_node_name_property(self) -> None:
+        """Test node_name property."""
+        data = {"$key": 1, "node_name": "node1"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.node_name == "node1"
+
+    def test_pci_device_key_property(self) -> None:
+        """Test pci_device_key property."""
+        data = {"$key": 1, "pci_device": 100}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.pci_device_key == 100
+
+    def test_pci_device_key_none(self) -> None:
+        """Test pci_device_key property when not set."""
+        device = NodeSriovNicDevice({"$key": 1}, MagicMock())
+        assert device.pci_device_key is None
+
+    def test_name_property(self) -> None:
+        """Test name property."""
+        data = {"$key": 1, "name": "Intel X710 VF0"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.name == "Intel X710 VF0"
+
+    def test_slot_property(self) -> None:
+        """Test slot property."""
+        data = {"$key": 1, "slot": "0000:3b:10.0"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.slot == "0000:3b:10.0"
+
+    def test_vendor_property(self) -> None:
+        """Test vendor property."""
+        data = {"$key": 1, "vendor": "Intel Corporation"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.vendor == "Intel Corporation"
+
+    def test_device_property(self) -> None:
+        """Test device property."""
+        data = {"$key": 1, "device": "X710 Virtual Function"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.device == "X710 Virtual Function"
+
+    def test_physical_function_property(self) -> None:
+        """Test physical_function property."""
+        data = {"$key": 1, "physical_function": "0000:3b:00.0"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.physical_function == "0000:3b:00.0"
+
+    def test_driver_property(self) -> None:
+        """Test driver property."""
+        data = {"$key": 1, "driver": "iavf"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.driver == "iavf"
+
+    def test_iommu_group_property(self) -> None:
+        """Test iommu_group property."""
+        data = {"$key": 1, "iommu_group": "45"}
+        device = NodeSriovNicDevice(data, MagicMock())
+        assert device.iommu_group == "45"
+
+    def test_repr(self) -> None:
+        """Test string representation."""
+        data = {
+            "$key": 1,
+            "name": "X710 VF",
+            "slot": "0000:3b:10.0",
+            "physical_function": "0000:3b:00.0",
+        }
+        device = NodeSriovNicDevice(data, MagicMock())
+        repr_str = repr(device)
+        assert "NodeSriovNicDevice" in repr_str
+        assert "key=1" in repr_str
+        assert "X710 VF" in repr_str
+
+
+class TestNodeSriovNicDeviceManager:
+    """Tests for NodeSriovNicDeviceManager."""
+
+    def test_init_global(self) -> None:
+        """Test initializing global manager."""
+        mock_client = MagicMock()
+        manager = NodeSriovNicDeviceManager(mock_client)
+        assert manager._node_key is None
+
+    def test_init_scoped(self) -> None:
+        """Test initializing scoped manager."""
+        mock_client = MagicMock()
+        manager = NodeSriovNicDeviceManager(mock_client, node_key=5)
+        assert manager._node_key == 5
+
+    def test_list_all(self) -> None:
+        """Test listing all SR-IOV NIC devices."""
+        mock_client = MagicMock()
+        mock_client._request.return_value = [
+            {"$key": 1, "name": "VF0", "slot": "0000:3b:10.0"},
+            {"$key": 2, "name": "VF1", "slot": "0000:3b:10.1"},
+        ]
+        manager = NodeSriovNicDeviceManager(mock_client)
+
+        devices = manager.list()
+
+        assert len(devices) == 2
+        assert devices[0].name == "VF0"
+        assert devices[1].name == "VF1"
+
+    def test_list_scoped_to_node(self) -> None:
+        """Test listing devices scoped to a node."""
+        mock_client = MagicMock()
+        mock_client._request.return_value = []
+        manager = NodeSriovNicDeviceManager(mock_client, node_key=5)
+
+        manager.list()
+
+        call_args = mock_client._request.call_args
+        assert "node eq 5" in call_args[1]["params"]["filter"]
+
+    def test_list_with_vendor_filter(self) -> None:
+        """Test list with vendor filter."""
+        mock_client = MagicMock()
+        mock_client._request.return_value = []
+        manager = NodeSriovNicDeviceManager(mock_client)
+
+        manager.list(vendor="Intel")
+
+        call_args = mock_client._request.call_args
+        assert "vendor ct 'Intel'" in call_args[1]["params"]["filter"]
+
+    def test_list_with_physical_function_filter(self) -> None:
+        """Test list with physical function filter."""
+        mock_client = MagicMock()
+        mock_client._request.return_value = []
+        manager = NodeSriovNicDeviceManager(mock_client)
+
+        manager.list(physical_function="0000:3b:00.0")
+
+        call_args = mock_client._request.call_args
+        assert "physical_function eq '0000:3b:00.0'" in call_args[1]["params"]["filter"]
+
+    def test_get_by_key(self) -> None:
+        """Test getting device by key."""
+        mock_client = MagicMock()
+        mock_client._request.return_value = {
+            "$key": 1,
+            "name": "VF0",
+            "slot": "0000:3b:10.0",
+        }
+        manager = NodeSriovNicDeviceManager(mock_client)
+
+        device = manager.get(1)
+
+        assert device.key == 1
+        assert device.name == "VF0"
+
+    def test_get_not_found(self) -> None:
+        """Test get raises NotFoundError."""
+        from pyvergeos.exceptions import NotFoundError
+
+        mock_client = MagicMock()
+        mock_client._request.return_value = None
+        manager = NodeSriovNicDeviceManager(mock_client)
+
+        with pytest.raises(NotFoundError, match="not found"):
+            manager.get(999)
+
+    def test_list_empty(self) -> None:
+        """Test listing when no devices exist."""
+        mock_client = MagicMock()
+        mock_client._request.return_value = None
+        manager = NodeSriovNicDeviceManager(mock_client)
+
+        devices = manager.list()
+
+        assert devices == []

@@ -9,9 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.resources.devices import Device, DeviceManager
 from pyvergeos.resources.machine_stats import (
-    MachineDevice,
-    MachineDeviceManager,
     MachineLog,
     MachineLogManager,
     MachineStats,
@@ -682,17 +681,17 @@ class TestMachineLogManager:
 
 
 # =============================================================================
-# MachineDevice Model Tests
+# Device Model Tests
 # =============================================================================
 
 
-class TestMachineDevice:
-    """Tests for MachineDevice model."""
+class TestDevice:
+    """Tests for Device model."""
 
     def test_device_properties(self, sample_device_data: dict[str, Any]) -> None:
         """Test device properties."""
         manager = MagicMock()
-        device = MachineDevice(sample_device_data, manager)
+        device = Device(sample_device_data, manager)
 
         assert device.machine_key == 100
         assert device.machine_name == "test-vm"
@@ -711,7 +710,7 @@ class TestMachineDevice:
     def test_device_status(self, sample_device_data: dict[str, Any]) -> None:
         """Test device status."""
         manager = MagicMock()
-        device = MachineDevice(sample_device_data, manager)
+        device = Device(sample_device_data, manager)
 
         assert device.status == "Online"
         assert device.status_raw == "online"
@@ -720,8 +719,8 @@ class TestMachineDevice:
         """Test device type helper properties."""
         manager = MagicMock()
 
-        gpu_device = MachineDevice(sample_device_list[0], manager)
-        tpm_device = MachineDevice(sample_device_list[1], manager)
+        gpu_device = Device(sample_device_list[0], manager)
+        tpm_device = Device(sample_device_list[1], manager)
 
         assert gpu_device.is_gpu is True
         assert gpu_device.is_tpm is False
@@ -733,19 +732,19 @@ class TestMachineDevice:
     def test_device_repr(self, sample_device_data: dict[str, Any]) -> None:
         """Test device repr."""
         manager = MagicMock()
-        device = MachineDevice(sample_device_data, manager)
+        device = Device(sample_device_data, manager)
 
-        assert "MachineDevice" in repr(device)
+        assert "Device" in repr(device)
         assert "gpu_0" in repr(device)
 
 
 # =============================================================================
-# MachineDeviceManager Tests
+# DeviceManager Tests
 # =============================================================================
 
 
-class TestMachineDeviceManager:
-    """Tests for MachineDeviceManager."""
+class TestDeviceManager:
+    """Tests for DeviceManager."""
 
     def test_list_devices(
         self,
@@ -754,7 +753,7 @@ class TestMachineDeviceManager:
     ) -> None:
         """Test listing devices."""
         mock_client._request.return_value = sample_device_list
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         devices = manager.list()
 
@@ -770,7 +769,7 @@ class TestMachineDeviceManager:
     ) -> None:
         """Test listing devices by type."""
         mock_client._request.return_value = [sample_device_list[0]]
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         devices = manager.list(device_type="node_nvidia_vgpu_devices")
 
@@ -785,7 +784,7 @@ class TestMachineDeviceManager:
     ) -> None:
         """Test listing only enabled devices."""
         mock_client._request.return_value = sample_device_list
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         manager.list(enabled_only=True)
 
@@ -799,7 +798,7 @@ class TestMachineDeviceManager:
     ) -> None:
         """Test getting a device by key."""
         mock_client._request.return_value = sample_device_data
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         device = manager.get(key=1)
 
@@ -812,7 +811,7 @@ class TestMachineDeviceManager:
     ) -> None:
         """Test getting a device by name."""
         mock_client._request.return_value = [sample_device_data]
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         device = manager.get(name="gpu_0")
 
@@ -821,14 +820,14 @@ class TestMachineDeviceManager:
     def test_get_device_not_found(self, mock_client: MagicMock) -> None:
         """Test getting a device that doesn't exist."""
         mock_client._request.return_value = None
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         with pytest.raises(NotFoundError):
             manager.get(key=999)
 
     def test_get_device_key_or_name_required(self, mock_client: MagicMock) -> None:
         """Test that key or name is required for get."""
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         with pytest.raises(ValueError, match="Either key or name must be provided"):
             manager.get()
@@ -844,7 +843,7 @@ class TestMachineDeviceManager:
             sample_device_data,  # POST response
             sample_device_data,  # GET for full device
         ]
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         device = manager.create(
             device_type="node_nvidia_vgpu_devices",
@@ -867,7 +866,7 @@ class TestMachineDeviceManager:
     ) -> None:
         """Test updating a device."""
         mock_client._request.return_value = sample_device_data
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         device = manager.update(key=1, enabled=False)
 
@@ -880,7 +879,7 @@ class TestMachineDeviceManager:
     def test_delete_device(self, mock_client: MagicMock) -> None:
         """Test deleting a device."""
         mock_client._request.return_value = None
-        manager = MachineDeviceManager(mock_client, machine_key=100)
+        manager = DeviceManager(mock_client, machine_key=100)
 
         manager.delete(key=1)
 
@@ -961,7 +960,7 @@ class TestVMIntegration:
         vm = VM(vm_data, manager)
 
         devices_manager = vm.devices
-        assert isinstance(devices_manager, MachineDeviceManager)
+        assert isinstance(devices_manager, DeviceManager)
 
     def test_vm_machine_key_error(self, mock_client: MagicMock) -> None:
         """Test error when VM has no machine key."""
