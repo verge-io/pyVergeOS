@@ -12,6 +12,14 @@ from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshotVMManager,
 )
 from pyvergeos.resources.cloudinit_files import CloudInitFile, CloudInitFileManager
+from pyvergeos.resources.cluster_tiers import (
+    ClusterTier,
+    ClusterTierManager,
+    ClusterTierStats,
+    ClusterTierStatsHistoryLong,
+    ClusterTierStatsHistoryShort,
+    ClusterTierStatus,
+)
 from pyvergeos.resources.devices import Device, DeviceManager
 from pyvergeos.resources.gpu import (
     NodeGpu,
@@ -142,6 +150,12 @@ __all__ = [
     "Certificate",
     "CertificateManager",
     "CIFSSettings",
+    "ClusterTier",
+    "ClusterTierManager",
+    "ClusterTierStats",
+    "ClusterTierStatsHistoryLong",
+    "ClusterTierStatsHistoryShort",
+    "ClusterTierStatus",
     "CloudInitFile",
     "CloudInitFileManager",
     "CloudSnapshot",

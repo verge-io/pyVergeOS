@@ -12,6 +12,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.cluster_tiers import ClusterTierManager
 
 
 # Status display mappings
@@ -271,6 +272,22 @@ class Cluster(ResourceObject):
     def running_machines(self) -> int:
         """Number of running VMs."""
         return int(self.get("running_machines") or 0)
+
+    @property
+    def tiers(self) -> ClusterTierManager:
+        """Access tier management for this cluster.
+
+        Returns:
+            ClusterTierManager scoped to this cluster.
+
+        Example:
+            >>> cluster = client.clusters.get(name="Production")
+            >>> for tier in cluster.tiers.list():
+            ...     print(f"Tier {tier.tier}: {tier.used_percent}% used")
+        """
+        from pyvergeos.resources.cluster_tiers import ClusterTierManager
+
+        return ClusterTierManager(self._manager._client, self.key)
 
     def __repr__(self) -> str:
         return (
