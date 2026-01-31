@@ -88,10 +88,11 @@ class TestResourceGroupManager:
             "resource_count": 2,
         }
 
-        rg = mock_client.resource_groups.get(key=1)
+        rg = mock_client.resource_groups.get(key="12345678-1234-1234-1234-123456789abc")
 
         assert rg.name == "GPU Pool"
-        assert rg.key == 1
+        assert rg.key == "12345678-1234-1234-1234-123456789abc"
+        assert rg.uuid == "12345678-1234-1234-1234-123456789abc"
 
     def test_get_resource_group_by_name(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -367,7 +368,8 @@ class TestResourceGroup:
         }
         rg = ResourceGroup(data, mock_client.resource_groups)
 
-        assert rg.key == 1
+        # ResourceGroup.key now returns UUID (resource groups use UUID as primary key)
+        assert rg.key == "12345678-1234-1234-1234-123456789abc"
         assert rg.uuid == "12345678-1234-1234-1234-123456789abc"
         assert rg.name == "GPU Pool"
         assert rg.description == "NVIDIA GPU passthrough for HPC workloads"
@@ -450,6 +452,7 @@ class TestResourceGroup:
         """Test ResourceGroup string representation."""
         data = {
             "$key": 1,
+            "uuid": "12345678-1234-1234-1234-123456789abc",
             "name": "GPU Pool",
             "type": "node_host_gpu_devices",
             "type_display": "Host GPU",
@@ -460,7 +463,7 @@ class TestResourceGroup:
 
         repr_str = repr(rg)
         assert "ResourceGroup" in repr_str
-        assert "key=1" in repr_str
+        assert "uuid='12345678-1234-1234-1234-123456789abc'" in repr_str
         assert "GPU Pool" in repr_str
         assert "Host GPU" in repr_str
         assert "GPU" in repr_str
@@ -555,3 +558,451 @@ class TestResourceGroupDefaults:
 
         assert "$key" in fields
         assert "name" in fields
+
+
+class TestResourceGroupCRUD:
+    """Tests for ResourceGroup CRUD operations."""
+
+    def test_create_resource_group(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating a resource group."""
+        test_uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        # First call returns the created object, second call returns full object
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 10, "uuid": test_uuid, "name": "Test Pool"},
+            [
+                {
+                    "$key": 10,
+                    "uuid": test_uuid,
+                    "name": "Test Pool",
+                    "type": "node_pci_devices",
+                    "enabled": True,
+                }
+            ],
+        ]
+
+        rg = mock_client.resource_groups.create(
+            name="Test Pool",
+            device_type="node_pci_devices",
+            description="Test description",
+            device_class="pci",
+        )
+
+        assert rg.key == test_uuid
+        assert rg.name == "Test Pool"
+
+        # Verify POST was called with expected data
+        call_str = str(mock_session.request.call_args_list)
+        assert "POST" in call_str
+        assert "resource_groups" in call_str
+        assert "'name': 'Test Pool'" in call_str
+        assert "'type': 'node_pci_devices'" in call_str
+
+    def test_create_nvidia_vgpu(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating an NVIDIA vGPU resource group."""
+        test_uuid = "11111111-2222-3333-4444-555555555555"
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 11, "uuid": test_uuid},
+            [
+                {
+                    "$key": 11,
+                    "uuid": test_uuid,
+                    "name": "vGPU Pool",
+                    "type": "node_nvidia_vgpu_devices",
+                }
+            ],
+        ]
+
+        rg = mock_client.resource_groups.create_nvidia_vgpu(
+            name="vGPU Pool",
+            driver_file=100,
+            nvidia_vgpu_profile=50,
+            make_guest_driver_iso=True,
+        )
+
+        assert rg.key == test_uuid
+
+        # Verify settings_args
+        call_str = str(mock_session.request.call_args_list)
+        assert "'type': 'node_nvidia_vgpu_devices'" in call_str
+        assert "'driver_file': 100" in call_str
+        assert "'nvidia_vgpu_profile': 50" in call_str
+        assert "'make_guest_driver_iso': True" in call_str
+
+    def test_create_usb(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating a USB resource group."""
+        test_uuid = "22222222-3333-4444-5555-666666666666"
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 12, "uuid": test_uuid},
+            [{"$key": 12, "uuid": test_uuid, "name": "USB Pool", "type": "node_usb_devices"}],
+        ]
+
+        rg = mock_client.resource_groups.create_usb(
+            name="USB Pool",
+            allow_guest_reset=False,
+            device_class="hid",
+        )
+
+        assert rg.key == test_uuid
+
+        call_str = str(mock_session.request.call_args_list)
+        assert "'type': 'node_usb_devices'" in call_str
+        assert "'guest_reset': False" in call_str
+
+    def test_create_sriov_nic(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating an SR-IOV NIC resource group."""
+        test_uuid = "33333333-4444-5555-6666-777777777777"
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 13, "uuid": test_uuid},
+            [
+                {
+                    "$key": 13,
+                    "uuid": test_uuid,
+                    "name": "SR-IOV Pool",
+                    "type": "node_sriov_nic_devices",
+                }
+            ],
+        ]
+
+        rg = mock_client.resource_groups.create_sriov_nic(
+            name="SR-IOV Pool",
+            vf_count=8,
+            native_vlan=100,
+            trust="on",
+        )
+
+        assert rg.key == test_uuid
+
+        call_str = str(mock_session.request.call_args_list)
+        assert "'type': 'node_sriov_nic_devices'" in call_str
+        assert "'numvfs': 8" in call_str
+        assert "'vlan': 100" in call_str
+        assert "'trust': 'on'" in call_str
+
+    def test_create_pci(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating a PCI resource group."""
+        test_uuid = "44444444-5555-6666-7777-888888888888"
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 14, "uuid": test_uuid},
+            [{"$key": 14, "uuid": test_uuid, "name": "PCI Pool", "type": "node_pci_devices"}],
+        ]
+
+        rg = mock_client.resource_groups.create_pci(
+            name="PCI Pool",
+            device_class="storage",
+        )
+
+        assert rg.key == test_uuid
+
+        call_str = str(mock_session.request.call_args_list)
+        assert "'type': 'node_pci_devices'" in call_str
+        assert "'class': 'storage'" in call_str
+
+    def test_create_host_gpu(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating a host GPU resource group."""
+        test_uuid = "55555555-6666-7777-8888-999999999999"
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 15, "uuid": test_uuid},
+            [{"$key": 15, "uuid": test_uuid, "name": "GPU Pool", "type": "node_host_gpu_devices"}],
+        ]
+
+        rg = mock_client.resource_groups.create_host_gpu(
+            name="GPU Pool",
+            device_keys=[1, 2, 3],
+        )
+
+        assert rg.key == test_uuid
+
+        call_str = str(mock_session.request.call_args_list)
+        assert "'type': 'node_host_gpu_devices'" in call_str
+        assert "'class': 'gpu'" in call_str
+        assert "'key_args': [1, 2, 3]" in call_str
+
+    def test_update_resource_group(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test updating a resource group."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Updated Pool",
+            "enabled": False,
+        }
+
+        rg = mock_client.resource_groups.update(1, name="Updated Pool", enabled=False)
+
+        assert rg.name == "Updated Pool"
+
+        call_str = str(mock_session.request.call_args)
+        assert "PUT" in call_str
+        assert "resource_groups/1" in call_str
+        assert "'name': 'Updated Pool'" in call_str
+
+    def test_delete_resource_group(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test deleting a resource group."""
+        mock_session.request.return_value.json.return_value = None
+
+        mock_client.resource_groups.delete(1)
+
+        call_str = str(mock_session.request.call_args)
+        assert "DELETE" in call_str
+        assert "resource_groups/1" in call_str
+
+    def test_resource_group_save(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test ResourceGroup.save() method."""
+        test_uuid = "66666666-7777-8888-9999-aaaaaaaaaaaa"
+        data = {"$key": 1, "uuid": test_uuid, "name": "Original"}
+        rg = ResourceGroup(data, mock_client.resource_groups)
+
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "uuid": test_uuid,
+            "name": "Modified",
+        }
+
+        updated = rg.save(name="Modified")
+        assert updated.name == "Modified"
+
+    def test_resource_group_delete(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test ResourceGroup.delete() method."""
+        test_uuid = "77777777-8888-9999-aaaa-bbbbbbbbbbbb"
+        data = {"$key": 1, "uuid": test_uuid, "name": "Test"}
+        rg = ResourceGroup(data, mock_client.resource_groups)
+
+        mock_session.request.return_value.json.return_value = None
+        rg.delete()
+
+        call_str = str(mock_session.request.call_args)
+        assert "DELETE" in call_str
+
+    def test_resource_group_refresh(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test ResourceGroup.refresh() method."""
+        test_uuid = "88888888-9999-aaaa-bbbb-cccccccccccc"
+        data = {"$key": 1, "uuid": test_uuid, "name": "Original"}
+        rg = ResourceGroup(data, mock_client.resource_groups)
+
+        mock_session.request.return_value.json.return_value = [
+            {
+                "$key": 1,
+                "uuid": test_uuid,
+                "name": "Refreshed",
+                "description": "New description",
+            }
+        ]
+
+        refreshed = rg.refresh()
+        assert refreshed.description == "New description"
+
+
+class TestResourceRuleManager:
+    """Tests for ResourceRuleManager operations."""
+
+    def test_list_rules(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test listing resource rules."""
+        mock_session.request.return_value.json.return_value = [
+            {
+                "$key": 1,
+                "resource_group": 10,
+                "resource_group_display": "GPU Pool",
+                "name": "Intel GPUs",
+                "enabled": True,
+                "type": "node_host_gpu_devices",
+                "filter": "vendor ct 'Intel'",
+                "resource_count": 2,
+            },
+        ]
+
+        rules = mock_client.resource_groups.rules.list()
+
+        assert len(rules) == 1
+        assert rules[0].name == "Intel GPUs"
+        assert rules[0].filter_expression == "vendor ct 'Intel'"
+        assert rules[0].resource_count == 2
+
+    def test_list_rules_scoped_to_group(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test listing rules scoped to a resource group."""
+        test_uuid = "99999999-aaaa-bbbb-cccc-dddddddddddd"
+        # First get the resource group
+        mock_session.request.return_value.json.return_value = [
+            {
+                "$key": 10,
+                "uuid": test_uuid,
+                "name": "GPU Pool",
+            }
+        ]
+        rg = mock_client.resource_groups.get(key=test_uuid)
+
+        # Then list rules for that group
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "resource_group": test_uuid, "name": "Rule 1"},
+        ]
+
+        rules = rg.rules.list()
+
+        assert len(rules) == 1
+
+        # Verify filter includes resource_group with UUID in quotes
+        call_args = mock_session.request.call_args
+        params = call_args[1].get("params", {})
+        assert f"resource_group eq '{test_uuid}'" in params.get("filter", "")
+
+    def test_get_rule_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a rule by key."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Test Rule",
+            "filter": "slot eq '03:00.0'",
+        }
+
+        rule = mock_client.resource_groups.rules.get(key=1)
+
+        assert rule.key == 1
+        assert rule.name == "Test Rule"
+
+    def test_get_rule_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a rule by name."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "name": "NVIDIA GPUs"},
+        ]
+
+        rule = mock_client.resource_groups.rules.get(name="NVIDIA GPUs")
+
+        assert rule.name == "NVIDIA GPUs"
+
+    def test_get_rule_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test NotFoundError when rule not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        with pytest.raises(NotFoundError, match="not found"):
+            mock_client.resource_groups.rules.get(name="Nonexistent")
+
+    def test_create_rule_requires_scoped_manager(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test that create requires a scoped manager."""
+        with pytest.raises(ValueError, match="scoped"):
+            mock_client.resource_groups.rules.create(
+                name="Test",
+                filter_expression="vendor ct 'Intel'",
+            )
+
+    def test_create_rule(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating a rule via scoped manager."""
+        test_uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        # Get resource group first
+        mock_session.request.return_value.json.return_value = [
+            {
+                "$key": 10,
+                "uuid": test_uuid,
+                "name": "GPU Pool",
+            }
+        ]
+        rg = mock_client.resource_groups.get(key=test_uuid)
+
+        # Create rule
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "resource_group": test_uuid},
+            {"$key": 1, "resource_group": test_uuid, "name": "Intel Rule"},
+        ]
+
+        rule = rg.rules.create(
+            name="Intel Rule",
+            filter_expression="vendor ct 'Intel'",
+            node=5,
+        )
+
+        assert rule.key == 1
+
+        # Verify the POST was called with expected data
+        call_str = str(mock_session.request.call_args_list)
+        assert f"'resource_group': '{test_uuid}'" in call_str
+        assert "'name': 'Intel Rule'" in call_str
+        assert "'filter': \"vendor ct 'Intel'\"" in call_str
+        assert "'node': 5" in call_str
+
+    def test_update_rule(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test updating a rule."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Updated Rule",
+            "enabled": False,
+        }
+
+        rule = mock_client.resource_groups.rules.update(1, name="Updated Rule", enabled=False)
+
+        assert rule.name == "Updated Rule"
+
+        call_str = str(mock_session.request.call_args)
+        assert "PUT" in call_str
+
+    def test_delete_rule(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test deleting a rule."""
+        mock_session.request.return_value.json.return_value = None
+
+        mock_client.resource_groups.rules.delete(1)
+
+        call_str = str(mock_session.request.call_args)
+        assert "DELETE" in call_str
+        assert "resource_rules/1" in call_str
+
+
+class TestResourceRuleModel:
+    """Tests for ResourceRule model."""
+
+    def test_rule_properties(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test ResourceRule property accessors."""
+        from pyvergeos.resources.resource_groups import ResourceRule, ResourceRuleManager
+
+        data = {
+            "$key": 1,
+            "resource_group": 10,
+            "resource_group_display": "GPU Pool",
+            "name": "Intel Rule",
+            "enabled": True,
+            "type": "node_host_gpu_devices",
+            "type_display": "Host GPU",
+            "node": 5,
+            "node_display": "node1",
+            "filter": "vendor ct 'Intel'",
+            "filter_configuration": {"vendor": "Intel"},
+            "resource_count": 3,
+            "system_created": False,
+            "modified": 1700000000,
+        }
+        manager = ResourceRuleManager(mock_client)
+        rule = ResourceRule(data, manager)
+
+        assert rule.key == 1
+        assert rule.resource_group_key == 10
+        assert rule.resource_group_name == "GPU Pool"
+        assert rule.name == "Intel Rule"
+        assert rule.is_enabled is True
+        assert rule.device_type == "node_host_gpu_devices"
+        assert rule.device_type_display == "Host GPU"
+        assert rule.node_key == 5
+        assert rule.node_name == "node1"
+        assert rule.filter_expression == "vendor ct 'Intel'"
+        assert rule.filter_configuration == {"vendor": "Intel"}
+        assert rule.resource_count == 3
+        assert rule.is_system_created is False
+        assert rule.modified_at is not None
+
+    def test_rule_repr(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test ResourceRule string representation."""
+        from pyvergeos.resources.resource_groups import ResourceRule, ResourceRuleManager
+
+        data = {
+            "$key": 1,
+            "name": "Test Rule",
+            "type": "node_pci_devices",
+            "type_display": "PCI",
+            "resource_count": 5,
+        }
+        manager = ResourceRuleManager(mock_client)
+        rule = ResourceRule(data, manager)
+
+        repr_str = repr(rule)
+        assert "ResourceRule" in repr_str
+        assert "key=1" in repr_str
+        assert "Test Rule" in repr_str
+        assert "resources=5" in repr_str
