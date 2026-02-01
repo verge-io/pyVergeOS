@@ -11,6 +11,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.network_stats import WireGuardPeerStatusManager
     from pyvergeos.resources.networks import Network
 
 
@@ -164,6 +165,39 @@ class WireGuardInterface(ResourceObject):
     def modified_at(self) -> datetime | None:
         """Get last modified timestamp."""
         return _timestamp_to_datetime(self.get("modified"))
+
+    @property
+    def peer_status(self) -> WireGuardPeerStatusManager:
+        """Access real-time peer status for this WireGuard interface.
+
+        Provides connection status including last handshake time and
+        transfer statistics for all peers.
+
+        Returns:
+            WireGuardPeerStatusManager for this interface.
+
+        Examples:
+            List peer status::
+
+                for status in wg.peer_status.list():
+                    if status.is_connected:
+                        print(f"Peer {status.peer_key} connected")
+                        print(f"  TX: {status.tx_bytes_formatted}")
+                        print(f"  RX: {status.rx_bytes_formatted}")
+                    else:
+                        print(f"Peer {status.peer_key} disconnected")
+
+            Get status for specific peer::
+
+                status = wg.peer_status.get_for_peer(peer.key)
+                print(f"Last handshake: {status.last_handshake}")
+        """
+        from pyvergeos.resources.network_stats import WireGuardPeerStatusManager
+
+        manager = self._manager
+        if not isinstance(manager, WireGuardManager):
+            raise TypeError("Manager must be WireGuardManager")
+        return WireGuardPeerStatusManager(manager._client, self)
 
 
 class WireGuardPeer(ResourceObject):

@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from pyvergeos.resources.nas_users import NASUserManager
     from pyvergeos.resources.nas_volume_syncs import NASVolumeSyncManager
     from pyvergeos.resources.nas_volumes import NASVolumeManager, NASVolumeSnapshotManager
+    from pyvergeos.resources.network_stats import NetworkDashboardManager
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.permissions import PermissionManager
@@ -211,6 +212,7 @@ class VergeClient:
         self._vgpu_profiles: NvidiaVgpuProfileManager | None = None
         self._tenant_dashboard: TenantDashboardManager | None = None
         self._billing: BillingManager | None = None
+        self._network_dashboard: NetworkDashboardManager | None = None
 
         if auto_connect:
             self.connect()
@@ -581,6 +583,32 @@ class VergeClient:
 
             self._billing = BillingManager(self)
         return self._billing
+
+    @property
+    def network_dashboard(self) -> NetworkDashboardManager:
+        """Access network dashboard with aggregated metrics.
+
+        Provides high-level overview of all network status, counts by type
+        and state, and top bandwidth consumers for monitoring.
+
+        Example:
+            >>> dashboard = client.network_dashboard.get()
+            >>> print(f"Online: {dashboard.vnets_online}/{dashboard.vnets_count}")
+            >>> print(f"External: {dashboard.ext_online}/{dashboard.ext_count}")
+            >>> print(f"Internal: {dashboard.int_online}/{dashboard.int_count}")
+            >>> if dashboard.has_errors:
+            ...     print(f"WARNING: {dashboard.vnets_error} networks in error state!")
+
+            >>> # Get health summary by type
+            >>> health = dashboard.get_health_summary()
+            >>> for net_type, counts in health.items():
+            ...     print(f"{net_type}: {counts['online']}/{counts['count']}")
+        """
+        if self._network_dashboard is None:
+            from pyvergeos.resources.network_stats import NetworkDashboardManager
+
+            self._network_dashboard = NetworkDashboardManager(self)
+        return self._network_dashboard
 
     @property
     def users(self) -> UserManager:
