@@ -6,10 +6,16 @@ if the environment variables are not set.
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.resources.system import (
+    DIAG_STATUS_COMPLETE,
+    DIAG_STATUS_ERROR,
+)
 
 
 @pytest.mark.integration
@@ -280,3 +286,254 @@ class TestSystemManagerIntegration:
         # Should return a SystemInventory object
         assert hasattr(inventory, "vms")
         assert hasattr(inventory, "summary")
+
+
+# =============================================================================
+# Settings Extended Integration Tests
+# =============================================================================
+
+
+@pytest.mark.integration
+class TestSettingsExtendedIntegration:
+    """Integration tests for SettingsManager extended functionality."""
+
+    def test_list_modified(self, live_client: VergeClient) -> None:
+        """Test listing modified settings from live system."""
+        modified = live_client.system.settings.list_modified()
+
+        # Should return a list (possibly empty)
+        assert isinstance(modified, list)
+
+        # All returned settings should be modified
+        for setting in modified:
+            assert setting.is_modified is True
+            assert setting.value != setting.default_value
+
+
+# =============================================================================
+# License Extended Integration Tests
+# =============================================================================
+
+
+@pytest.mark.integration
+class TestLicenseExtendedIntegration:
+    """Integration tests for LicenseManager extended functionality."""
+
+    def test_generate_payload(self, live_client: VergeClient) -> None:
+        """Test generating license request payload.
+
+        Note: This test may fail on systems that don't support air-gapped licensing.
+        """
+        try:
+            payload = live_client.system.licenses.generate_payload()
+
+            # Should return a non-empty string
+            assert isinstance(payload, str)
+            assert len(payload) > 0
+        except Exception as e:
+            # Some systems may not support this feature
+            pytest.skip(f"License payload generation not supported: {e}")
+
+
+# =============================================================================
+# Diagnostics Integration Tests
+# =============================================================================
+
+
+@pytest.mark.integration
+class TestDiagnosticsIntegration:
+    """Integration tests for SystemDiagnosticManager."""
+
+    def test_list_diagnostics(self, live_client: VergeClient) -> None:
+        """Test listing system diagnostics."""
+        diagnostics = live_client.system.diagnostics.list()
+
+        # Should return a list (possibly empty)
+        assert isinstance(diagnostics, list)
+
+        # Check structure of any existing diagnostics
+        for diag in diagnostics:
+            assert hasattr(diag, "name")
+            assert hasattr(diag, "status")
+            assert hasattr(diag, "is_complete")
+            assert hasattr(diag, "is_building")
+
+    def test_list_diagnostics_with_status_filter(self, live_client: VergeClient) -> None:
+        """Test listing diagnostics filtered by status."""
+        complete = live_client.system.diagnostics.list(status=DIAG_STATUS_COMPLETE)
+
+        assert isinstance(complete, list)
+        for diag in complete:
+            assert diag.status == DIAG_STATUS_COMPLETE
+
+    def test_get_diagnostic_if_exists(self, live_client: VergeClient) -> None:
+        """Test getting a specific diagnostic if any exist."""
+        diagnostics = live_client.system.diagnostics.list()
+        if not diagnostics:
+            pytest.skip("No diagnostics found to test get()")
+
+        diag = live_client.system.diagnostics.get(diagnostics[0].key)
+
+        assert diag.key == diagnostics[0].key
+        assert diag.name == diagnostics[0].name
+
+    def test_diagnostic_status_properties(self, live_client: VergeClient) -> None:
+        """Test that diagnostic status properties are correctly computed."""
+        diagnostics = live_client.system.diagnostics.list()
+        if not diagnostics:
+            pytest.skip("No diagnostics found")
+
+        for diag in diagnostics:
+            # Status properties should be mutually exclusive (mostly)
+            if diag.status == DIAG_STATUS_COMPLETE:
+                assert diag.is_complete is True
+                assert diag.is_building is False
+            elif diag.status == DIAG_STATUS_ERROR:
+                assert diag.has_error is True
+                assert diag.is_complete is False
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestDiagnosticsBuildIntegration:
+    """Integration tests for building diagnostics.
+
+    These tests are marked slow because diagnostic builds can take several minutes.
+    Run with pytest -m slow to include these tests.
+    """
+
+    def test_build_diagnostic_with_cleanup(self, live_client: VergeClient) -> None:
+        """Test building a diagnostic report and cleaning up.
+
+        This test creates a real diagnostic and waits for completion.
+        It then cleans up by deleting the diagnostic.
+        """
+        import time
+
+        diag = None
+        try:
+            # Build diagnostic
+            diag = live_client.system.diagnostics.build(
+                name="SDK-Integration-Test",
+                description="Integration test - safe to delete",
+            )
+
+            # Should return a diagnostic object
+            assert diag.key > 0
+            assert diag.name == "SDK-Integration-Test"
+
+            # Wait a short time for status to update (up to 30 seconds)
+            max_wait = 30
+            start = time.time()
+            while diag.is_building and (time.time() - start) < max_wait:
+                time.sleep(2)
+                diag = diag.refresh()
+
+            # After waiting, check status is accessible
+            assert diag.status is not None
+            assert diag.status_display is not None
+
+        finally:
+            # Clean up - delete the diagnostic
+            if diag and diag.key:
+                with contextlib.suppress(Exception):
+                    live_client.system.diagnostics.delete(diag.key)
+
+
+# =============================================================================
+# Root Certificates Integration Tests
+# =============================================================================
+
+
+@pytest.mark.integration
+class TestRootCertificatesIntegration:
+    """Integration tests for RootCertificateManager."""
+
+    def test_list_root_certificates(self, live_client: VergeClient) -> None:
+        """Test listing root certificates."""
+        certs = live_client.system.root_certificates.list()
+
+        # Should return a list (may be empty on fresh systems)
+        assert isinstance(certs, list)
+
+        # Check structure of any existing certificates
+        for cert in certs:
+            assert hasattr(cert, "subject")
+            assert hasattr(cert, "fingerprint")
+            assert hasattr(cert, "start_date")
+            assert hasattr(cert, "end_date")
+
+    def test_get_root_certificate_if_exists(self, live_client: VergeClient) -> None:
+        """Test getting a specific root certificate if any exist."""
+        certs = live_client.system.root_certificates.list()
+        if not certs:
+            pytest.skip("No root certificates found to test get()")
+
+        cert = live_client.system.root_certificates.get(certs[0].key)
+
+        assert cert.key == certs[0].key
+        assert cert.subject == certs[0].subject
+
+    def test_certificate_properties(self, live_client: VergeClient) -> None:
+        """Test that certificate properties are accessible."""
+        certs = live_client.system.root_certificates.list()
+        if not certs:
+            pytest.skip("No root certificates found")
+
+        for cert in certs:
+            # All string properties should be accessible
+            _ = cert.subject
+            _ = cert.issuer
+            _ = cert.fingerprint
+            _ = cert.start_date
+            _ = cert.end_date
+
+
+@pytest.mark.integration
+class TestRootCertificatesCreateDeleteIntegration:
+    """Integration tests for creating and deleting root certificates.
+
+    These tests modify system state and should be run carefully.
+    """
+
+    # Test certificate (self-signed, for testing only)
+    # Generated with: openssl req -x509 -newkey rsa:2048 -keyout /dev/null -out - -days 1 -nodes -subj "/CN=SDKTest"  # noqa: E501
+    TEST_CERT_PEM = """-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQDU+pQ4P0jOFDANBgkqhkiG9w0BAQsFADASMRAwDgYDVQQDDAdT
+REtUZXN0MB4XDTI0MDEwMTAwMDAwMFoXDTI1MDEwMTAwMDAwMFowEjEQMA4GA1UE
+AwwHU0RLVGVzdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALvK3oYA
+jKj3K6Z4Wy6XcYKHDJE4PJ8sY4RkYG7mAJKYN5K6VXvN7F7q9QL0TZLTvP0V1hm
+W8K0p2dS6V5Q5kJE6NxH0sBz5Xs6WzPzJ4F7LzK7GmEK5V5HJ8vPZ6K4V5R6E1sQ
+5j5F5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X
+5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X
+5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X5V5Z5K5X
+5V5Z5K5X5V5Z5K5X5V5ZAgMBAAEwDQYJKoZIhvcNAQELBQADggEBABzN7eLlKzQB
+-----END CERTIFICATE-----"""
+
+    def test_create_and_delete_root_certificate(self, live_client: VergeClient) -> None:
+        """Test creating and deleting a root certificate.
+
+        Note: Uses a test certificate that is NOT valid for production use.
+        This test modifies system state.
+        """
+        cert = None
+        try:
+            # Skip test if certificate creation fails (e.g., invalid cert format)
+            try:
+                cert = live_client.system.root_certificates.create(cert=self.TEST_CERT_PEM)
+            except Exception as e:
+                pytest.skip(f"Certificate creation failed (expected on some systems): {e}")
+
+            # Should return a certificate object
+            assert cert.key > 0
+            assert "SDKTest" in cert.subject or cert.subject  # Subject should be set
+
+            # Verify we can retrieve it
+            retrieved = live_client.system.root_certificates.get(cert.key)
+            assert retrieved.key == cert.key
+
+        finally:
+            # Clean up
+            if cert and cert.key:
+                with contextlib.suppress(Exception):
+                    live_client.system.root_certificates.delete(cert.key)

@@ -1,4 +1,4 @@
-"""Unit tests for System operations (settings, statistics, licenses, inventory)."""
+"""Unit tests for System operations (settings, statistics, licenses, diagnostics, inventory)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import APIError, NotFoundError, TaskTimeoutError
 from pyvergeos.resources.system import (
+    DIAG_STATUS_BUILDING,
+    DIAG_STATUS_COMPLETE,
+    DIAG_STATUS_ERROR,
+    DIAG_STATUS_INITIALIZING,
     InventoryCluster,
     InventoryNetwork,
     InventoryNode,
@@ -17,6 +21,8 @@ from pyvergeos.resources.system import (
     InventoryTenant,
     InventoryVM,
     License,
+    RootCertificate,
+    SystemDiagnostic,
     SystemInventory,
     SystemSetting,
 )
@@ -796,3 +802,576 @@ class TestSystemManager:
         licenses1 = system.licenses
         licenses2 = system.licenses
         assert licenses1 is licenses2
+
+    def test_system_manager_diagnostics_lazy_loading(self, mock_client: VergeClient) -> None:
+        """Test that diagnostics manager is lazily loaded."""
+        system = mock_client.system
+
+        # Access diagnostics twice - should return same instance
+        diag1 = system.diagnostics
+        diag2 = system.diagnostics
+        assert diag1 is diag2
+
+    def test_system_manager_root_certificates_lazy_loading(self, mock_client: VergeClient) -> None:
+        """Test that root_certificates manager is lazily loaded."""
+        system = mock_client.system
+
+        # Access root_certificates twice - should return same instance
+        certs1 = system.root_certificates
+        certs2 = system.root_certificates
+        assert certs1 is certs2
+
+
+# =============================================================================
+# Settings Manager Extended Tests
+# =============================================================================
+
+
+class TestSettingsManagerExtended:
+    """Unit tests for SettingsManager extended functionality."""
+
+    def test_update_setting(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test updating a system setting."""
+        # First call is GET to find the setting, second is PUT, third is GET for refresh
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 1, "key": "max_connections", "value": "500", "default_value": "500"}],
+            None,  # PUT returns no content
+            [{"$key": 1, "key": "max_connections", "value": "1000", "default_value": "500"}],
+        ]
+
+        setting = mock_client.system.settings.update("max_connections", "1000")
+
+        assert setting.value == "1000"
+        assert setting.is_modified is True
+
+    def test_update_setting_not_found(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test updating a non-existent setting raises NotFoundError."""
+        mock_session.request.return_value.json.return_value = []
+
+        with pytest.raises(NotFoundError):
+            mock_client.system.settings.update("nonexistent", "value")
+
+    def test_update_setting_requires_key(self, mock_client: VergeClient) -> None:
+        """Test that update requires a key."""
+        with pytest.raises(ValueError, match="Setting key must be provided"):
+            mock_client.system.settings.update("", "value")
+
+    def test_reset_setting(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test resetting a setting to default value."""
+        mock_session.request.return_value.json.side_effect = [
+            # First call: get current setting
+            [{"$key": 1, "key": "max_connections", "value": "1000", "default_value": "500"}],
+            # Second call: get for update
+            [{"$key": 1, "key": "max_connections", "value": "1000", "default_value": "500"}],
+            # Third call: PUT
+            None,
+            # Fourth call: get updated setting
+            [{"$key": 1, "key": "max_connections", "value": "500", "default_value": "500"}],
+        ]
+
+        setting = mock_client.system.settings.reset("max_connections")
+
+        assert setting.value == "500"
+        assert setting.is_modified is False
+
+    def test_list_modified(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test listing only modified settings."""
+        mock_session.request.return_value.json.return_value = [
+            {"key": "setting1", "value": "modified_value", "default_value": "default"},
+            {"key": "setting2", "value": "same", "default_value": "same"},
+            {"key": "setting3", "value": "also_modified", "default_value": "other_default"},
+        ]
+
+        modified = mock_client.system.settings.list_modified()
+
+        # Should only return settings where value != default_value
+        assert len(modified) == 2
+        assert all(s.is_modified for s in modified)
+
+
+# =============================================================================
+# License Manager Extended Tests
+# =============================================================================
+
+
+class TestLicenseManagerExtended:
+    """Unit tests for LicenseManager extended functionality."""
+
+    def test_generate_payload(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test generating license request payload."""
+        mock_session.request.return_value.json.return_value = {
+            "payload": "BASE64_ENCODED_PAYLOAD_DATA"
+        }
+
+        payload = mock_client.system.licenses.generate_payload()
+
+        assert payload == "BASE64_ENCODED_PAYLOAD_DATA"
+        # Verify correct endpoint was called
+        call_args = mock_session.request.call_args
+        assert "license_actions" in str(call_args)
+
+    def test_generate_payload_json_response(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test generate_payload with full JSON response (no payload field)."""
+        mock_session.request.return_value.json.return_value = {
+            "system_id": "12345",
+            "fingerprint": "abc123",
+        }
+
+        payload = mock_client.system.licenses.generate_payload()
+
+        # Should return JSON-serialized response
+        assert "system_id" in payload
+        assert "12345" in payload
+
+    def test_generate_payload_no_response(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test generate_payload with no response raises APIError."""
+        mock_session.request.return_value.json.return_value = None
+
+        with pytest.raises(APIError):
+            mock_client.system.licenses.generate_payload()
+
+    def test_add_license(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test adding a new license."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 5},  # POST response
+            {"$key": 5, "name": "New License", "valid_from": 1700000000, "valid_until": 1900000000},
+        ]
+
+        lic = mock_client.system.licenses.add("LICENSE_KEY_TEXT")
+
+        assert lic.name == "New License"
+
+    def test_add_license_no_response(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test add_license with no response raises APIError."""
+        mock_session.request.return_value.json.return_value = None
+
+        with pytest.raises(APIError):
+            mock_client.system.licenses.add("LICENSE_KEY")
+
+
+# =============================================================================
+# System Diagnostic Tests
+# =============================================================================
+
+
+class TestSystemDiagnostic:
+    """Unit tests for SystemDiagnostic model."""
+
+    def test_diagnostic_properties(self, mock_client: VergeClient) -> None:
+        """Test SystemDiagnostic property accessors."""
+        data = {
+            "$key": 1,
+            "name": "Support-12345",
+            "description": "Network issue investigation",
+            "status": DIAG_STATUS_COMPLETE,
+            "status_info": "All nodes complete",
+            "file": 100,
+            "timestamp": 1700000000,
+        }
+        diag = SystemDiagnostic(data, mock_client.system.diagnostics)
+
+        assert diag.key == 1
+        assert diag.name == "Support-12345"
+        assert diag.description == "Network issue investigation"
+        assert diag.status == DIAG_STATUS_COMPLETE
+        assert diag.status_display == "Complete"
+        assert diag.status_info == "All nodes complete"
+        assert diag.file_key == 100
+        assert diag.is_complete is True
+        assert diag.is_building is False
+        assert diag.has_error is False
+        assert diag.created_at is not None
+
+    def test_diagnostic_is_building(self, mock_client: VergeClient) -> None:
+        """Test is_building property."""
+        for status in [DIAG_STATUS_INITIALIZING, DIAG_STATUS_BUILDING]:
+            data = {"$key": 1, "status": status}
+            diag = SystemDiagnostic(data, mock_client.system.diagnostics)
+            assert diag.is_building is True
+            assert diag.is_complete is False
+
+    def test_diagnostic_has_error(self, mock_client: VergeClient) -> None:
+        """Test has_error property."""
+        data = {"$key": 1, "status": DIAG_STATUS_ERROR, "status_info": "Node timeout"}
+        diag = SystemDiagnostic(data, mock_client.system.diagnostics)
+
+        assert diag.has_error is True
+        assert diag.is_complete is False
+        assert diag.is_building is False
+
+    def test_diagnostic_repr(self, mock_client: VergeClient) -> None:
+        """Test SystemDiagnostic string representation."""
+        data = {"$key": 1, "name": "Test Diag", "status": DIAG_STATUS_COMPLETE}
+        diag = SystemDiagnostic(data, mock_client.system.diagnostics)
+
+        repr_str = repr(diag)
+        assert "SystemDiagnostic" in repr_str
+        assert "Test Diag" in repr_str
+        assert "Complete" in repr_str
+
+
+class TestSystemDiagnosticManager:
+    """Unit tests for SystemDiagnosticManager."""
+
+    def test_list_diagnostics(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test listing system diagnostics."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "name": "Diag1", "status": DIAG_STATUS_COMPLETE},
+            {"$key": 2, "name": "Diag2", "status": DIAG_STATUS_BUILDING},
+        ]
+
+        diagnostics = mock_client.system.diagnostics.list()
+
+        assert len(diagnostics) == 2
+        assert diagnostics[0].name == "Diag1"
+        assert diagnostics[1].name == "Diag2"
+
+    def test_list_diagnostics_with_status_filter(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test listing diagnostics filtered by status."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "name": "Complete Diag", "status": DIAG_STATUS_COMPLETE}
+        ]
+
+        diagnostics = mock_client.system.diagnostics.list(status=DIAG_STATUS_COMPLETE)
+
+        assert len(diagnostics) == 1
+        # Verify filter was applied
+        call_args = mock_session.request.call_args
+        assert "status eq 'complete'" in str(call_args)
+
+    def test_get_diagnostic(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a specific diagnostic."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Support-12345",
+            "status": DIAG_STATUS_COMPLETE,
+            "file": 100,
+        }
+
+        diag = mock_client.system.diagnostics.get(1)
+
+        assert diag.key == 1
+        assert diag.name == "Support-12345"
+
+    def test_build_diagnostic(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test building a new diagnostic."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 5},  # POST response
+            {
+                "$key": 5,
+                "name": "New Diagnostic",
+                "status": DIAG_STATUS_INITIALIZING,
+            },  # GET response
+        ]
+
+        diag = mock_client.system.diagnostics.build(
+            name="New Diagnostic",
+            description="Test description",
+            send_to_support=True,
+        )
+
+        assert diag.key == 5
+        assert diag.status == DIAG_STATUS_INITIALIZING
+
+        # Verify POST was called with correct body - find the POST call
+        post_calls = [
+            c for c in mock_session.request.call_args_list if c.kwargs.get("method") == "POST"
+        ]
+        assert len(post_calls) >= 1
+        post_call = post_calls[0]
+        assert "json" in post_call.kwargs
+        json_data = post_call.kwargs["json"]
+        assert json_data["name"] == "New Diagnostic"
+        assert json_data["description"] == "Test description"
+        assert json_data["send2support"] is True
+
+    def test_build_diagnostic_no_response(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test build diagnostic with no response raises APIError."""
+        mock_session.request.return_value.json.return_value = None
+
+        with pytest.raises(APIError):
+            mock_client.system.diagnostics.build(name="Test")
+
+    def test_send_to_support(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test sending diagnostic to support."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "Diag", "status": DIAG_STATUS_COMPLETE},  # GET
+            None,  # POST action
+        ]
+
+        mock_client.system.diagnostics.send_to_support(1)
+
+        # Verify action endpoint was called
+        call_args = mock_session.request.call_args_list[-1]
+        assert "system_diagnostic_actions" in str(call_args)
+
+    def test_send_to_support_not_complete(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test sending incomplete diagnostic raises ValueError."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Diag",
+            "status": DIAG_STATUS_BUILDING,
+        }
+
+        with pytest.raises(ValueError, match="must be complete"):
+            mock_client.system.diagnostics.send_to_support(1)
+
+    def test_delete_diagnostic(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test deleting a diagnostic."""
+        mock_session.request.return_value.json.return_value = None
+
+        mock_client.system.diagnostics.delete(1)
+
+        call_args = mock_session.request.call_args
+        assert "DELETE" in str(call_args)
+        assert "system_diagnostics/1" in str(call_args)
+
+    def test_update_diagnostic(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test updating a diagnostic's name/description."""
+        mock_session.request.return_value.json.side_effect = [
+            None,  # PUT response
+            {"$key": 1, "name": "Updated Name", "status": DIAG_STATUS_COMPLETE},  # GET
+        ]
+
+        diag = mock_client.system.diagnostics.update(1, name="Updated Name")
+
+        assert diag.name == "Updated Name"
+
+    def test_get_download_url(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting download URL for diagnostic."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "Diag", "status": DIAG_STATUS_COMPLETE, "file": 100},  # GET diag
+            {"$key": 100, "name": "diag.tar.gz", "path": "downloads/diag.tar.gz"},  # GET file
+        ]
+
+        url = mock_client.system.diagnostics.get_download_url(1)
+
+        assert url is not None
+        assert "downloads/diag.tar.gz" in url
+
+    def test_get_download_url_not_complete(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test get_download_url raises for incomplete diagnostic."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Diag",
+            "status": DIAG_STATUS_BUILDING,
+        }
+
+        with pytest.raises(ValueError, match="must be complete"):
+            mock_client.system.diagnostics.get_download_url(1)
+
+
+class TestSystemDiagnosticWaitForCompletion:
+    """Unit tests for SystemDiagnostic.wait_for_completion."""
+
+    def test_wait_for_completion_success(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test waiting for diagnostic completion."""
+        # Simulate building -> complete transition
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "Diag", "status": DIAG_STATUS_BUILDING},  # refresh 1
+            {"$key": 1, "name": "Diag", "status": DIAG_STATUS_COMPLETE},  # refresh 2
+        ]
+
+        initial_data = {"$key": 1, "name": "Diag", "status": DIAG_STATUS_BUILDING}
+        diag = SystemDiagnostic(initial_data, mock_client.system.diagnostics)
+
+        completed = diag.wait_for_completion(timeout=10, poll_interval=0.01)
+
+        assert completed.is_complete is True
+
+    def test_wait_for_completion_error(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test wait_for_completion returns on error status."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Diag",
+            "status": DIAG_STATUS_ERROR,
+            "status_info": "Node failed",
+        }
+
+        initial_data = {"$key": 1, "name": "Diag", "status": DIAG_STATUS_BUILDING}
+        diag = SystemDiagnostic(initial_data, mock_client.system.diagnostics)
+
+        result = diag.wait_for_completion(timeout=10, poll_interval=0.01)
+
+        assert result.has_error is True
+
+    def test_wait_for_completion_timeout(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test wait_for_completion raises TaskTimeoutError on timeout."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Diag",
+            "status": DIAG_STATUS_BUILDING,
+        }
+
+        initial_data = {"$key": 1, "name": "Diag", "status": DIAG_STATUS_BUILDING}
+        diag = SystemDiagnostic(initial_data, mock_client.system.diagnostics)
+
+        with pytest.raises(TaskTimeoutError):
+            diag.wait_for_completion(timeout=0.05, poll_interval=0.01)
+
+
+# =============================================================================
+# Root Certificate Tests
+# =============================================================================
+
+
+class TestRootCertificate:
+    """Unit tests for RootCertificate model."""
+
+    def test_certificate_properties(self, mock_client: VergeClient) -> None:
+        """Test RootCertificate property accessors."""
+        data = {
+            "$key": 1,
+            "subject": "CN=Enterprise CA, O=Acme Corp",
+            "issuer": "CN=Enterprise CA, O=Acme Corp",
+            "fingerprint": "AB:CD:EF:12:34:56:78:90",
+            "startdate": "2024-01-01",
+            "enddate": "2034-01-01",
+            "cert": "-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----",
+            "modified": 1700000000,
+        }
+        cert = RootCertificate(data, mock_client.system.root_certificates)
+
+        assert cert.key == 1
+        assert cert.subject == "CN=Enterprise CA, O=Acme Corp"
+        assert cert.issuer == "CN=Enterprise CA, O=Acme Corp"
+        assert cert.fingerprint == "AB:CD:EF:12:34:56:78:90"
+        assert cert.start_date == "2024-01-01"
+        assert cert.end_date == "2034-01-01"
+        assert "BEGIN CERTIFICATE" in cert.cert_pem
+        assert cert.modified_at is not None
+
+    def test_certificate_repr(self, mock_client: VergeClient) -> None:
+        """Test RootCertificate string representation."""
+        data = {"$key": 1, "subject": "CN=Test CA"}
+        cert = RootCertificate(data, mock_client.system.root_certificates)
+
+        repr_str = repr(cert)
+        assert "RootCertificate" in repr_str
+        assert "CN=Test CA" in repr_str
+
+
+class TestRootCertificateManager:
+    """Unit tests for RootCertificateManager."""
+
+    def test_list_certificates(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test listing root certificates."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "subject": "CN=CA1", "fingerprint": "AA:BB"},
+            {"$key": 2, "subject": "CN=CA2", "fingerprint": "CC:DD"},
+        ]
+
+        certs = mock_client.system.root_certificates.list()
+
+        assert len(certs) == 2
+        assert certs[0].subject == "CN=CA1"
+        assert certs[1].subject == "CN=CA2"
+
+    def test_get_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a root certificate by key."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "subject": "CN=Enterprise CA",
+            "cert": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
+        }
+
+        cert = mock_client.system.root_certificates.get(1)
+
+        assert cert.key == 1
+        assert cert.subject == "CN=Enterprise CA"
+
+    def test_get_by_subject(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a certificate by subject."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "subject": "CN=Enterprise CA, O=Acme"}
+        ]
+
+        cert = mock_client.system.root_certificates.get_by_subject("Enterprise")
+
+        assert "Enterprise" in cert.subject
+
+    def test_get_by_subject_not_found(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test get_by_subject raises NotFoundError when not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        with pytest.raises(NotFoundError):
+            mock_client.system.root_certificates.get_by_subject("Nonexistent")
+
+    def test_get_by_fingerprint(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a certificate by fingerprint."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "subject": "CN=CA", "fingerprint": "AB:CD:EF:12"}
+        ]
+
+        cert = mock_client.system.root_certificates.get_by_fingerprint("AB:CD:EF:12")
+
+        assert cert.fingerprint == "AB:CD:EF:12"
+
+    def test_get_by_fingerprint_not_found(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test get_by_fingerprint raises NotFoundError when not found."""
+        mock_session.request.return_value.json.return_value = []
+
+        with pytest.raises(NotFoundError):
+            mock_client.system.root_certificates.get_by_fingerprint("XX:YY:ZZ")
+
+    def test_create_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test creating a new root certificate."""
+        pem_data = "-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----"
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 5},  # POST response
+            {
+                "$key": 5,
+                "subject": "CN=New CA",
+                "cert": pem_data,
+            },  # GET response
+        ]
+
+        cert = mock_client.system.root_certificates.create(cert=pem_data)
+
+        assert cert.key == 5
+        assert cert.subject == "CN=New CA"
+
+    def test_create_certificate_no_response(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test create raises APIError on no response."""
+        mock_session.request.return_value.json.return_value = None
+
+        with pytest.raises(APIError):
+            mock_client.system.root_certificates.create(cert="-----BEGIN CERTIFICATE-----")
+
+    def test_delete_certificate(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test deleting a root certificate."""
+        mock_session.request.return_value.json.return_value = None
+
+        mock_client.system.root_certificates.delete(1)
+
+        call_args = mock_session.request.call_args
+        assert "DELETE" in str(call_args)
+        assert "root_certificates/1" in str(call_args)
