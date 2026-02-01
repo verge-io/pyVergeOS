@@ -86,6 +86,11 @@ client = VergeClient(
 export VERGE_HOST=192.168.1.100
 export VERGE_USERNAME=admin
 export VERGE_PASSWORD=secret
+# Optional
+export VERGE_VERIFY_SSL=true
+export VERGE_TIMEOUT=30
+export VERGE_RETRY_TOTAL=3
+export VERGE_RETRY_BACKOFF=1
 ```
 
 ```python
@@ -173,6 +178,36 @@ try:
     task = client.tasks.wait(task_id, timeout=60)
 except TaskTimeoutError as e:
     print(f"Task {e.task_id} timed out")
+```
+
+## Retry Configuration
+
+The client automatically retries failed requests for transient errors (429, 500, 502, 503, 504).
+You can customize the retry behavior:
+
+```python
+from http import HTTPStatus
+
+# Custom retry configuration
+client = VergeClient(
+    host="192.168.1.100",
+    username="admin",
+    password="secret",
+    retry_total=5,              # Number of retry attempts (default: 3)
+    retry_backoff_factor=2.0,   # Exponential backoff factor (default: 1)
+    retry_status_codes=frozenset({  # HTTP codes to retry (default: 429, 500, 502, 503, 504)
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+    }),
+)
+
+# Disable retries entirely
+client = VergeClient(
+    host="192.168.1.100",
+    username="admin",
+    password="secret",
+    retry_total=0,
+)
 ```
 
 ## Requirements

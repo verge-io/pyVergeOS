@@ -1,10 +1,12 @@
 """Tests for connection module."""
 
 from datetime import datetime, timedelta, timezone
+from http import HTTPStatus
 
 import pytest
 
 from pyvergeos.connection import AuthMethod, VergeConnection, build_auth_header
+from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
 
 
 class TestAuthMethod:
@@ -111,3 +113,42 @@ class TestVergeConnection:
         conn.is_connected = True
         conn.token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
         assert conn.is_token_valid()
+
+
+class TestVergeConnectionRetryConfig:
+    """Tests for VergeConnection retry configuration."""
+
+    def test_default_retry_values(self) -> None:
+        conn = VergeConnection(host="test.local")
+        assert conn.retry_total == RETRY_TOTAL
+        assert conn.retry_backoff_factor == RETRY_BACKOFF_FACTOR
+        assert conn.retry_status_codes == RETRY_STATUS_CODES
+
+    def test_custom_retry_total(self) -> None:
+        conn = VergeConnection(host="test.local", retry_total=5)
+        assert conn.retry_total == 5
+
+    def test_custom_retry_backoff_factor(self) -> None:
+        conn = VergeConnection(host="test.local", retry_backoff_factor=2.0)
+        assert conn.retry_backoff_factor == 2.0
+
+    def test_custom_retry_status_codes(self) -> None:
+        custom_codes = frozenset({HTTPStatus.BAD_GATEWAY, HTTPStatus.GATEWAY_TIMEOUT})
+        conn = VergeConnection(host="test.local", retry_status_codes=custom_codes)
+        assert conn.retry_status_codes == custom_codes
+
+    def test_retry_disabled_with_zero_total(self) -> None:
+        conn = VergeConnection(host="test.local", retry_total=0)
+        assert conn.retry_total == 0
+
+    def test_all_retry_params_together(self) -> None:
+        custom_codes = frozenset({HTTPStatus.SERVICE_UNAVAILABLE})
+        conn = VergeConnection(
+            host="test.local",
+            retry_total=10,
+            retry_backoff_factor=0.5,
+            retry_status_codes=custom_codes,
+        )
+        assert conn.retry_total == 10
+        assert conn.retry_backoff_factor == 0.5
+        assert conn.retry_status_codes == custom_codes

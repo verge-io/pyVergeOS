@@ -21,6 +21,9 @@ from pyvergeos.constants import (
     HTTP_NOT_FOUND,
     HTTP_SUCCESS_CODES,
     HTTP_UNPROCESSABLE_ENTITY,
+    RETRY_BACKOFF_FACTOR,
+    RETRY_STATUS_CODES,
+    RETRY_TOTAL,
 )
 from pyvergeos.exceptions import (
     APIError,
@@ -140,6 +143,9 @@ class VergeClient:
         verify_ssl: bool = True,
         timeout: int = DEFAULT_TIMEOUT,
         auto_connect: bool = True,
+        retry_total: int = RETRY_TOTAL,
+        retry_backoff_factor: float = RETRY_BACKOFF_FACTOR,
+        retry_status_codes: frozenset[int] | None = None,
     ) -> None:
         """Initialize VergeClient.
 
@@ -151,6 +157,11 @@ class VergeClient:
             verify_ssl: Whether to verify SSL certificates.
             timeout: Default request timeout in seconds.
             auto_connect: Whether to connect immediately.
+            retry_total: Number of retry attempts for transient failures (default: 3).
+            retry_backoff_factor: Backoff factor for retry delay calculation.
+                Delay = backoff_factor * (2 ** retry_count). Default: 1.
+            retry_status_codes: HTTP status codes that trigger automatic retry.
+                Default: 429, 500, 502, 503, 504.
 
         Raises:
             ValueError: If neither token nor username/password provided.
@@ -161,6 +172,11 @@ class VergeClient:
         self._token = token
         self._verify_ssl = verify_ssl
         self._timeout = timeout
+        self._retry_total = retry_total
+        self._retry_backoff_factor = retry_backoff_factor
+        self._retry_status_codes = (
+            retry_status_codes if retry_status_codes is not None else RETRY_STATUS_CODES
+        )
 
         self._connection: VergeConnection | None = None
 
@@ -240,6 +256,8 @@ class VergeClient:
             VERGE_TOKEN: API token for bearer auth
             VERGE_VERIFY_SSL: Whether to verify SSL (default: true)
             VERGE_TIMEOUT: Request timeout in seconds (default: 30)
+            VERGE_RETRY_TOTAL: Number of retry attempts (default: 3)
+            VERGE_RETRY_BACKOFF: Retry backoff factor (default: 1)
 
         Returns:
             Configured VergeClient instance.
@@ -263,6 +281,10 @@ class VergeClient:
             token=os.environ.get("VERGE_TOKEN"),
             verify_ssl=verify_ssl,
             timeout=int(os.environ.get("VERGE_TIMEOUT", str(DEFAULT_TIMEOUT))),
+            retry_total=int(os.environ.get("VERGE_RETRY_TOTAL", str(RETRY_TOTAL))),
+            retry_backoff_factor=float(
+                os.environ.get("VERGE_RETRY_BACKOFF", str(RETRY_BACKOFF_FACTOR))
+            ),
         )
 
     def connect(self) -> VergeClient:
@@ -280,6 +302,9 @@ class VergeClient:
             host=self.host,
             username=self._username or "",
             verify_ssl=self._verify_ssl,
+            retry_total=self._retry_total,
+            retry_backoff_factor=self._retry_backoff_factor,
+            retry_status_codes=self._retry_status_codes,
         )
 
         # Determine auth method and build header

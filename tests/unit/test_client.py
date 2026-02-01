@@ -1,10 +1,12 @@
 """Tests for VergeClient."""
 
+from http import HTTPStatus
 from unittest.mock import MagicMock
 
 import pytest
 
 from pyvergeos import VergeClient
+from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
 from pyvergeos.exceptions import NotConnectedError
 
 
@@ -116,3 +118,147 @@ class TestVergeClientResourceManagers:
     def test_tasks_property(self, mock_client: VergeClient) -> None:
         tasks = mock_client.tasks
         assert tasks is not None
+
+
+class TestVergeClientRetryConfig:
+    """Tests for VergeClient retry configuration."""
+
+    def test_default_retry_values(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+        )
+
+        assert client._retry_total == RETRY_TOTAL
+        assert client._retry_backoff_factor == RETRY_BACKOFF_FACTOR
+        assert client._retry_status_codes == RETRY_STATUS_CODES
+        client.disconnect()
+
+    def test_custom_retry_total(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            retry_total=5,
+        )
+
+        assert client._retry_total == 5
+        assert client._connection is not None
+        assert client._connection.retry_total == 5
+        client.disconnect()
+
+    def test_custom_retry_backoff_factor(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            retry_backoff_factor=2.0,
+        )
+
+        assert client._retry_backoff_factor == 2.0
+        assert client._connection is not None
+        assert client._connection.retry_backoff_factor == 2.0
+        client.disconnect()
+
+    def test_custom_retry_status_codes(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        custom_codes = frozenset({HTTPStatus.BAD_GATEWAY, HTTPStatus.GATEWAY_TIMEOUT})
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            retry_status_codes=custom_codes,
+        )
+
+        assert client._retry_status_codes == custom_codes
+        assert client._connection is not None
+        assert set(client._connection.retry_status_codes) == set(custom_codes)
+        client.disconnect()
+
+    def test_retry_disabled(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            retry_total=0,
+        )
+
+        assert client._retry_total == 0
+        assert client._connection is not None
+        assert client._connection.retry_total == 0
+        client.disconnect()
+
+    def test_all_retry_params_together(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        custom_codes = frozenset({HTTPStatus.SERVICE_UNAVAILABLE})
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            retry_total=10,
+            retry_backoff_factor=0.5,
+            retry_status_codes=custom_codes,
+        )
+
+        assert client._retry_total == 10
+        assert client._retry_backoff_factor == 0.5
+        assert client._retry_status_codes == custom_codes
+        assert client._connection is not None
+        assert client._connection.retry_total == 10
+        assert client._connection.retry_backoff_factor == 0.5
+        client.disconnect()
+
+    def test_retry_params_preserved_on_reconnect(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            retry_total=7,
+            auto_connect=False,
+        )
+
+        # First connect
+        client.connect()
+        assert client._connection is not None
+        assert client._connection.retry_total == 7
+
+        # Disconnect and reconnect
+        client.disconnect()
+        client.connect()
+        assert client._connection is not None
+        assert client._connection.retry_total == 7
+        client.disconnect()

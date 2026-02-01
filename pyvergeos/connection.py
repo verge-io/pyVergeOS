@@ -1,6 +1,7 @@
 """Connection and session management for VergeOS API."""
 
 from base64 import b64encode
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -37,6 +38,9 @@ class VergeConnection:
         token: Authentication token (Basic or Bearer).
         token_expires: Token expiration time (if applicable).
         verify_ssl: Whether to verify SSL certificates.
+        retry_total: Number of retry attempts for transient failures.
+        retry_backoff_factor: Backoff factor for retry delay calculation.
+        retry_status_codes: HTTP status codes that trigger automatic retry.
         connected_at: Timestamp when connection was established.
         vergeos_version: VergeOS version from system endpoint.
         is_connected: Whether connection is active.
@@ -48,6 +52,9 @@ class VergeConnection:
     token: Optional[str] = None
     token_expires: Optional[datetime] = None
     verify_ssl: bool = True
+    retry_total: int = RETRY_TOTAL
+    retry_backoff_factor: float = RETRY_BACKOFF_FACTOR
+    retry_status_codes: Iterable[int] = RETRY_STATUS_CODES
     connected_at: Optional[datetime] = None
     vergeos_version: Optional[str] = None
     os_version: Optional[str] = None
@@ -63,11 +70,11 @@ class VergeConnection:
         if self._session is None:
             self._session = requests.Session()
 
-        # Configure retry strategy
+        # Configure retry strategy with configurable parameters
         retry_strategy = Retry(
-            total=RETRY_TOTAL,
-            backoff_factor=RETRY_BACKOFF_FACTOR,
-            status_forcelist=list(RETRY_STATUS_CODES),
+            total=self.retry_total,
+            backoff_factor=self.retry_backoff_factor,
+            status_forcelist=list(self.retry_status_codes),
             allowed_methods=list(RETRY_METHODS),
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
