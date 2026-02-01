@@ -380,8 +380,9 @@ class TestNetwork:
         network.apply_rules()
 
         call_args = mock_session.request.call_args
-        assert "vnets/100/apply" in call_args.kwargs["url"]
-        assert call_args.kwargs["method"] == "PUT"
+        assert "vnet_actions" in call_args.kwargs["url"]
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["json"] == {"action": "refresh", "vnet": 100}
 
     def test_apply_dns(
         self,

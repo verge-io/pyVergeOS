@@ -14,6 +14,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.dns import DNSZoneManager
     from pyvergeos.resources.hosts import NetworkHostManager
     from pyvergeos.resources.ipsec import IPSecConnectionManager
+    from pyvergeos.resources.network_stats import (
+        IPSecActiveConnectionManager,
+        NetworkMonitorStatsManager,
+    )
     from pyvergeos.resources.routing import NetworkRoutingManager
     from pyvergeos.resources.rules import NetworkRuleManager
     from pyvergeos.resources.vnet_proxy import VnetProxyManager
@@ -117,6 +121,10 @@ def _timestamp_to_datetime(timestamp: int | None) -> datetime | None:
 class Network(ResourceObject):
     """Virtual Network resource object."""
 
+    # Cached manager instances
+    _stats_manager: NetworkMonitorStatsManager | None = None
+    _ipsec_connections_manager: IPSecActiveConnectionManager | None = None
+
     def power_on(self, apply_rules: bool = True) -> Network:
         """Power on the network.
 
@@ -172,7 +180,9 @@ class Network(ResourceObject):
         Returns:
             Self for chaining.
         """
-        self._manager._client._request("PUT", f"vnets/{self.key}/apply")
+        self._manager._client._request(
+            "POST", "vnet_actions", json_data={"action": "refresh", "vnet": self.key}
+        )
         return self
 
     def apply_dns(self) -> Network:
@@ -530,6 +540,85 @@ class Network(ResourceObject):
         from pyvergeos.resources.vnet_proxy import VnetProxyManager
 
         return VnetProxyManager(self._manager._client, self)
+
+    @property
+    def stats(self) -> NetworkMonitorStatsManager:
+        """Access network monitoring statistics for this network.
+
+        Provides network quality metrics including packet loss, latency,
+        and overall connection health for monitoring and troubleshooting.
+
+        Returns:
+            NetworkMonitorStatsManager for this network.
+
+        Examples:
+            Get current stats::
+
+                stats = network.stats.get()
+                print(f"Quality: {stats.quality}%")
+                print(f"Latency: {stats.latency_avg_ms}ms")
+                if stats.has_issues:
+                    print("Warning: Network quality issues detected!")
+
+            Get recent history::
+
+                history = network.stats.history_short(limit=60)
+                for point in history:
+                    print(f"{point.timestamp}: {point.quality}% quality")
+
+            Get long-term trends::
+
+                from datetime import datetime, timedelta
+                since = datetime.now() - timedelta(days=7)
+                history = network.stats.history_long(since=since)
+
+        Note:
+            Statistics are collected by VergeOS network monitoring and
+            may not be available for newly created networks until they
+            have been running for some time.
+        """
+        if self._stats_manager is None:
+            from pyvergeos.resources.network_stats import NetworkMonitorStatsManager
+
+            self._stats_manager = NetworkMonitorStatsManager(self._manager._client, self)
+        return self._stats_manager
+
+    @property
+    def ipsec_connections(self) -> IPSecActiveConnectionManager:
+        """Access active IPSec VPN connections for this network.
+
+        Provides real-time status of currently established IPSec tunnels,
+        including connection details and tunnel parameters.
+
+        Returns:
+            IPSecActiveConnectionManager for this network.
+
+        Examples:
+            List active connections::
+
+                for conn in network.ipsec_connections.list():
+                    print(f"{conn.connection}: {conn.local} <-> {conn.remote}")
+                    print(f"  Local Network: {conn.local_network}")
+                    print(f"  Remote Network: {conn.remote_network}")
+                    print(f"  Protocol: {conn.protocol}")
+
+            Check connection count::
+
+                count = network.ipsec_connections.count()
+                print(f"Active IPSec tunnels: {count}")
+
+        Note:
+            This provides real-time connection status, not configuration.
+            For IPSec configuration management, use network.ipsec instead.
+            Connections are dynamically computed and not stored in the database.
+        """
+        if self._ipsec_connections_manager is None:
+            from pyvergeos.resources.network_stats import IPSecActiveConnectionManager
+
+            self._ipsec_connections_manager = IPSecActiveConnectionManager(
+                self._manager._client, self
+            )
+        return self._ipsec_connections_manager
 
     def diagnostics(
         self,
