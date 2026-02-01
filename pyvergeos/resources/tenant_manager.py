@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.constants import DEFAULT_TIMEOUT
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 # Import sub-managers for use in properties
@@ -652,7 +653,7 @@ class Tenant(ResourceObject):
         username: str,
         password: str,
         verify_ssl: bool | None = None,
-        timeout: int = 30,
+        timeout: int = DEFAULT_TIMEOUT,
     ) -> VergeClient:
         """Connect to the tenant's VergeOS context.
 
@@ -1106,7 +1107,7 @@ class TenantManager(ResourceManager[Tenant]):
         username: str,
         password: str,
         verify_ssl: bool | None = None,
-        timeout: int = 30,
+        timeout: int = DEFAULT_TIMEOUT,
     ) -> VergeClient:
         """Connect to a tenant's VergeOS context.
 
