@@ -51,6 +51,7 @@ import builtins
 import time
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
 from pyvergeos.filters import build_filter
 from pyvergeos.resources.base import ResourceManager, ResourceObject
@@ -270,8 +271,8 @@ class Task(ResourceObject):
 
     def wait(
         self,
-        timeout: int = 300,
-        poll_interval: int = 2,
+        timeout: int = TASK_WAIT_TIMEOUT,
+        poll_interval: int = POLL_INTERVAL,
         raise_on_error: bool = True,
     ) -> Task:
         """Wait for this task to complete.
@@ -544,8 +545,8 @@ class TaskManager(ResourceManager[Task]):
     def wait(
         self,
         key: int,
-        timeout: int = 300,
-        poll_interval: int = 2,
+        timeout: int = TASK_WAIT_TIMEOUT,
+        poll_interval: int = POLL_INTERVAL,
         raise_on_error: bool = True,
     ) -> Task:
         """Wait for a task to complete.

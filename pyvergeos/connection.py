@@ -1,6 +1,7 @@
 """Connection and session management for VergeOS API."""
 
 from base64 import b64encode
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -9,6 +10,14 @@ from typing import Optional
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from pyvergeos.constants import (
+    API_VERSION,
+    RETRY_BACKOFF_FACTOR,
+    RETRY_METHODS,
+    RETRY_STATUS_CODES,
+    RETRY_TOTAL,
+)
 
 
 class AuthMethod(Enum):
@@ -29,6 +38,9 @@ class VergeConnection:
         token: Authentication token (Basic or Bearer).
         token_expires: Token expiration time (if applicable).
         verify_ssl: Whether to verify SSL certificates.
+        retry_total: Number of retry attempts for transient failures.
+        retry_backoff_factor: Backoff factor for retry delay calculation.
+        retry_status_codes: HTTP status codes that trigger automatic retry.
         connected_at: Timestamp when connection was established.
         vergeos_version: VergeOS version from system endpoint.
         is_connected: Whether connection is active.
@@ -40,6 +52,9 @@ class VergeConnection:
     token: Optional[str] = None
     token_expires: Optional[datetime] = None
     verify_ssl: bool = True
+    retry_total: int = RETRY_TOTAL
+    retry_backoff_factor: float = RETRY_BACKOFF_FACTOR
+    retry_status_codes: Iterable[int] = RETRY_STATUS_CODES
     connected_at: Optional[datetime] = None
     vergeos_version: Optional[str] = None
     os_version: Optional[str] = None
@@ -49,18 +64,18 @@ class VergeConnection:
     _session: Optional[requests.Session] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
-        self.api_base_url = f"https://{self.host}/api/v4"
+        self.api_base_url = f"https://{self.host}/api/{API_VERSION}"
 
         # Create session (done here so it can be mocked in tests)
         if self._session is None:
             self._session = requests.Session()
 
-        # Configure retry strategy
+        # Configure retry strategy with configurable parameters
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET", "PUT", "DELETE", "POST"],
+            total=self.retry_total,
+            backoff_factor=self.retry_backoff_factor,
+            status_forcelist=list(self.retry_status_codes),
+            allowed_methods=list(RETRY_METHODS),
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self._session.mount("https://", adapter)
@@ -90,7 +105,16 @@ class VergeConnection:
         return not (self.token_expires and datetime.now(timezone.utc) >= self.token_expires)
 
     def disconnect(self) -> None:
-        """Clear connection state and close session."""
+        """Clear connection state and close the HTTP session.
+
+        Resets all authentication and connection state including token,
+        expiration time, and connection timestamp. The underlying requests
+        session is also closed to release network resources.
+
+        Note:
+            After calling disconnect(), the connection object can be reused
+            by establishing a new connection through the client.
+        """
         self.token = None
         self.token_expires = None
         self.connected_at = None

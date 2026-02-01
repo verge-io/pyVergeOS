@@ -10,6 +10,21 @@ from typing import TYPE_CHECKING, Any
 import requests
 
 from pyvergeos.connection import AuthMethod, VergeConnection, build_auth_header
+from pyvergeos.constants import (
+    CONTENT_TYPE_JSON,
+    DEFAULT_TIMEOUT,
+    HEADER_ACCEPT,
+    HEADER_CONTENT_TYPE,
+    HTTP_AUTH_FAILURE_CODES,
+    HTTP_CONFLICT,
+    HTTP_NO_CONTENT,
+    HTTP_NOT_FOUND,
+    HTTP_SUCCESS_CODES,
+    HTTP_UNPROCESSABLE_ENTITY,
+    RETRY_BACKOFF_FACTOR,
+    RETRY_STATUS_CODES,
+    RETRY_TOTAL,
+)
 from pyvergeos.exceptions import (
     APIError,
     AuthenticationError,
@@ -126,8 +141,11 @@ class VergeClient:
         password: str | None = None,
         token: str | None = None,
         verify_ssl: bool = True,
-        timeout: int = 30,
+        timeout: int = DEFAULT_TIMEOUT,
         auto_connect: bool = True,
+        retry_total: int = RETRY_TOTAL,
+        retry_backoff_factor: float = RETRY_BACKOFF_FACTOR,
+        retry_status_codes: frozenset[int] | None = None,
     ) -> None:
         """Initialize VergeClient.
 
@@ -139,6 +157,11 @@ class VergeClient:
             verify_ssl: Whether to verify SSL certificates.
             timeout: Default request timeout in seconds.
             auto_connect: Whether to connect immediately.
+            retry_total: Number of retry attempts for transient failures (default: 3).
+            retry_backoff_factor: Backoff factor for retry delay calculation.
+                Delay = backoff_factor * (2 ** retry_count). Default: 1.
+            retry_status_codes: HTTP status codes that trigger automatic retry.
+                Default: 429, 500, 502, 503, 504.
 
         Raises:
             ValueError: If neither token nor username/password provided.
@@ -149,6 +172,11 @@ class VergeClient:
         self._token = token
         self._verify_ssl = verify_ssl
         self._timeout = timeout
+        self._retry_total = retry_total
+        self._retry_backoff_factor = retry_backoff_factor
+        self._retry_status_codes = (
+            retry_status_codes if retry_status_codes is not None else RETRY_STATUS_CODES
+        )
 
         self._connection: VergeConnection | None = None
 
@@ -228,6 +256,8 @@ class VergeClient:
             VERGE_TOKEN: API token for bearer auth
             VERGE_VERIFY_SSL: Whether to verify SSL (default: true)
             VERGE_TIMEOUT: Request timeout in seconds (default: 30)
+            VERGE_RETRY_TOTAL: Number of retry attempts (default: 3)
+            VERGE_RETRY_BACKOFF: Retry backoff factor (default: 1)
 
         Returns:
             Configured VergeClient instance.
@@ -250,7 +280,11 @@ class VergeClient:
             password=os.environ.get("VERGE_PASSWORD"),
             token=os.environ.get("VERGE_TOKEN"),
             verify_ssl=verify_ssl,
-            timeout=int(os.environ.get("VERGE_TIMEOUT", "30")),
+            timeout=int(os.environ.get("VERGE_TIMEOUT", str(DEFAULT_TIMEOUT))),
+            retry_total=int(os.environ.get("VERGE_RETRY_TOTAL", str(RETRY_TOTAL))),
+            retry_backoff_factor=float(
+                os.environ.get("VERGE_RETRY_BACKOFF", str(RETRY_BACKOFF_FACTOR))
+            ),
         )
 
     def connect(self) -> VergeClient:
@@ -268,6 +302,9 @@ class VergeClient:
             host=self.host,
             username=self._username or "",
             verify_ssl=self._verify_ssl,
+            retry_total=self._retry_total,
+            retry_backoff_factor=self._retry_backoff_factor,
+            retry_status_codes=self._retry_status_codes,
         )
 
         # Determine auth method and build header
@@ -290,8 +327,8 @@ class VergeClient:
         session.headers.update(auth_header)
         session.headers.update(
             {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
+                HEADER_CONTENT_TYPE: CONTENT_TYPE_JSON,
+                HEADER_ACCEPT: CONTENT_TYPE_JSON,
             }
         )
 
@@ -322,12 +359,12 @@ class VergeClient:
                 timeout=self._timeout,
             )
 
-            if resp.status_code in (401, 403):
+            if resp.status_code in HTTP_AUTH_FAILURE_CODES:
                 raise AuthenticationError(
                     self._extract_error_message(resp), status_code=resp.status_code
                 )
 
-            if resp.status_code == 200 and resp.text:
+            if resp.status_code in HTTP_SUCCESS_CODES and resp.text:
                 response = resp.json()
                 # Response can be a dict or a list with one item
                 if isinstance(response, list) and len(response) > 0:
@@ -450,24 +487,24 @@ class VergeClient:
     def _handle_response(self, response: requests.Response) -> dict[str, Any] | list[Any] | None:
         """Handle API response and raise appropriate exceptions."""
         # Success responses
-        if response.status_code in (200, 201):
+        if response.status_code in HTTP_SUCCESS_CODES:
             if response.text:
                 return response.json()  # type: ignore[no-any-return]
             return None
 
-        if response.status_code == 204:
+        if response.status_code == HTTP_NO_CONTENT:
             return None
 
         # Error responses
         error_message = self._extract_error_message(response)
 
-        if response.status_code in (401, 403):
+        if response.status_code in HTTP_AUTH_FAILURE_CODES:
             raise AuthenticationError(error_message, status_code=response.status_code)
-        elif response.status_code == 404:
+        elif response.status_code == HTTP_NOT_FOUND:
             raise NotFoundError(error_message, status_code=response.status_code)
-        elif response.status_code == 409:
+        elif response.status_code == HTTP_CONFLICT:
             raise ConflictError(error_message, status_code=response.status_code)
-        elif response.status_code == 422:
+        elif response.status_code == HTTP_UNPROCESSABLE_ENTITY:
             raise ValidationError(error_message, status_code=response.status_code)
         else:
             raise APIError(error_message, status_code=response.status_code)

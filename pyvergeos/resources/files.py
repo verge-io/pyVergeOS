@@ -9,6 +9,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from pyvergeos.constants import (
+    CONTENT_TYPE_OCTET_STREAM,
+    DEFAULT_TIMEOUT,
+    GB,
+    HEADER_CONTENT_TYPE,
+    HTTP_NO_CONTENT,
+    HTTP_SUCCESS_CODES,
+    UPLOAD_CHUNK_SIZE,
+    UPLOAD_CHUNK_TIMEOUT,
+)
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -33,9 +43,6 @@ FILE_TYPES = {
     "nvram": "NVRAM",
     "zip": "ZIP",
 }
-
-# Chunk size for uploads (256 KB - matches verge-cli)
-UPLOAD_CHUNK_SIZE = 262144
 
 
 class File(ResourceObject):
@@ -74,7 +81,7 @@ class File(ResourceObject):
     @property
     def size_gb(self) -> float:
         """File size in GB."""
-        return round(self.size_bytes / 1073741824, 3) if self.size_bytes else 0.0
+        return round(self.size_bytes / GB, 3) if self.size_bytes else 0.0
 
     @property
     def allocated_bytes(self) -> int:
@@ -84,7 +91,7 @@ class File(ResourceObject):
     @property
     def allocated_gb(self) -> float:
         """Allocated storage in GB."""
-        return round(self.allocated_bytes / 1073741824, 3) if self.allocated_bytes else 0.0
+        return round(self.allocated_bytes / GB, 3) if self.allocated_bytes else 0.0
 
     @property
     def used_bytes(self) -> int:
@@ -94,7 +101,7 @@ class File(ResourceObject):
     @property
     def used_gb(self) -> float:
         """Used storage in GB."""
-        return round(self.used_bytes / 1073741824, 3) if self.used_bytes else 0.0
+        return round(self.used_bytes / GB, 3) if self.used_bytes else 0.0
 
     @property
     def preferred_tier(self) -> int | None:
@@ -290,9 +297,9 @@ class FileManager(ResourceManager[File]):
             create_body["preferred_tier"] = str(tier)
 
         url = f"{connection.api_base_url}/files"
-        response = session.post(url, json=create_body, timeout=30)
+        response = session.post(url, json=create_body, timeout=DEFAULT_TIMEOUT)
 
-        if response.status_code not in (200, 201):
+        if response.status_code not in HTTP_SUCCESS_CODES:
             raise ValidationError(f"Failed to create file entry: {response.text}")
 
         response_data = response.json()
@@ -321,11 +328,14 @@ class FileManager(ResourceManager[File]):
                     chunk_response = session.put(
                         chunk_url,
                         data=chunk,
-                        headers={"Content-Type": "application/octet-stream"},
-                        timeout=120,
+                        headers={HEADER_CONTENT_TYPE: CONTENT_TYPE_OCTET_STREAM},
+                        timeout=UPLOAD_CHUNK_TIMEOUT,
                     )
 
-                    if chunk_response.status_code not in (200, 201, 204):
+                    if (
+                        chunk_response.status_code not in HTTP_SUCCESS_CODES
+                        and chunk_response.status_code != HTTP_NO_CONTENT
+                    ):
                         raise ValidationError(f"Chunk upload failed: {chunk_response.text}")
 
                     offset += len(chunk)
@@ -415,8 +425,8 @@ class FileManager(ResourceManager[File]):
         logger.info("Downloading '%s' to '%s'", download_name, output_path)
 
         # Stream download
-        response = session.get(download_url, stream=True, timeout=30)
-        if response.status_code != 200:
+        response = session.get(download_url, stream=True, timeout=DEFAULT_TIMEOUT)
+        if response.status_code not in HTTP_SUCCESS_CODES:
             raise NotFoundError(f"Download failed: {response.text}")
 
         total_size = file_obj.size_bytes

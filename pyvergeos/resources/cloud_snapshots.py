@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.constants import TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import build_filter
 from pyvergeos.resources.base import ResourceManager, ResourceObject
@@ -921,7 +922,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         immutable: bool = False,
         private: bool = False,
         wait: bool = False,
-        wait_timeout: int = 300,
+        wait_timeout: int = TASK_WAIT_TIMEOUT,
     ) -> CloudSnapshot:
         """Create a new cloud snapshot.
 

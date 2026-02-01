@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.constants import DEFAULT_TIMEOUT, POLL_INTERVAL_FAST
 from pyvergeos.exceptions import APIError, NotFoundError, VergeTimeoutError
 
 if TYPE_CHECKING:
@@ -130,7 +131,7 @@ class NASVolumeFileManager:
         offset: int | None = None,
         extensions: str = "",
         sort: str = "",
-        timeout: int = 30,
+        timeout: int = DEFAULT_TIMEOUT,
     ) -> builtins.list[NASVolumeFile]:
         """List files and directories at the specified path.
 
@@ -236,7 +237,7 @@ class NASVolumeFileManager:
         self,
         path: str,
         *,
-        timeout: int = 30,
+        timeout: int = DEFAULT_TIMEOUT,
     ) -> NASVolumeFile:
         """Get information about a specific file or directory.
 
@@ -276,7 +277,11 @@ class NASVolumeFileManager:
         raise NotFoundError(f"File or directory not found: {path}")
 
     def _poll_for_result(
-        self, job_key: str, *, timeout: int = 30, poll_interval: float = 0.5
+        self,
+        job_key: str,
+        *,
+        timeout: int = DEFAULT_TIMEOUT,
+        poll_interval: float = POLL_INTERVAL_FAST,
     ) -> Any:
         """Poll for browse operation results.
 

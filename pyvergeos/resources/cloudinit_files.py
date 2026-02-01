@@ -6,6 +6,7 @@ import builtins
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
 from pyvergeos.resources.base import ResourceManager, ResourceObject
@@ -382,7 +383,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             vm_key: VM $key (ID) to attach the file to.
             name: File name (typically /user-data, /meta-data, /network-config).
                   Maximum 256 characters.
-            contents: File contents. Maximum 65536 bytes (64KB).
+            contents: File contents. Maximum 64KB.
             render: Render type for variable processing:
                 - No: File is used as-is without processing (default).
                 - Variables: File supports VergeOS variable substitution.
@@ -396,9 +397,9 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             ConflictError: If file with same name already exists for VM.
         """
         # Validate contents size
-        if contents and len(contents) > 65536:
+        if contents and len(contents) > CLOUDINIT_MAX_SIZE:
             raise ValueError(
-                f"Contents exceed maximum size of 65536 bytes (64KB). "
+                f"Contents exceed maximum size of {CLOUDINIT_MAX_SIZE} bytes (64KB). "
                 f"Current size: {len(contents)} bytes."
             )
 
@@ -437,7 +438,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         Args:
             key: CloudInitFile $key (ID).
             name: New file name.
-            contents: New file contents. Maximum 65536 bytes (64KB).
+            contents: New file contents. Maximum 64KB.
             render: New render type (No, Variables, Jinja2).
 
         Returns:
@@ -453,9 +454,9 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             body["name"] = name
 
         if contents is not None:
-            if len(contents) > 65536:
+            if len(contents) > CLOUDINIT_MAX_SIZE:
                 raise ValueError(
-                    f"Contents exceed maximum size of 65536 bytes (64KB). "
+                    f"Contents exceed maximum size of {CLOUDINIT_MAX_SIZE} bytes (64KB). "
                     f"Current size: {len(contents)} bytes."
                 )
             body["contents"] = contents
