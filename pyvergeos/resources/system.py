@@ -941,42 +941,52 @@ class InventoryVM:
 
     @property
     def key(self) -> int:
+        """Unique identifier for the VM."""
         return int(self._data.get("$key", 0))
 
     @property
     def name(self) -> str:
+        """VM name."""
         return str(self._data.get("name", ""))
 
     @property
     def description(self) -> str:
+        """VM description."""
         return str(self._data.get("description", ""))
 
     @property
     def power_state(self) -> str:
+        """Current power state (e.g., 'running', 'stopped')."""
         return str(self._data.get("power_state", ""))
 
     @property
     def cpu_cores(self) -> int:
+        """Number of CPU cores allocated to the VM."""
         return int(self._data.get("cpu_cores", 0))
 
     @property
     def ram_mb(self) -> int:
+        """RAM allocated to the VM in megabytes."""
         return int(self._data.get("ram", 0))
 
     @property
     def ram_gb(self) -> float:
+        """RAM allocated to the VM in gigabytes."""
         return round(self.ram_mb / 1024, 1)
 
     @property
     def os_family(self) -> str:
+        """Operating system family (e.g., 'linux', 'windows')."""
         return str(self._data.get("os_family", ""))
 
     @property
     def cluster(self) -> str:
+        """Name of the cluster hosting this VM."""
         return str(self._data.get("cluster_name", ""))
 
     @property
     def node(self) -> str:
+        """Name of the node hosting this VM."""
         return str(self._data.get("node_name", ""))
 
 
@@ -988,30 +998,37 @@ class InventoryNetwork:
 
     @property
     def key(self) -> int:
+        """Unique identifier for the network."""
         return int(self._data.get("$key", 0))
 
     @property
     def name(self) -> str:
+        """Network name."""
         return str(self._data.get("name", ""))
 
     @property
     def description(self) -> str:
+        """Network description."""
         return str(self._data.get("description", ""))
 
     @property
     def network_type(self) -> str:
+        """Type of network (e.g., 'internal', 'external')."""
         return str(self._data.get("type", ""))
 
     @property
     def power_state(self) -> str:
+        """Current power state (e.g., 'running', 'stopped')."""
         return str(self._data.get("power_state", ""))
 
     @property
     def network_address(self) -> str:
+        """Network address in CIDR notation."""
         return str(self._data.get("network", ""))
 
     @property
     def ip_address(self) -> str:
+        """IP address assigned to the network interface."""
         return str(self._data.get("ip", ""))
 
 
@@ -1023,30 +1040,37 @@ class InventoryStorageTier:
 
     @property
     def tier(self) -> int:
+        """Storage tier number."""
         return int(self._data.get("tier", 0))
 
     @property
     def description(self) -> str:
+        """Storage tier description."""
         return str(self._data.get("description", ""))
 
     @property
     def capacity_bytes(self) -> int:
+        """Total capacity of the storage tier in bytes."""
         return int(self._data.get("capacity", 0))
 
     @property
     def capacity_gb(self) -> float:
+        """Total capacity of the storage tier in gigabytes."""
         return round(self.capacity_bytes / 1073741824, 2)
 
     @property
     def used_bytes(self) -> int:
+        """Used space in the storage tier in bytes."""
         return int(self._data.get("used", 0))
 
     @property
     def used_gb(self) -> float:
+        """Used space in the storage tier in gigabytes."""
         return round(self.used_bytes / 1073741824, 2)
 
     @property
     def used_percent(self) -> float:
+        """Percentage of storage tier capacity currently in use."""
         if self.capacity_bytes > 0:
             return round((self.used_bytes / self.capacity_bytes) * 100, 1)
         return 0.0
@@ -1060,30 +1084,37 @@ class InventoryNode:
 
     @property
     def key(self) -> int:
+        """Unique identifier for the node."""
         return int(self._data.get("$key", 0))
 
     @property
     def name(self) -> str:
+        """Node name."""
         return str(self._data.get("name", ""))
 
     @property
     def status(self) -> str:
+        """Current node status."""
         return str(self._data.get("status_display", ""))
 
     @property
     def cluster(self) -> str:
+        """Name of the cluster this node belongs to."""
         return str(self._data.get("cluster_name", ""))
 
     @property
     def cores(self) -> int:
+        """Number of CPU cores available on the node."""
         return int(self._data.get("cores", 0))
 
     @property
     def ram_mb(self) -> int:
+        """Total RAM on the node in megabytes."""
         return int(self._data.get("ram", 0))
 
     @property
     def ram_gb(self) -> float:
+        """Total RAM on the node in gigabytes."""
         return round(self.ram_mb / 1024, 1)
 
 
@@ -1095,26 +1126,32 @@ class InventoryCluster:
 
     @property
     def key(self) -> int:
+        """Unique identifier for the cluster."""
         return int(self._data.get("$key", 0))
 
     @property
     def name(self) -> str:
+        """Cluster name."""
         return str(self._data.get("name", ""))
 
     @property
     def description(self) -> str:
+        """Cluster description."""
         return str(self._data.get("description", ""))
 
     @property
     def status(self) -> str:
+        """Current cluster status."""
         return str(self._data.get("status_display", ""))
 
     @property
     def total_nodes(self) -> int:
+        """Total number of nodes in the cluster."""
         return int(self._data.get("total_nodes", 0))
 
     @property
     def online_nodes(self) -> int:
+        """Number of nodes currently online in the cluster."""
         return int(self._data.get("online_nodes", 0))
 
 
@@ -1126,22 +1163,27 @@ class InventoryTenant:
 
     @property
     def key(self) -> int:
+        """Unique identifier for the tenant."""
         return int(self._data.get("$key", 0))
 
     @property
     def name(self) -> str:
+        """Tenant name."""
         return str(self._data.get("name", ""))
 
     @property
     def description(self) -> str:
+        """Tenant description."""
         return str(self._data.get("description", ""))
 
     @property
     def status(self) -> str:
+        """Current tenant status."""
         return str(self._data.get("status_display", ""))
 
     @property
     def is_running(self) -> bool:
+        """Whether the tenant is currently running."""
         return bool(self._data.get("is_running", False))
 
 

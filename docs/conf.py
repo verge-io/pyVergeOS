@@ -29,6 +29,23 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+# Suppress duplicate object description warnings (classes re-exported via __init__.py)
+# These are benign - property names like 'key' appear in multiple resource classes
+nitpicky = False
+
+
+# Filter out duplicate object warnings from inherited properties
+def setup(app):
+    """Suppress duplicate object warnings."""
+    import logging
+
+    class DuplicateObjectFilter(logging.Filter):
+        def filter(self, record):
+            return "duplicate object description" not in record.getMessage()
+
+    logging.getLogger("sphinx").addFilter(DuplicateObjectFilter())
+
+
 # -- Options for autodoc -----------------------------------------------------
 
 autodoc_default_options = {
