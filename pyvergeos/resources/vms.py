@@ -305,6 +305,285 @@ class VM(ResourceObject):
         result = self._manager._client._request("POST", "vm_actions", json_data=body)
         return result if isinstance(result, dict) else None
 
+    def migrate(self, preferred_node: int | None = None) -> dict[str, Any] | None:
+        """Live migrate VM to another node while keeping it running.
+
+        Args:
+            preferred_node: Target node $key. If None, auto-selects based on
+                resource balancing.
+
+        Returns:
+            Migration task information.
+
+        Note:
+            The VM must be running for live migration. Migration progress can be
+            monitored via the VM status field.
+        """
+        body: dict[str, Any] = {"vm": self.key, "action": "migrate"}
+        if preferred_node is not None:
+            body["params"] = {"preferred_node": preferred_node}
+
+        result = self._manager._client._request("POST", "vm_actions", json_data=body)
+        return result if isinstance(result, dict) else None
+
+    def hibernate(self) -> dict[str, Any] | None:
+        """Hibernate the VM to disk.
+
+        Saves the VM's memory state to disk and powers off. The VM can be resumed
+        later by powering it on, which will restore the memory state.
+
+        Returns:
+            Hibernate task information.
+        """
+        result = self._manager._client._request(
+            "POST", "vm_actions", json_data={"vm": self.key, "action": "hibernate"}
+        )
+        return result if isinstance(result, dict) else None
+
+    def restore(
+        self,
+        snapshot: int,
+        preserve_macs: bool = False,
+        name: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Restore VM from a snapshot.
+
+        Args:
+            snapshot: Snapshot $key to restore from.
+            preserve_macs: Keep original MAC addresses (default False).
+            name: Name for restored VM if creating a clone. If None, overwrites
+                the current VM.
+
+        Returns:
+            Restore task information.
+
+        Warning:
+            If name is not provided, this will overwrite the current VM. The VM
+            should be powered off before restoring.
+        """
+        params: dict[str, Any] = {"snapshot": snapshot, "preserve_macs": preserve_macs}
+        if name is not None:
+            params["name"] = name
+
+        result = self._manager._client._request(
+            "POST",
+            "vm_actions",
+            json_data={"vm": self.key, "action": "restore", "params": params},
+        )
+        return result if isinstance(result, dict) else None
+
+    def hotplug_drive(
+        self,
+        name: str,
+        size: int,
+        interface: str = "virtio-scsi",
+        media: str = "disk",
+        tier: int = 1,
+    ) -> dict[str, Any] | None:
+        """Hot-add a drive to a running VM.
+
+        Args:
+            name: Drive name.
+            size: Disk size in bytes.
+            interface: Drive interface type (default "virtio-scsi").
+                Options: virtio, virtio-scsi, ide, ahci, nvme, etc.
+            media: Media type (default "disk").
+            tier: Preferred storage tier (1-5, default 1).
+
+        Returns:
+            Hotplug task information.
+
+        Note:
+            The VM must be running and have allow_hotplug enabled.
+        """
+        params: dict[str, Any] = {
+            "name": name,
+            "disksize": size,
+            "interface": interface,
+            "media": media,
+            "preferred_tier": str(tier),
+        }
+
+        result = self._manager._client._request(
+            "POST",
+            "vm_actions",
+            json_data={"vm": self.key, "action": "hotplugdrive", "params": params},
+        )
+        return result if isinstance(result, dict) else None
+
+    def hotplug_nic(
+        self,
+        name: str,
+        network: int,
+        interface: str = "virtio",
+    ) -> dict[str, Any] | None:
+        """Hot-add a NIC to a running VM.
+
+        Args:
+            name: NIC name.
+            network: Network $key to connect to.
+            interface: NIC interface type (default "virtio").
+                Options: virtio, e1000, e1000e, rtl8139, vmxnet3, etc.
+
+        Returns:
+            Hotplug task information.
+
+        Note:
+            The VM must be running and have allow_hotplug enabled.
+        """
+        params: dict[str, Any] = {
+            "name": name,
+            "vnet": network,
+            "interface": interface,
+        }
+
+        result = self._manager._client._request(
+            "POST",
+            "vm_actions",
+            json_data={"vm": self.key, "action": "hotplugnic", "params": params},
+        )
+        return result if isinstance(result, dict) else None
+
+    def tag(self, tag_key: int) -> None:
+        """Add a tag to this VM.
+
+        Args:
+            tag_key: Tag $key to add.
+
+        Example:
+            >>> # Get a tag by name and add it
+            >>> tag = client.tags.get(name="Production", category_name="Environment")
+            >>> vm.tag(tag.key)
+        """
+        self._manager._client.tags.members(tag_key).add_vm(self.key)
+
+    def untag(self, tag_key: int) -> None:
+        """Remove a tag from this VM.
+
+        Args:
+            tag_key: Tag $key to remove.
+
+        Example:
+            >>> vm.untag(tag.key)
+        """
+        self._manager._client.tags.members(tag_key).remove_vm(self.key)
+
+    def get_tags(self) -> list[dict[str, Any]]:
+        """Get all tags assigned to this VM.
+
+        Returns:
+            List of tag info dictionaries with tag_key, tag_name, category_name.
+
+        Example:
+            >>> for tag_info in vm.get_tags():
+            ...     print(f"{tag_info['category_name']}: {tag_info['tag_name']}")
+        """
+        # Query tag_members for this VM
+        members = self._manager._client._request(
+            "GET",
+            "tag_members",
+            params={
+                "filter": f"member eq 'vms/{self.key}'",
+                "fields": "$key,tag,tag#name as tag_name,tag#category#name as category_name",
+            },
+        )
+        if not isinstance(members, list):
+            return []
+        return [
+            {
+                "tag_key": m.get("tag"),
+                "tag_name": m.get("tag_name"),
+                "category_name": m.get("category_name"),
+            }
+            for m in members
+        ]
+
+    def _get_current_user_key(self) -> int:
+        """Get the current user's key by looking up the username.
+
+        Returns:
+            User $key.
+
+        Raises:
+            ValueError: If user cannot be found.
+        """
+        connection = self._manager._client._connection
+        if connection is None:
+            raise ValueError("Client not connected")
+        username = connection.username
+        if not username:
+            raise ValueError("Could not determine current username")
+
+        # Look up user by name
+        users = self._manager._client._request(
+            "GET",
+            "users",
+            params={"filter": f"name eq '{username}'", "fields": "$key,name", "limit": 1},
+        )
+        if not isinstance(users, list) or not users:
+            raise ValueError(f"Could not find user '{username}'")
+
+        user_key = users[0].get("$key")
+        if user_key is None:
+            raise ValueError(f"User '{username}' has no key")
+
+        return int(user_key)
+
+    def favorite(self) -> None:
+        """Add this VM to the current user's favorites.
+
+        Example:
+            >>> vm = client.vms.get(name="web-server")
+            >>> vm.favorite()
+        """
+        user_key = self._get_current_user_key()
+
+        # Create favorite entry
+        self._manager._client._request(
+            "POST",
+            "vm_favorites",
+            json_data={"vm": self.key, "user": user_key},
+        )
+
+    def unfavorite(self) -> None:
+        """Remove this VM from the current user's favorites.
+
+        Example:
+            >>> vm = client.vms.get(name="web-server")
+            >>> vm.unfavorite()
+        """
+        user_key = self._get_current_user_key()
+
+        # Find and delete the favorite entry
+        favorites = self._manager._client._request(
+            "GET",
+            "vm_favorites",
+            params={"filter": f"vm eq {self.key} and user eq {user_key}"},
+        )
+        if isinstance(favorites, list) and favorites:
+            fav_key = favorites[0].get("$key")
+            if fav_key:
+                self._manager._client._request("DELETE", f"vm_favorites/{fav_key}")
+
+    def is_favorite(self) -> bool:
+        """Check if this VM is in the current user's favorites.
+
+        Returns:
+            True if the VM is a favorite, False otherwise.
+        """
+        try:
+            user_key = self._get_current_user_key()
+        except ValueError:
+            return False
+
+        # Check for favorite entry
+        favorites = self._manager._client._request(
+            "GET",
+            "vm_favorites",
+            params={"filter": f"vm eq {self.key} and user eq {user_key}"},
+        )
+        return isinstance(favorites, list) and len(favorites) > 0
+
     def get_console_info(self) -> dict[str, Any]:
         """Get console access information for this VM.
 

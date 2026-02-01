@@ -681,3 +681,325 @@ class TestVMListHelpers:
 
         assert len(stopped) == 2
         assert all(not vm.is_running for vm in stopped)
+
+
+class TestVMEnhancedActions:
+    """Tests for enhanced VM actions (migrate, hibernate, changecd, restore, hotplug, tags)."""
+
+    @pytest.fixture
+    def vm_data(self) -> dict[str, Any]:
+        """Sample VM data."""
+        return {
+            "$key": 100,
+            "name": "test-vm",
+            "status": "running",
+            "running": True,
+            "is_snapshot": False,
+            "machine": 200,
+        }
+
+    def test_migrate_auto(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test live migration with auto node selection."""
+        mock_session.request.return_value.json.return_value = {"task": 123}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.migrate()
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "migrate"
+        assert body["vm"] == 100
+        assert "params" not in body  # No preferred_node specified
+        assert result == {"task": 123}
+
+    def test_migrate_preferred_node(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test live migration to a specific node."""
+        mock_session.request.return_value.json.return_value = {"task": 456}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.migrate(preferred_node=5)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "migrate"
+        assert body["params"]["preferred_node"] == 5
+        assert result == {"task": 456}
+
+    def test_hibernate(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test hibernating a VM."""
+        mock_session.request.return_value.json.return_value = {"task": 789}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.hibernate()
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "hibernate"
+        assert body["vm"] == 100
+        assert result == {"task": 789}
+
+    def test_restore_overwrite(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test restoring VM from snapshot (overwrite current)."""
+        mock_session.request.return_value.json.return_value = {"task": 333}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.restore(snapshot=50)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "restore"
+        assert body["params"]["snapshot"] == 50
+        assert body["params"]["preserve_macs"] is False
+        assert "name" not in body["params"]
+        assert result == {"task": 333}
+
+    def test_restore_to_clone(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test restoring VM from snapshot to a new clone."""
+        mock_session.request.return_value.json.return_value = {"task": 444}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.restore(snapshot=50, name="restored-vm", preserve_macs=True)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "restore"
+        assert body["params"]["snapshot"] == 50
+        assert body["params"]["name"] == "restored-vm"
+        assert body["params"]["preserve_macs"] is True
+        assert result == {"task": 444}
+
+    def test_hotplug_drive(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test hot-adding a drive to a running VM."""
+        mock_session.request.return_value.json.return_value = {"task": 555}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.hotplug_drive(
+            name="data-drive",
+            size=10 * 1024 * 1024 * 1024,  # 10GB
+            interface="virtio-scsi",
+            tier=2,
+        )
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "hotplugdrive"
+        assert body["params"]["name"] == "data-drive"
+        assert body["params"]["disksize"] == 10 * 1024 * 1024 * 1024
+        assert body["params"]["interface"] == "virtio-scsi"
+        assert body["params"]["preferred_tier"] == "2"
+        assert result == {"task": 555}
+
+    def test_hotplug_nic(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test hot-adding a NIC to a running VM."""
+        mock_session.request.return_value.json.return_value = {"task": 666}
+        vm = VM(vm_data, mock_client.vms)
+
+        result = vm.hotplug_nic(name="nic_1", network=10, interface="virtio")
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["action"] == "hotplugnic"
+        assert body["params"]["name"] == "nic_1"
+        assert body["params"]["vnet"] == 10
+        assert body["params"]["interface"] == "virtio"
+        assert result == {"task": 666}
+
+    def test_tag(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test adding a tag to a VM via tag_members."""
+        mock_session.request.return_value.json.return_value = {"$key": 999}
+        vm = VM(vm_data, mock_client.vms)
+
+        vm.tag(tag_key=15)
+
+        # Check that POST was made to tag_members
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["tag"] == 15
+        assert body["member"] == "vms/100"
+
+    def test_untag(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test removing a tag from a VM via tag_members."""
+        # First call: list members, second: delete
+        responses = [
+            MagicMock(
+                status_code=200,
+                text="[]",
+                json=MagicMock(return_value=[{"$key": 555, "tag": 15, "member": "vms/100"}]),
+            ),
+            MagicMock(status_code=204, text=""),
+        ]
+        mock_session.request.side_effect = responses
+        vm = VM(vm_data, mock_client.vms)
+
+        vm.untag(tag_key=15)
+
+        # Check that DELETE was made
+        delete_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "DELETE"
+        ]
+        assert len(delete_calls) == 1
+        assert "tag_members/555" in delete_calls[0].kwargs["url"]
+
+    def test_get_tags(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test getting tags assigned to a VM."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "tag": 10, "tag_name": "Production", "category_name": "Environment"},
+            {"$key": 2, "tag": 20, "tag_name": "Web", "category_name": "Role"},
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        tags = vm.get_tags()
+
+        assert len(tags) == 2
+        assert tags[0]["tag_key"] == 10
+        assert tags[0]["tag_name"] == "Production"
+        assert tags[0]["category_name"] == "Environment"
+
+    def test_favorite(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test adding VM to favorites."""
+        # First call: lookup user by name, second: create favorite
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 1, "name": "admin"}],  # GET users
+            {"$key": 99},  # POST vm_favorites
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        vm.favorite()
+
+        # Check that POST was made to vm_favorites
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["vm"] == 100
+        assert body["user"] == 1
+
+    def test_unfavorite(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test removing VM from favorites."""
+        # Create separate mock objects for different calls
+        responses = [
+            MagicMock(
+                status_code=200,
+                text="[]",
+                json=MagicMock(return_value=[{"$key": 1, "name": "admin"}]),
+            ),
+            MagicMock(
+                status_code=200,
+                text="[]",
+                json=MagicMock(return_value=[{"$key": 99, "vm": 100, "user": 1}]),
+            ),
+            MagicMock(status_code=204, text=""),
+        ]
+        mock_session.request.side_effect = responses
+        vm = VM(vm_data, mock_client.vms)
+
+        vm.unfavorite()
+
+        # Check that DELETE was made
+        delete_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "DELETE"
+        ]
+        assert len(delete_calls) == 1
+        assert "vm_favorites/99" in delete_calls[0].kwargs["url"]
+
+    def test_is_favorite_true(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test checking if VM is a favorite (true case)."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 1, "name": "admin"}],  # GET users
+            [{"$key": 99, "vm": 100, "user": 1}],  # GET vm_favorites
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        assert vm.is_favorite() is True
+
+    def test_is_favorite_false(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Test checking if VM is a favorite (false case)."""
+        mock_session.request.return_value.json.side_effect = [
+            [{"$key": 1, "name": "admin"}],  # GET users
+            [],  # GET vm_favorites (empty)
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        assert vm.is_favorite() is False
