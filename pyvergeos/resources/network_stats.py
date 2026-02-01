@@ -44,7 +44,14 @@ if TYPE_CHECKING:
 
 
 def _format_bytes(size: int | float | None) -> str:
-    """Format bytes to human-readable string."""
+    """Format bytes to human-readable string.
+
+    Args:
+        size: Size in bytes.
+
+    Returns:
+        Formatted string like "1.23 MB".
+    """
     if size is None or size == 0:
         return "0 B"
     units = ["B", "KB", "MB", "GB", "TB"]

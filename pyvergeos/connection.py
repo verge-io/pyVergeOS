@@ -90,7 +90,16 @@ class VergeConnection:
         return not (self.token_expires and datetime.now(timezone.utc) >= self.token_expires)
 
     def disconnect(self) -> None:
-        """Clear connection state and close session."""
+        """Clear connection state and close the HTTP session.
+
+        Resets all authentication and connection state including token,
+        expiration time, and connection timestamp. The underlying requests
+        session is also closed to release network resources.
+
+        Note:
+            After calling disconnect(), the connection object can be reused
+            by establishing a new connection through the client.
+        """
         self.token = None
         self.token_expires = None
         self.connected_at = None
