@@ -10,6 +10,14 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from pyvergeos.constants import (
+    API_VERSION,
+    RETRY_BACKOFF_FACTOR,
+    RETRY_METHODS,
+    RETRY_STATUS_CODES,
+    RETRY_TOTAL,
+)
+
 
 class AuthMethod(Enum):
     """Authentication methods supported by VergeOS API."""
@@ -49,7 +57,7 @@ class VergeConnection:
     _session: Optional[requests.Session] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
-        self.api_base_url = f"https://{self.host}/api/v4"
+        self.api_base_url = f"https://{self.host}/api/{API_VERSION}"
 
         # Create session (done here so it can be mocked in tests)
         if self._session is None:
@@ -57,10 +65,10 @@ class VergeConnection:
 
         # Configure retry strategy
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET", "PUT", "DELETE", "POST"],
+            total=RETRY_TOTAL,
+            backoff_factor=RETRY_BACKOFF_FACTOR,
+            status_forcelist=list(RETRY_STATUS_CODES),
+            allowed_methods=list(RETRY_METHODS),
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self._session.mount("https://", adapter)

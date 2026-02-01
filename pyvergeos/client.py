@@ -10,6 +10,18 @@ from typing import TYPE_CHECKING, Any
 import requests
 
 from pyvergeos.connection import AuthMethod, VergeConnection, build_auth_header
+from pyvergeos.constants import (
+    CONTENT_TYPE_JSON,
+    DEFAULT_TIMEOUT,
+    HEADER_ACCEPT,
+    HEADER_CONTENT_TYPE,
+    HTTP_AUTH_FAILURE_CODES,
+    HTTP_CONFLICT,
+    HTTP_NO_CONTENT,
+    HTTP_NOT_FOUND,
+    HTTP_SUCCESS_CODES,
+    HTTP_UNPROCESSABLE_ENTITY,
+)
 from pyvergeos.exceptions import (
     APIError,
     AuthenticationError,
@@ -126,7 +138,7 @@ class VergeClient:
         password: str | None = None,
         token: str | None = None,
         verify_ssl: bool = True,
-        timeout: int = 30,
+        timeout: int = DEFAULT_TIMEOUT,
         auto_connect: bool = True,
     ) -> None:
         """Initialize VergeClient.
@@ -250,7 +262,7 @@ class VergeClient:
             password=os.environ.get("VERGE_PASSWORD"),
             token=os.environ.get("VERGE_TOKEN"),
             verify_ssl=verify_ssl,
-            timeout=int(os.environ.get("VERGE_TIMEOUT", "30")),
+            timeout=int(os.environ.get("VERGE_TIMEOUT", str(DEFAULT_TIMEOUT))),
         )
 
     def connect(self) -> VergeClient:
@@ -290,8 +302,8 @@ class VergeClient:
         session.headers.update(auth_header)
         session.headers.update(
             {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
+                HEADER_CONTENT_TYPE: CONTENT_TYPE_JSON,
+                HEADER_ACCEPT: CONTENT_TYPE_JSON,
             }
         )
 
@@ -322,12 +334,12 @@ class VergeClient:
                 timeout=self._timeout,
             )
 
-            if resp.status_code in (401, 403):
+            if resp.status_code in HTTP_AUTH_FAILURE_CODES:
                 raise AuthenticationError(
                     self._extract_error_message(resp), status_code=resp.status_code
                 )
 
-            if resp.status_code == 200 and resp.text:
+            if resp.status_code in HTTP_SUCCESS_CODES and resp.text:
                 response = resp.json()
                 # Response can be a dict or a list with one item
                 if isinstance(response, list) and len(response) > 0:
@@ -450,24 +462,24 @@ class VergeClient:
     def _handle_response(self, response: requests.Response) -> dict[str, Any] | list[Any] | None:
         """Handle API response and raise appropriate exceptions."""
         # Success responses
-        if response.status_code in (200, 201):
+        if response.status_code in HTTP_SUCCESS_CODES:
             if response.text:
                 return response.json()  # type: ignore[no-any-return]
             return None
 
-        if response.status_code == 204:
+        if response.status_code == HTTP_NO_CONTENT:
             return None
 
         # Error responses
         error_message = self._extract_error_message(response)
 
-        if response.status_code in (401, 403):
+        if response.status_code in HTTP_AUTH_FAILURE_CODES:
             raise AuthenticationError(error_message, status_code=response.status_code)
-        elif response.status_code == 404:
+        elif response.status_code == HTTP_NOT_FOUND:
             raise NotFoundError(error_message, status_code=response.status_code)
-        elif response.status_code == 409:
+        elif response.status_code == HTTP_CONFLICT:
             raise ConflictError(error_message, status_code=response.status_code)
-        elif response.status_code == 422:
+        elif response.status_code == HTTP_UNPROCESSABLE_ENTITY:
             raise ValidationError(error_message, status_code=response.status_code)
         else:
             raise APIError(error_message, status_code=response.status_code)

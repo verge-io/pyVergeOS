@@ -3,6 +3,16 @@
 from pyvergeos.__version__ import __version__
 from pyvergeos.client import VergeClient
 from pyvergeos.connection import VergeConnection
+from pyvergeos.constants import (
+    API_VERSION,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_TIMEOUT,
+    GB,
+    KB,
+    MB,
+    POLL_INTERVAL,
+    TASK_WAIT_TIMEOUT,
+)
 from pyvergeos.exceptions import (
     APIError,
     AuthenticationError,
@@ -43,6 +53,15 @@ __all__ = [
     # Client
     "VergeClient",
     "VergeConnection",
+    # Constants
+    "API_VERSION",
+    "DEFAULT_PAGE_SIZE",
+    "DEFAULT_TIMEOUT",
+    "GB",
+    "KB",
+    "MB",
+    "POLL_INTERVAL",
+    "TASK_WAIT_TIMEOUT",
     # Exceptions
     "VergeError",
     "VergeConnectionError",
