@@ -66,6 +66,7 @@ Before running any example:
 | Example | Description |
 |---------|-------------|
 | [tenant_management.py](tenant_management.py) | Complete tenant workflow: create, allocate resources, networking, file sharing |
+| [tenant_monitoring_example.py](tenant_monitoring_example.py) | Multi-tenant monitoring: dashboards, stats, billing, health checks |
 | [recipe_example.py](recipe_example.py) | VM recipe provisioning from Marketplace catalogs |
 
 ### Automation & Tasks
@@ -73,6 +74,18 @@ Before running any example:
 | Example | Description |
 |---------|-------------|
 | [task_automation_example.py](task_automation_example.py) | Task Engine: schedules, events, triggers for automated operations |
+
+### Enterprise Networking
+
+| Example | Description |
+|---------|-------------|
+| [routing_example.py](routing_example.py) | Dynamic routing: BGP, OSPF, EIGRP configuration and management |
+
+### VM Import/Export
+
+| Example | Description |
+|---------|-------------|
+| [vm_import_export_example.py](vm_import_export_example.py) | VM import/export: file imports, NAS volume exports for backup |
 
 ### System Administration
 
@@ -82,6 +95,14 @@ Before running any example:
 | [user_management_example.py](user_management_example.py) | User onboarding: create users, groups, API keys, permissions |
 | [tag_management_example.py](tag_management_example.py) | Tag workflow: categories, tags, resource tagging, queries |
 | [certificate_example.py](certificate_example.py) | SSL/TLS certificates: self-signed, manual upload, renewal, monitoring |
+| [catalog_example.py](catalog_example.py) | Recipe catalogs: repositories, marketplace integration, downloads |
+| [billing_csv_example.py](billing_csv_example.py) | Billing reports: CSV export, time-range queries, tenant usage |
+
+### GPU & Hardware
+
+| Example | Description |
+|---------|-------------|
+| [gpu_passthrough_example.py](gpu_passthrough_example.py) | GPU passthrough: PCI devices, resource groups, VM attachment |
 
 ## Running Examples
 

@@ -54,6 +54,7 @@ Contents
    authentication
    filtering
    error_handling
+   tutorials
 
 .. toctree::
    :maxdepth: 2
@@ -67,6 +68,8 @@ Contents
    :maxdepth: 1
    :caption: Additional Resources
 
+   migration
+   troubleshooting
    changelog
    contributing
 
