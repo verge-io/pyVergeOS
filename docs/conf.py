@@ -33,15 +33,18 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # These are benign - property names like 'key' appear in multiple resource classes
 nitpicky = False
 
+
 # Filter out duplicate object warnings from inherited properties
 def setup(app):
     """Suppress duplicate object warnings."""
     import logging
+
     class DuplicateObjectFilter(logging.Filter):
         def filter(self, record):
             return "duplicate object description" not in record.getMessage()
 
     logging.getLogger("sphinx").addFilter(DuplicateObjectFilter())
+
 
 # -- Options for autodoc -----------------------------------------------------
 
