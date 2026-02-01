@@ -1,6 +1,12 @@
 """Resource managers for VergeOS API resources."""
 
 from pyvergeos.resources.api_keys import APIKey, APIKeyCreated, APIKeyManager
+from pyvergeos.resources.auth_sources import (
+    AuthSource,
+    AuthSourceManager,
+    AuthSourceState,
+    AuthSourceStateManager,
+)
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 from pyvergeos.resources.billing import BillingManager, BillingRecord
 from pyvergeos.resources.certificates import Certificate, CertificateManager
@@ -88,6 +94,16 @@ from pyvergeos.resources.nodes import (
     NodeUSBDevice,
     NodeUSBDeviceManager,
 )
+from pyvergeos.resources.oidc_applications import (
+    OidcApplication,
+    OidcApplicationGroup,
+    OidcApplicationGroupManager,
+    OidcApplicationLog,
+    OidcApplicationLogManager,
+    OidcApplicationManager,
+    OidcApplicationUser,
+    OidcApplicationUserManager,
+)
 from pyvergeos.resources.permissions import Permission, PermissionManager
 from pyvergeos.resources.recipe_common import (
     RecipeQuestion,
@@ -168,6 +184,10 @@ __all__ = [
     "APIKey",
     "APIKeyCreated",
     "APIKeyManager",
+    "AuthSource",
+    "AuthSourceManager",
+    "AuthSourceState",
+    "AuthSourceStateManager",
     "BillingManager",
     "BillingRecord",
     "Certificate",
@@ -245,6 +265,14 @@ __all__ = [
     "NASVolumeSync",
     "NASVolumeSyncManager",
     "NFSSettings",
+    "OidcApplication",
+    "OidcApplicationGroup",
+    "OidcApplicationGroupManager",
+    "OidcApplicationLog",
+    "OidcApplicationLogManager",
+    "OidcApplicationManager",
+    "OidcApplicationUser",
+    "OidcApplicationUserManager",
     "Permission",
     "PermissionManager",
     "ResourceGroup",

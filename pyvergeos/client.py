@@ -39,6 +39,10 @@ from pyvergeos.exceptions import (
 if TYPE_CHECKING:
     from pyvergeos.resources.alarms import AlarmManager
     from pyvergeos.resources.api_keys import APIKeyManager
+    from pyvergeos.resources.auth_sources import (
+        AuthSourceManager,
+        AuthSourceStateManager,
+    )
     from pyvergeos.resources.billing import BillingManager
     from pyvergeos.resources.catalogs import (
         CatalogLogManager,
@@ -64,6 +68,12 @@ if TYPE_CHECKING:
     from pyvergeos.resources.network_stats import NetworkDashboardManager
     from pyvergeos.resources.networks import NetworkManager
     from pyvergeos.resources.nodes import NodeManager
+    from pyvergeos.resources.oidc_applications import (
+        OidcApplicationGroupManager,
+        OidcApplicationLogManager,
+        OidcApplicationManager,
+        OidcApplicationUserManager,
+    )
     from pyvergeos.resources.permissions import PermissionManager
     from pyvergeos.resources.recipe_common import (
         RecipeQuestionManager,
@@ -182,6 +192,8 @@ class VergeClient:
 
         # Resource managers (lazy-loaded)
         self._alarms: AlarmManager | None = None
+        self._auth_sources: AuthSourceManager | None = None
+        self._auth_source_states: AuthSourceStateManager | None = None
         self._certificates: CertificateManager | None = None
         self._logs: LogManager | None = None
         self._vms: VMManager | None = None
@@ -241,6 +253,10 @@ class VergeClient:
         self._tenant_dashboard: TenantDashboardManager | None = None
         self._billing: BillingManager | None = None
         self._network_dashboard: NetworkDashboardManager | None = None
+        self._oidc_applications: OidcApplicationManager | None = None
+        self._oidc_application_users: OidcApplicationUserManager | None = None
+        self._oidc_application_groups: OidcApplicationGroupManager | None = None
+        self._oidc_application_logs: OidcApplicationLogManager | None = None
 
         if auto_connect:
             self.connect()
@@ -535,6 +551,55 @@ class VergeClient:
 
             self._alarms = AlarmManager(self)
         return self._alarms
+
+    @property
+    def auth_sources(self) -> AuthSourceManager:
+        """Access authentication source operations for external identity providers.
+
+        Authentication sources enable SSO via OAuth2/OIDC providers such as
+        Azure AD, Google, GitLab, Okta, and generic OpenID Connect.
+
+        Example:
+            >>> # List all auth sources
+            >>> for source in client.auth_sources.list():
+            ...     print(f"{source.name} ({source.driver})")
+
+            >>> # Get an Azure AD source
+            >>> azure = client.auth_sources.get(name="Azure AD")
+
+            >>> # Create a Google auth source
+            >>> source = client.auth_sources.create(
+            ...     name="Google",
+            ...     driver="google",
+            ...     settings={
+            ...         "client_id": "your-client-id",
+            ...         "client_secret": "your-secret",
+            ...     }
+            ... )
+        """
+        if self._auth_sources is None:
+            from pyvergeos.resources.auth_sources import AuthSourceManager
+
+            self._auth_sources = AuthSourceManager(self)
+        return self._auth_sources
+
+    @property
+    def auth_source_states(self) -> AuthSourceStateManager:
+        """Access authentication source OAuth state tokens.
+
+        States are ephemeral tokens created during the OAuth authentication
+        flow. They expire after 15 minutes.
+
+        Example:
+            >>> # List states for an auth source
+            >>> for state in client.auth_source_states.list(auth_source=1):
+            ...     print(f"{state.key}: expired={state.is_expired}")
+        """
+        if self._auth_source_states is None:
+            from pyvergeos.resources.auth_sources import AuthSourceStateManager
+
+            self._auth_source_states = AuthSourceStateManager(self)
+        return self._auth_source_states
 
     @property
     def logs(self) -> LogManager:
@@ -1494,3 +1559,92 @@ class VergeClient:
 
             self._vgpu_profiles = NvidiaVgpuProfileManager(self)
         return self._vgpu_profiles
+
+    @property
+    def oidc_applications(self) -> OidcApplicationManager:
+        """Access OIDC application operations for VergeOS as identity provider.
+
+        OIDC applications enable VergeOS to act as an OpenID Connect identity
+        provider, allowing other systems and tenants to authenticate through VergeOS.
+
+        Example:
+            >>> # List all OIDC applications
+            >>> for app in client.oidc_applications.list():
+            ...     print(f"{app.name}: {app.client_id}")
+
+            >>> # Create an OIDC application
+            >>> app = client.oidc_applications.create(
+            ...     name="Tenant Portal",
+            ...     redirect_uri="https://tenant.example.com/callback",
+            ...     description="OIDC for tenant authentication",
+            ... )
+            >>> print(f"Client ID: {app.client_id}")
+            >>> print(f"Client Secret: {app.client_secret}")
+
+            >>> # Restrict access to specific users
+            >>> app = client.oidc_applications.update(app.key, restrict_access=True)
+            >>> app.allowed_users.add(user_key=123)
+        """
+        if self._oidc_applications is None:
+            from pyvergeos.resources.oidc_applications import OidcApplicationManager
+
+            self._oidc_applications = OidcApplicationManager(self)
+        return self._oidc_applications
+
+    @property
+    def oidc_application_users(self) -> OidcApplicationUserManager:
+        """Access OIDC application user ACL operations.
+
+        User ACLs define which users can use an OIDC application when
+        restrict_access is enabled.
+
+        Example:
+            >>> # List all user ACL entries
+            >>> for entry in client.oidc_application_users.list(oidc_application=1):
+            ...     print(f"{entry.user_display}")
+        """
+        if self._oidc_application_users is None:
+            from pyvergeos.resources.oidc_applications import OidcApplicationUserManager
+
+            self._oidc_application_users = OidcApplicationUserManager(self)
+        return self._oidc_application_users
+
+    @property
+    def oidc_application_groups(self) -> OidcApplicationGroupManager:
+        """Access OIDC application group ACL operations.
+
+        Group ACLs define which groups can use an OIDC application when
+        restrict_access is enabled.
+
+        Example:
+            >>> # List all group ACL entries
+            >>> for entry in client.oidc_application_groups.list(oidc_application=1):
+            ...     print(f"{entry.group_display}")
+        """
+        if self._oidc_application_groups is None:
+            from pyvergeos.resources.oidc_applications import OidcApplicationGroupManager
+
+            self._oidc_application_groups = OidcApplicationGroupManager(self)
+        return self._oidc_application_groups
+
+    @property
+    def oidc_application_logs(self) -> OidcApplicationLogManager:
+        """Access OIDC application audit log operations.
+
+        Logs provide activity history for OIDC application operations.
+
+        Example:
+            >>> # List logs for an application
+            >>> for log in client.oidc_application_logs.list(oidc_application=1):
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.oidc_application_logs.list(
+            ...     filter="(level eq 'error') or (level eq 'critical')"
+            ... )
+        """
+        if self._oidc_application_logs is None:
+            from pyvergeos.resources.oidc_applications import OidcApplicationLogManager
+
+            self._oidc_application_logs = OidcApplicationLogManager(self)
+        return self._oidc_application_logs
