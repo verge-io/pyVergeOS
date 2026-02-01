@@ -254,7 +254,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             limit: Maximum number of results.
             offset: Skip this many results.
             vm_key: Filter by VM $key.
-            name: Filter by file name (exact match or wildcard with *).
+            name: Filter by file name (exact match or wildcard ``*``).
             render: Filter by render type (No, Variables, Jinja2).
             **filter_kwargs: Additional filter arguments.
 

@@ -756,18 +756,14 @@ class VMManager(ResourceManager[VM]):
             description: VM description.
             os_family: OS family (linux, windows, freebsd, other).
             machine_type: QEMU machine type.
-            cloudinit_datasource: Cloud-init datasource type. Valid values:
-                - "ConfigDrive": Config Drive v2 (standard cloud-init config drive).
-                - "NoCloud": NoCloud datasource.
-                - None: Disabled (default).
-                Note: Automatically set to "ConfigDrive" if cloud_init files provided.
-            cloud_init: Cloud-init file configuration for VM provisioning. Supports:
-                - str: Content for /user-data file (most common case).
-                - dict: Mapping of file names to contents,
-                    e.g., {"/user-data": "...", "/meta-data": "..."}.
-                - list: List of file specs with full control,
-                    e.g., [{"name": "/user-data", "contents": "...", "render": "Variables"}].
-                When provided, cloudinit_datasource defaults to "ConfigDrive" if not set.
+            cloudinit_datasource: Cloud-init datasource type. Valid values are
+                "ConfigDrive" (Config Drive v2), "NoCloud", or None (disabled, default).
+                Automatically set to "ConfigDrive" if cloud_init files are provided.
+            cloud_init: Cloud-init file configuration for VM provisioning.
+                Can be a string (content for /user-data), a dict mapping file names
+                to contents (e.g., {"/user-data": "...", "/meta-data": "..."}), or
+                a list of file specs with full control. When provided,
+                cloudinit_datasource defaults to "ConfigDrive" if not set.
             **kwargs: Additional VM properties.
 
         Returns:

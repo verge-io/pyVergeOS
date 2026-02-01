@@ -1094,7 +1094,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         Args:
             name: Application name.
             redirect_uri: Allowed redirect URIs (string or list of strings).
-                Wildcards are supported (e.g., "https://*.example.com").
+                Wildcards supported (e.g., ``https://*.example.com``).
             description: Application description.
             enabled: Whether the application is enabled.
             force_auth_source: Auth source key for auto-redirect.
