@@ -43,6 +43,8 @@ all = [
 [project.urls]
 Homepage = "https://github.com/verge-io/pyvergeos"
 Documentation = "https://verge-io.github.io/pyVergeOS/"
+"VergeOS Docs" = "https://docs.verge.io/"
+"VergeOS Website" = "https://www.verge.io/"
 Repository = "https://github.com/verge-io/pyvergeos"
 Issues = "https://github.com/verge-io/pyvergeos/issues"
 

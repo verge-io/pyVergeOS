@@ -226,6 +226,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 Contributions welcome! Please read the contributing guidelines before submitting PRs.
 
+## Resources
+
+- [VergeOS Documentation](https://docs.verge.io/) - Official VergeOS platform documentation
+- [VergeOS Website](https://www.verge.io/) - Learn more about VergeOS
+- [pyvergeos Documentation](https://verge-io.github.io/pyVergeOS/) - Full SDK documentation
+
 ## Related Projects
 
 - [PSVergeOS](https://github.com/verge-io/PSVergeOS) - PowerShell module for VergeOS
