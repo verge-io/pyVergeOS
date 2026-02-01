@@ -103,6 +103,16 @@ if TYPE_CHECKING:
         TenantRecipeManager,
     )
     from pyvergeos.resources.tenant_stats import TenantDashboardManager
+    from pyvergeos.resources.updates import (
+        UpdateBranchManager,
+        UpdateDashboardManager,
+        UpdateLogManager,
+        UpdatePackageManager,
+        UpdateSettingsManager,
+        UpdateSourceManager,
+        UpdateSourcePackageManager,
+        UpdateSourceStatusManager,
+    )
     from pyvergeos.resources.users import UserManager
     from pyvergeos.resources.vm_imports import VmImportLogManager, VmImportManager
     from pyvergeos.resources.vm_recipes import (
@@ -257,6 +267,14 @@ class VergeClient:
         self._oidc_application_users: OidcApplicationUserManager | None = None
         self._oidc_application_groups: OidcApplicationGroupManager | None = None
         self._oidc_application_logs: OidcApplicationLogManager | None = None
+        self._update_settings: UpdateSettingsManager | None = None
+        self._update_sources: UpdateSourceManager | None = None
+        self._update_branches: UpdateBranchManager | None = None
+        self._update_packages: UpdatePackageManager | None = None
+        self._update_source_packages: UpdateSourcePackageManager | None = None
+        self._update_source_status: UpdateSourceStatusManager | None = None
+        self._update_logs: UpdateLogManager | None = None
+        self._update_dashboard: UpdateDashboardManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1648,3 +1666,203 @@ class VergeClient:
 
             self._oidc_application_logs = OidcApplicationLogManager(self)
         return self._oidc_application_logs
+
+    @property
+    def update_settings(self) -> UpdateSettingsManager:
+        """Access update settings for system update configuration.
+
+        Update settings is a singleton that controls how the system
+        handles software updates including auto-check, auto-update,
+        scheduled times, and snapshot behavior.
+
+        Example:
+            >>> # Get current settings
+            >>> settings = client.update_settings.get()
+            >>> print(f"Branch: {settings.branch_name}")
+            >>> print(f"Auto-refresh: {settings.is_auto_refresh}")
+
+            >>> # Check for updates
+            >>> client.update_settings.check()
+
+            >>> # Download and install updates
+            >>> client.update_settings.download()
+            >>> client.update_settings.install()
+
+            >>> # Or do everything at once
+            >>> client.update_settings.update_all()
+
+            >>> # Update settings
+            >>> client.update_settings.update(
+            ...     auto_refresh=True,
+            ...     update_time="02:00",
+            ...     snapshot_cloud_on_update=True,
+            ... )
+        """
+        if self._update_settings is None:
+            from pyvergeos.resources.updates import UpdateSettingsManager
+
+            self._update_settings = UpdateSettingsManager(self)
+        return self._update_settings
+
+    @property
+    def update_sources(self) -> UpdateSourceManager:
+        """Access update source operations.
+
+        Update sources define where updates come from (Verge.io update
+        servers). Most systems have one or two sources configured.
+
+        Example:
+            >>> # List available sources
+            >>> for source in client.update_sources.list():
+            ...     print(f"{source.name}: {source.url}")
+
+            >>> # Get the active source
+            >>> settings = client.update_settings.get()
+            >>> source = client.update_sources.get(settings.source_key)
+
+            >>> # Check source status
+            >>> status = source.get_status()
+            >>> print(f"Status: {status.status}")
+        """
+        if self._update_sources is None:
+            from pyvergeos.resources.updates import UpdateSourceManager
+
+            self._update_sources = UpdateSourceManager(self)
+        return self._update_sources
+
+    @property
+    def update_branches(self) -> UpdateBranchManager:
+        """Access update branch operations.
+
+        Update branches define version streams (e.g., stable-4.13).
+        Branches are typically read-only and managed by the update source.
+
+        Example:
+            >>> # List available branches
+            >>> for branch in client.update_branches.list():
+            ...     print(f"{branch.name}: {branch.description}")
+
+            >>> # Get current branch
+            >>> settings = client.update_settings.get()
+            >>> branch = client.update_branches.get(settings.branch_key)
+        """
+        if self._update_branches is None:
+            from pyvergeos.resources.updates import UpdateBranchManager
+
+            self._update_branches = UpdateBranchManager(self)
+        return self._update_branches
+
+    @property
+    def update_packages(self) -> UpdatePackageManager:
+        """Access update package operations.
+
+        Update packages represent the actual software packages that
+        make up a VergeOS system.
+
+        Example:
+            >>> # List all packages
+            >>> for pkg in client.update_packages.list():
+            ...     print(f"{pkg.name}: {pkg.version}")
+
+            >>> # Get a specific package
+            >>> pkg = client.update_packages.get("yb-system")
+        """
+        if self._update_packages is None:
+            from pyvergeos.resources.updates import UpdatePackageManager
+
+            self._update_packages = UpdatePackageManager(self)
+        return self._update_packages
+
+    @property
+    def update_source_packages(self) -> UpdateSourcePackageManager:
+        """Access update source package operations.
+
+        Source packages represent what's available from an update source
+        for a specific branch, including download status.
+
+        Example:
+            >>> # List all available packages
+            >>> for pkg in client.update_source_packages.list():
+            ...     status = "Downloaded" if pkg.is_downloaded else "Available"
+            ...     print(f"{pkg.name} ({pkg.version}): {status}")
+
+            >>> # List packages not yet downloaded
+            >>> pending = client.update_source_packages.list_pending()
+        """
+        if self._update_source_packages is None:
+            from pyvergeos.resources.updates import UpdateSourcePackageManager
+
+            self._update_source_packages = UpdateSourcePackageManager(self)
+        return self._update_source_packages
+
+    @property
+    def update_source_status(self) -> UpdateSourceStatusManager:
+        """Access update source status operations.
+
+        Source status provides the current operational state of update
+        sources (idle, refreshing, downloading, installing, applying, error).
+
+        Example:
+            >>> # Get status for the active source
+            >>> settings = client.update_settings.get()
+            >>> status = client.update_source_status.get_for_source(settings.source_key)
+            >>> print(f"Status: {status.status}")
+
+            >>> # Check if update is in progress
+            >>> if status.is_busy:
+            ...     print("Update in progress...")
+        """
+        if self._update_source_status is None:
+            from pyvergeos.resources.updates import UpdateSourceStatusManager
+
+            self._update_source_status = UpdateSourceStatusManager(self)
+        return self._update_source_status
+
+    @property
+    def update_logs(self) -> UpdateLogManager:
+        """Access update log operations.
+
+        Update logs provide history of update operations including
+        downloads, installs, and errors.
+
+        Example:
+            >>> # List recent update logs
+            >>> for log in client.update_logs.list(limit=20):
+            ...     print(f"{log.level}: {log.text}")
+
+            >>> # List errors only
+            >>> errors = client.update_logs.list_errors()
+        """
+        if self._update_logs is None:
+            from pyvergeos.resources.updates import UpdateLogManager
+
+            self._update_logs = UpdateLogManager(self)
+        return self._update_logs
+
+    @property
+    def update_dashboard(self) -> UpdateDashboardManager:
+        """Access update dashboard for aggregated update information.
+
+        The update dashboard provides a consolidated view of the update
+        system including packages, branches, settings, and logs.
+
+        Example:
+            >>> # Get the dashboard
+            >>> dashboard = client.update_dashboard.get()
+
+            >>> # Check node count
+            >>> print(f"Nodes: {dashboard.node_count}")
+
+            >>> # Get settings summary
+            >>> settings = dashboard.get_settings()
+            >>> print(f"Branch: {settings.get('branch#name')}")
+
+            >>> # List packages
+            >>> for pkg in dashboard.get_packages():
+            ...     print(f"{pkg.get('name')}: {pkg.get('version')}")
+        """
+        if self._update_dashboard is None:
+            from pyvergeos.resources.updates import UpdateDashboardManager
+
+            self._update_dashboard = UpdateDashboardManager(self)
+        return self._update_dashboard
