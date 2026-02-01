@@ -5,10 +5,13 @@ Python SDK for the VergeOS REST API.
 [![PyPI version](https://img.shields.io/pypi/v/pyvergeos)](https://pypi.org/project/pyvergeos/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://verge-io.github.io/pyVergeOS/)
 
 ## Overview
 
 pyvergeos provides a Pythonic interface for managing VergeOS infrastructure. It abstracts the VergeOS REST API behind a clean, type-annotated SDK suitable for automation, tooling, and integration development.
+
+**[Read the full documentation](https://verge-io.github.io/pyVergeOS/)**
 
 ## Installation
 
@@ -222,6 +225,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Contributing
 
 Contributions welcome! Please read the contributing guidelines before submitting PRs.
+
+## Resources
+
+- [VergeOS Documentation](https://docs.verge.io/) - Official VergeOS platform documentation
+- [VergeOS Website](https://www.verge.io/) - Learn more about VergeOS
+- [pyvergeos Documentation](https://verge-io.github.io/pyVergeOS/) - Full SDK documentation
 
 ## Related Projects
 
