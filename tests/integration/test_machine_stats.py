@@ -6,8 +6,8 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.resources.devices import Device
 from pyvergeos.resources.machine_stats import (
-    MachineDevice,
     MachineLog,
     MachineStats,
     MachineStatsHistory,
@@ -244,7 +244,7 @@ class TestVMMachineDevices:
         assert isinstance(devices, list)
         # Devices may be empty if none attached
         if devices:
-            assert all(isinstance(d, MachineDevice) for d in devices)
+            assert all(isinstance(d, Device) for d in devices)
 
             device = devices[0]
             assert device.machine_key == test_vm.machine_key
