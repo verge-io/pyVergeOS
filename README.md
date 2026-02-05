@@ -114,7 +114,7 @@ vm.power_off()
 vm.reset()
 
 # Snapshots
-vm.snapshot(retention=86400, quiesce=True)
+vm.snapshots.create(retention=86400, quiesce=True)
 
 # Clone
 clone = vm.clone(name="test-clone")
@@ -163,7 +163,7 @@ vms = client.vms.list(filter=str(f))
 
 ### Task Waiting
 ```python
-result = vm.snapshot()
+result = vm.snapshots.create(name="backup")
 task = client.tasks.wait(result["task"], timeout=300)
 ```
 

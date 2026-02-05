@@ -508,28 +508,6 @@ class TestVM:
         body = call_args.kwargs.get("json", {})
         assert body["action"] == "guestshutdown"
 
-    def test_snapshot(
-        self,
-        mock_client: VergeClient,
-        mock_session: MagicMock,
-        vm_data: dict[str, Any],
-    ) -> None:
-        """Test taking a snapshot."""
-        mock_session.request.return_value.json.return_value = {
-            "$key": 999,
-            "name": "my-snapshot",
-        }
-
-        vm = VM(vm_data, mock_client.vms)
-        vm.snapshot(name="my-snapshot", retention=172800, quiesce=True)
-
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
-        assert body["action"] == "snapshot"
-        assert body["params"]["name"] == "my-snapshot"
-        assert body["params"]["retention"] == 172800
-        assert body["params"]["quiesce"] is True
-
     def test_clone(
         self,
         mock_client: VergeClient,

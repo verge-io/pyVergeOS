@@ -178,7 +178,7 @@ def snapshot_and_clone() -> None:
 
         # Take a snapshot
         print(f"Taking snapshot of {vm.name}...")
-        result = vm.snapshot(
+        result = vm.snapshots.create(
             name="my-snapshot",
             retention=86400 * 7,  # 7 days
             quiesce=False,
