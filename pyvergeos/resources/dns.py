@@ -10,6 +10,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.dns_views import DNSView
     from pyvergeos.resources.networks import Network
 
 # Default fields for DNS zone data
@@ -429,7 +430,9 @@ class DNSZone(ResourceObject):
 class DNSZoneManager(ResourceManager[DNSZone]):
     """Manager for DNS Zone operations.
 
-    This manager is accessed through a Network object's dns_zones property.
+    This manager can be accessed through a Network object's dns_zones property
+    (read-only listing) or through a DNSView object's zones property (full
+    CRUD).
 
     Examples:
         List all zones for a network::
@@ -439,6 +442,11 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         Get a zone by domain::
 
             zone = network.dns_zones.get(domain="example.com")
+
+        Create a zone through a view::
+
+            view = network.dns_views.get(name="default")
+            zone = view.zones.create(domain="example.com")
 
         List records in a zone::
 
@@ -451,25 +459,39 @@ class DNSZoneManager(ResourceManager[DNSZone]):
                 record_type="A",
                 value="10.0.0.100"
             )
-
-    Note:
-        DNS zones are typically created through the VergeOS UI.
-        This manager provides read access to zones and full CRUD
-        for records within zones.
     """
 
     _endpoint = "vnet_dns_zones"
     _views_endpoint = "vnet_dns_views"
     _default_fields = DNS_ZONE_DEFAULT_FIELDS
 
-    def __init__(self, client: VergeClient, network: Network) -> None:
+    def __init__(
+        self,
+        client: VergeClient,
+        network: Network | None = None,
+        view: DNSView | None = None,
+    ) -> None:
         super().__init__(client)
         self._network = network
+        self._view = view
+        if network is None and view is None:
+            raise ValueError("Either network or view must be provided")
 
     @property
     def network_key(self) -> int:
         """Get the network key for this manager."""
-        return self._network.key
+        if self._network is not None:
+            return self._network.key
+        if self._view is not None:
+            return self._view.network_key
+        raise ValueError("No network or view available")
+
+    @property
+    def view_key(self) -> int | None:
+        """Get the view key if this manager is scoped to a view."""
+        if self._view is not None:
+            return self._view.key
+        return None
 
     def _to_model(
         self,
@@ -509,7 +531,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         include_records: bool = False,
         **kwargs: Any,
     ) -> builtins.list[DNSZone]:
-        """List DNS zones for this network.
+        """List DNS zones for this network or view.
 
         Args:
             filter: Additional OData filter string.
@@ -525,7 +547,18 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         if fields is None:
             fields = self._default_fields.copy()
 
-        # First get all views for this network
+        # When scoped to a view, query directly
+        if self._view is not None:
+            return self._list_for_view(
+                self._view.key,
+                self._view.get("name"),
+                filter=filter,
+                fields=fields,
+                domain=domain,
+                zone_type=zone_type,
+            )
+
+        # Otherwise iterate all views for this network
         views = self._get_views()
         if not views:
             return []
@@ -539,39 +572,61 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             if view_key is None:
                 continue
 
-            # Build filter for zones in this view
-            filters: builtins.list[str] = [f"view eq {view_key}"]
-
-            if domain:
-                escaped_domain = domain.replace("'", "''")
-                filters.append(f"domain eq '{escaped_domain}'")
-
-            if zone_type:
-                filters.append(f"type eq '{zone_type}'")
-
-            if filter:
-                filters.append(f"({filter})")
-
-            combined_filter = " and ".join(filters)
-
-            params: dict[str, Any] = {
-                "filter": combined_filter,
-                "fields": ",".join(fields),
-                "sort": "+domain",
-            }
-
-            response = self._client._request("GET", self._endpoint, params=params)
-
-            if response is None:
-                continue
-
-            if not isinstance(response, list):
-                all_zones.append(self._to_model(response, view_key=view_key, view_name=view_name))
-            else:
-                for item in response:
-                    all_zones.append(self._to_model(item, view_key=view_key, view_name=view_name))
+            all_zones.extend(
+                self._list_for_view(
+                    view_key,
+                    view_name,
+                    filter=filter,
+                    fields=fields,
+                    domain=domain,
+                    zone_type=zone_type,
+                )
+            )
 
         return all_zones
+
+    def _list_for_view(
+        self,
+        view_key: int,
+        view_name: str | None,
+        filter: str | None = None,  # noqa: A002
+        fields: builtins.list[str] | None = None,
+        domain: str | None = None,
+        zone_type: ZoneType | None = None,
+    ) -> builtins.list[DNSZone]:
+        """List zones for a specific view."""
+        if fields is None:
+            fields = self._default_fields.copy()
+
+        filters: builtins.list[str] = [f"view eq {view_key}"]
+
+        if domain:
+            escaped_domain = domain.replace("'", "''")
+            filters.append(f"domain eq '{escaped_domain}'")
+
+        if zone_type:
+            filters.append(f"type eq '{zone_type}'")
+
+        if filter:
+            filters.append(f"({filter})")
+
+        combined_filter = " and ".join(filters)
+
+        params: dict[str, Any] = {
+            "filter": combined_filter,
+            "fields": ",".join(fields),
+            "sort": "+domain",
+        }
+
+        response = self._client._request("GET", self._endpoint, params=params)
+
+        if response is None:
+            return []
+
+        if not isinstance(response, list):
+            return [self._to_model(response, view_key=view_key, view_name=view_name)]
+
+        return [self._to_model(item, view_key=view_key, view_name=view_name) for item in response]
 
     def get(  # type: ignore[override]
         self,
@@ -613,3 +668,107 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             return zones[0]
 
         raise ValueError("Either key or domain must be provided")
+
+    def create(  # type: ignore[override]
+        self,
+        domain: str,
+        zone_type: ZoneType = "master",
+        nameserver: str = "",
+        email: str = "",
+        default_ttl: str = "1h",
+        notify: str = "yes",
+        allow_notify: str = "none;",
+        allow_transfer: str = "none;",
+        masters: str = "",
+        refresh_interval: str = "3h",
+        retry_interval: str = "30m",
+        expiry_period: str = "3w",
+        negative_ttl: str = "10m",
+        forwarders: str = "",
+        **kwargs: Any,
+    ) -> DNSZone:
+        """Create a new DNS zone.
+
+        This method is only available when the manager is scoped to a view
+        (accessed via ``view.zones``). Use ``network.dns_views`` to get a
+        view first.
+
+        Args:
+            domain: Domain name for the zone (required).
+            zone_type: Zone type (default "master").
+            nameserver: Primary nameserver FQDN.
+            email: Zone administrator email.
+            default_ttl: Default TTL for records (e.g., "1h", "30m", "1d").
+            notify: Notify setting ("yes", "no", "explicit").
+            allow_notify: IP networks allowed to send NOTIFY.
+            allow_transfer: Networks allowed zone transfers.
+            masters: Master server(s) for secondary zones.
+            refresh_interval: SOA refresh interval (default "3h").
+            retry_interval: SOA retry interval (default "30m").
+            expiry_period: SOA expiry period (default "3w").
+            negative_ttl: Negative cache TTL (default "10m").
+            forwarders: Forwarder servers (semicolon-delimited).
+            **kwargs: Additional zone properties.
+
+        Returns:
+            Created DNSZone object.
+
+        Raises:
+            ValueError: If manager is not scoped to a view.
+
+        Note:
+            DNS changes require DNS apply on the network to take effect.
+        """
+        if self._view is None:
+            raise ValueError(
+                "Zone creation requires a view. "
+                "Use network.dns_views.get(name='...').zones.create() instead."
+            )
+
+        body: dict[str, Any] = {
+            "view": self._view.key,
+            "domain": domain,
+            "type": zone_type,
+            "default_ttl": default_ttl,
+            "notify": notify,
+            "allow_notify": allow_notify,
+            "allow_transfer": allow_transfer,
+            "refresh_interval": refresh_interval,
+            "retry_interval": retry_interval,
+            "expiry_period": expiry_period,
+            "negative_ttl": negative_ttl,
+            **kwargs,
+        }
+
+        if nameserver:
+            body["nameserver"] = nameserver
+        if email:
+            body["email"] = email
+        if masters:
+            body["masters"] = masters
+        if forwarders:
+            body["forwarders"] = forwarders
+
+        response = self._client._request("POST", self._endpoint, json_data=body)
+        if response is None:
+            raise ValueError("No response from create operation")
+        if not isinstance(response, dict):
+            raise ValueError("Create operation returned invalid response")
+
+        key = response.get("$key")
+        if key is None:
+            raise ValueError("Create response missing $key")
+
+        return self.get(int(key))
+
+    def delete(self, key: int) -> None:
+        """Delete a DNS zone.
+
+        Args:
+            key: Zone $key (ID).
+
+        Note:
+            Deleting a zone also deletes all records within it.
+            DNS changes require DNS apply on the network to take effect.
+        """
+        self._client._request("DELETE", f"{self._endpoint}/{key}")

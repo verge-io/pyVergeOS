@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.aliases import NetworkAliasManager
     from pyvergeos.resources.dns import DNSZoneManager
+    from pyvergeos.resources.dns_views import DNSViewManager
     from pyvergeos.resources.hosts import NetworkHostManager
     from pyvergeos.resources.ipsec import IPSecConnectionManager
     from pyvergeos.resources.network_stats import (
@@ -347,7 +348,38 @@ class Network(ResourceObject):
         """
         from pyvergeos.resources.dns import DNSZoneManager
 
-        return DNSZoneManager(self._manager._client, self)
+        return DNSZoneManager(self._manager._client, network=self)
+
+    @property
+    def dns_views(self) -> DNSViewManager:
+        """Access DNS views for this network.
+
+        Returns:
+            DNSViewManager for this network.
+
+        Examples:
+            List all DNS views::
+
+                views = network.dns_views.list()
+
+            Get a view by name::
+
+                view = network.dns_views.get(name="internal")
+
+            Create a view::
+
+                view = network.dns_views.create(name="internal")
+
+            Create a zone through a view::
+
+                zone = view.zones.create(domain="example.com")
+
+        Note:
+            DNS changes require DNS apply on the network to take effect.
+        """
+        from pyvergeos.resources.dns_views import DNSViewManager
+
+        return DNSViewManager(self._manager._client, self)
 
     @property
     def ipsec(self) -> IPSecConnectionManager:
