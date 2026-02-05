@@ -226,33 +226,6 @@ class VM(ResourceObject):
         )
         return self
 
-    def snapshot(
-        self,
-        name: str | None = None,
-        retention: int = 86400,
-        quiesce: bool = False,
-    ) -> dict[str, Any] | None:
-        """Take a VM snapshot.
-
-        Args:
-            name: Snapshot name (optional).
-            retention: Snapshot retention in seconds (default 24h).
-            quiesce: Quiesce disk activity (requires guest agent).
-
-        Returns:
-            Snapshot task information.
-        """
-        body: dict[str, Any] = {
-            "vm": self.key,
-            "action": "snapshot",
-            "params": {"retention": retention, "quiesce": quiesce},
-        }
-        if name:
-            body["params"]["name"] = name
-
-        result = self._manager._client._request("POST", "vm_actions", json_data=body)
-        return result if isinstance(result, dict) else None
-
     def clone(
         self,
         name: str | None = None,
