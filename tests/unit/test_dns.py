@@ -274,6 +274,130 @@ class TestDNSZoneManager:
         with pytest.raises(ValueError, match="Either key or domain must be provided"):
             zone_manager.get()
 
+    def test_create_zone_without_view_raises(self, zone_manager: DNSZoneManager) -> None:
+        """Test create zone raises when manager is not scoped to a view."""
+        with pytest.raises(ValueError, match="Zone creation requires a view"):
+            zone_manager.create(domain="example.com")
+
+    def test_create_zone_via_view(self, mock_client: MagicMock) -> None:
+        """Test create zone through a view-scoped manager."""
+        from pyvergeos.resources.dns_views import DNSView, DNSViewManager
+
+        view_manager = MagicMock(spec=DNSViewManager)
+        view_manager._client = mock_client
+        view = DNSView({"$key": 1, "name": "default", "vnet": 1}, view_manager)
+
+        zone_mgr = DNSZoneManager(mock_client, view=view)
+
+        mock_client._request.side_effect = [
+            {"$key": 10},  # create response
+            {  # get response
+                "$key": 10,
+                "view": 1,
+                "domain": "example.com",
+                "type": "master",
+                "default_ttl": "1h",
+            },
+        ]
+
+        zone = zone_mgr.create(domain="example.com")
+        assert zone.key == 10
+        assert zone.domain == "example.com"
+
+        # Verify POST body
+        call_args = mock_client._request.call_args_list[0]
+        body = call_args[1]["json_data"]
+        assert body["view"] == 1
+        assert body["domain"] == "example.com"
+        assert body["type"] == "master"
+        assert body["default_ttl"] == "1h"
+
+    def test_create_zone_with_params(self, mock_client: MagicMock) -> None:
+        """Test create zone with all parameters."""
+        from pyvergeos.resources.dns_views import DNSView, DNSViewManager
+
+        view_manager = MagicMock(spec=DNSViewManager)
+        view_manager._client = mock_client
+        view = DNSView({"$key": 1, "name": "default", "vnet": 1}, view_manager)
+
+        zone_mgr = DNSZoneManager(mock_client, view=view)
+
+        mock_client._request.side_effect = [
+            {"$key": 10},
+            {
+                "$key": 10,
+                "view": 1,
+                "domain": "example.com",
+                "type": "slave",
+                "nameserver": "ns1.example.com",
+                "email": "admin@example.com",
+            },
+        ]
+
+        zone = zone_mgr.create(
+            domain="example.com",
+            zone_type="slave",
+            nameserver="ns1.example.com",
+            email="admin@example.com",
+            masters="10.0.0.1;",
+        )
+        assert zone.domain == "example.com"
+
+        call_args = mock_client._request.call_args_list[0]
+        body = call_args[1]["json_data"]
+        assert body["type"] == "slave"
+        assert body["nameserver"] == "ns1.example.com"
+        assert body["email"] == "admin@example.com"
+        assert body["masters"] == "10.0.0.1;"
+
+    def test_create_zone_no_response_raises(self, mock_client: MagicMock) -> None:
+        """Test create zone raises when no response."""
+        from pyvergeos.resources.dns_views import DNSView, DNSViewManager
+
+        view_manager = MagicMock(spec=DNSViewManager)
+        view_manager._client = mock_client
+        view = DNSView({"$key": 1, "name": "default", "vnet": 1}, view_manager)
+
+        zone_mgr = DNSZoneManager(mock_client, view=view)
+        mock_client._request.return_value = None
+
+        with pytest.raises(ValueError, match="No response from create"):
+            zone_mgr.create(domain="example.com")
+
+    def test_delete_zone(self, zone_manager: DNSZoneManager, mock_client: MagicMock) -> None:
+        """Test delete zone."""
+        mock_client._request.return_value = None
+        zone_manager.delete(1)
+
+        mock_client._request.assert_called_once_with("DELETE", "vnet_dns_zones/1")
+
+    def test_list_zones_via_view(self, mock_client: MagicMock) -> None:
+        """Test list zones through a view-scoped manager."""
+        from pyvergeos.resources.dns_views import DNSView, DNSViewManager
+
+        view_manager = MagicMock(spec=DNSViewManager)
+        view_manager._client = mock_client
+        view = DNSView({"$key": 1, "name": "default", "vnet": 1}, view_manager)
+
+        zone_mgr = DNSZoneManager(mock_client, view=view)
+
+        mock_client._request.return_value = [
+            {"$key": 1, "domain": "test.local", "type": "master"},
+        ]
+
+        zones = zone_mgr.list()
+        assert len(zones) == 1
+        assert zones[0].domain == "test.local"
+
+        # Should filter by view key directly without fetching views
+        call_args = mock_client._request.call_args
+        assert "view eq 1" in call_args[1]["params"]["filter"]
+
+    def test_zone_manager_requires_network_or_view(self, mock_client: MagicMock) -> None:
+        """Test DNSZoneManager requires network or view."""
+        with pytest.raises(ValueError, match="Either network or view must be provided"):
+            DNSZoneManager(mock_client)
+
 
 # =============================================================================
 # DNSRecord Object Tests
