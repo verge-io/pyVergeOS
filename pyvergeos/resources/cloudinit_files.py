@@ -13,6 +13,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.vms import VM
 
 
 # Render type mappings (friendly name -> API value)
@@ -562,3 +563,147 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             List of CloudInitFile objects for the VM.
         """
         return self.list(vm_key=vm_key)
+
+
+class VMCloudInitFileManager(CloudInitFileManager):
+    """Manager for cloud-init files scoped to a specific VM.
+
+    This manager is accessed through a VM object's cloudinit_files property
+    and automatically filters operations to that VM.
+
+    Example:
+        >>> vm = client.vms.get(name="my-vm")
+        >>> # List cloud-init files for this VM
+        >>> files = vm.cloudinit_files.list()
+        >>> # Create user-data file
+        >>> vm.cloudinit_files.create(name="/user-data", contents="...", render="No")
+    """
+
+    def __init__(self, client: VergeClient, vm: VM) -> None:
+        super().__init__(client)
+        self._vm = vm
+
+    @property
+    def vm_key(self) -> int:
+        """Get the VM key."""
+        key = self._vm.get("$key")
+        if key is None:
+            raise ValueError("VM has no key")
+        return int(key)
+
+    def list(  # type: ignore[override]
+        self,
+        filter: str | None = None,  # noqa: A002
+        fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        *,
+        name: str | None = None,
+        render: str | None = None,
+        **filter_kwargs: Any,
+    ) -> builtins.list[CloudInitFile]:
+        """List cloud-init files for this VM.
+
+        Args:
+            filter: OData filter string.
+            fields: List of fields to return.
+            limit: Maximum number of results.
+            offset: Skip this many results.
+            name: Filter by file name (exact match or wildcard ``*``).
+            render: Filter by render type (No, Variables, Jinja2).
+            **filter_kwargs: Additional filter arguments.
+
+        Returns:
+            List of CloudInitFile objects for this VM.
+        """
+        return super().list(
+            filter=filter,
+            fields=fields,
+            limit=limit,
+            offset=offset,
+            vm_key=self.vm_key,
+            name=name,
+            render=render,
+            **filter_kwargs,
+        )
+
+    def get(  # type: ignore[override]
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: builtins.list[str] | None = None,
+    ) -> CloudInitFile:
+        """Get a cloud-init file by key or name for this VM.
+
+        Args:
+            key: CloudInitFile $key (ID).
+            name: File name (exact match).
+            fields: List of fields to return.
+
+        Returns:
+            CloudInitFile object.
+
+        Raises:
+            NotFoundError: If file not found.
+            ValueError: If neither key nor name provided.
+        """
+        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+
+        if key is not None:
+            # Get by key directly (no VM filtering needed)
+            params: dict[str, Any] = {"fields": ",".join(field_list)}
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
+            if response is None:
+                raise NotFoundError(f"Cloud-init file with key {key} not found")
+            if not isinstance(response, dict):
+                raise NotFoundError(f"Cloud-init file with key {key} returned invalid response")
+            return self._to_model(response)
+
+        elif name is not None:
+            # Get by name - use list() which is already scoped to this VM
+            results = self.list(name=name, fields=field_list, limit=1)
+            if not results:
+                raise NotFoundError(
+                    f"Cloud-init file '{name}' not found for VM {self.vm_key}"
+                )
+            return results[0]
+
+        else:
+            raise ValueError("Either key or name must be provided")
+
+    def create(  # type: ignore[override]
+        self,
+        name: str,
+        *,
+        contents: str | None = None,
+        render: str = "No",
+    ) -> CloudInitFile:
+        """Create a cloud-init file for this VM.
+
+        Args:
+            name: File name (e.g., /user-data, /meta-data, /network-config).
+            contents: File contents. Maximum 64KB. Optional for initial creation.
+            render: Render type: No, Variables, or Jinja2 (default: No).
+
+        Returns:
+            Created CloudInitFile object.
+
+        Raises:
+            ValidationError: If parameters invalid.
+
+        Example:
+            >>> vm = client.vms.get(name="my-vm")
+            >>> # Create user-data with cloud-config
+            >>> vm.cloudinit_files.create(
+            ...     name="/user-data",
+            ...     contents="#cloud-config\\nusers:\\n  - name: admin\\n",
+            ...     render="No"
+            ... )
+        """
+        return super().create(
+            vm_key=self.vm_key,
+            name=name,
+            contents=contents,
+            render=render,
+        )

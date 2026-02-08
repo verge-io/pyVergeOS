@@ -10,6 +10,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.cloudinit_files import VMCloudInitFileManager
     from pyvergeos.resources.devices import DeviceManager
     from pyvergeos.resources.drives import DriveManager
     from pyvergeos.resources.machine_stats import (
@@ -55,6 +56,7 @@ class VM(ResourceObject):
     _drives: DriveManager | None = None
     _nics: NICManager | None = None
     _snapshots: VMSnapshotManager | None = None
+    _cloudinit_files: VMCloudInitFileManager | None = None
     _stats: MachineStatsManager | None = None
     _machine_status: MachineStatusManager | None = None
     _machine_logs: MachineLogManager | None = None
@@ -86,6 +88,15 @@ class VM(ResourceObject):
 
             self._snapshots = VMSnapshotManager(self._manager._client, self)
         return self._snapshots
+
+    @property
+    def cloudinit_files(self) -> VMCloudInitFileManager:
+        """Access cloud-init files for this VM."""
+        if self._cloudinit_files is None:
+            from pyvergeos.resources.cloudinit_files import VMCloudInitFileManager
+
+            self._cloudinit_files = VMCloudInitFileManager(self._manager._client, self)
+        return self._cloudinit_files
 
     @property
     def machine_key(self) -> int:
