@@ -47,6 +47,7 @@ VM_DEFAULT_FIELDS = [
     "machine#cluster as cluster_key",
     "machine#cluster#name as cluster_name",
     "machine#ha_group as ha_group",
+    "cloudinit_datasource",
 ]
 
 
@@ -97,6 +98,48 @@ class VM(ResourceObject):
 
             self._cloudinit_files = VMCloudInitFileManager(self._manager._client, self)
         return self._cloudinit_files
+
+    def set_cloudinit_datasource(self, datasource: str) -> None:
+        """Set the cloud-init datasource for this VM.
+
+        The datasource controls whether VergeOS attaches a virtual CD-ROM
+        with cloud-init files to the VM. This is required for cloud-init
+        files (Linux) or unattend.xml (Windows) to be delivered to the guest.
+
+        Args:
+            datasource: Datasource type. Valid values:
+                - "nocloud" or "NoCloud": Enable NoCloud datasource
+                - "config_drive_v2" or "ConfigDrive": Enable Config Drive v2
+                - "none" or "": Disable cloud-init datasource
+
+        Example:
+            >>> vm = client.vms.get(name="my-vm")
+            >>> # Enable cloud-init delivery
+            >>> vm.set_cloudinit_datasource("nocloud")
+            >>> # Create cloud-init files
+            >>> vm.cloudinit_files.create(name="/user-data", contents="...")
+            >>> # Disable cloud-init delivery
+            >>> vm.set_cloudinit_datasource("none")
+        """
+        # Normalize datasource value to API format
+        datasource_map = {
+            "nocloud": "nocloud",
+            "config_drive_v2": "config_drive_v2",
+            "configdrive": "config_drive_v2",
+            "none": "none",
+            "": "none",
+        }
+        api_value = datasource_map.get(datasource.lower(), datasource.lower())
+
+        # Update VM via API
+        self._manager._client._request(
+            "PUT",
+            f"vms/{self.key}",
+            json_data={"cloudinit_datasource": api_value},
+        )
+
+        # Update local cache (VM is a dict subclass)
+        self["cloudinit_datasource"] = api_value
 
     @property
     def machine_key(self) -> int:
