@@ -376,6 +376,7 @@ class VmImportManager(ResourceManager["VmImport"]):
         override_drive_interface: str | None = None,
         override_nic_interface: str | None = None,
         cleanup_on_delete: bool = False,
+        importing: bool = False,
     ) -> VmImport:
         """Create a new VM import.
 
@@ -393,6 +394,7 @@ class VmImportManager(ResourceManager["VmImport"]):
             override_drive_interface: Override drive interface type.
             override_nic_interface: Override NIC interface type.
             cleanup_on_delete: Clean up import file path on delete.
+            importing: Auto-start the import immediately after creation (default False).
 
         Returns:
             Created VmImport object.
@@ -401,19 +403,21 @@ class VmImportManager(ResourceManager["VmImport"]):
             ValueError: If no source (file, volume, or shared_object) provided.
 
         Example:
-            >>> # Import from media catalog file
+            >>> # Import from media catalog file (auto-start)
             >>> imp = client.vm_imports.create(
             ...     name="imported-vm",
             ...     file=123,
-            ...     preferred_tier="1"
+            ...     preferred_tier="1",
+            ...     importing=True
             ... )
 
-            >>> # Import from NAS volume
+            >>> # Import from NAS volume (two-step: create then start)
             >>> imp = client.vm_imports.create(
             ...     name="imported-vm",
             ...     volume="abc123...",
             ...     volume_path="/exports/vm.vmdk"
             ... )
+            >>> imp.start()
         """
         if file is None and volume is None and shared_object is None:
             raise ValueError("One of file, volume, or shared_object must be provided")
@@ -450,6 +454,9 @@ class VmImportManager(ResourceManager["VmImport"]):
 
         if cleanup_on_delete:
             body["cleanup_on_delete"] = True
+
+        if importing:
+            body["importing"] = True
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 
