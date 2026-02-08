@@ -591,7 +591,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
             raise ValueError("VM has no key")
         return int(key)
 
-    def list(  # type: ignore[override]
+    def list(
         self,
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
