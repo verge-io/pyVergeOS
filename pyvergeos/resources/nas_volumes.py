@@ -11,6 +11,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.nas_antivirus import VolumeAntivirusManager
     from pyvergeos.resources.nas_volume_browser import NASVolumeFileManager
 
 
@@ -144,6 +145,32 @@ class NASVolume(ResourceObject):
             volume_key=self.key,
             volume_name=self.get("name"),
         )
+
+    @property
+    def antivirus(self) -> VolumeAntivirusManager:
+        """Get antivirus manager for this volume.
+
+        Returns:
+            VolumeAntivirusManager scoped to this volume.
+
+        Example:
+            >>> # Get antivirus configuration
+            >>> av = volume.antivirus.get()
+
+            >>> # Enable and start scan
+            >>> av.enable()
+            >>> av.start_scan()
+
+            >>> # Check status
+            >>> status = av.get_status()
+            >>> print(f"Status: {status.status}")
+        """
+        from typing import cast
+
+        from pyvergeos.resources.nas_antivirus import VolumeAntivirusManager
+
+        manager = cast("NASVolumeManager", self._manager)
+        return VolumeAntivirusManager(manager._client, volume_key=self.key)
 
 
 class NASVolumeSnapshot(ResourceObject):

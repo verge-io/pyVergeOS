@@ -54,6 +54,20 @@ from pyvergeos.resources.machine_stats import (
     MachineStatus,
     MachineStatusManager,
 )
+from pyvergeos.resources.nas_antivirus import (
+    NasServiceAntivirus,
+    NasServiceAntivirusManager,
+    VolumeAntivirus,
+    VolumeAntivirusInfection,
+    VolumeAntivirusInfectionManager,
+    VolumeAntivirusLog,
+    VolumeAntivirusLogManager,
+    VolumeAntivirusManager,
+    VolumeAntivirusStats,
+    VolumeAntivirusStatsManager,
+    VolumeAntivirusStatus,
+    VolumeAntivirusStatusManager,
+)
 from pyvergeos.resources.nas_cifs import NASCIFSShare, NASCIFSShareManager
 from pyvergeos.resources.nas_nfs import NASNFSShare, NASNFSShareManager
 from pyvergeos.resources.nas_services import (
@@ -294,7 +308,19 @@ __all__ = [
     "NASVolumeSnapshotManager",
     "NASVolumeSync",
     "NASVolumeSyncManager",
+    "NasServiceAntivirus",
+    "NasServiceAntivirusManager",
     "NFSSettings",
+    "VolumeAntivirus",
+    "VolumeAntivirusInfection",
+    "VolumeAntivirusInfectionManager",
+    "VolumeAntivirusLog",
+    "VolumeAntivirusLogManager",
+    "VolumeAntivirusManager",
+    "VolumeAntivirusStats",
+    "VolumeAntivirusStatsManager",
+    "VolumeAntivirusStatus",
+    "VolumeAntivirusStatusManager",
     "OidcApplication",
     "OidcApplicationGroup",
     "OidcApplicationGroupManager",
