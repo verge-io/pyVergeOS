@@ -334,10 +334,9 @@ class TaskEventManager(ResourceManager[TaskEvent]):
     def create(  # type: ignore[override]
         self,
         task: int,
-        owner: int,
         event: str,
         *,
-        table: str | None = None,
+        table: str,
         event_name: str | None = None,
         table_event_filters: dict[str, Any] | None = None,
         context: dict[str, Any] | None = None,
@@ -345,12 +344,13 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         """Create a task event.
 
         Links a task to a system event for event-driven execution.
+        The owner is auto-populated from the parent task.
 
         Args:
-            task: Task $key to link.
-            owner: Owner resource $key.
-            event: Event identifier.
-            table: Owner table name (usually auto-detected).
+            task: Task $key to link (create the task first).
+            event: Event identifier (e.g. ``"lowered"``).
+            table: Event source table (required, e.g. ``"alarms"``).
+                The table whose events will trigger the task.
             event_name: Human-readable event name.
             table_event_filters: JSON filter conditions for the event.
             context: JSON context data to pass to the task.
@@ -359,21 +359,27 @@ class TaskEventManager(ResourceManager[TaskEvent]):
             Created TaskEvent object.
 
         Example:
-            >>> # Trigger task when a VM powers on
+            >>> # Create a task first, then link an event
+            >>> task = client.tasks.create(
+            ...     name="Alert on alarm",
+            ...     owner=1,
+            ...     action="send",
+            ...     table="smtp_settings",
+            ... )
+            >>> # Trigger task when an alarm is lowered
             >>> event = client.task_events.create(
-            ...     task=notification_task.key,
-            ...     owner=vm.key,
-            ...     event="poweron",
+            ...     task=task.key,
+            ...     event="lowered",
+            ...     table="alarms",
+            ...     table_event_filters={"level": "summary"},
             ... )
         """
         body: dict[str, Any] = {
             "task": task,
-            "owner": owner,
+            "table": table,
             "event": event,
         }
 
-        if table is not None:
-            body["table"] = table
         if event_name is not None:
             body["event_name"] = event_name
         if table_event_filters is not None:

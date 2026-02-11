@@ -261,8 +261,7 @@ class APIKeyManager(ResourceManager[APIKey]):
         # Handle user filter
         if user is not None:
             user_key = self._resolve_user_key(user)
-            if user_key is not None:
-                filters.append(f"user eq {user_key}")
+            filters.append(f"user eq {user_key}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -479,24 +478,24 @@ class APIKeyManager(ResourceManager[APIKey]):
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
-    def _resolve_user_key(self, user: int | str) -> int | None:
+    def _resolve_user_key(self, user: int | str) -> int:
         """Resolve a user identifier to a user $key.
 
         Args:
             user: User $key (int) or username (str).
 
         Returns:
-            User $key, or None if not found.
+            User $key.
+
+        Raises:
+            NotFoundError: If the username cannot be resolved.
         """
         if isinstance(user, int):
             return user
 
-        # Look up user by name
-        try:
-            user_obj = self._client.users.get(name=str(user))
-            return user_obj.key
-        except NotFoundError:
-            return None
+        # Look up user by name — raises NotFoundError if not found
+        user_obj = self._client.users.get(name=str(user))
+        return user_obj.key
 
     def _get_user_name(self, user_key: int) -> str | None:
         """Get a username by user key.

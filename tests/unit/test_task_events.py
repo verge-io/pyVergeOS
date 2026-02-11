@@ -325,7 +325,7 @@ class TestTaskEventManagerCreate:
             {"$key": 1, "event": "poweron", "task": 100, "owner": 123},  # GET response
         ]
 
-        event = mock_client.task_events.create(task=100, owner=123, event="poweron")
+        event = mock_client.task_events.create(task=100, event="poweron", table="vms")
 
         assert event.key == 1
         assert event.event_type == "poweron"
@@ -341,7 +341,6 @@ class TestTaskEventManagerCreate:
 
         event = mock_client.task_events.create(
             task=100,
-            owner=123,
             event="poweron",
             table="vms",
             event_name="Power On VM",
@@ -350,7 +349,7 @@ class TestTaskEventManagerCreate:
         )
 
         assert event.key == 1
-        # Verify POST body contained optional fields
+        # Verify POST body contained correct fields (no owner)
         post_calls = [
             c
             for c in mock_session.request.call_args_list
@@ -362,6 +361,7 @@ class TestTaskEventManagerCreate:
         assert body.get("event_name") == "Power On VM"
         assert body.get("table_event_filters") == {"severity": "warning"}
         assert body.get("context") == {"notify": True}
+        assert "owner" not in body
 
     def test_create_task_event_no_response(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -371,7 +371,7 @@ class TestTaskEventManagerCreate:
         mock_session.request.return_value.text = ""
 
         with pytest.raises(ValueError, match="No response from create operation"):
-            mock_client.task_events.create(task=100, owner=123, event="poweron")
+            mock_client.task_events.create(task=100, event="poweron", table="vms")
 
     def test_create_task_event_invalid_response(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -380,7 +380,7 @@ class TestTaskEventManagerCreate:
         mock_session.request.return_value.json.return_value = []
 
         with pytest.raises(ValueError, match="Create operation returned invalid response"):
-            mock_client.task_events.create(task=100, owner=123, event="poweron")
+            mock_client.task_events.create(task=100, event="poweron", table="vms")
 
 
 # =============================================================================
