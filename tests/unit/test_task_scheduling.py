@@ -472,10 +472,14 @@ class TestTaskEventManager:
         """Test creating an event."""
         mock_client._request.side_effect = [{"$key": 1}, sample_event]
 
-        event = event_manager.create(task=1, owner=10, event="poweron")
+        event = event_manager.create(task=1, event="poweron", table="vms")
 
         assert event.task_key == 1
-        assert event.owner_key == 10
+        # Verify POST body has table and no owner
+        first_call = mock_client._request.call_args_list[0]
+        json_data = first_call.kwargs.get("json_data", {})
+        assert json_data["table"] == "vms"
+        assert "owner" not in json_data
 
     def test_delete_event(self, event_manager, mock_client):
         """Test deleting an event."""
@@ -645,6 +649,7 @@ class TestTaskManagerCRUD:
             name="Daily Backup",
             owner=10,
             action="snapshot",
+            table="vms",
             description="Daily backup",
         )
 
@@ -653,6 +658,10 @@ class TestTaskManagerCRUD:
         first_call = mock_client._request.call_args_list[0]
         assert first_call.args[0] == "POST"
         assert first_call.args[1] == "tasks"
+        # Verify owner is in combined table/key format
+        json_data = first_call.kwargs.get("json_data", {})
+        assert json_data["owner"] == "vms/10"
+        assert "table" not in json_data
 
     def test_update_task(self, task_manager, mock_client, sample_task):
         """Test updating a task."""

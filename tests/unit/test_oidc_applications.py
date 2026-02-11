@@ -517,6 +517,9 @@ class TestOidcApplicationManager:
         assert body["name"] == "Test"
         assert body["redirect_uri"] == "https://example.com/callback"
         assert body["description"] == "Test app"
+        # force_auth_source and map_user always included (default 0)
+        assert body["force_auth_source"] == 0
+        assert body["map_user"] == 0
 
     def test_create_with_list_redirect_uri(self, mock_client: MagicMock) -> None:
         """Test creating with list of redirect URIs."""

@@ -600,13 +600,12 @@ class TestAPIKeyManager:
         client.users.get.assert_called_once_with(name="admin")
 
     def test_resolve_user_key_not_found(self) -> None:
-        """Test _resolve_user_key returns None when user not found."""
+        """Test _resolve_user_key raises NotFoundError when user not found."""
         manager, client = self._create_manager()
         client.users.get.side_effect = NotFoundError("User not found")
 
-        result = manager._resolve_user_key("nonexistent")
-
-        assert result is None
+        with pytest.raises(NotFoundError):
+            manager._resolve_user_key("nonexistent")
 
     # _parse_expires_in() tests
 

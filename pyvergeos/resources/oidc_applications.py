@@ -1137,14 +1137,12 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         if description is not None:
             body["description"] = description
 
-        if force_auth_source is not None:
-            body["force_auth_source"] = force_auth_source
+        body["force_auth_source"] = force_auth_source if force_auth_source is not None else 0
 
         if restrict_access:
             body["restrict_access"] = restrict_access
 
-        if map_user is not None:
-            body["map_user"] = map_user
+        body["map_user"] = map_user if map_user is not None else 0
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 

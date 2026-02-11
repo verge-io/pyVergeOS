@@ -683,7 +683,7 @@ class TaskManager(ResourceManager[Task]):
         owner: int,
         action: str,
         *,
-        table: str | None = None,
+        table: str,
         description: str | None = None,
         enabled: bool = True,
         delete_after_run: bool = False,
@@ -695,7 +695,8 @@ class TaskManager(ResourceManager[Task]):
             name: Task name (required).
             owner: Owner resource $key (required).
             action: Action type to perform (required).
-            table: Owner table name (usually auto-detected).
+            table: Owner table name (required, e.g. ``"vms"``).
+                Combined with owner to form the ``"table/key"`` reference.
             description: Task description.
             enabled: Whether task is enabled (default True).
             delete_after_run: Delete task after execution (default False).
@@ -710,6 +711,7 @@ class TaskManager(ResourceManager[Task]):
             ...     name="Daily Snapshot",
             ...     owner=vm.key,
             ...     action="snapshot",
+            ...     table="vms",
             ...     description="Daily snapshot of production VM",
             ... )
 
@@ -718,19 +720,18 @@ class TaskManager(ResourceManager[Task]):
             ...     name="One-time Backup",
             ...     owner=vm.key,
             ...     action="snapshot",
+            ...     table="vms",
             ...     delete_after_run=True,
             ... )
         """
         body: dict[str, Any] = {
             "name": name,
-            "owner": owner,
+            "owner": f"{table}/{owner}",
             "action": action,
             "enabled": enabled,
             "delete_after_run": delete_after_run,
         }
 
-        if table is not None:
-            body["table"] = table
         if description is not None:
             body["description"] = description
         if settings_args is not None:
