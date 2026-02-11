@@ -879,63 +879,78 @@ class TestUpdateSettingsManager:
         assert mock_client._request.call_count == 1
 
     def test_check_action(self, mock_client: MagicMock) -> None:
-        """Test check action."""
-        mock_client._request.return_value = {"task": 123}
+        """Test check action posts refresh to update_actions with source."""
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 123},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
         result = manager.check()
 
         assert result == {"task": 123}
         mock_client._request.assert_called_with(
-            "POST", "update_settings/1", json_data={"action": "check"}
+            "POST", "update_actions", json_data={"source": 3, "action": "refresh"}
         )
 
     def test_download_action(self, mock_client: MagicMock) -> None:
-        """Test download action."""
-        mock_client._request.return_value = {"task": 124}
+        """Test download action posts to update_actions with source."""
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 124},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
         result = manager.download()
 
         assert result == {"task": 124}
         mock_client._request.assert_called_with(
-            "POST", "update_settings/1", json_data={"action": "download"}
+            "POST", "update_actions", json_data={"source": 3, "action": "download"}
         )
 
     def test_install_action(self, mock_client: MagicMock) -> None:
-        """Test install action."""
-        mock_client._request.return_value = {"task": 125}
+        """Test install action posts to update_actions with source."""
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 125},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
         result = manager.install()
 
         assert result == {"task": 125}
         mock_client._request.assert_called_with(
-            "POST", "update_settings/1", json_data={"action": "install"}
+            "POST", "update_actions", json_data={"source": 3, "action": "install"}
         )
 
     def test_update_all_action(self, mock_client: MagicMock) -> None:
-        """Test update_all action."""
-        mock_client._request.return_value = {"task": 126}
+        """Test update_all action posts to update_actions with source."""
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 126},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
         result = manager.update_all()
 
         assert result == {"task": 126}
         mock_client._request.assert_called_with(
-            "POST", "update_settings/1", json_data={"action": "all", "force": False}
+            "POST", "update_actions", json_data={"source": 3, "action": "all", "force": False}
         )
 
     def test_update_all_with_force(self, mock_client: MagicMock) -> None:
         """Test update_all action with force=True."""
-        mock_client._request.return_value = {"task": 127}
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 127},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
         result = manager.update_all(force=True)
 
         assert result == {"task": 127}
         mock_client._request.assert_called_with(
-            "POST", "update_settings/1", json_data={"action": "all", "force": True}
+            "POST", "update_actions", json_data={"source": 3, "action": "all", "force": True}
         )
 
 
@@ -1004,40 +1019,52 @@ class TestUpdateSettings:
 
     def test_check_method(self, mock_client: MagicMock) -> None:
         """Test check method on settings object."""
-        mock_client._request.return_value = {"task": 123}
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 123},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
-        settings = UpdateSettings({"$key": 1}, manager)
+        settings = UpdateSettings({"$key": 1, "source": 3}, manager)
         result = settings.check()
 
         assert result == {"task": 123}
 
     def test_download_method(self, mock_client: MagicMock) -> None:
         """Test download method on settings object."""
-        mock_client._request.return_value = {"task": 124}
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 124},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
-        settings = UpdateSettings({"$key": 1}, manager)
+        settings = UpdateSettings({"$key": 1, "source": 3}, manager)
         result = settings.download()
 
         assert result == {"task": 124}
 
     def test_install_method(self, mock_client: MagicMock) -> None:
         """Test install method on settings object."""
-        mock_client._request.return_value = {"task": 125}
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 125},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
-        settings = UpdateSettings({"$key": 1}, manager)
+        settings = UpdateSettings({"$key": 1, "source": 3}, manager)
         result = settings.install()
 
         assert result == {"task": 125}
 
     def test_update_all_method(self, mock_client: MagicMock) -> None:
         """Test update_all method on settings object."""
-        mock_client._request.return_value = {"task": 126}
+        mock_client._request.side_effect = [
+            {"$key": 1, "source": 3},  # GET settings
+            {"task": 126},  # POST update_actions
+        ]
 
         manager = UpdateSettingsManager(mock_client)
-        settings = UpdateSettings({"$key": 1}, manager)
+        settings = UpdateSettings({"$key": 1, "source": 3}, manager)
         result = settings.update_all(force=True)
 
         assert result == {"task": 126}
