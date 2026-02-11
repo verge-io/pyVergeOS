@@ -239,12 +239,12 @@ class TestNASServiceManager:
         result = mock_client.nas_services.power_on(1)
 
         assert result == {"task": 123}
-        put_calls = [
+        post_calls = [
             call
             for call in mock_session.request.call_args_list
-            if call.kwargs.get("method") == "PUT"
+            if call.kwargs.get("method") == "POST"
         ]
-        assert any("action=poweron" in call.kwargs.get("url", "") for call in put_calls)
+        assert any(call.kwargs.get("url", "").endswith("vm_actions") for call in post_calls)
 
     def test_power_off(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test powering off a NAS service."""
@@ -256,12 +256,12 @@ class TestNASServiceManager:
         result = mock_client.nas_services.power_off(1)
 
         assert result == {"task": 124}
-        put_calls = [
+        post_calls = [
             call
             for call in mock_session.request.call_args_list
-            if call.kwargs.get("method") == "PUT"
+            if call.kwargs.get("method") == "POST"
         ]
-        assert any("action=poweroff" in call.kwargs.get("url", "") for call in put_calls)
+        assert any(call.kwargs.get("url", "").endswith("vm_actions") for call in post_calls)
 
     def test_power_off_force(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test force powering off a NAS service."""
@@ -272,12 +272,12 @@ class TestNASServiceManager:
 
         mock_client.nas_services.power_off(1, force=True)
 
-        put_calls = [
+        post_calls = [
             call
             for call in mock_session.request.call_args_list
-            if call.kwargs.get("method") == "PUT"
+            if call.kwargs.get("method") == "POST"
         ]
-        assert any("action=killpower" in call.kwargs.get("url", "") for call in put_calls)
+        assert any(call.kwargs.get("url", "").endswith("vm_actions") for call in post_calls)
 
     def test_restart(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test restarting a NAS service."""

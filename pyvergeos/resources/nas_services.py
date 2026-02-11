@@ -560,7 +560,7 @@ class NASServiceManager(ResourceManager[NASService]):
         service = self.get(key)
         if service.vm_key:
             result = self._client._request(
-                "PUT", f"vms/{service.vm_key}?action=poweron", json_data={}
+                "POST", "vm_actions", json_data={"vm": service.vm_key, "action": "poweron"}
             )
             if isinstance(result, dict):
                 return result
@@ -585,9 +585,9 @@ class NASServiceManager(ResourceManager[NASService]):
         """
         service = self.get(key)
         if service.vm_key:
-            action = "killpower" if force else "poweroff"
+            action = "kill" if force else "poweroff"
             result = self._client._request(
-                "PUT", f"vms/{service.vm_key}?action={action}", json_data={}
+                "POST", "vm_actions", json_data={"vm": service.vm_key, "action": action}
             )
             if isinstance(result, dict):
                 return result
@@ -608,7 +608,7 @@ class NASServiceManager(ResourceManager[NASService]):
         service = self.get(key)
         if service.vm_key:
             result = self._client._request(
-                "PUT", f"vms/{service.vm_key}?action=reset", json_data={}
+                "POST", "vm_actions", json_data={"vm": service.vm_key, "action": "reset"}
             )
             if isinstance(result, dict):
                 return result
