@@ -408,8 +408,10 @@ class TestNASServiceManagerPower:
 
         assert result == {"task": 123}
         power_call = mock_client._request.call_args_list[1]
-        assert power_call[0][0] == "PUT"
-        assert "action=poweron" in power_call[0][1]
+        assert power_call[0][0] == "POST"
+        assert power_call[0][1] == "vm_actions"
+        assert power_call[1]["json_data"]["action"] == "poweron"
+        assert power_call[1]["json_data"]["vm"] == sample_nas_service["vm"]
 
     def test_power_off(self, nas_manager, mock_client, sample_nas_service):
         """Test powering off a NAS service."""
@@ -422,7 +424,9 @@ class TestNASServiceManagerPower:
 
         assert result == {"task": 123}
         power_call = mock_client._request.call_args_list[1]
-        assert "action=poweroff" in power_call[0][1]
+        assert power_call[0][0] == "POST"
+        assert power_call[0][1] == "vm_actions"
+        assert power_call[1]["json_data"]["action"] == "poweroff"
 
     def test_power_off_force(self, nas_manager, mock_client, sample_nas_service):
         """Test force power off."""
@@ -435,7 +439,9 @@ class TestNASServiceManagerPower:
 
         assert result == {"task": 123}
         power_call = mock_client._request.call_args_list[1]
-        assert "action=killpower" in power_call[0][1]
+        assert power_call[0][0] == "POST"
+        assert power_call[0][1] == "vm_actions"
+        assert power_call[1]["json_data"]["action"] == "kill"
 
     def test_restart(self, nas_manager, mock_client, sample_nas_service):
         """Test restarting a NAS service."""
@@ -448,7 +454,9 @@ class TestNASServiceManagerPower:
 
         assert result == {"task": 123}
         reset_call = mock_client._request.call_args_list[1]
-        assert "action=reset" in reset_call[0][1]
+        assert reset_call[0][0] == "POST"
+        assert reset_call[0][1] == "vm_actions"
+        assert reset_call[1]["json_data"]["action"] == "reset"
 
 
 class TestNASServiceManagerCIFSSettings:
