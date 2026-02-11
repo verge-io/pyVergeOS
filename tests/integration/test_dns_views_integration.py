@@ -197,9 +197,7 @@ class TestDNSZoneCRUDIntegration:
                 assert "pytest-example.local" in zone_domains
 
                 # Verify it shows in the network's zone list
-                all_zones = dns_network.dns_zones.list(
-                    domain="pytest-example.local"
-                )
+                all_zones = dns_network.dns_zones.list(domain="pytest-example.local")
                 assert len(all_zones) > 0
 
             finally:

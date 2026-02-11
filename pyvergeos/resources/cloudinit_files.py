@@ -664,9 +664,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
             # Get by name - use list() which is already scoped to this VM
             results = self.list(name=name, fields=field_list, limit=1)
             if not results:
-                raise NotFoundError(
-                    f"Cloud-init file '{name}' not found for VM {self.vm_key}"
-                )
+                raise NotFoundError(f"Cloud-init file '{name}' not found for VM {self.vm_key}")
             return results[0]
 
         else:
