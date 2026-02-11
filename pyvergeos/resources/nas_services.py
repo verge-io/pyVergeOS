@@ -11,6 +11,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.nas_antivirus import NasServiceAntivirusManager
 
 
 class NASService(ResourceObject):
@@ -46,6 +47,33 @@ class NASService(ResourceObject):
         """Get the number of volumes managed by this service."""
         count = self.get("volume_count", 0)
         return int(count) if count is not None else 0
+
+    @property
+    def antivirus(self) -> NasServiceAntivirusManager:
+        """Get antivirus configuration manager for this NAS service.
+
+        Returns:
+            NasServiceAntivirusManager scoped to this service.
+
+        Note:
+            NAS service requires 8GB+ RAM for antivirus support.
+
+        Example:
+            >>> # Get service antivirus config
+            >>> svc_av = nas.antivirus.get()
+
+            >>> # Update settings
+            >>> svc_av = nas.antivirus.update(
+            ...     key=svc_av.key,
+            ...     max_recursion=20
+            ... )
+        """
+        from typing import cast
+
+        from pyvergeos.resources.nas_antivirus import NasServiceAntivirusManager
+
+        manager = cast("NASServiceManager", self._manager)
+        return NasServiceAntivirusManager(manager._client, service_key=self.key)
 
 
 class CIFSSettings(ResourceObject):
