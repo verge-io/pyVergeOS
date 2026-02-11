@@ -1796,6 +1796,8 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
     def _action(self, action: str, **kwargs: Any) -> dict[str, Any] | None:
         """Perform an action on update settings.
 
+        Delegates to the update_actions endpoint with the configured source.
+
         Args:
             action: Action name (check, download, install, all).
             **kwargs: Additional action parameters.
@@ -1803,10 +1805,20 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         Returns:
             Task/action response dict or None.
         """
-        body: dict[str, Any] = {"action": action}
+        # Map settings-level action names to API action names
+        action_map: dict[str, str] = {"check": "refresh"}
+        api_action = action_map.get(action, action)
+
+        # Get the configured source key from settings
+        settings = self.get()
+        source_key = settings.source_key
+        if source_key is None:
+            raise ValueError("No update source configured in settings")
+
+        body: dict[str, Any] = {"source": source_key, "action": api_action}
         body.update(kwargs)
 
-        result = self._client._request("POST", f"{self._endpoint}/1", json_data=body)
+        result = self._client._request("POST", "update_actions", json_data=body)
         if isinstance(result, dict):
             return result
         return None
