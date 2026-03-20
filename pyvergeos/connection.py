@@ -77,7 +77,11 @@ class VergeConnection:
             status_forcelist=list(self.retry_status_codes),
             allowed_methods=list(RETRY_METHODS),
         )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
+        adapter = HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=1,
+            pool_maxsize=10,
+        )
         self._session.mount("https://", adapter)
         self._session.mount("http://", adapter)
 

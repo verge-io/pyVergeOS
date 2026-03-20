@@ -5,6 +5,8 @@ from __future__ import annotations
 import builtins
 import contextlib
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -18,6 +20,7 @@ from pyvergeos.constants import (
     HTTP_SUCCESS_CODES,
     UPLOAD_CHUNK_SIZE,
     UPLOAD_CHUNK_TIMEOUT,
+    UPLOAD_THREAD_COUNT,
 )
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.resources.base import ResourceManager, ResourceObject
@@ -315,33 +318,62 @@ class FileManager(ResourceManager[File]):
 
         logger.debug("File entry created with ID: %s", file_id)
 
-        # Step 2: Upload file in chunks using PUT
+        # Step 2: Upload file in chunks using PUT (parallel threads)
         try:
-            with open(file_path, "rb") as f:
+            # Pre-read chunks and submit to thread pool
+            def _upload_chunk(
+                chunk_data: bytes, chunk_offset: int
+            ) -> int:
+                chunk_url = f"{url}/{file_id}?filepos={chunk_offset}"
+                chunk_response = session.put(
+                    chunk_url,
+                    data=chunk_data,
+                    headers={HEADER_CONTENT_TYPE: CONTENT_TYPE_OCTET_STREAM},
+                    timeout=UPLOAD_CHUNK_TIMEOUT,
+                )
+                if (
+                    chunk_response.status_code not in HTTP_SUCCESS_CODES
+                    and chunk_response.status_code != HTTP_NO_CONTENT
+                ):
+                    raise ValidationError(
+                        f"Chunk upload failed at offset {chunk_offset}: "
+                        f"{chunk_response.text}"
+                    )
+                return len(chunk_data)
+
+            bytes_uploaded = 0
+            progress_lock = threading.Lock()
+
+            with (
+                open(file_path, "rb") as f,
+                ThreadPoolExecutor(max_workers=UPLOAD_THREAD_COUNT) as executor,
+            ):
+                pending: set[Any] = set()
                 offset = 0
-                while offset < file_size:
-                    chunk = f.read(UPLOAD_CHUNK_SIZE)
-                    if not chunk:
+
+                while offset < file_size or pending:
+                    # Submit chunks up to thread count to limit memory
+                    while len(pending) < UPLOAD_THREAD_COUNT and offset < file_size:
+                        chunk = f.read(UPLOAD_CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        future = executor.submit(_upload_chunk, chunk, offset)
+                        pending.add(future)
+                        offset += len(chunk)
+
+                    # Wait for at least one to complete
+                    done = set()
+                    for future in as_completed(pending):
+                        chunk_len = future.result()  # raises on failure
+                        done.add(future)
+                        if progress_callback:
+                            with progress_lock:
+                                bytes_uploaded += chunk_len
+                                progress_callback(bytes_uploaded, file_size)
+                        # Only wait for one, then refill
                         break
 
-                    chunk_url = f"{url}/{file_id}?filepos={offset}"
-                    chunk_response = session.put(
-                        chunk_url,
-                        data=chunk,
-                        headers={HEADER_CONTENT_TYPE: CONTENT_TYPE_OCTET_STREAM},
-                        timeout=UPLOAD_CHUNK_TIMEOUT,
-                    )
-
-                    if (
-                        chunk_response.status_code not in HTTP_SUCCESS_CODES
-                        and chunk_response.status_code != HTTP_NO_CONTENT
-                    ):
-                        raise ValidationError(f"Chunk upload failed: {chunk_response.text}")
-
-                    offset += len(chunk)
-
-                    if progress_callback:
-                        progress_callback(offset, file_size)
+                    pending -= done
 
             logger.info("Upload completed: %s", upload_name)
 
