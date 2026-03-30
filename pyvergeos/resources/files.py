@@ -321,9 +321,7 @@ class FileManager(ResourceManager[File]):
         # Step 2: Upload file in chunks using PUT (parallel threads)
         try:
             # Pre-read chunks and submit to thread pool
-            def _upload_chunk(
-                chunk_data: bytes, chunk_offset: int
-            ) -> int:
+            def _upload_chunk(chunk_data: bytes, chunk_offset: int) -> int:
                 chunk_url = f"{url}/{file_id}?filepos={chunk_offset}"
                 chunk_response = session.put(
                     chunk_url,
@@ -336,8 +334,7 @@ class FileManager(ResourceManager[File]):
                     and chunk_response.status_code != HTTP_NO_CONTENT
                 ):
                     raise ValidationError(
-                        f"Chunk upload failed at offset {chunk_offset}: "
-                        f"{chunk_response.text}"
+                        f"Chunk upload failed at offset {chunk_offset}: {chunk_response.text}"
                     )
                 return len(chunk_data)
 
