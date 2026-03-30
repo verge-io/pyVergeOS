@@ -135,6 +135,9 @@ GB = 1024 * MB
 #: Chunk size for file uploads (256 KB)
 UPLOAD_CHUNK_SIZE = 256 * KB  # 262144
 
+#: Number of concurrent upload threads (matches web UI)
+UPLOAD_THREAD_COUNT = 4
+
 #: Maximum size for cloud-init file contents (64 KB)
 CLOUDINIT_MAX_SIZE = 64 * KB  # 65536
 
