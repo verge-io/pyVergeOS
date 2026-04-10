@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -216,24 +216,11 @@ class TestCloudSnapshot:
         assert snapshot.status == "normal"
         assert snapshot.status_info == ""
 
-    def test_snapshot_never_expires_by_type(self, mock_client: VergeClient) -> None:
-        """Test never_expires detection via expires_type."""
-        data = {
-            "$key": 1,
-            "name": "Never Expires",
-            "expires_type": "never",
-            "expires": 0,
-        }
-        snapshot = CloudSnapshot(data, mock_client.cloud_snapshots)
-        assert snapshot.never_expires is True
-        assert snapshot.expires_at is None
-
-    def test_snapshot_never_expires_by_zero(self, mock_client: VergeClient) -> None:
+    def test_snapshot_never_expires(self, mock_client: VergeClient) -> None:
         """Test never_expires detection via zero expires value."""
         data = {
             "$key": 1,
             "name": "Never Expires",
-            "expires_type": "time",
             "expires": 0,
         }
         snapshot = CloudSnapshot(data, mock_client.cloud_snapshots)
@@ -524,10 +511,12 @@ class TestCloudSnapshotManager:
         with pytest.raises(ValueError, match="Either key or name must be provided"):
             mock_client.cloud_snapshots.get()
 
+    @patch("pyvergeos.resources.cloud_snapshots.time")
     def test_create_snapshot_default(
-        self, mock_client: VergeClient, mock_session: MagicMock
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test creating a snapshot with defaults."""
+        mock_time.time.return_value = 1735689600.0
         created_data = {
             "$key": 5,
             "name": "Snapshot_20250101_1234",
@@ -540,20 +529,24 @@ class TestCloudSnapshotManager:
 
         assert snapshot.key == 5
 
-        # Verify POST call - check any call that had json body with "name" key
+        # Verify POST call
         found_create = False
         for call in mock_session.request.call_args_list:
             body = call.kwargs.get("json", {})
             if body and body.get("name") == "Test Create":
                 found_create = True
-                assert body.get("retention") == 259200  # Default 3 days
+                assert body.get("expires") == 1735689600 + 259200
+                assert body.get("expires_type") == "date"
+                assert "retention" not in body
                 break
         assert found_create, "Create call not found"
 
+    @patch("pyvergeos.resources.cloud_snapshots.time")
     def test_create_snapshot_custom_retention(
-        self, mock_client: VergeClient, mock_session: MagicMock
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test creating a snapshot with custom retention_seconds."""
+        mock_time.time.return_value = 1735689600.0
         created_data = {"$key": 6, "name": "Custom Retention"}
         mock_session.request.return_value.json.return_value = created_data
 
@@ -564,14 +557,18 @@ class TestCloudSnapshotManager:
             body = call.kwargs.get("json", {})
             if body and body.get("name") == "Custom Retention":
                 found = True
-                assert body.get("retention") == 3600
+                assert body.get("expires") == 1735689600 + 3600
+                assert body.get("expires_type") == "date"
+                assert "retention" not in body
                 break
         assert found, "Create call not found"
 
+    @patch("pyvergeos.resources.cloud_snapshots.time")
     def test_create_snapshot_timedelta_retention(
-        self, mock_client: VergeClient, mock_session: MagicMock
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """Test creating a snapshot with timedelta retention."""
+        mock_time.time.return_value = 1735689600.0
         created_data = {"$key": 7, "name": "Timedelta Retention"}
         mock_session.request.return_value.json.return_value = created_data
 
@@ -582,7 +579,9 @@ class TestCloudSnapshotManager:
             body = call.kwargs.get("json", {})
             if body and body.get("name") == "Timedelta Retention":
                 found = True
-                assert body.get("retention") == 7200  # 2 hours
+                assert body.get("expires") == 1735689600 + 7200
+                assert body.get("expires_type") == "date"
+                assert "retention" not in body
                 break
         assert found, "Create call not found"
 
@@ -600,7 +599,9 @@ class TestCloudSnapshotManager:
             body = call.kwargs.get("json", {})
             if body and body.get("name") == "Never Expire":
                 found = True
-                assert body.get("retention") == 0
+                assert body.get("expires") == 0
+                assert body.get("expires_type") == "never"
+                assert "retention" not in body
                 break
         assert found, "Create call not found"
 

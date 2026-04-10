@@ -23,7 +23,6 @@ _DEFAULT_SNAPSHOT_FIELDS = [
     "description",
     "created",
     "expires",
-    "expires_type",
     "snapshot_profile",
     "private",
     "remote_sync",
@@ -556,10 +555,9 @@ class CloudSnapshot(ResourceObject):
 
     @property
     def never_expires(self) -> bool:
-        """Check if snapshot never expires."""
+        """Check if snapshot never expires (expires == 0)."""
         expires = self.get("expires")
-        expires_type = self.get("expires_type")
-        return expires_type == "never" or (expires is not None and int(expires) == 0)
+        return expires is not None and int(expires) == 0
 
     @property
     def snapshot_profile_key(self) -> int | None:
@@ -971,16 +969,22 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             "min_snapshots": min_snapshots,
         }
 
-        # Handle retention
+        # Handle expiry — API uses "expires" (absolute Unix timestamp) and
+        # "expires_type" ("never" or "date"). Note: expires_type is write-only
+        # (accepted on POST/PUT but not returned on GET).
         if never_expire:
-            body["retention"] = 0
+            body["expires"] = 0
+            body["expires_type"] = "never"
         elif retention is not None:
-            body["retention"] = int(retention.total_seconds())
+            body["expires"] = int(time.time() + retention.total_seconds())
+            body["expires_type"] = "date"
         elif retention_seconds is not None:
-            body["retention"] = retention_seconds
+            body["expires"] = int(time.time()) + retention_seconds
+            body["expires_type"] = "date"
         else:
             # Default: 3 days
-            body["retention"] = 259200
+            body["expires"] = int(time.time()) + 259200
+            body["expires_type"] = "date"
 
         if immutable:
             body["immutable"] = True
