@@ -21,7 +21,7 @@ uv build                             # Build wheel & sdist
 **IMPORTANT: Reserved Networks**
 Never use "Core" or "DMZ" networks for workloads, services, VMs, or NAS. These are reserved for VergeOS. Always create a new network (e.g., "Internal") for test workloads and examples.
 
-**Build system:** Uses `hatchling` (not setuptools). Version in `pyvergeos/__version__.py`.
+**Build system:** Uses `hatchling` (not setuptools). Version must be updated in **both** `pyproject.toml` AND `pyvergeos/__version__.py` — they must stay in sync. Also run `uv lock` after bumping to update `uv.lock`.
 
 ## Linting Gotchas
 
