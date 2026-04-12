@@ -142,11 +142,13 @@ def deploy_recipe() -> None:
 
         # Prepare answers based on common recipe question names
         # These are typical YB_* variables used by VergeOS recipes
+        # Network answers accept either a vnet key (int) or network name (str)
         answers = {
             "YB_CPU_CORES": 2,
             "YB_RAM": 4096,  # 4GB in MB
             "YB_HOSTNAME": "my-ubuntu-server",
             "YB_IP_ADDR_TYPE": "dhcp",
+            "YB_NIC_0_NET": "Internal",  # Network name or key
             "YB_USER": "ubuntu",
             "YB_PASSWORD": "secure-password-here",
         }
