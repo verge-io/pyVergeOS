@@ -604,6 +604,7 @@ class GroupManager(ResourceManager[Group]):
         *,
         description: str | None = None,
         email: str | None = None,
+        identifier: str | None = None,
         enabled: bool = True,
     ) -> Group:
         """Create a new group.
@@ -612,6 +613,8 @@ class GroupManager(ResourceManager[Group]):
             name: Group name (1-128 characters, must be unique).
             description: Group description (optional).
             email: Group email address (optional).
+            identifier: Group identifier for external identity linking
+                (e.g. EntraID). Must be unique if provided.
             enabled: Whether the group is enabled (default True).
 
         Returns:
@@ -625,7 +628,8 @@ class GroupManager(ResourceManager[Group]):
             >>> group = client.groups.create(
             ...     name="QA Team",
             ...     description="Quality Assurance team",
-            ...     email="qa@company.com"
+            ...     email="qa@company.com",
+            ...     identifier="entra-group-id-123"
             ... )
         """
         body: dict[str, Any] = {
@@ -638,6 +642,9 @@ class GroupManager(ResourceManager[Group]):
 
         if email:
             body["email"] = email.lower()
+
+        if identifier:
+            body["id"] = identifier
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 
@@ -657,6 +664,7 @@ class GroupManager(ResourceManager[Group]):
         name: str | None = None,
         description: str | None = None,
         email: str | None = None,
+        identifier: str | None = None,
         enabled: bool | None = None,
     ) -> Group:
         """Update a group.
@@ -666,6 +674,8 @@ class GroupManager(ResourceManager[Group]):
             name: New group name.
             description: New description.
             email: New email address.
+            identifier: Group identifier for external identity linking
+                (e.g. EntraID). Pass empty string to clear.
             enabled: Enable or disable the group.
 
         Returns:
@@ -688,6 +698,9 @@ class GroupManager(ResourceManager[Group]):
 
         if email is not None:
             body["email"] = email.lower() if email else ""
+
+        if identifier is not None:
+            body["id"] = identifier
 
         if enabled is not None:
             body["enabled"] = enabled
