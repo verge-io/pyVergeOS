@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  push:
+    branches: [dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   lint:
@@ -21,8 +23,14 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run ruff
+      - name: Check lockfile is up to date
+        run: uv lock --check
+
+      - name: Run ruff check
         run: uv run ruff check .
+
+      - name: Run ruff format check
+        run: uv run ruff format --check .
 
       - name: Run mypy
         run: uv run mypy pyvergeos
@@ -31,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
@@ -47,4 +55,33 @@ jobs:
         run: uv sync
 
       - name: Run unit tests
-        run: uv run pytest tests/unit -v
+        run: uv run pytest tests/unit -v --cov --cov-report=xml --cov-fail-under=80
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check version sync
+        run: |
+          pyproject_ver=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          code_ver=$(python -c "exec(open('pyvergeos/__version__.py').read()); print(__version__)")
+          if [ "$pyproject_ver" != "$code_ver" ]; then
+            echo "::error::Version mismatch: pyproject.toml=$pyproject_ver, __version__.py=$code_ver"
+            exit 1
+          fi
+          echo "Version $pyproject_ver is in sync"
+
+      - name: Verify build
+        run: uv build
