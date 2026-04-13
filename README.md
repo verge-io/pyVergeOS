@@ -4,7 +4,7 @@ Python SDK for the VergeOS REST API.
 
 [![PyPI version](https://img.shields.io/pypi/v/pyvergeos)](https://pypi.org/project/pyvergeos/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://verge-io.github.io/pyVergeOS/)
 
 ## Overview
@@ -220,7 +220,7 @@ client = VergeClient(
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
