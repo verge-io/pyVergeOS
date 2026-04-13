@@ -37,7 +37,10 @@ class VergeConnection:
         api_base_url: Computed API base URL.
         token: Authentication token (Basic or Bearer).
         token_expires: Token expiration time (if applicable).
-        verify_ssl: Whether to verify SSL certificates.
+        verify_ssl: Whether to verify SSL certificates. When False, the
+            InsecureRequestWarning suppression is process-global — it will
+            silence warnings for all clients in the same process, even those
+            with verify_ssl=True.
         retry_total: Number of retry attempts for transient failures.
         retry_backoff_factor: Backoff factor for retry delay calculation.
         retry_status_codes: HTTP status codes that trigger automatic retry.
@@ -83,11 +86,12 @@ class VergeConnection:
             pool_maxsize=10,
         )
         self._session.mount("https://", adapter)
-        self._session.mount("http://", adapter)
 
         if not self.verify_ssl:
             self._session.verify = False
-            # Suppress InsecureRequestWarning (session-scoped via filter)
+            # Suppress InsecureRequestWarning. Note: this is process-global —
+            # setting verify_ssl=False on any client silences warnings for all
+            # clients in the same process.
             import warnings
 
             import urllib3
