@@ -1160,15 +1160,11 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if queue_retry_interval_seconds is not None:
             body["queue_retry_interval_seconds"] = queue_retry_interval_seconds
         if queue_retry_interval_multiplier is not None:
-            body["queue_retry_interval_multiplier"] = (
-                queue_retry_interval_multiplier
-            )
+            body["queue_retry_interval_multiplier"] = queue_retry_interval_multiplier
         if note is not None:
             body["note"] = note
 
-        response = self._client._request(
-            "POST", self._endpoint, json_data=body
-        )
+        response = self._client._request("POST", self._endpoint, json_data=body)
 
         if response and isinstance(response, dict):
             sync_key = response.get("$key")
@@ -1249,13 +1245,9 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if queue_retry_count is not None:
             body["queue_retry_count"] = queue_retry_count
         if queue_retry_interval_seconds is not None:
-            body["queue_retry_interval_seconds"] = (
-                queue_retry_interval_seconds
-            )
+            body["queue_retry_interval_seconds"] = queue_retry_interval_seconds
         if queue_retry_interval_multiplier is not None:
-            body["queue_retry_interval_multiplier"] = (
-                queue_retry_interval_multiplier
-            )
+            body["queue_retry_interval_multiplier"] = queue_retry_interval_multiplier
         if note is not None:
             body["note"] = note
         if enabled is not None:
@@ -1264,9 +1256,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if not body:
             return self.get(key)
 
-        self._client._request(
-            "PUT", f"{self._endpoint}/{key}", json_data=body
-        )
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
         return self.get(key)
 
     def delete(self, key: int) -> None:
@@ -1626,9 +1616,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         if vsan_port is not None:
             body["vsan_port"] = vsan_port
 
-        response = self._client._request(
-            "POST", self._endpoint, json_data=body
-        )
+        response = self._client._request("POST", self._endpoint, json_data=body)
 
         if response and isinstance(response, dict):
             sync_key = response.get("$key")
@@ -1699,9 +1687,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         if not body:
             return self.get(key)
 
-        self._client._request(
-            "PUT", f"{self._endpoint}/{key}", json_data=body
-        )
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
         return self.get(key)
 
     def delete(self, key: int) -> None:

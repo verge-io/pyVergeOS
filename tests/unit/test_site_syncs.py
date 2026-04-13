@@ -520,9 +520,7 @@ class TestSiteSyncOutgoingManager:
             sample_outgoing_sync_data,  # GET after create
         ]
 
-        result = outgoing_manager.create(
-            site=1, name="Test Sync", registration_code="abc123"
-        )
+        result = outgoing_manager.create(site=1, name="Test Sync", registration_code="abc123")
 
         post_call = outgoing_manager._client._request.call_args_list[0]
         assert post_call[0] == ("POST", "site_syncs_outgoing")
@@ -853,9 +851,7 @@ class TestSiteSyncIncomingManager:
             sample_incoming_sync_data,  # GET after update
         ]
 
-        result = incoming_manager.update(
-            1, description="Updated", min_snapshots=5
-        )
+        result = incoming_manager.update(1, description="Updated", min_snapshots=5)
 
         put_call = incoming_manager._client._request.call_args_list[0]
         assert put_call[0] == ("PUT", "site_syncs_incoming/1")
@@ -870,9 +866,7 @@ class TestSiteSyncIncomingManager:
         sample_incoming_sync_data: dict[str, Any],
     ) -> None:
         """Test update with no changes just fetches."""
-        incoming_manager._client._request.return_value = (
-            sample_incoming_sync_data
-        )
+        incoming_manager._client._request.return_value = sample_incoming_sync_data
         result = incoming_manager.update(1)
 
         assert incoming_manager._client._request.call_count == 1
