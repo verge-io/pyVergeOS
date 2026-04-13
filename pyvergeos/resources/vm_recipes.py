@@ -798,20 +798,16 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             if qname not in resolved:
                 continue
             val = resolved[qname]
-            # Skip ints, __new_internal__, and already-numeric strings
+            # Skip ints and non-strings; __new_internal__ is a special
+            # sentinel the API accepts directly.
             if isinstance(val, int):
                 continue
             if not isinstance(val, str):
                 continue
             if val == "__new_internal__":
                 continue
-            # Check if it's a numeric string (already a key)
-            try:
-                int(val)
-                continue
-            except ValueError:
-                pass
-            # Resolve network name to vnet key
+            # All other strings are treated as network names and resolved
+            # via the API. Users who want to pass a raw key should use int.
             response = self._client._request(
                 "GET",
                 "vnets",
