@@ -658,6 +658,30 @@ class TestGroupManager:
         assert body["email"] == "qa@test.com"  # Should be lowercased
         assert body["enabled"] is True
 
+    def test_create_with_identifier(self, mock_client: MagicMock) -> None:
+        """Test group creation with identifier for external identity linking."""
+        mock_client._request.side_effect = [
+            {"$key": 5},  # POST response
+            {
+                "$key": 5,
+                "name": "EntraID Group",
+                "id": "entra-group-id-123",
+                "enabled": True,
+            },  # GET
+        ]
+        manager = GroupManager(mock_client)
+
+        result = manager.create(
+            name="EntraID Group",
+            identifier="entra-group-id-123",
+        )
+
+        assert isinstance(result, Group)
+        assert result.identifier == "entra-group-id-123"
+        post_call = mock_client._request.call_args_list[0]
+        body = post_call[1]["json_data"]
+        assert body["id"] == "entra-group-id-123"
+
     def test_create_disabled(self, mock_client: MagicMock) -> None:
         """Test creating a disabled group."""
         mock_client._request.side_effect = [
@@ -713,6 +737,33 @@ class TestGroupManager:
 
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["email"] == ""
+
+    def test_update_identifier(self, mock_client: MagicMock) -> None:
+        """Test update with identifier for external identity linking."""
+        mock_client._request.side_effect = [
+            None,  # PUT response
+            {"$key": 1, "id": "entra-group-id-456"},  # GET response
+        ]
+        manager = GroupManager(mock_client)
+
+        result = manager.update(key=1, identifier="entra-group-id-456")
+
+        assert result.identifier == "entra-group-id-456"
+        put_call = mock_client._request.call_args_list[0]
+        assert put_call[1]["json_data"]["id"] == "entra-group-id-456"
+
+    def test_update_clear_identifier(self, mock_client: MagicMock) -> None:
+        """Test update with empty identifier clears it."""
+        mock_client._request.side_effect = [
+            None,  # PUT response
+            {"$key": 1},  # GET response
+        ]
+        manager = GroupManager(mock_client)
+
+        manager.update(key=1, identifier="")
+
+        put_call = mock_client._request.call_args_list[0]
+        assert put_call[1]["json_data"]["id"] == ""
 
     def test_update_no_changes(self, mock_client: MagicMock) -> None:
         """Test update with no changes just returns current state."""

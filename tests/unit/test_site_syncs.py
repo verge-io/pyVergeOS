@@ -509,6 +509,108 @@ class TestSiteSyncOutgoingManager:
 
         assert isinstance(result, SiteSyncOutgoing)
 
+    def test_create(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+        sample_outgoing_sync_data: dict[str, Any],
+    ) -> None:
+        """Test creating an outgoing sync."""
+        outgoing_manager._client._request.side_effect = [
+            {"$key": 1},  # POST response
+            sample_outgoing_sync_data,  # GET after create
+        ]
+
+        result = outgoing_manager.create(site=1, name="Test Sync", registration_code="abc123")
+
+        post_call = outgoing_manager._client._request.call_args_list[0]
+        assert post_call[0] == ("POST", "site_syncs_outgoing")
+        body = post_call[1]["json_data"]
+        assert body["site"] == 1
+        assert body["name"] == "Test Sync"
+        assert body["registration_code"] == "abc123"
+        assert body["enabled"] is True
+        assert body["encryption"] is True
+        assert body["compression"] is True
+        assert body["netinteg"] is True
+        assert isinstance(result, SiteSyncOutgoing)
+
+    def test_create_with_options(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+        sample_outgoing_sync_data: dict[str, Any],
+    ) -> None:
+        """Test creating an outgoing sync with all options."""
+        outgoing_manager._client._request.side_effect = [
+            {"$key": 1},
+            sample_outgoing_sync_data,
+        ]
+
+        outgoing_manager.create(
+            site=1,
+            name="Test Sync",
+            registration_code="abc123",
+            description="DR sync",
+            url="https://remote.example.com",
+            threads=16,
+            file_threads=8,
+            destination_tier="2",
+            note="Test note",
+        )
+
+        post_call = outgoing_manager._client._request.call_args_list[0]
+        body = post_call[1]["json_data"]
+        assert body["description"] == "DR sync"
+        assert body["url"] == "https://remote.example.com"
+        assert body["threads"] == 16
+        assert body["file_threads"] == 8
+        assert body["destination_tier"] == "2"
+        assert body["note"] == "Test note"
+
+    def test_update(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+        sample_outgoing_sync_data: dict[str, Any],
+    ) -> None:
+        """Test updating an outgoing sync."""
+        outgoing_manager._client._request.side_effect = [
+            None,  # PUT
+            sample_outgoing_sync_data,  # GET after update
+        ]
+
+        result = outgoing_manager.update(1, description="Updated", threads=16)
+
+        put_call = outgoing_manager._client._request.call_args_list[0]
+        assert put_call[0] == ("PUT", "site_syncs_outgoing/1")
+        body = put_call[1]["json_data"]
+        assert body["description"] == "Updated"
+        assert body["threads"] == 16
+        assert isinstance(result, SiteSyncOutgoing)
+
+    def test_update_no_changes(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+        sample_outgoing_sync_data: dict[str, Any],
+    ) -> None:
+        """Test update with no changes just fetches."""
+        outgoing_manager._client._request.return_value = sample_outgoing_sync_data
+        result = outgoing_manager.update(1)
+
+        assert outgoing_manager._client._request.call_count == 1
+        call_args = outgoing_manager._client._request.call_args
+        assert call_args[0][0] == "GET"
+        assert isinstance(result, SiteSyncOutgoing)
+
+    def test_delete(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+    ) -> None:
+        """Test deleting an outgoing sync."""
+        outgoing_manager._client._request.return_value = None
+        outgoing_manager.delete(1)
+
+        call_args = outgoing_manager._client._request.call_args
+        assert call_args[0] == ("DELETE", "site_syncs_outgoing/1")
+
     def test_refresh_remote_snapshots(
         self,
         outgoing_manager: SiteSyncOutgoingManager,
@@ -685,6 +787,103 @@ class TestSiteSyncIncomingManager:
         assert action_call[1]["json_data"]["action"] == "disable"
 
         assert isinstance(result, SiteSyncIncoming)
+
+    def test_create(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+        sample_incoming_sync_data: dict[str, Any],
+    ) -> None:
+        """Test creating an incoming sync."""
+        incoming_manager._client._request.side_effect = [
+            {"$key": 1},  # POST response
+            sample_incoming_sync_data,  # GET after create
+        ]
+
+        result = incoming_manager.create(site=1, name="DR-Incoming")
+
+        post_call = incoming_manager._client._request.call_args_list[0]
+        assert post_call[0] == ("POST", "site_syncs_incoming")
+        body = post_call[1]["json_data"]
+        assert body["site"] == 1
+        assert body["name"] == "DR-Incoming"
+        assert body["enabled"] is True
+        assert isinstance(result, SiteSyncIncoming)
+
+    def test_create_with_options(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+        sample_incoming_sync_data: dict[str, Any],
+    ) -> None:
+        """Test creating an incoming sync with all options."""
+        incoming_manager._client._request.side_effect = [
+            {"$key": 1},
+            sample_incoming_sync_data,
+        ]
+
+        incoming_manager.create(
+            site=1,
+            name="DR-Incoming",
+            description="Incoming DR",
+            public_ip="10.0.0.1",
+            force_tier="2",
+            min_snapshots=3,
+            vsan_host="remote.example.com",
+            vsan_port=14201,
+        )
+
+        post_call = incoming_manager._client._request.call_args_list[0]
+        body = post_call[1]["json_data"]
+        assert body["description"] == "Incoming DR"
+        assert body["public_ip"] == "10.0.0.1"
+        assert body["force_tier"] == "2"
+        assert body["min_snapshots"] == 3
+        assert body["vsan_host"] == "remote.example.com"
+        assert body["vsan_port"] == 14201
+
+    def test_update(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+        sample_incoming_sync_data: dict[str, Any],
+    ) -> None:
+        """Test updating an incoming sync."""
+        incoming_manager._client._request.side_effect = [
+            None,  # PUT
+            sample_incoming_sync_data,  # GET after update
+        ]
+
+        result = incoming_manager.update(1, description="Updated", min_snapshots=5)
+
+        put_call = incoming_manager._client._request.call_args_list[0]
+        assert put_call[0] == ("PUT", "site_syncs_incoming/1")
+        body = put_call[1]["json_data"]
+        assert body["description"] == "Updated"
+        assert body["min_snapshots"] == 5
+        assert isinstance(result, SiteSyncIncoming)
+
+    def test_update_no_changes(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+        sample_incoming_sync_data: dict[str, Any],
+    ) -> None:
+        """Test update with no changes just fetches."""
+        incoming_manager._client._request.return_value = sample_incoming_sync_data
+        result = incoming_manager.update(1)
+
+        assert incoming_manager._client._request.call_count == 1
+        call_args = incoming_manager._client._request.call_args
+        assert call_args[0][0] == "GET"
+        assert isinstance(result, SiteSyncIncoming)
+
+    def test_delete(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+    ) -> None:
+        """Test deleting an incoming sync."""
+        incoming_manager._client._request.return_value = None
+        incoming_manager.delete(1)
+
+        call_args = incoming_manager._client._request.call_args
+        assert call_args[0] == ("DELETE", "site_syncs_incoming/1")
 
 
 # ============================================================================
@@ -903,6 +1102,37 @@ class TestSiteSyncScheduleManager:
 class TestObjectMethods:
     """Tests for object methods on resource objects."""
 
+    def test_outgoing_sync_save(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+        sample_outgoing_sync_data: dict[str, Any],
+    ) -> None:
+        """Test save via object method."""
+        sync = SiteSyncOutgoing(sample_outgoing_sync_data, outgoing_manager)
+        outgoing_manager._client._request.side_effect = [
+            None,  # PUT
+            sample_outgoing_sync_data,  # GET
+        ]
+        result = sync.save(description="Updated")
+
+        put_call = outgoing_manager._client._request.call_args_list[0]
+        assert put_call[0] == ("PUT", "site_syncs_outgoing/1")
+        assert put_call[1]["json_data"]["description"] == "Updated"
+        assert isinstance(result, SiteSyncOutgoing)
+
+    def test_outgoing_sync_delete(
+        self,
+        outgoing_manager: SiteSyncOutgoingManager,
+        sample_outgoing_sync_data: dict[str, Any],
+    ) -> None:
+        """Test delete via object method."""
+        sync = SiteSyncOutgoing(sample_outgoing_sync_data, outgoing_manager)
+        outgoing_manager._client._request.return_value = None
+        sync.delete()
+
+        call_args = outgoing_manager._client._request.call_args
+        assert call_args[0] == ("DELETE", "site_syncs_outgoing/1")
+
     def test_outgoing_sync_enable(
         self,
         outgoing_manager: SiteSyncOutgoingManager,
@@ -987,6 +1217,37 @@ class TestObjectMethods:
 
         call_args = outgoing_manager._client._request.call_args
         assert call_args[1]["json_data"]["site_syncs_outgoing"] == 1
+
+    def test_incoming_sync_save(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+        sample_incoming_sync_data: dict[str, Any],
+    ) -> None:
+        """Test save via object method."""
+        sync = SiteSyncIncoming(sample_incoming_sync_data, incoming_manager)
+        incoming_manager._client._request.side_effect = [
+            None,  # PUT
+            sample_incoming_sync_data,  # GET
+        ]
+        result = sync.save(description="Updated")
+
+        put_call = incoming_manager._client._request.call_args_list[0]
+        assert put_call[0] == ("PUT", "site_syncs_incoming/1")
+        assert put_call[1]["json_data"]["description"] == "Updated"
+        assert isinstance(result, SiteSyncIncoming)
+
+    def test_incoming_sync_delete(
+        self,
+        incoming_manager: SiteSyncIncomingManager,
+        sample_incoming_sync_data: dict[str, Any],
+    ) -> None:
+        """Test delete via object method."""
+        sync = SiteSyncIncoming(sample_incoming_sync_data, incoming_manager)
+        incoming_manager._client._request.return_value = None
+        sync.delete()
+
+        call_args = incoming_manager._client._request.call_args
+        assert call_args[0] == ("DELETE", "site_syncs_incoming/1")
 
     def test_incoming_sync_enable(
         self,

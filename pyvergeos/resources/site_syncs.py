@@ -228,6 +228,27 @@ class SiteSyncOutgoing(ResourceObject):
         """Get optional note."""
         return str(self.get("note", ""))
 
+    def save(self, **kwargs: Any) -> SiteSyncOutgoing:
+        """Save changes to this sync.
+
+        Args:
+            **kwargs: Fields to update.
+
+        Returns:
+            Updated SiteSyncOutgoing object.
+        """
+        from typing import cast
+
+        manager = cast("SiteSyncOutgoingManager", self._manager)
+        return manager.update(self.key, **kwargs)
+
+    def delete(self) -> None:
+        """Delete this sync."""
+        from typing import cast
+
+        manager = cast("SiteSyncOutgoingManager", self._manager)
+        manager.delete(self.key)
+
     def enable(self) -> SiteSyncOutgoing:
         """Enable this sync.
 
@@ -516,6 +537,27 @@ class SiteSyncIncoming(ResourceObject):
         """Check if sync was created by system."""
         return bool(self.get("system_created", False))
 
+    def save(self, **kwargs: Any) -> SiteSyncIncoming:
+        """Save changes to this sync.
+
+        Args:
+            **kwargs: Fields to update.
+
+        Returns:
+            Updated SiteSyncIncoming object.
+        """
+        from typing import cast
+
+        manager = cast("SiteSyncIncomingManager", self._manager)
+        return manager.update(self.key, **kwargs)
+
+    def delete(self) -> None:
+        """Delete this sync."""
+        from typing import cast
+
+        manager = cast("SiteSyncIncomingManager", self._manager)
+        manager.delete(self.key)
+
     def enable(self) -> SiteSyncIncoming:
         """Enable this sync.
 
@@ -662,19 +704,36 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
 
     Outgoing syncs send cloud snapshots to remote sites for disaster recovery.
 
+    To create an outgoing sync, you first need a registration code from an
+    incoming sync on the remote (destination) system. The typical workflow is:
+
+    1. Create an incoming sync on the remote system.
+    2. Copy its ``registration_code``.
+    3. Create the outgoing sync on this system using that code.
+
     Example:
+        >>> # Create an outgoing sync (requires reg code from remote)
+        >>> sync = client.site_syncs.create(
+        ...     site=1,
+        ...     name="DR-Sync",
+        ...     registration_code=reg_code,
+        ... )
+
         >>> # List all outgoing syncs
         >>> syncs = client.site_syncs.list()
-
-        >>> # Get syncs for a specific site
-        >>> syncs = client.site_syncs.list(site_key=1)
 
         >>> # Get a sync by name
         >>> sync = client.site_syncs.get(name="DR-Sync")
 
+        >>> # Update a sync
+        >>> sync = client.site_syncs.update(sync.key, threads=16)
+
         >>> # Enable/disable a sync
         >>> sync = client.site_syncs.enable(sync.key)
         >>> sync = client.site_syncs.disable(sync.key)
+
+        >>> # Delete a sync
+        >>> client.site_syncs.delete(sync.key)
 
         >>> # Add snapshot to queue
         >>> client.site_syncs.add_to_queue(
@@ -1017,6 +1076,202 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
             destination_prefix=destination_prefix,
         )
 
+    def create(  # type: ignore[override]
+        self,
+        site: int,
+        name: str,
+        registration_code: str,
+        *,
+        description: str | None = None,
+        url: str | None = None,
+        encryption: bool = True,
+        compression: bool = True,
+        netinteg: bool = True,
+        threads: int | None = None,
+        file_threads: int | None = None,
+        destination_tier: str | None = None,
+        queue_retry_count: int | None = None,
+        queue_retry_interval_seconds: int | None = None,
+        queue_retry_interval_multiplier: bool | None = None,
+        note: str | None = None,
+        enabled: bool = True,
+    ) -> SiteSyncOutgoing:
+        """Create a new outgoing site sync.
+
+        The registration code is obtained from an incoming sync on the
+        remote (destination) system.
+
+        Args:
+            site: Site $key (ID) to associate this sync with.
+            name: Sync name (1-128 characters).
+            registration_code: Registration code from the remote
+                system's incoming sync.
+            description: Sync description.
+            url: Remote URL of the destination system.
+            encryption: Enable encryption (default True).
+            compression: Enable compression (default True).
+            netinteg: Enable network integrity checking (default True).
+            threads: Number of data threads (1-32, default 8).
+            file_threads: Number of file threads (1-64, default 4).
+            destination_tier: Override destination storage tier
+                (unspecified, 1-5).
+            queue_retry_count: Retry attempts for queued items (0-100).
+            queue_retry_interval_seconds: Retry interval in seconds
+                (1-300).
+            queue_retry_interval_multiplier: Enable retry interval
+                multiplier.
+            note: Optional note.
+            enabled: Enable the sync (default True).
+
+        Returns:
+            Created SiteSyncOutgoing object.
+
+        Example:
+            >>> # Get reg code from remote system's incoming sync
+            >>> reg_code = remote_incoming_sync.registration_code
+            >>> sync = client.site_syncs.create(
+            ...     site=1,
+            ...     name="DR-Sync",
+            ...     registration_code=reg_code,
+            ... )
+        """
+        body: dict[str, Any] = {
+            "site": site,
+            "name": name,
+            "registration_code": registration_code,
+            "enabled": enabled,
+            "encryption": encryption,
+            "compression": compression,
+            "netinteg": netinteg,
+        }
+
+        if description is not None:
+            body["description"] = description
+        if url is not None:
+            body["url"] = url
+        if threads is not None:
+            body["threads"] = threads
+        if file_threads is not None:
+            body["file_threads"] = file_threads
+        if destination_tier is not None:
+            body["destination_tier"] = destination_tier
+        if queue_retry_count is not None:
+            body["queue_retry_count"] = queue_retry_count
+        if queue_retry_interval_seconds is not None:
+            body["queue_retry_interval_seconds"] = queue_retry_interval_seconds
+        if queue_retry_interval_multiplier is not None:
+            body["queue_retry_interval_multiplier"] = queue_retry_interval_multiplier
+        if note is not None:
+            body["note"] = note
+
+        response = self._client._request("POST", self._endpoint, json_data=body)
+
+        if response and isinstance(response, dict):
+            sync_key = response.get("$key")
+            if sync_key:
+                return self.get(int(sync_key))
+
+        return self.get(name=name, site_key=site)
+
+    def update(  # type: ignore[override]
+        self,
+        key: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        url: str | None = None,
+        encryption: bool | None = None,
+        compression: bool | None = None,
+        netinteg: bool | None = None,
+        threads: int | None = None,
+        file_threads: int | None = None,
+        destination_tier: str | None = None,
+        queue_retry_count: int | None = None,
+        queue_retry_interval_seconds: int | None = None,
+        queue_retry_interval_multiplier: bool | None = None,
+        note: str | None = None,
+        enabled: bool | None = None,
+    ) -> SiteSyncOutgoing:
+        """Update an outgoing site sync.
+
+        Args:
+            key: Sync $key (ID).
+            name: New sync name.
+            description: New description.
+            url: New remote URL.
+            encryption: Enable/disable encryption.
+            compression: Enable/disable compression.
+            netinteg: Enable/disable network integrity checking.
+            threads: Number of data threads (1-32).
+            file_threads: Number of file threads (1-64).
+            destination_tier: Override destination storage tier.
+            queue_retry_count: Retry attempts for queued items.
+            queue_retry_interval_seconds: Retry interval in seconds.
+            queue_retry_interval_multiplier: Enable retry interval
+                multiplier.
+            note: Optional note.
+            enabled: Enable or disable the sync.
+
+        Returns:
+            Updated SiteSyncOutgoing object.
+
+        Example:
+            >>> client.site_syncs.update(
+            ...     sync.key,
+            ...     description="Updated DR sync",
+            ...     threads=16,
+            ... )
+        """
+        body: dict[str, Any] = {}
+
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if url is not None:
+            body["url"] = url
+        if encryption is not None:
+            body["encryption"] = encryption
+        if compression is not None:
+            body["compression"] = compression
+        if netinteg is not None:
+            body["netinteg"] = netinteg
+        if threads is not None:
+            body["threads"] = threads
+        if file_threads is not None:
+            body["file_threads"] = file_threads
+        if destination_tier is not None:
+            body["destination_tier"] = destination_tier
+        if queue_retry_count is not None:
+            body["queue_retry_count"] = queue_retry_count
+        if queue_retry_interval_seconds is not None:
+            body["queue_retry_interval_seconds"] = queue_retry_interval_seconds
+        if queue_retry_interval_multiplier is not None:
+            body["queue_retry_interval_multiplier"] = queue_retry_interval_multiplier
+        if note is not None:
+            body["note"] = note
+        if enabled is not None:
+            body["enabled"] = enabled
+
+        if not body:
+            return self.get(key)
+
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
+        return self.get(key)
+
+    def delete(self, key: int) -> None:
+        """Delete an outgoing site sync.
+
+        The sync must not be actively syncing or initializing.
+
+        Args:
+            key: Sync $key (ID).
+
+        Example:
+            >>> client.site_syncs.delete(sync.key)
+        """
+        self._client._request("DELETE", f"{self._endpoint}/{key}")
+
     def set_throttle(self, key: int, throttle: int) -> SiteSyncOutgoing:
         """Set send throttle for an outgoing sync.
 
@@ -1068,21 +1323,36 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
 class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
     """Manager for incoming site sync operations.
 
-    Incoming syncs receive cloud snapshots from remote sites for disaster recovery.
+    Incoming syncs receive cloud snapshots from remote sites for disaster
+    recovery. When created, the system generates a ``registration_code``
+    that must be provided to the remote system's outgoing sync to
+    establish the connection.
 
     Example:
+        >>> # Create an incoming sync
+        >>> sync = client.site_syncs_incoming.create(
+        ...     site=1,
+        ...     name="DR-Incoming",
+        ... )
+        >>> print(sync.registration_code)  # Give to remote system
+
         >>> # List all incoming syncs
         >>> syncs = client.site_syncs_incoming.list()
 
-        >>> # Get syncs for a specific site
-        >>> syncs = client.site_syncs_incoming.list(site_key=1)
-
         >>> # Get a sync by name
-        >>> sync = client.site_syncs_incoming.get(name="DR-Sync")
+        >>> sync = client.site_syncs_incoming.get(name="DR-Incoming")
+
+        >>> # Update a sync
+        >>> sync = client.site_syncs_incoming.update(
+        ...     sync.key, min_snapshots=5
+        ... )
 
         >>> # Enable/disable a sync
         >>> sync = client.site_syncs_incoming.enable(sync.key)
         >>> sync = client.site_syncs_incoming.disable(sync.key)
+
+        >>> # Delete a sync
+        >>> client.site_syncs_incoming.delete(sync.key)
     """
 
     _endpoint = "site_syncs_incoming"
@@ -1284,6 +1554,152 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
 
         self._client._request("POST", "site_syncs_incoming_actions", json_data=body)
         return self.get(key)
+
+    def create(  # type: ignore[override]
+        self,
+        site: int,
+        name: str,
+        *,
+        description: str | None = None,
+        public_ip: str | None = None,
+        force_tier: str | None = None,
+        min_snapshots: int | None = None,
+        request_url: str | None = None,
+        vsan_host: str | None = None,
+        vsan_port: int | None = None,
+        enabled: bool = True,
+    ) -> SiteSyncIncoming:
+        """Create a new incoming site sync.
+
+        Args:
+            site: Site $key (ID) to associate this sync with.
+            name: Sync name (1-128 characters).
+            description: Sync description.
+            public_ip: Public IP/domain of the connecting system.
+            force_tier: Force all synced data to this tier
+                (unspecified, 1-5).
+            min_snapshots: Minimum snapshots to retain (default 1).
+            request_url: URL of this system the remote will use to
+                connect.
+            vsan_host: vSAN connection host.
+            vsan_port: vSAN connection port (default 14201).
+            enabled: Enable the sync (default True).
+
+        Returns:
+            Created SiteSyncIncoming object.
+
+        Example:
+            >>> sync = client.site_syncs_incoming.create(
+            ...     site=1,
+            ...     name="DR-Incoming",
+            ... )
+            >>> print(sync.registration_code)
+        """
+        body: dict[str, Any] = {
+            "site": site,
+            "name": name,
+            "enabled": enabled,
+        }
+
+        if description is not None:
+            body["description"] = description
+        if public_ip is not None:
+            body["public_ip"] = public_ip
+        if force_tier is not None:
+            body["force_tier"] = force_tier
+        if min_snapshots is not None:
+            body["min_snapshots"] = min_snapshots
+        if request_url is not None:
+            body["request_url"] = request_url
+        if vsan_host is not None:
+            body["vsan_host"] = vsan_host
+        if vsan_port is not None:
+            body["vsan_port"] = vsan_port
+
+        response = self._client._request("POST", self._endpoint, json_data=body)
+
+        if response and isinstance(response, dict):
+            sync_key = response.get("$key")
+            if sync_key:
+                return self.get(int(sync_key))
+
+        return self.get(name=name, site_key=site)
+
+    def update(  # type: ignore[override]
+        self,
+        key: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        public_ip: str | None = None,
+        force_tier: str | None = None,
+        min_snapshots: int | None = None,
+        request_url: str | None = None,
+        vsan_host: str | None = None,
+        vsan_port: int | None = None,
+        enabled: bool | None = None,
+    ) -> SiteSyncIncoming:
+        """Update an incoming site sync.
+
+        Args:
+            key: Sync $key (ID).
+            name: New sync name.
+            description: New description.
+            public_ip: New public IP/domain.
+            force_tier: New forced storage tier.
+            min_snapshots: New minimum snapshots to retain.
+            request_url: New URL for remote connection.
+            vsan_host: New vSAN host.
+            vsan_port: New vSAN port.
+            enabled: Enable or disable the sync.
+
+        Returns:
+            Updated SiteSyncIncoming object.
+
+        Example:
+            >>> client.site_syncs_incoming.update(
+            ...     sync.key,
+            ...     description="Updated incoming sync",
+            ...     min_snapshots=3,
+            ... )
+        """
+        body: dict[str, Any] = {}
+
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if public_ip is not None:
+            body["public_ip"] = public_ip
+        if force_tier is not None:
+            body["force_tier"] = force_tier
+        if min_snapshots is not None:
+            body["min_snapshots"] = min_snapshots
+        if request_url is not None:
+            body["request_url"] = request_url
+        if vsan_host is not None:
+            body["vsan_host"] = vsan_host
+        if vsan_port is not None:
+            body["vsan_port"] = vsan_port
+        if enabled is not None:
+            body["enabled"] = enabled
+
+        if not body:
+            return self.get(key)
+
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
+        return self.get(key)
+
+    def delete(self, key: int) -> None:
+        """Delete an incoming site sync.
+
+        Args:
+            key: Sync $key (ID).
+
+        Example:
+            >>> client.site_syncs_incoming.delete(sync.key)
+        """
+        self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
 class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):

@@ -168,8 +168,9 @@ def build_filter(**kwargs: Any) -> str:
             formatted = ", ".join(_format_value(v) for v in value)
             parts.append(f"{field} in ({formatted})")
         elif isinstance(value, str) and ("*" in value or "?" in value):
-            # LIKE query
-            pattern = value.replace("*", "%").replace("?", "_")
+            # LIKE query - escape single quotes, then convert wildcards
+            escaped = value.replace("'", "''")
+            pattern = escaped.replace("*", "%").replace("?", "_")
             parts.append(f"{field} like '{pattern}'")
         else:
             # Equality

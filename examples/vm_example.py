@@ -157,9 +157,9 @@ def guest_operations() -> None:
             print("VM doesn't have guest agent enabled")
             return
 
-        # These operations send signals through the guest agent
-        # vm.guest_shutdown()  # Graceful shutdown via guest OS
-        # vm.guest_reboot()    # Reboot via guest OS
+        # These operations send graceful signals to the guest OS
+        # vm.guest_shutdown()  # ACPI shutdown signal
+        # vm.guest_reboot()    # Graceful reboot (reset with graceful flag)
 
         print("Guest agent available for this VM")
 

@@ -499,6 +499,155 @@ class TestVmRecipeInstanceManagerCreate:
         assert body["auto_update"] is True
 
 
+class TestVmRecipeInstanceNetworkResolution:
+    """Tests for network name resolution in recipe answers."""
+
+    def test_create_resolves_network_name(
+        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
+    ):
+        """Test that string network answers are resolved to vnet keys."""
+        from pyvergeos.resources.recipe_common import RecipeQuestion, RecipeQuestionManager
+
+        # Mock recipe_questions.list to return a network-type question
+        mock_qmgr = MagicMock(spec=RecipeQuestionManager)
+        net_q = RecipeQuestion({"$key": 1, "name": "YB_NIC_0_NET", "type": "network"}, mock_qmgr)
+        mock_client.recipe_questions.list.return_value = [net_q]
+
+        # Mock vnet lookup
+        mock_client._request.side_effect = [
+            [{"$key": 42, "name": "Internal"}],  # vnet lookup
+            {"$key": 1},  # POST create
+            sample_vm_recipe_instance,  # GET created instance
+        ]
+
+        result = vm_recipe_instance_manager.create(
+            recipe="abc123",
+            name="test-vm",
+            answers={"YB_NIC_0_NET": "Internal", "YB_RAM": 4096},
+        )
+
+        assert result.name == "my-ubuntu"
+        # The POST body should have the resolved network key, not the name
+        create_call = mock_client._request.call_args_list[1]
+        body = create_call[1]["json_data"]
+        assert body["answers"]["YB_NIC_0_NET"] == 42
+        assert body["answers"]["YB_RAM"] == 4096
+
+    def test_create_passes_int_network_unchanged(
+        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
+    ):
+        """Test that integer network answers are passed through unchanged."""
+        from pyvergeos.resources.recipe_common import RecipeQuestion, RecipeQuestionManager
+
+        mock_qmgr = MagicMock(spec=RecipeQuestionManager)
+        net_q = RecipeQuestion({"$key": 1, "name": "YB_NIC_0_NET", "type": "network"}, mock_qmgr)
+        mock_client.recipe_questions.list.return_value = [net_q]
+
+        mock_client._request.side_effect = [
+            {"$key": 1},  # POST create (no vnet lookup needed)
+            sample_vm_recipe_instance,  # GET
+        ]
+
+        vm_recipe_instance_manager.create(
+            recipe="abc123",
+            name="test-vm",
+            answers={"YB_NIC_0_NET": 42},
+        )
+
+        create_call = mock_client._request.call_args_list[0]
+        body = create_call[1]["json_data"]
+        assert body["answers"]["YB_NIC_0_NET"] == 42
+
+    def test_create_passes_new_internal_unchanged(
+        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
+    ):
+        """Test that __new_internal__ is passed through unchanged."""
+        from pyvergeos.resources.recipe_common import RecipeQuestion, RecipeQuestionManager
+
+        mock_qmgr = MagicMock(spec=RecipeQuestionManager)
+        net_q = RecipeQuestion({"$key": 1, "name": "YB_NIC_0_NET", "type": "network"}, mock_qmgr)
+        mock_client.recipe_questions.list.return_value = [net_q]
+
+        mock_client._request.side_effect = [
+            {"$key": 1},  # POST create
+            sample_vm_recipe_instance,  # GET
+        ]
+
+        vm_recipe_instance_manager.create(
+            recipe="abc123",
+            name="test-vm",
+            answers={"YB_NIC_0_NET": "__new_internal__"},
+        )
+
+        create_call = mock_client._request.call_args_list[0]
+        body = create_call[1]["json_data"]
+        assert body["answers"]["YB_NIC_0_NET"] == "__new_internal__"
+
+    def test_create_resolves_numeric_network_name(
+        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
+    ):
+        """Test that numeric string network names (e.g. VLAN '100') are resolved, not skipped."""
+        from pyvergeos.resources.recipe_common import RecipeQuestion, RecipeQuestionManager
+
+        mock_qmgr = MagicMock(spec=RecipeQuestionManager)
+        net_q = RecipeQuestion({"$key": 1, "name": "YB_NIC_0_NET", "type": "network"}, mock_qmgr)
+        mock_client.recipe_questions.list.return_value = [net_q]
+
+        mock_client._request.side_effect = [
+            [{"$key": 7, "name": "100"}],  # vnet lookup for "100"
+            {"$key": 1},  # POST create
+            sample_vm_recipe_instance,  # GET
+        ]
+
+        vm_recipe_instance_manager.create(
+            recipe="abc123",
+            name="test-vm",
+            answers={"YB_NIC_0_NET": "100"},
+        )
+
+        # Should have resolved "100" to key 7 via API, not skipped it
+        create_call = mock_client._request.call_args_list[1]
+        body = create_call[1]["json_data"]
+        assert body["answers"]["YB_NIC_0_NET"] == 7
+
+    def test_create_network_not_found_raises(self, vm_recipe_instance_manager, mock_client):
+        """Test that a missing network raises ValueError."""
+        from pyvergeos.resources.recipe_common import RecipeQuestion, RecipeQuestionManager
+
+        mock_qmgr = MagicMock(spec=RecipeQuestionManager)
+        net_q = RecipeQuestion({"$key": 1, "name": "YB_NIC_0_NET", "type": "network"}, mock_qmgr)
+        mock_client.recipe_questions.list.return_value = [net_q]
+        mock_client._request.return_value = []  # vnet lookup returns empty
+
+        with pytest.raises(ValueError, match="Network 'NonExistent' not found"):
+            vm_recipe_instance_manager.create(
+                recipe="abc123",
+                name="test-vm",
+                answers={"YB_NIC_0_NET": "NonExistent"},
+            )
+
+    def test_no_network_questions_passes_through(
+        self, vm_recipe_instance_manager, mock_client, sample_vm_recipe_instance
+    ):
+        """Test answers pass through when no network questions exist."""
+        mock_client.recipe_questions.list.return_value = []
+
+        mock_client._request.side_effect = [
+            {"$key": 1},  # POST create
+            sample_vm_recipe_instance,  # GET
+        ]
+
+        vm_recipe_instance_manager.create(
+            recipe="abc123",
+            name="test-vm",
+            answers={"YB_RAM": 4096},
+        )
+
+        create_call = mock_client._request.call_args_list[0]
+        body = create_call[1]["json_data"]
+        assert body["answers"] == {"YB_RAM": 4096}
+
+
 class TestVmRecipeInstanceManagerDelete:
     """Tests for VmRecipeInstanceManager.delete()."""
 

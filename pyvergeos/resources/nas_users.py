@@ -87,6 +87,23 @@ class NASUser(ResourceObject):
         manager = cast("NASUserManager", self._manager)
         manager.delete(self.key)
 
+    def change_password(self, new_password: str) -> NASUser:
+        """Change this user's password.
+
+        Args:
+            new_password: The new password.
+
+        Returns:
+            Updated NASUser object.
+
+        Example:
+            >>> user.change_password("NewSecurePass!")
+        """
+        from typing import cast
+
+        manager = cast("NASUserManager", self._manager)
+        return manager.change_password(self.key, new_password)
+
     @property
     def service_key(self) -> int | None:
         """Get the parent NAS service key."""
@@ -560,6 +577,23 @@ class NASUserManager(ResourceManager["NASUser"]):
             >>> client.nas_users.disable(user.key)
         """
         return self.update(key, enabled=False)
+
+    def change_password(self, key: str, new_password: str) -> NASUser:
+        """Change a NAS user's password.
+
+        Convenience method for updating just the password.
+
+        Args:
+            key: User $key (40-character hex string).
+            new_password: The new password.
+
+        Returns:
+            Updated NASUser object.
+
+        Example:
+            >>> client.nas_users.change_password(user.key, "NewSecurePass!")
+        """
+        return self.update(key, password=new_password)
 
     def _resolve_service_key(self, service: int | str) -> int | None:
         """Resolve a NAS service identifier to its key.

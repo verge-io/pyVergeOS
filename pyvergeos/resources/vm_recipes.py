@@ -767,6 +767,66 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
 
         raise ValueError("Either key or name must be provided")
 
+    def _resolve_network_answers(self, recipe: str, answers: dict[str, Any]) -> dict[str, Any]:
+        """Resolve network name strings to vnet keys in recipe answers.
+
+        The API expects network-type answers as integer vnet keys (or the
+        special value ``__new_internal__``). This helper fetches the recipe's
+        questions, identifies network-type ones, and resolves any string
+        network names to their vnet keys so callers can pass names directly.
+
+        Args:
+            recipe: Recipe $key (40-character hex string).
+            answers: Recipe answers dict (not mutated).
+
+        Returns:
+            New answers dict with network names resolved to keys.
+        """
+        # Fetch network-type questions for this recipe
+        questions = self._client.recipe_questions.list(
+            recipe_ref=f"vm_recipes/{recipe}",
+            fields=["$key", "name", "type"],
+            filter="type eq 'network'",
+        )
+        if not questions:
+            return answers
+
+        network_question_names = {q.get("name") for q in questions}
+
+        resolved = dict(answers)
+        for qname in network_question_names:
+            if qname not in resolved:
+                continue
+            val = resolved[qname]
+            # Skip ints and non-strings; __new_internal__ is a special
+            # sentinel the API accepts directly.
+            if isinstance(val, int):
+                continue
+            if not isinstance(val, str):
+                continue
+            if val == "__new_internal__":
+                continue
+            # All other strings are treated as network names and resolved
+            # via the API. Users who want to pass a raw key should use int.
+            response = self._client._request(
+                "GET",
+                "vnets",
+                params={
+                    "filter": f"name eq '{val.replace(chr(39), chr(39) * 2)}'",
+                    "fields": "$key,name",
+                },
+            )
+            if isinstance(response, list):
+                if not response:
+                    raise ValueError(f"Network '{val}' not found")
+                resolved[qname] = response[0].get("$key")
+            elif isinstance(response, dict):
+                resolved[qname] = response.get("$key")
+            else:
+                raise ValueError(f"Network '{val}' not found")
+
+        return resolved
+
     def create(  # type: ignore[override]
         self,
         recipe: str,
@@ -776,6 +836,10 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         auto_update: bool = False,
     ) -> VmRecipeInstance:
         """Create a new recipe instance (deploy a recipe).
+
+        Network-type answers accept either a vnet key (int) or a network
+        name (str). Names are automatically resolved to keys before sending
+        to the API.
 
         Args:
             recipe: Recipe $key (40-character hex string).
@@ -790,7 +854,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             >>> instance = client.vm_recipe_instances.create(
             ...     recipe="8f73f8bcc9c9...",
             ...     name="my-vm",
-            ...     answers={"ram": 4096}
+            ...     answers={"ram": 4096, "YB_NIC_0_NET": "Internal"}
             ... )
         """
         body: dict[str, Any] = {
@@ -799,7 +863,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         }
 
         if answers is not None:
-            body["answers"] = answers
+            body["answers"] = self._resolve_network_answers(recipe, answers)
 
         if auto_update:
             body["auto_update"] = True
@@ -838,7 +902,13 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             body["auto_update"] = auto_update
 
         if answers is not None:
-            body["answers"] = answers
+            # Fetch the instance to get recipe key for question lookup
+            instance = self.get(key)
+            recipe_key = instance.get("recipe")
+            if recipe_key:
+                body["answers"] = self._resolve_network_answers(str(recipe_key), answers)
+            else:
+                body["answers"] = answers
 
         if not body:
             return self.get(key)
