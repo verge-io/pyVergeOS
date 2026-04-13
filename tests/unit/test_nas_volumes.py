@@ -301,6 +301,56 @@ class TestNASVolumeManager:
         ]
         assert any("action=reset" in call.kwargs.get("url", "") for call in put_calls)
 
+    def test_clone_volume(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test cloning a volume."""
+        vol_key = "abc123def456789012345678901234567890abcd"
+        mock_session.request.return_value.json.return_value = {"task": 456}
+
+        result = mock_client.nas_volumes.clone(vol_key)
+
+        assert result == {"task": 456}
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        assert len(post_calls) == 1
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["volume"] == vol_key
+        assert body["action"] == "clone"
+        assert "params" not in body
+
+    def test_clone_volume_with_name(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test cloning a volume with a custom name."""
+        vol_key = "abc123def456789012345678901234567890abcd"
+        mock_session.request.return_value.json.return_value = {"task": 789}
+
+        result = mock_client.nas_volumes.clone(vol_key, name="FileShare-copy")
+
+        assert result == {"task": 789}
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["volume"] == vol_key
+        assert body["action"] == "clone"
+        assert body["params"]["name"] == "FileShare-copy"
+
+    def test_clone_volume_returns_none(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test clone returns None when response is not a dict."""
+        vol_key = "abc123def456789012345678901234567890abcd"
+        mock_session.request.return_value.json.return_value = None
+
+        result = mock_client.nas_volumes.clone(vol_key)
+
+        assert result is None
+
     def test_snapshots_manager(self, mock_client: VergeClient) -> None:
         """Test getting a snapshot manager for a volume."""
         vol_key = "abc123def456789012345678901234567890abcd"
@@ -435,6 +485,26 @@ class TestNASVolume:
         updated = volume.save(description="New desc")
 
         assert updated.get("description") == "New desc"
+
+    def test_volume_clone(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test NASVolume clone method."""
+        vol_key = "abc123def456789012345678901234567890abcd"
+        mock_session.request.return_value.json.return_value = {"task": 123}
+
+        volume = NASVolume({"$key": vol_key}, mock_client.nas_volumes)
+
+        result = volume.clone(name="copy")
+
+        assert result == {"task": 123}
+        post_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        body = post_calls[0].kwargs.get("json", {})
+        assert body["volume"] == vol_key
+        assert body["action"] == "clone"
+        assert body["params"]["name"] == "copy"
 
     def test_volume_delete(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test NASVolume delete method."""
