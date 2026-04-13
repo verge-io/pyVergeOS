@@ -183,6 +183,18 @@ class TestNASUser:
         manager.update.assert_called_once_with("abc123", displayname="Updated")
         assert result.displayname == "Updated"
 
+    def test_change_password(self) -> None:
+        """Test change_password method calls manager.change_password."""
+        manager = MagicMock(spec=NASUserManager)
+        updated = NASUser({"$key": "abc123", "name": "user"}, manager)
+        manager.change_password.return_value = updated
+
+        user = NASUser({"$key": "abc123"}, manager)
+        result = user.change_password("NewPass!")
+
+        manager.change_password.assert_called_once_with("abc123", "NewPass!")
+        assert result.name == "user"
+
     def test_delete(self) -> None:
         """Test delete method calls manager.delete."""
         manager = MagicMock(spec=NASUserManager)
@@ -539,6 +551,20 @@ class TestNASUserManager:
         assert user.is_enabled is False
         put_call = mock_client._request.call_args_list[0]
         assert put_call[1]["json_data"]["enabled"] is False
+
+    def test_change_password(self, manager: NASUserManager, mock_client: MagicMock) -> None:
+        """Test changing user password."""
+        mock_client._request.side_effect = [
+            None,  # PUT
+            [{"$key": "abc123", "name": "user"}],  # GET
+        ]
+
+        user = manager.change_password("abc123", "NewSecurePass!")
+
+        assert user.name == "user"
+        put_call = mock_client._request.call_args_list[0]
+        assert put_call[0] == ("PUT", "vm_service_users/abc123")
+        assert put_call[1]["json_data"]["password"] == "NewSecurePass!"
 
     def test_resolve_service_key_int(self, manager: NASUserManager, mock_client: MagicMock) -> None:
         """Test service key resolution with integer."""
