@@ -820,14 +820,14 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
                     "fields": "$key,name",
                 },
             )
-            if not response:
-                raise ValueError(f"Network '{val}' not found")
             if isinstance(response, list):
                 if not response:
                     raise ValueError(f"Network '{val}' not found")
                 resolved[qname] = response[0].get("$key")
-            else:
+            elif isinstance(response, dict):
                 resolved[qname] = response.get("$key")
+            else:
+                raise ValueError(f"Network '{val}' not found")
 
         return resolved
 
