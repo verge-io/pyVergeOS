@@ -484,14 +484,15 @@ class TestVM:
         mock_session: MagicMock,
         vm_data: dict[str, Any],
     ) -> None:
-        """Test guest reboot."""
+        """Test guest reboot sends graceful reset."""
         vm = VM(vm_data, mock_client.vms)
 
         vm.guest_reboot()
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
-        assert body["action"] == "guestreset"
+        assert body["action"] == "reset"
+        assert body["params"] == {"graceful": True}
 
     def test_guest_shutdown(
         self,
@@ -499,14 +500,14 @@ class TestVM:
         mock_session: MagicMock,
         vm_data: dict[str, Any],
     ) -> None:
-        """Test guest shutdown."""
+        """Test guest shutdown sends ACPI poweroff."""
         vm = VM(vm_data, mock_client.vms)
 
         vm.guest_shutdown()
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
-        assert body["action"] == "guestshutdown"
+        assert body["action"] == "poweroff"
 
     def test_clone(
         self,

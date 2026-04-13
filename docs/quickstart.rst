@@ -100,7 +100,7 @@ Power Operations
    vm.power_on()
    vm.power_off()
    vm.reset()
-   vm.guest_reboot()  # Graceful reboot via guest agent
+   vm.guest_reboot()  # Graceful reboot via guest OS
 
 Snapshots
 ^^^^^^^^^

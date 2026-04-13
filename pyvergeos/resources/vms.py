@@ -267,16 +267,32 @@ class VM(ResourceObject):
         return self
 
     def guest_reboot(self) -> VM:
-        """Send reboot signal to guest OS (requires guest agent)."""
+        """Graceful reboot via the guest OS.
+
+        Sends a reset action with the graceful flag, which asks the guest
+        OS to restart cleanly rather than doing a hard reset.
+        """
         self._manager._client._request(
-            "POST", "vm_actions", json_data={"vm": self.key, "action": "guestreset"}
+            "POST",
+            "vm_actions",
+            json_data={
+                "vm": self.key,
+                "action": "reset",
+                "params": {"graceful": True},
+            },
         )
         return self
 
     def guest_shutdown(self) -> VM:
-        """Send shutdown signal to guest OS (requires guest agent)."""
+        """Graceful shutdown via ACPI signal to the guest OS.
+
+        Sends an ACPI poweroff signal, allowing the guest OS to shut
+        down cleanly.
+        """
         self._manager._client._request(
-            "POST", "vm_actions", json_data={"vm": self.key, "action": "guestshutdown"}
+            "POST",
+            "vm_actions",
+            json_data={"vm": self.key, "action": "poweroff"},
         )
         return self
 
