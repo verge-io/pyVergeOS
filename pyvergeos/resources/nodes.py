@@ -1807,8 +1807,7 @@ class NodeManager(ResourceManager[Node]):
             >>> node = client.nodes.enable_maintenance(node.key)
             >>> print(f"Maintenance mode: {node.is_maintenance}")
         """
-        body = {"node": key, "action": "maintenance"}
-        self._client._request("POST", "node_actions/enable_maintenance", json_data=body)
+        self._client._request("POST", f"nodes/{key}/enable_maintenance", json_data={})
         return self.get(key)
 
     def disable_maintenance(self, key: int) -> Node:
@@ -1827,8 +1826,7 @@ class NodeManager(ResourceManager[Node]):
             >>> node = client.nodes.disable_maintenance(node.key)
             >>> print(f"Maintenance mode: {node.is_maintenance}")
         """
-        body = {"node": key, "action": "leavemaintenance"}
-        self._client._request("POST", "node_actions/disable_maintenance", json_data=body)
+        self._client._request("POST", f"nodes/{key}/disable_maintenance", json_data={})
         return self.get(key)
 
     def restart(self, key: int) -> dict[str, Any] | None:
@@ -1848,8 +1846,7 @@ class NodeManager(ResourceManager[Node]):
             >>> if result and "task" in result:
             ...     client.tasks.wait(result["task"])
         """
-        body = {"node": key, "action": "maintenance_reboot"}
-        response = self._client._request("POST", "node_actions/maintenance_reboot", json_data=body)
+        response = self._client._request("POST", f"nodes/{key}/maintenance_reboot", json_data={})
         if isinstance(response, dict):
             return response
         return None
