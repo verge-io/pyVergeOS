@@ -206,7 +206,7 @@ class TestVNetQueryManager:
         manager = VNetQueryManager(mock_client, parent_key=10)
         result = manager.get(1)
         assert isinstance(result, QueryResult)
-        assert result.key == 1
+        assert result.key == "1"  # QueryResult.key returns str (SHA1 keys)
 
     def test_get_by_query_id(
         self,

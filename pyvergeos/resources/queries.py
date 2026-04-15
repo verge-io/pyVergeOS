@@ -133,15 +133,24 @@ class QueryResult(ResourceObject):
     """
 
     @property
-    def query_key(self) -> str:
-        """Query primary key (SHA1 string).
+    def key(self) -> str:  # type: ignore[override]
+        """Resource primary key (SHA1 string).
 
-        Query endpoints use string keys unlike most VergeOS resources.
+        Overrides ``ResourceObject.key`` because query endpoints use
+        40-char SHA1 hex strings as ``$key``, not integers.
+
+        Raises:
+            ValueError: If resource has no $key.
         """
         k = self.get("$key")
         if k is None:
-            raise ValueError("Query has no $key")
+            raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
+
+    @property
+    def query_key(self) -> str:
+        """Alias for ``key`` — query primary key (SHA1 string)."""
+        return self.key
 
     @property
     def query_id(self) -> str:
@@ -376,7 +385,7 @@ class QueryManager(ResourceManager[QueryResult]):
             Completed QueryResult.
         """
         result = self.create(query, params)
-        return self.wait(result.query_key, timeout=timeout, poll_interval=poll_interval)
+        return self.wait(result.key, timeout=timeout, poll_interval=poll_interval)
 
 
 class VNetQueryManager(QueryManager):
