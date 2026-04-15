@@ -28,6 +28,7 @@ from pyvergeos.resources.cluster_tiers import (
     ClusterTierStatus,
 )
 from pyvergeos.resources.devices import Device, DeviceManager
+from pyvergeos.resources.diagnostics import SystemDiagnostic, SystemDiagnosticManager
 from pyvergeos.resources.gpu import (
     NodeGpu,
     NodeGpuInstance,
@@ -45,6 +46,7 @@ from pyvergeos.resources.gpu import (
     NvidiaVgpuProfile,
     NvidiaVgpuProfileManager,
 )
+from pyvergeos.resources.lldp import NodeLLDPNeighbor, NodeLLDPNeighborManager
 from pyvergeos.resources.machine_stats import (
     MachineLog,
     MachineLogManager,
@@ -96,6 +98,14 @@ from pyvergeos.resources.network_stats import (
     WireGuardPeerStatus,
     WireGuardPeerStatusManager,
 )
+from pyvergeos.resources.nic_stats import (
+    MachineNicFabricStatus,
+    MachineNicFabricStatusManager,
+    MachineNicStats,
+    MachineNicStatsManager,
+    MachineNicStatus,
+    MachineNicStatusManager,
+)
 from pyvergeos.resources.nodes import (
     Node,
     NodeDriver,
@@ -119,6 +129,14 @@ from pyvergeos.resources.oidc_applications import (
     OidcApplicationUserManager,
 )
 from pyvergeos.resources.permissions import Permission, PermissionManager
+from pyvergeos.resources.queries import (
+    NodeQueryManager,
+    QueryManager,
+    QueryResult,
+    ServiceContainerQueryManager,
+    TenantNodeQueryManager,
+    VNetQueryManager,
+)
 from pyvergeos.resources.recipe_common import (
     RecipeQuestion,
     RecipeQuestionManager,
@@ -253,10 +271,23 @@ __all__ = [
     "CloudSnapshotVMManager",
     "Device",
     "DeviceManager",
+    "ServiceContainerQueryManager",
+    "SystemDiagnostic",
+    "SystemDiagnosticManager",
+    "TenantNodeQueryManager",
+    "VNetQueryManager",
     "IPSecActiveConnection",
     "IPSecActiveConnectionManager",
+    "QueryManager",
+    "QueryResult",
     "MachineLog",
     "MachineLogManager",
+    "MachineNicFabricStatus",
+    "MachineNicFabricStatusManager",
+    "MachineNicStats",
+    "MachineNicStatsManager",
+    "MachineNicStatus",
+    "MachineNicStatusManager",
     "MachineStats",
     "MachineStatsHistory",
     "MachineStatsManager",
@@ -285,7 +316,10 @@ __all__ = [
     "Node",
     "NodeDriver",
     "NodeDriverManager",
+    "NodeLLDPNeighbor",
+    "NodeLLDPNeighborManager",
     "NodeManager",
+    "NodeQueryManager",
     "NodePCIDevice",
     "NodePCIDeviceManager",
     "NodeSriovNicDevice",
