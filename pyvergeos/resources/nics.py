@@ -10,6 +10,11 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.nic_stats import (
+        MachineNicFabricStatusManager,
+        MachineNicStatsManager,
+        MachineNicStatusManager,
+    )
     from pyvergeos.resources.vms import VM
 
 logger = logging.getLogger(__name__)
@@ -105,6 +110,51 @@ class NIC(ResourceObject):
     def tx_bytes(self) -> int:
         """Get transmitted bytes."""
         return int(self.get("tx_bytes") or 0)
+
+    @property
+    def nic_stats(self) -> MachineNicStatsManager:
+        """Access detailed traffic statistics for this NIC.
+
+        Returns:
+            MachineNicStatsManager scoped to this NIC.
+
+        Example:
+            >>> stats = nic.nic_stats.get()
+            >>> print(f"TX: {stats.tx_bps_display}, RX: {stats.rx_bps_display}")
+        """
+        from pyvergeos.resources.nic_stats import MachineNicStatsManager
+
+        return MachineNicStatsManager(self._manager._client, self.key)
+
+    @property
+    def link_status(self) -> MachineNicStatusManager:
+        """Access link status for this NIC.
+
+        Returns:
+            MachineNicStatusManager scoped to this NIC.
+
+        Example:
+            >>> status = nic.link_status.get()
+            >>> print(f"Link: {status.link_status_display} at {status.speed_display}")
+        """
+        from pyvergeos.resources.nic_stats import MachineNicStatusManager
+
+        return MachineNicStatusManager(self._manager._client, self.key)
+
+    @property
+    def fabric_status(self) -> MachineNicFabricStatusManager:
+        """Access fabric status for this NIC.
+
+        Returns:
+            MachineNicFabricStatusManager scoped to this NIC.
+
+        Example:
+            >>> fabric = nic.fabric_status.get()
+            >>> print(f"Fabric: {fabric.fabric_status_display}")
+        """
+        from pyvergeos.resources.nic_stats import MachineNicFabricStatusManager
+
+        return MachineNicFabricStatusManager(self._manager._client, self.key)
 
 
 class NICManager(ResourceManager[NIC]):

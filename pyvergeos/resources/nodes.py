@@ -17,11 +17,13 @@ if TYPE_CHECKING:
         NodeHostGpuDeviceManager,
         NodeVgpuDeviceManager,
     )
+    from pyvergeos.resources.lldp import NodeLLDPNeighborManager
     from pyvergeos.resources.machine_stats import (
         MachineLogManager,
         MachineStatsManager,
         MachineStatusManager,
     )
+    from pyvergeos.resources.queries import NodeQueryManager
 
 
 # Status display mappings
@@ -486,6 +488,36 @@ class Node(ResourceObject):
 
         manager = cast("NodeManager", self._manager)
         return manager.sriov_nics(self.key)
+
+    @property
+    def queries(self) -> NodeQueryManager:
+        """Access diagnostic queries for this node.
+
+        Returns:
+            NodeQueryManager scoped to this node.
+
+        Example:
+            >>> result = node.queries.ping("8.8.8.8")
+            >>> result = node.queries.run("ipmi-sensor")
+        """
+        from pyvergeos.resources.queries import NodeQueryManager
+
+        return NodeQueryManager(self._manager._client, self.key)
+
+    @property
+    def lldp_neighbors(self) -> NodeLLDPNeighborManager:
+        """Access LLDP neighbor discovery results for this node.
+
+        Returns:
+            NodeLLDPNeighborManager scoped to this node.
+
+        Example:
+            >>> for neighbor in node.lldp_neighbors.list():
+            ...     print(f"NIC {neighbor.nic_key}: {neighbor.chassis_name}")
+        """
+        from pyvergeos.resources.lldp import NodeLLDPNeighborManager
+
+        return NodeLLDPNeighborManager(self._manager._client, self.key)
 
     def __repr__(self) -> str:
         return (
