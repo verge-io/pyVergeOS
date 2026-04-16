@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         IPSecActiveConnectionManager,
         NetworkMonitorStatsManager,
     )
+    from pyvergeos.resources.queries import VNetQueryManager
     from pyvergeos.resources.routing import NetworkRoutingManager
     from pyvergeos.resources.rules import NetworkRuleManager
     from pyvergeos.resources.vnet_proxy import VnetProxyManager
@@ -697,6 +698,31 @@ class Network(ResourceObject):
         if not isinstance(manager, NetworkManager):
             raise TypeError("Manager must be NetworkManager")
         return manager.diagnostics(self.key, diagnostic_type=diagnostic_type)
+
+    @property
+    def queries(self) -> VNetQueryManager:
+        """Access diagnostic queries for this network.
+
+        Returns:
+            VNetQueryManager scoped to this network.
+
+        Examples:
+            Run a ping::
+
+                result = network.queries.ping("8.8.8.8")
+                print(result.result)
+
+            Run a DNS lookup::
+
+                result = network.queries.dns("example.com")
+
+            Get ARP table::
+
+                result = network.queries.arp()
+        """
+        from pyvergeos.resources.queries import VNetQueryManager
+
+        return VNetQueryManager(self._manager._client, self.key)
 
     def statistics(
         self,

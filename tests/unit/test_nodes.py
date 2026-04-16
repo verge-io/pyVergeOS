@@ -800,9 +800,8 @@ class TestNodeManagerMaintenance:
         # Verify POST was called
         post_call = mock_client._request.call_args_list[0]
         assert post_call[0][0] == "POST"
-        assert "node_actions/enable_maintenance" in post_call[0][1]
-        assert post_call[1]["json_data"]["node"] == 1
-        assert post_call[1]["json_data"]["action"] == "maintenance"
+        assert post_call[0][1] == "nodes/1/enable_maintenance"
+        assert post_call[1]["json_data"] == {}
 
     def test_disable_maintenance(self) -> None:
         """Test disable_maintenance method."""
@@ -819,9 +818,8 @@ class TestNodeManagerMaintenance:
         # Verify POST was called
         post_call = mock_client._request.call_args_list[0]
         assert post_call[0][0] == "POST"
-        assert "node_actions/disable_maintenance" in post_call[0][1]
-        assert post_call[1]["json_data"]["node"] == 1
-        assert post_call[1]["json_data"]["action"] == "leavemaintenance"
+        assert post_call[0][1] == "nodes/1/disable_maintenance"
+        assert post_call[1]["json_data"] == {}
 
     def test_restart(self) -> None:
         """Test restart method."""
@@ -835,9 +833,8 @@ class TestNodeManagerMaintenance:
         # Verify POST was called
         call_args = mock_client._request.call_args
         assert call_args[0][0] == "POST"
-        assert "node_actions/maintenance_reboot" in call_args[0][1]
-        assert call_args[1]["json_data"]["node"] == 1
-        assert call_args[1]["json_data"]["action"] == "maintenance_reboot"
+        assert call_args[0][1] == "nodes/1/maintenance_reboot"
+        assert call_args[1]["json_data"] == {}
 
 
 class TestNodeManagerDeviceManagers:

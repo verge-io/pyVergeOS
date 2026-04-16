@@ -55,9 +55,11 @@ if TYPE_CHECKING:
     from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
     from pyvergeos.resources.cloudinit_files import CloudInitFileManager
     from pyvergeos.resources.clusters import ClusterManager
+    from pyvergeos.resources.diagnostics import SystemDiagnosticManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.gpu import NvidiaVgpuProfileManager
     from pyvergeos.resources.groups import GroupManager
+    from pyvergeos.resources.lldp import NodeLLDPNeighborManager
     from pyvergeos.resources.logs import LogManager
     from pyvergeos.resources.nas_cifs import NASCIFSShareManager
     from pyvergeos.resources.nas_nfs import NASNFSShareManager
@@ -67,6 +69,11 @@ if TYPE_CHECKING:
     from pyvergeos.resources.nas_volumes import NASVolumeManager, NASVolumeSnapshotManager
     from pyvergeos.resources.network_stats import NetworkDashboardManager
     from pyvergeos.resources.networks import NetworkManager
+    from pyvergeos.resources.nic_stats import (
+        MachineNicFabricStatusManager,
+        MachineNicStatsManager,
+        MachineNicStatusManager,
+    )
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.oidc_applications import (
         OidcApplicationGroupManager,
@@ -275,6 +282,11 @@ class VergeClient:
         self._update_source_status: UpdateSourceStatusManager | None = None
         self._update_logs: UpdateLogManager | None = None
         self._update_dashboard: UpdateDashboardManager | None = None
+        self._system_diagnostics: SystemDiagnosticManager | None = None
+        self._node_lldp_neighbors: NodeLLDPNeighborManager | None = None
+        self._machine_nic_stats: MachineNicStatsManager | None = None
+        self._machine_nic_status: MachineNicStatusManager | None = None
+        self._machine_nic_fabric_status: MachineNicFabricStatusManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1866,3 +1878,87 @@ class VergeClient:
 
             self._update_dashboard = UpdateDashboardManager(self)
         return self._update_dashboard
+
+    @property
+    def system_diagnostics(self) -> SystemDiagnosticManager:
+        """Access system diagnostic bundle operations.
+
+        System diagnostics capture comprehensive system state for
+        troubleshooting, including logs, configuration, and hardware info.
+
+        Example:
+            >>> diag = client.system_diagnostics.create(
+            ...     name="issue-2024-01",
+            ...     description="Network connectivity issue",
+            ... )
+            >>> diag = client.system_diagnostics.wait(diag.key)
+            >>> client.system_diagnostics.send_to_support(diag.key)
+        """
+        if self._system_diagnostics is None:
+            from pyvergeos.resources.diagnostics import SystemDiagnosticManager
+
+            self._system_diagnostics = SystemDiagnosticManager(self)
+        return self._system_diagnostics
+
+    @property
+    def node_lldp_neighbors(self) -> NodeLLDPNeighborManager:
+        """Access LLDP neighbor discovery results across all nodes.
+
+        LLDP neighbors show connected switch ports and other network
+        devices discovered via Link Layer Discovery Protocol.
+
+        Example:
+            >>> for neighbor in client.node_lldp_neighbors.list():
+            ...     print(f"Node {neighbor.node_key}, NIC {neighbor.nic_key}: "
+            ...           f"{neighbor.chassis_name}")
+        """
+        if self._node_lldp_neighbors is None:
+            from pyvergeos.resources.lldp import NodeLLDPNeighborManager
+
+            self._node_lldp_neighbors = NodeLLDPNeighborManager(self)
+        return self._node_lldp_neighbors
+
+    @property
+    def machine_nic_stats(self) -> MachineNicStatsManager:
+        """Access machine NIC traffic statistics globally.
+
+        Example:
+            >>> stats = client.machine_nic_stats.list(
+            ...     filter="parent_nic eq 42"
+            ... )
+        """
+        if self._machine_nic_stats is None:
+            from pyvergeos.resources.nic_stats import MachineNicStatsManager
+
+            self._machine_nic_stats = MachineNicStatsManager(self)
+        return self._machine_nic_stats
+
+    @property
+    def machine_nic_status(self) -> MachineNicStatusManager:
+        """Access machine NIC link status globally.
+
+        Example:
+            >>> statuses = client.machine_nic_status.list(
+            ...     filter="parent_nic eq 42"
+            ... )
+        """
+        if self._machine_nic_status is None:
+            from pyvergeos.resources.nic_stats import MachineNicStatusManager
+
+            self._machine_nic_status = MachineNicStatusManager(self)
+        return self._machine_nic_status
+
+    @property
+    def machine_nic_fabric_status(self) -> MachineNicFabricStatusManager:
+        """Access machine NIC fabric status globally.
+
+        Example:
+            >>> statuses = client.machine_nic_fabric_status.list(
+            ...     filter="parent_nic eq 42"
+            ... )
+        """
+        if self._machine_nic_fabric_status is None:
+            from pyvergeos.resources.nic_stats import MachineNicFabricStatusManager
+
+            self._machine_nic_fabric_status = MachineNicFabricStatusManager(self)
+        return self._machine_nic_fabric_status
