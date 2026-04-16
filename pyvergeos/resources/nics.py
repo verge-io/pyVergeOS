@@ -157,6 +157,144 @@ class NIC(ResourceObject):
         return MachineNicFabricStatusManager(self._manager._client, self.key)
 
 
+class MachineNICManager(ResourceManager[NIC]):
+    """Manager for machine NIC operations (not scoped to a specific VM).
+
+    Can list/get NICs across all machines, or scoped to a specific machine
+    by passing a machine_key filter. This is the manager exposed on the
+    client and on Node objects.
+
+    Examples:
+        List all NICs::
+
+            all_nics = client.machine_nics.list()
+
+        List NICs for a specific machine::
+
+            nics = client.machine_nics.list(filter="machine eq 42")
+
+        Access from a node::
+
+            nics = node.nics.list()
+    """
+
+    _endpoint = "machine_nics"
+    _default_fields = NIC_DEFAULT_FIELDS
+
+    def __init__(self, client: VergeClient, machine_key: int | None = None) -> None:
+        super().__init__(client)
+        self._machine_key = machine_key
+
+    def _to_model(self, data: dict[str, Any]) -> NIC:
+        return NIC(data, self)
+
+    def list(  # type: ignore[override]  # noqa: A003
+        self,
+        filter: str | None = None,  # noqa: A002
+        fields: list[str] | None = None,
+        **kwargs: Any,
+    ) -> list[NIC]:
+        """List NICs with optional filtering.
+
+        When scoped to a machine (via machine_key), automatically filters
+        to that machine's NICs. Additional filters can be combined.
+
+        Args:
+            filter: Additional OData filter string.
+            fields: List of fields to return.
+            **kwargs: Additional filter arguments.
+
+        Returns:
+            List of NIC objects.
+        """
+        if fields is None:
+            fields = self._default_fields
+
+        # Scope to machine if set
+        machine_filter: str | None = None
+        if self._machine_key is not None:
+            machine_filter = f"machine eq {self._machine_key}"
+
+        combined: str | None
+        if machine_filter and filter:
+            combined = f"{machine_filter} and ({filter})"
+        elif machine_filter:
+            combined = machine_filter
+        else:
+            combined = filter
+
+        params: dict[str, Any] = {"fields": ",".join(fields)}
+        if combined:
+            params["filter"] = combined
+        if kwargs:
+            from pyvergeos.filters import build_filter
+
+            extra = build_filter(**kwargs)
+            if "filter" in params:
+                params["filter"] = f"{params['filter']} and ({extra})"
+            else:
+                params["filter"] = extra
+
+        params["sort"] = "+orderid"
+
+        response = self._client._request("GET", self._endpoint, params=params)
+
+        if response is None:
+            return []
+
+        if not isinstance(response, list):
+            return [self._to_model(response)]
+
+        return [self._to_model(item) for item in response]
+
+    def get(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: builtins.list[str] | None = None,
+    ) -> NIC:
+        """Get a NIC by key or name.
+
+        Args:
+            key: NIC $key (ID).
+            name: NIC name.
+            fields: List of fields to return.
+
+        Returns:
+            NIC object.
+
+        Raises:
+            NotFoundError: If NIC not found.
+            ValueError: If neither key nor name provided.
+        """
+        if fields is None:
+            fields = self._default_fields
+
+        if key is not None:
+            params: dict[str, Any] = {"fields": ",".join(fields)}
+            response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
+            if response is None:
+                from pyvergeos.exceptions import NotFoundError
+
+                raise NotFoundError(f"NIC {key} not found")
+            if not isinstance(response, dict):
+                from pyvergeos.exceptions import NotFoundError
+
+                raise NotFoundError(f"NIC {key} returned invalid response")
+            return self._to_model(response)
+
+        if name is not None:
+            nics = self.list(filter=f"name eq '{name}'", fields=fields)
+            if not nics:
+                from pyvergeos.exceptions import NotFoundError
+
+                raise NotFoundError(f"NIC with name '{name}' not found")
+            return nics[0]
+
+        raise ValueError("Either key or name must be provided")
+
+
 class NICManager(ResourceManager[NIC]):
     """Manager for VM NIC operations.
 
