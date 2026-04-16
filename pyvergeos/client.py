@@ -74,6 +74,7 @@ if TYPE_CHECKING:
         MachineNicStatsManager,
         MachineNicStatusManager,
     )
+    from pyvergeos.resources.nics import MachineNICManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.oidc_applications import (
         OidcApplicationGroupManager,
@@ -284,6 +285,7 @@ class VergeClient:
         self._update_dashboard: UpdateDashboardManager | None = None
         self._system_diagnostics: SystemDiagnosticManager | None = None
         self._node_lldp_neighbors: NodeLLDPNeighborManager | None = None
+        self._machine_nics: MachineNICManager | None = None
         self._machine_nic_stats: MachineNicStatsManager | None = None
         self._machine_nic_status: MachineNicStatusManager | None = None
         self._machine_nic_fabric_status: MachineNicFabricStatusManager | None = None
@@ -1917,6 +1919,25 @@ class VergeClient:
 
             self._node_lldp_neighbors = NodeLLDPNeighborManager(self)
         return self._node_lldp_neighbors
+
+    @property
+    def machine_nics(self) -> MachineNICManager:
+        """Access machine NICs globally.
+
+        List NICs across all machines (VMs, nodes, etc.) with optional
+        OData filtering. For node-scoped access, use ``node.nics`` instead.
+
+        Example:
+            >>> all_nics = client.machine_nics.list()
+            >>> node_nics = client.machine_nics.list(
+            ...     filter="machine eq 42"
+            ... )
+        """
+        if self._machine_nics is None:
+            from pyvergeos.resources.nics import MachineNICManager
+
+            self._machine_nics = MachineNICManager(self)
+        return self._machine_nics
 
     @property
     def machine_nic_stats(self) -> MachineNicStatsManager:

@@ -12,8 +12,10 @@ from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nics import (
     INTERFACE_DISPLAY_MAP,
     NIC,
+    MachineNICManager,
     NICManager,
 )
+from pyvergeos.resources.nodes import Node
 from pyvergeos.resources.vms import VM
 
 
@@ -286,6 +288,198 @@ class TestNIC:
         """Test tx_bytes property."""
         nic = NIC(nic_data, mock_nic_manager)
         assert nic.tx_bytes == 536870912
+
+
+class TestMachineNICManager:
+    """Unit tests for MachineNICManager (standalone, not VM-scoped)."""
+
+    def test_list_all_nics(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test listing all NICs without machine scope."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "name": "enp3s0", "macaddress": "aa:bb:cc:dd:ee:01", "machine": 2},
+            {"$key": 2, "name": "enp4s0", "macaddress": "aa:bb:cc:dd:ee:02", "machine": 2},
+            {"$key": 3, "name": "eth0", "macaddress": "aa:bb:cc:dd:ee:03", "machine": 100},
+        ]
+
+        manager = MachineNICManager(mock_client)
+        nics = manager.list()
+
+        assert len(nics) == 3
+        # Should NOT have a machine filter in params
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "machine eq" not in params.get("filter", "")
+
+    def test_list_scoped_to_machine(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test listing NICs scoped to a specific machine key."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "name": "enp3s0", "macaddress": "aa:bb:cc:dd:ee:01"},
+            {"$key": 2, "name": "enp4s0", "macaddress": "aa:bb:cc:dd:ee:02"},
+        ]
+
+        manager = MachineNICManager(mock_client, machine_key=42)
+        nics = manager.list()
+
+        assert len(nics) == 2
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "machine eq 42" in params.get("filter", "")
+
+    def test_list_scoped_with_additional_filter(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test machine-scoped list with additional OData filter."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 1, "name": "enp3s0"},
+        ]
+
+        manager = MachineNICManager(mock_client, machine_key=42)
+        manager.list(filter="name eq 'enp3s0'")
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "machine eq 42" in params["filter"]
+        assert "name eq 'enp3s0'" in params["filter"]
+
+    def test_list_empty_result(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test listing with no results."""
+        mock_session.request.return_value.json.return_value = None
+        mock_session.request.return_value.status_code = 204
+        mock_session.request.return_value.text = ""
+
+        manager = MachineNICManager(mock_client, machine_key=42)
+        nics = manager.list()
+
+        assert nics == []
+
+    def test_get_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a NIC by key."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 7,
+            "name": "enp3s0",
+            "macaddress": "58:47:ca:7f:d8:10",
+        }
+
+        manager = MachineNICManager(mock_client)
+        nic = manager.get(7)
+
+        assert nic.key == 7
+        assert nic.name == "enp3s0"
+        assert nic.mac_address == "58:47:ca:7f:d8:10"
+
+    def test_get_by_name(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test getting a NIC by name."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 7, "name": "enp3s0", "macaddress": "58:47:ca:7f:d8:10"},
+        ]
+
+        manager = MachineNICManager(mock_client)
+        nic = manager.get(name="enp3s0")
+
+        assert nic.name == "enp3s0"
+
+    def test_get_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test NotFoundError when NIC not found by name."""
+        mock_session.request.return_value.json.return_value = []
+
+        manager = MachineNICManager(mock_client)
+        with pytest.raises(NotFoundError):
+            manager.get(name="nonexistent")
+
+    def test_get_requires_key_or_name(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test ValueError when neither key nor name provided."""
+        manager = MachineNICManager(mock_client)
+        with pytest.raises(ValueError, match="Either key or name"):
+            manager.get()
+
+    def test_client_machine_nics_property(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test client.machine_nics returns a MachineNICManager."""
+        manager = mock_client.machine_nics
+        assert isinstance(manager, MachineNICManager)
+
+    def test_client_machine_nics_cached(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Test client.machine_nics returns the same instance."""
+        manager1 = mock_client.machine_nics
+        manager2 = mock_client.machine_nics
+        assert manager1 is manager2
+
+
+class TestNodeNics:
+    """Unit tests for Node.nics property."""
+
+    @pytest.fixture
+    def node(self, mock_client: VergeClient) -> Node:
+        """Create a mock Node with a machine key."""
+        return Node(
+            {"$key": 1, "name": "node1", "machine": 42},
+            mock_client.nodes,
+        )
+
+    @pytest.fixture
+    def node_no_machine(self, mock_client: VergeClient) -> Node:
+        """Create a mock Node without a machine key."""
+        return Node(
+            {"$key": 2, "name": "node2"},
+            mock_client.nodes,
+        )
+
+    def test_node_nics_returns_manager(self, node: Node) -> None:
+        """Test that node.nics returns a MachineNICManager."""
+        manager = node.nics
+        assert isinstance(manager, MachineNICManager)
+
+    def test_node_nics_scoped_to_machine(self, node: Node, mock_session: MagicMock) -> None:
+        """Test that node.nics filters by the node's machine key."""
+        mock_session.request.return_value.json.return_value = [
+            {"$key": 7, "name": "enp3s0"},
+        ]
+
+        node.nics.list()
+
+        call_args = mock_session.request.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "machine eq 42" in params.get("filter", "")
+
+    def test_node_nics_no_machine_raises(self, node_no_machine: Node) -> None:
+        """Test that node.nics raises ValueError when no machine key."""
+        with pytest.raises(ValueError, match="no associated machine"):
+            _ = node_no_machine.nics
+
+    def test_node_nics_list_with_stats(self, node: Node, mock_session: MagicMock) -> None:
+        """Test listing node NICs and accessing stats via NIC objects."""
+        mock_session.request.return_value.json.return_value = [
+            {
+                "$key": 7,
+                "name": "enp3s0",
+                "macaddress": "58:47:ca:7f:d8:10",
+                "machine": 42,
+            },
+        ]
+
+        nics = node.nics.list()
+        assert len(nics) == 1
+        nic = nics[0]
+        assert nic.key == 7
+        assert nic.mac_address == "58:47:ca:7f:d8:10"
+
+        # Verify the NIC can produce stats/status/fabric managers
+        from pyvergeos.resources.nic_stats import (
+            MachineNicFabricStatusManager,
+            MachineNicStatsManager,
+            MachineNicStatusManager,
+        )
+
+        assert isinstance(nic.nic_stats, MachineNicStatsManager)
+        assert isinstance(nic.link_status, MachineNicStatusManager)
+        assert isinstance(nic.fabric_status, MachineNicFabricStatusManager)
 
 
 class TestNICInterfaceMaps:
