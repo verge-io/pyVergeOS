@@ -106,6 +106,7 @@ from pyvergeos.resources.nic_stats import (
     MachineNicStatus,
     MachineNicStatusManager,
 )
+from pyvergeos.resources.nics import NIC, MachineNICManager, NICManager
 from pyvergeos.resources.nodes import (
     Node,
     NodeDriver,
@@ -282,6 +283,9 @@ __all__ = [
     "QueryResult",
     "MachineLog",
     "MachineLogManager",
+    "MachineNICManager",
+    "NIC",
+    "NICManager",
     "MachineNicFabricStatus",
     "MachineNicFabricStatusManager",
     "MachineNicStats",

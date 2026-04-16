@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         MachineStatsManager,
         MachineStatusManager,
     )
+    from pyvergeos.resources.nics import MachineNICManager
     from pyvergeos.resources.queries import NodeQueryManager
 
 
@@ -488,6 +489,28 @@ class Node(ResourceObject):
 
         manager = cast("NodeManager", self._manager)
         return manager.sriov_nics(self.key)
+
+    @property
+    def nics(self) -> MachineNICManager:
+        """Access NICs attached to this node.
+
+        Returns:
+            MachineNICManager scoped to this node's machine key.
+
+        Example:
+            >>> for nic in node.nics.list():
+            ...     print(f"{nic['name']}: {nic.mac_address}")
+            ...     stats = nic.nic_stats.get()
+            ...     print(f"  TX: {stats.tx_bps_display}")
+
+        Raises:
+            ValueError: If node has no associated machine.
+        """
+        from pyvergeos.resources.nics import MachineNICManager
+
+        if self.machine_key is None:
+            raise ValueError("Node has no associated machine")
+        return MachineNICManager(self._manager._client, self.machine_key)
 
     @property
     def queries(self) -> NodeQueryManager:
