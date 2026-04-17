@@ -210,6 +210,23 @@ class TestNode:
         node = Node(data, MagicMock())
         assert node.needs_restart is False
 
+    def test_reload_drivers_required_true(self) -> None:
+        """Test reload_drivers_required property when true."""
+        data = {"$key": 1, "reload_drivers_required": True}
+        node = Node(data, MagicMock())
+        assert node.reload_drivers_required is True
+
+    def test_reload_drivers_required_false(self) -> None:
+        """Test reload_drivers_required property when false."""
+        data = {"$key": 1, "reload_drivers_required": False}
+        node = Node(data, MagicMock())
+        assert node.reload_drivers_required is False
+
+    def test_reload_drivers_required_missing(self) -> None:
+        """Test reload_drivers_required defaults to False when missing."""
+        node = Node({"$key": 1}, MagicMock())
+        assert node.reload_drivers_required is False
+
     def test_restart_reason_property(self) -> None:
         """Test restart_reason property."""
         data = {"$key": 1, "restart_reason": "Kernel update pending"}
