@@ -183,9 +183,7 @@ class NodeMemoryManager(ResourceManager[NodeMemory]):
         "modified",
     ]
 
-    def __init__(
-        self, client: VergeClient, node_key: int | None = None
-    ) -> None:
+    def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
         super().__init__(client)
         self._node_key = node_key
 
@@ -273,9 +271,7 @@ class NodeMemoryManager(ResourceManager[NodeMemory]):
         if fields:
             params["fields"] = ",".join(fields)
 
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None or not isinstance(response, dict):
             from pyvergeos.exceptions import NotFoundError

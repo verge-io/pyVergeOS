@@ -10,7 +10,6 @@ from pyvergeos.exceptions import VergeTimeoutError
 from pyvergeos.resources.queries import QueryResult
 from pyvergeos.resources.vsan_queries import VsanQueryManager
 
-
 SAMPLE_QUERY_CREATED = {
     "$key": "abc123def456",
     "location": "/v4/vsan_queries/abc123def456",
@@ -73,10 +72,7 @@ SAMPLE_REPAIR_COMPLETE = {
     "query": "getrepairstatus",
     "params": {"node": 1},
     "status": "complete",
-    "result": (
-        "0) device_0 = (uint64) 0\r\n"
-        "1) device_1 = (uint64) 0\r\n"
-    ),
+    "result": ("0) device_0 = (uint64) 0\r\n1) device_1 = (uint64) 0\r\n"),
     "command": "vcmd getrepairstatus",
     "created": 1776388451693922,
     "modified": 1776388451,
@@ -100,7 +96,7 @@ class TestVsanQueryManager:
         ]
         manager = VsanQueryManager(mock_client)
 
-        result = manager.create("getjournalstatus")
+        _ = manager.create("getjournalstatus")
 
         # Verify POST was called with correct body
         post_call = mock_client._request.call_args_list[0]
@@ -117,7 +113,7 @@ class TestVsanQueryManager:
         ]
         manager = VsanQueryManager(mock_client)
 
-        result = manager.create("getrepairstatus", params={"node": 1})
+        _ = manager.create("getrepairstatus", params={"node": 1})
 
         post_call = mock_client._request.call_args_list[0]
         body = post_call[1].get("json_data") or post_call[0][2]
@@ -154,9 +150,11 @@ class TestVsanQueryManager:
         mock_client._request.return_value = SAMPLE_QUERY_RUNNING
         manager = VsanQueryManager(mock_client)
 
-        with patch("time.monotonic", side_effect=[0, 0.5, 1.0, 2.0, 3.0]):
-            with pytest.raises(VergeTimeoutError):
-                manager.wait("abc123def456", timeout=2, poll_interval=0.01)
+        with (
+            patch("time.monotonic", side_effect=[0, 0.5, 1.0, 2.0, 3.0]),
+            pytest.raises(VergeTimeoutError),
+        ):
+            manager.wait("abc123def456", timeout=2, poll_interval=0.01)
 
     def test_run_creates_and_waits(self) -> None:
         mock_client = MagicMock()

@@ -4,13 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from pyvergeos.resources.node_memory import (
     NodeMemory,
     NodeMemoryManager,
 )
-
 
 SAMPLE_DIMM = {
     "$key": 1,

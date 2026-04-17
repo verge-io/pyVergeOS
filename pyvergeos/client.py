@@ -131,11 +131,11 @@ if TYPE_CHECKING:
         VmRecipeManager,
     )
     from pyvergeos.resources.vms import VMManager
-    from pyvergeos.resources.vsan_queries import VsanQueryManager
     from pyvergeos.resources.volume_vm_exports import (
         VolumeVmExportManager,
         VolumeVmExportStatManager,
     )
+    from pyvergeos.resources.vsan_queries import VsanQueryManager
     from pyvergeos.resources.webhooks import WebhookManager
 
 logger = logging.getLogger(__name__)

@@ -109,9 +109,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
             fields = QUERY_DEFAULT_FIELDS
 
         params: dict[str, Any] = {"fields": ",".join(fields)}
-        response = self._client._request(
-            "GET", f"{self._endpoint}/{key}", params=params
-        )
+        response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None or not isinstance(response, dict):
             raise NotFoundError(f"vSAN query {key} not found")
@@ -136,9 +134,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
         if params:
             body["params"] = params
 
-        response = self._client._request(
-            "POST", self._endpoint, json_data=body
-        )
+        response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None or not isinstance(response, dict):
             raise ValueError("No response from vSAN query creation")
 
@@ -173,8 +169,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
                 return result
             if time.monotonic() >= deadline:
                 raise VergeTimeoutError(
-                    f"vSAN query {key} did not complete within {timeout}s "
-                    f"(status: {result.status})"
+                    f"vSAN query {key} did not complete within {timeout}s (status: {result.status})"
                 )
             time.sleep(poll_interval)
 

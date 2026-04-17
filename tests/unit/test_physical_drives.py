@@ -5,13 +5,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-import pytest
-
 from pyvergeos.resources.physical_drives import (
     PhysicalDrive,
     PhysicalDriveManager,
 )
-
 
 SAMPLE_DRIVE = {
     "$key": 1,
@@ -220,9 +217,7 @@ class TestPhysicalDrive:
 
     def test_vsan_online_since(self) -> None:
         drive = PhysicalDrive(SAMPLE_DRIVE, MagicMock())
-        assert drive.vsan_online_since == datetime(
-            2026, 3, 28, 16, 40, 17, tzinfo=timezone.utc
-        )
+        assert drive.vsan_online_since == datetime(2026, 3, 28, 16, 40, 17, tzinfo=timezone.utc)
 
     def test_vsan_online_since_zero(self) -> None:
         drive = PhysicalDrive(SAMPLE_WARN_DRIVE, MagicMock())
