@@ -200,6 +200,11 @@ class Node(ResourceObject):
         return bool(self.get("need_restart", False))
 
     @property
+    def reload_drivers_required(self) -> bool:
+        """Check if node requires a driver reload (maintenance window)."""
+        return bool(self.get("reload_drivers_required", False))
+
+    @property
     def restart_reason(self) -> str:
         """Reason for needing reboot."""
         return str(self.get("restart_reason", ""))
