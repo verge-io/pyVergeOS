@@ -75,6 +75,7 @@ if TYPE_CHECKING:
         MachineNicStatusManager,
     )
     from pyvergeos.resources.nics import MachineNICManager
+    from pyvergeos.resources.node_memory import NodeMemoryManager
     from pyvergeos.resources.nodes import NodeManager
     from pyvergeos.resources.oidc_applications import (
         OidcApplicationGroupManager,
@@ -83,6 +84,7 @@ if TYPE_CHECKING:
         OidcApplicationUserManager,
     )
     from pyvergeos.resources.permissions import PermissionManager
+    from pyvergeos.resources.physical_drives import PhysicalDriveManager
     from pyvergeos.resources.recipe_common import (
         RecipeQuestionManager,
         RecipeSectionManager,
@@ -129,6 +131,7 @@ if TYPE_CHECKING:
         VmRecipeManager,
     )
     from pyvergeos.resources.vms import VMManager
+    from pyvergeos.resources.vsan_queries import VsanQueryManager
     from pyvergeos.resources.volume_vm_exports import (
         VolumeVmExportManager,
         VolumeVmExportStatManager,
@@ -289,6 +292,9 @@ class VergeClient:
         self._machine_nic_stats: MachineNicStatsManager | None = None
         self._machine_nic_status: MachineNicStatusManager | None = None
         self._machine_nic_fabric_status: MachineNicFabricStatusManager | None = None
+        self._physical_drives: PhysicalDriveManager | None = None
+        self._node_memory: NodeMemoryManager | None = None
+        self._vsan_queries: VsanQueryManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1983,3 +1989,47 @@ class VergeClient:
 
             self._machine_nic_fabric_status = MachineNicFabricStatusManager(self)
         return self._machine_nic_fabric_status
+
+    @property
+    def physical_drives(self) -> PhysicalDriveManager:
+        """Access physical drive SMART health data.
+
+        Example:
+            >>> for drive in client.physical_drives.list():
+            ...     if drive.has_warnings:
+            ...         print(f"ALERT: {drive.model} @ {drive.location}")
+        """
+        if self._physical_drives is None:
+            from pyvergeos.resources.physical_drives import PhysicalDriveManager
+
+            self._physical_drives = PhysicalDriveManager(self)
+        return self._physical_drives
+
+    @property
+    def node_memory(self) -> NodeMemoryManager:
+        """Access node DIMM health data.
+
+        Example:
+            >>> for dimm in client.node_memory.list():
+            ...     if dimm.status != "online":
+            ...         print(f"DIMM {dimm.locator}: {dimm.status}")
+        """
+        if self._node_memory is None:
+            from pyvergeos.resources.node_memory import NodeMemoryManager
+
+            self._node_memory = NodeMemoryManager(self)
+        return self._node_memory
+
+    @property
+    def vsan_queries(self) -> VsanQueryManager:
+        """Access vSAN diagnostic queries.
+
+        Example:
+            >>> result = client.vsan_queries.run("getjournalstatus")
+            >>> print(result.result)
+        """
+        if self._vsan_queries is None:
+            from pyvergeos.resources.vsan_queries import VsanQueryManager
+
+            self._vsan_queries = VsanQueryManager(self)
+        return self._vsan_queries
