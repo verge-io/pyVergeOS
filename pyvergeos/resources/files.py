@@ -283,7 +283,7 @@ class FileManager(ResourceManager[File]):
 
             raise NotConnectedError("Not connected to VergeOS")
 
-        session = connection._session
+        session = connection.session
         if session is None:
             from pyvergeos.exceptions import NotConnectedError
 
@@ -439,7 +439,7 @@ class FileManager(ResourceManager[File]):
 
             raise NotConnectedError("Not connected to VergeOS")
 
-        session = connection._session
+        session = connection.session
         if session is None:
             from pyvergeos.exceptions import NotConnectedError
 

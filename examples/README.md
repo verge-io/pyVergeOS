@@ -25,7 +25,7 @@ Before running any example:
 
 | Example | Description |
 |---------|-------------|
-| [connection_example.py](connection_example.py) | Various ways to connect to VergeOS (basic auth, environment variables, context managers) |
+| [connection_example.py](connection_example.py) | Various ways to connect to VergeOS (basic auth, environment variables, context managers, caller-managed sessions) |
 
 ### Virtual Machines
 

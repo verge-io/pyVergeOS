@@ -1,11 +1,12 @@
 """Connection and session management for VergeOS API."""
 
+import warnings
 from base64 import b64encode
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -18,6 +19,9 @@ from pyvergeos.constants import (
     RETRY_STATUS_CODES,
     RETRY_TOTAL,
 )
+
+HeaderValue = Union[str, bytes]
+HeaderSnapshot = tuple[str, Optional[HeaderValue]]
 
 
 class AuthMethod(Enum):
@@ -44,6 +48,15 @@ class VergeConnection:
         retry_total: Number of retry attempts for transient failures.
         retry_backoff_factor: Backoff factor for retry delay calculation.
         retry_status_codes: HTTP status codes that trigger automatic retry.
+        session: Optional caller-supplied requests session. When supplied, the
+            SDK does not mount adapters, change TLS verification, or close it
+            on disconnect by default. Header snapshots for VergeClient-managed
+            authentication are populated by VergeClient.connect(). Do not share
+            one supplied session across multiple active VergeClient instances;
+            authentication is stored in session headers while connected.
+        close_session: Override for disconnect lifecycle. None closes
+            SDK-created sessions and leaves caller-supplied sessions open.
+            close_session=False requires a caller-supplied session.
         connected_at: Timestamp when connection was established.
         vergeos_version: VergeOS version from system endpoint.
         is_connected: Whether connection is active.
@@ -63,15 +76,46 @@ class VergeConnection:
     os_version: Optional[str] = None
     cloud_name: Optional[str] = None
     is_connected: bool = False
+    session: Optional[requests.Session] = field(default=None, repr=False)
+    close_session: Optional[bool] = None
 
-    _session: Optional[requests.Session] = field(default=None, repr=False)
+    _owns_session: bool = field(init=False, default=True, repr=False)
+    _pre_connect_headers: Optional[dict[str, HeaderSnapshot]] = field(
+        init=False, default=None, repr=False
+    )
 
     def __post_init__(self) -> None:
         self.api_base_url = f"https://{self.host}/api/{API_VERSION}"
+        self._owns_session = self.session is None
+        self.retry_status_codes = frozenset(self.retry_status_codes)
+
+        if self._owns_session and self.close_session is False:
+            raise ValueError("close_session=False requires a caller-supplied session")
 
         # Create session (done here so it can be mocked in tests)
-        if self._session is None:
-            self._session = requests.Session()
+        if self.session is None:
+            self.session = requests.Session()
+
+        if not self._owns_session:
+            ignored_config = []
+            if self.retry_total != RETRY_TOTAL:
+                ignored_config.append("retry_total")
+            if self.retry_backoff_factor != RETRY_BACKOFF_FACTOR:
+                ignored_config.append("retry_backoff_factor")
+            if set(self.retry_status_codes) != set(RETRY_STATUS_CODES):
+                ignored_config.append("retry_status_codes")
+            if not self.verify_ssl:
+                ignored_config.append("verify_ssl")
+
+            if ignored_config:
+                warnings.warn(
+                    "VergeConnection received a caller-supplied session; "
+                    f"{', '.join(ignored_config)} will be ignored. Configure retry "
+                    "and TLS behavior on the supplied session instead.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            return
 
         # Configure retry strategy with configurable parameters
         retry_strategy = Retry(
@@ -85,15 +129,13 @@ class VergeConnection:
             pool_connections=1,
             pool_maxsize=10,
         )
-        self._session.mount("https://", adapter)
+        self.session.mount("https://", adapter)
 
         if not self.verify_ssl:
-            self._session.verify = False
+            self.session.verify = False
             # Suppress InsecureRequestWarning. Note: this is process-global —
             # setting verify_ssl=False on any client silences warnings for all
             # clients in the same process.
-            import warnings
-
             import urllib3
 
             warnings.filterwarnings(
@@ -101,6 +143,42 @@ class VergeConnection:
                 message="Unverified HTTPS request",
                 category=urllib3.exceptions.InsecureRequestWarning,
             )
+
+    def apply_auth_headers(self, headers: dict[str, str]) -> None:
+        """Apply connection auth headers and snapshot caller-owned headers.
+
+        VergeClient mutates session-level headers while connected. Keeping the
+        snapshot and mutation in this class ensures disconnect() owns the full
+        restore lifecycle for caller-supplied sessions.
+        """
+        if self.session is None:
+            raise RuntimeError("Session not initialized")
+
+        if not self._owns_session:
+            if self._pre_connect_headers is None:
+                self._pre_connect_headers = {}
+            for key in headers:
+                if key not in self._pre_connect_headers:
+                    prior_key = self._matching_header_key(key)
+                    prior_value = (
+                        self.session.headers.get(prior_key)
+                        if prior_key in self.session.headers
+                        else None
+                    )
+                    self._pre_connect_headers[key] = (prior_key, prior_value)
+
+        self.session.headers.update(headers)
+
+    def _matching_header_key(self, key: str) -> str:
+        """Return the current header spelling matching key, if present."""
+        if self.session is None:
+            raise RuntimeError("Session not initialized")
+
+        key_lower = key.lower()
+        for existing_key in self.session.headers:
+            if existing_key.lower() == key_lower:
+                return existing_key
+        return key
 
     def is_token_valid(self) -> bool:
         """Check if the current token/credentials are valid.
@@ -116,8 +194,9 @@ class VergeConnection:
         """Clear connection state and close the HTTP session.
 
         Resets all authentication and connection state including token,
-        expiration time, and connection timestamp. The underlying requests
-        session is also closed to release network resources.
+        expiration time, and connection timestamp. SDK-owned requests sessions
+        are closed to release network resources. Caller-supplied session
+        headers are restored and the session is left open by default.
 
         Note:
             After calling disconnect(), the connection object can be reused
@@ -127,8 +206,17 @@ class VergeConnection:
         self.token_expires = None
         self.connected_at = None
         self.is_connected = False
-        if self._session:
-            self._session.close()
+
+        if self.session and not self._owns_session and self._pre_connect_headers is not None:
+            for key, (prior_key, prior_value) in self._pre_connect_headers.items():
+                self.session.headers.pop(key, None)
+                if prior_value is not None:
+                    self.session.headers[prior_key] = prior_value
+            self._pre_connect_headers = None
+
+        should_close = self.close_session if self.close_session is not None else self._owns_session
+        if self.session and should_close:
+            self.session.close()
 
 
 def build_auth_header(

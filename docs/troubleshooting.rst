@@ -377,7 +377,7 @@ For advanced debugging, use a requests hook:
 
 .. code-block:: python
 
-   from pyvergeos.connection import Connection
+   from pyvergeos.connection import VergeConnection
 
    def log_response(response, *args, **kwargs):
        print(f"Request: {response.request.method} {response.request.url}")
@@ -385,7 +385,7 @@ For advanced debugging, use a requests hook:
        print(f"Body: {response.text[:500]}")
 
    # Add hook to connection
-   client._connection._session.hooks["response"].append(log_response)
+   client._connection.session.hooks["response"].append(log_response)
 
 Getting Help
 ------------
