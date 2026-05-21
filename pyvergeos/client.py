@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import requests
 
@@ -215,11 +215,15 @@ class VergeClient:
                 VergeClient instances.
             close_session: Override whether disconnect closes the underlying
                 session. None closes SDK-created sessions and leaves
-                caller-supplied sessions open.
+                caller-supplied sessions open. close_session=False requires a
+                caller-supplied session.
 
         Raises:
             ValueError: If neither token nor username/password provided.
         """
+        if session is None and close_session is False:
+            raise ValueError("close_session=False requires a caller-supplied session")
+
         self.host = host
         self._username = username
         self._password = password
@@ -409,19 +413,9 @@ class VergeClient:
             if session is None:
                 raise NotConnectedError("Session not initialized")
 
-            if not self._connection._owns_session:
-                self._connection._pre_connect_headers = {
-                    key: cast("str | None", session.headers.get(key))
-                    for key in (
-                        "Authorization",
-                        HEADER_CONTENT_TYPE,
-                        HEADER_ACCEPT,
-                    )
-                }
-
-            session.headers.update(auth_header)
-            session.headers.update(
+            self._connection.apply_auth_headers(
                 {
+                    **auth_header,
                     HEADER_CONTENT_TYPE: CONTENT_TYPE_JSON,
                     HEADER_ACCEPT: CONTENT_TYPE_JSON,
                 }
@@ -430,7 +424,10 @@ class VergeClient:
             # Validate connection
             self._validate_connection()
         except Exception:
-            self.disconnect()
+            try:
+                self.disconnect()
+            except Exception:
+                logger.exception("Error while cleaning up failed connection")
             raise
 
         return self
@@ -486,9 +483,12 @@ class VergeClient:
 
     def disconnect(self) -> None:
         """Disconnect from VergeOS and cleanup resources."""
-        if self._connection:
-            self._connection.disconnect()
-            self._connection = None
+        connection = self._connection
+        if connection:
+            try:
+                connection.disconnect()
+            finally:
+                self._connection = None
 
     @property
     def is_connected(self) -> bool:

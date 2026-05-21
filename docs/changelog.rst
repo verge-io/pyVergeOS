@@ -27,6 +27,8 @@ Changed
 - Caller-supplied sessions must not be shared by multiple active
   ``VergeClient`` instances because authentication is stored in session headers
   while connected.
+- ``close_session=False`` now requires a caller-supplied session to avoid
+  leaking SDK-created connection pools.
 
 [1.0.0] - 2026-02-01
 --------------------

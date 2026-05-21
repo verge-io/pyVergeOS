@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Optional, cast
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -53,6 +53,7 @@ class VergeConnection:
             authentication is stored in session headers while connected.
         close_session: Override for disconnect lifecycle. None closes
             SDK-created sessions and leaves caller-supplied sessions open.
+            close_session=False requires a caller-supplied session.
         connected_at: Timestamp when connection was established.
         vergeos_version: VergeOS version from system endpoint.
         is_connected: Whether connection is active.
@@ -83,6 +84,9 @@ class VergeConnection:
     def __post_init__(self) -> None:
         self.api_base_url = f"https://{self.host}/api/{API_VERSION}"
         self._owns_session = self.session is None
+
+        if self._owns_session and self.close_session is False:
+            raise ValueError("close_session=False requires a caller-supplied session")
 
         # Create session (done here so it can be mocked in tests)
         if self.session is None:
@@ -135,6 +139,27 @@ class VergeConnection:
                 message="Unverified HTTPS request",
                 category=urllib3.exceptions.InsecureRequestWarning,
             )
+
+    def apply_auth_headers(self, headers: dict[str, str]) -> None:
+        """Apply connection auth headers and snapshot caller-owned headers.
+
+        VergeClient mutates session-level headers while connected. Keeping the
+        snapshot and mutation in this class ensures disconnect() owns the full
+        restore lifecycle for caller-supplied sessions.
+        """
+        if self.session is None:
+            raise RuntimeError("Session not initialized")
+
+        if not self._owns_session:
+            if self._pre_connect_headers is None:
+                self._pre_connect_headers = {}
+            for key in headers:
+                if key not in self._pre_connect_headers:
+                    self._pre_connect_headers[key] = cast(
+                        Optional[str], self.session.headers.get(key)
+                    )
+
+        self.session.headers.update(headers)
 
     def is_token_valid(self) -> bool:
         """Check if the current token/credentials are valid.

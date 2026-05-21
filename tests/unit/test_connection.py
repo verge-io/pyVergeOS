@@ -216,13 +216,49 @@ class TestVergeConnectionByoSession:
 
         session.close.assert_called_once_with()
 
-    def test_owned_disconnect_can_skip_close(self, mock_session: MagicMock) -> None:
-        conn = VergeConnection(host="test.local", close_session=False)
+    def test_owned_close_session_false_requires_byo_session(self) -> None:
+        with pytest.raises(ValueError, match="close_session=False"):
+            VergeConnection(host="test.local", close_session=False)
+
+    def test_apply_auth_headers_snapshots_byo_headers(self) -> None:
+        session = self._session()
+        session.headers = {
+            "Authorization": "Bearer caller-token",
+            "Accept": "text/plain",
+        }
+        conn = VergeConnection(host="test.local", session=session)
+
+        conn.apply_auth_headers(
+            {
+                "Authorization": "Bearer verge-token",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }
+        )
+
+        assert session.headers["Authorization"] == "Bearer verge-token"
+        assert session.headers["Content-Type"] == "application/json"
+        assert session.headers["Accept"] == "application/json"
 
         conn.disconnect()
 
-        assert conn.session is mock_session
-        mock_session.close.assert_not_called()
+        assert session.headers["Authorization"] == "Bearer caller-token"
+        assert "Content-Type" not in session.headers
+        assert session.headers["Accept"] == "text/plain"
+
+    def test_apply_auth_headers_preserves_original_snapshot(self) -> None:
+        session = self._session()
+        session.headers = {"Authorization": "Bearer caller-token"}
+        conn = VergeConnection(host="test.local", session=session)
+
+        conn.apply_auth_headers({"Authorization": "Bearer verge-token-1"})
+        conn.apply_auth_headers({"Authorization": "Bearer verge-token-2"})
+
+        assert session.headers["Authorization"] == "Bearer verge-token-2"
+
+        conn.disconnect()
+
+        assert session.headers["Authorization"] == "Bearer caller-token"
 
     def test_disconnect_restores_byo_headers(self) -> None:
         session = self._session()

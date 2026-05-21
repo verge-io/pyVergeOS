@@ -1,12 +1,13 @@
 """Tests for VergeClient."""
 
 from http import HTTPStatus
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from pyvergeos import VergeClient
+from pyvergeos.connection import VergeConnection
 from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
 from pyvergeos.exceptions import AuthenticationError, NotConnectedError, VergeConnectionError
 
@@ -58,6 +59,16 @@ class TestVergeClient:
 
         assert not client.is_connected
         # No disconnect needed since never connected
+
+    def test_close_session_false_requires_byo_session(self) -> None:
+        with pytest.raises(ValueError, match="close_session=False"):
+            VergeClient(
+                host="test.example.com",
+                username="admin",
+                password="secret",
+                close_session=False,
+                auto_connect=False,
+            )
 
     def test_context_manager(self, mock_session: MagicMock) -> None:
         mock_session.request.return_value.json.return_value = {
@@ -202,6 +213,22 @@ class TestVergeClientByoSession:
 
         session.close.assert_not_called()
 
+    def test_disconnect_clears_connection_when_close_raises(self) -> None:
+        session = self._session()
+        session.close.side_effect = RuntimeError("close failed")
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+            close_session=True,
+        )
+
+        with pytest.raises(RuntimeError, match="close failed"):
+            client.disconnect()
+
+        assert client._connection is None
+
     def test_byo_disconnect_restores_absent_headers(self) -> None:
         session = self._session()
         client = VergeClient(
@@ -264,6 +291,25 @@ class TestVergeClientByoSession:
         assert "Accept" not in session.headers
         session.close.assert_not_called()
 
+    def test_failed_connect_preserves_original_error_when_cleanup_fails(self) -> None:
+        session = self._session(status_code=HTTPStatus.UNAUTHORIZED)
+        session.request.return_value.json.return_value = {"err": "invalid credentials"}
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+            auto_connect=False,
+        )
+
+        with (
+            patch.object(VergeConnection, "disconnect", side_effect=RuntimeError("cleanup failed")),
+            pytest.raises(AuthenticationError),
+        ):
+            client.connect()
+
+        assert client._connection is None
+
     def test_failed_connect_closes_owned_session_and_clears_state(
         self, mock_session: MagicMock
     ) -> None:
@@ -298,7 +344,6 @@ class TestVergeClientByoSession:
         client.connect()
 
         assert client._connection is not None
-        assert client._connection._pre_connect_headers is None
         client.disconnect()
         mock_session.close.assert_called_once_with()
 
