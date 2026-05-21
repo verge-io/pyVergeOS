@@ -24,6 +24,9 @@ Changed
 - Retry and ``verify_ssl`` connection options are ignored with a warning when
   a caller-supplied session is used; configure those behaviors on the supplied
   session instead.
+- Caller-supplied sessions must not be shared by multiple active
+  ``VergeClient`` instances because authentication is stored in session headers
+  while connected.
 
 [1.0.0] - 2026-02-01
 --------------------

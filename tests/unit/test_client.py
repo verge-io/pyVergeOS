@@ -162,6 +162,33 @@ class TestVergeClientByoSession:
         assert client._connection.session is session
         client.disconnect()
 
+    def test_connect_twice_restores_byo_headers_before_reconnecting(self) -> None:
+        session = self._session()
+        session.headers = {
+            "Authorization": "Bearer caller-token",
+            "Content-Type": "text/plain",
+            "Accept": "text/plain",
+        }
+        client = VergeClient(
+            host="test.example.com",
+            token="verge-token",
+            session=session,
+            auto_connect=False,
+        )
+
+        client.connect()
+        assert session.headers["Authorization"] == "Bearer verge-token"
+
+        client.connect()
+        assert session.headers["Authorization"] == "Bearer verge-token"
+
+        client.disconnect()
+
+        assert session.headers["Authorization"] == "Bearer caller-token"
+        assert session.headers["Content-Type"] == "text/plain"
+        assert session.headers["Accept"] == "text/plain"
+        session.close.assert_not_called()
+
     def test_byo_disconnect_does_not_close_session(self) -> None:
         session = self._session()
         client = VergeClient(

@@ -48,7 +48,9 @@ class VergeConnection:
         session: Optional caller-supplied requests session. When supplied, the
             SDK does not mount adapters, change TLS verification, or close it
             on disconnect by default. Header snapshots for VergeClient-managed
-            authentication are populated by VergeClient.connect().
+            authentication are populated by VergeClient.connect(). Do not share
+            one supplied session across multiple active VergeClient instances;
+            authentication is stored in session headers while connected.
         close_session: Override for disconnect lifecycle. None closes
             SDK-created sessions and leaves caller-supplied sessions open.
         connected_at: Timestamp when connection was established.

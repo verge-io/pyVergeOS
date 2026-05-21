@@ -170,6 +170,10 @@ class VergeClient:
         >>> session.headers.update({"User-Agent": "my-automation/1.0"})
         >>> client = VergeClient(host="...", token="...", session=session)
         >>> client.disconnect()  # session remains open by default
+
+        Caller-managed sessions must not be shared by multiple active
+        VergeClient instances because authentication is applied to session
+        headers while connected.
     """
 
     def __init__(
@@ -207,6 +211,8 @@ class VergeClient:
                 verification, or close the session on disconnect by default.
                 VergeClient temporarily applies auth and JSON headers during
                 the connection and restores their previous values on disconnect.
+                Do not share one supplied session across multiple active
+                VergeClient instances.
             close_session: Override whether disconnect closes the underlying
                 session. None closes SDK-created sessions and leaves
                 caller-supplied sessions open.
@@ -371,6 +377,9 @@ class VergeClient:
             AuthenticationError: If authentication fails.
             ValueError: If credentials not provided.
         """
+        if self._connection is not None:
+            self.disconnect()
+
         self._connection = VergeConnection(
             host=self.host,
             username=self._username or "",

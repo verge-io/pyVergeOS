@@ -92,7 +92,8 @@ def byo_session() -> None:
     client.disconnect()
     # The caller still owns the session. VergeOS auth headers have been
     # restored, the custom adapter is still mounted, and the session remains
-    # open for other requests.
+    # open for other requests. Use a separate session for each active
+    # VergeClient because auth is stored in session headers while connected.
 
 
 def from_environment() -> None:
