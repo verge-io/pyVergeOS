@@ -517,7 +517,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
 
             raise NotConnectedError("Not connected to VergeOS")
 
-        session = self._client._connection._session
+        session = self._client._connection.session
         if session is None:
             from pyvergeos.exceptions import NotConnectedError
 

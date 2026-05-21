@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import requests
 
@@ -163,6 +163,13 @@ class VergeClient:
 
         # Or from environment variables
         >>> client = VergeClient.from_env()
+
+        # Or reuse a caller-managed requests session
+        >>> import requests
+        >>> session = requests.Session()
+        >>> session.headers.update({"User-Agent": "my-automation/1.0"})
+        >>> client = VergeClient(host="...", token="...", session=session)
+        >>> client.disconnect()  # session remains open by default
     """
 
     def __init__(
@@ -177,6 +184,8 @@ class VergeClient:
         retry_total: int = RETRY_TOTAL,
         retry_backoff_factor: float = RETRY_BACKOFF_FACTOR,
         retry_status_codes: frozenset[int] | None = None,
+        session: requests.Session | None = None,
+        close_session: bool | None = None,
     ) -> None:
         """Initialize VergeClient.
 
@@ -193,6 +202,14 @@ class VergeClient:
                 Delay = backoff_factor * (2 ** retry_count). Default: 1.
             retry_status_codes: HTTP status codes that trigger automatic retry.
                 Default: 429, 500, 502, 503, 504.
+            session: Optional caller-supplied requests session. When supplied,
+                pyvergeos will not mount its own adapter, change session TLS
+                verification, or close the session on disconnect by default.
+                VergeClient temporarily applies auth and JSON headers during
+                the connection and restores their previous values on disconnect.
+            close_session: Override whether disconnect closes the underlying
+                session. None closes SDK-created sessions and leaves
+                caller-supplied sessions open.
 
         Raises:
             ValueError: If neither token nor username/password provided.
@@ -208,6 +225,8 @@ class VergeClient:
         self._retry_status_codes = (
             retry_status_codes if retry_status_codes is not None else RETRY_STATUS_CODES
         )
+        self._session = session
+        self._close_session = close_session
 
         self._connection: VergeConnection | None = None
 
@@ -359,35 +378,51 @@ class VergeClient:
             retry_total=self._retry_total,
             retry_backoff_factor=self._retry_backoff_factor,
             retry_status_codes=self._retry_status_codes,
+            session=self._session,
+            close_session=self._close_session,
         )
 
-        # Determine auth method and build header
-        if self._token:
-            auth_header = build_auth_header(AuthMethod.TOKEN, token=self._token)
-            self._connection.token = self._token
-        elif self._username and self._password:
-            auth_header = build_auth_header(
-                AuthMethod.BASIC,
-                username=self._username,
-                password=self._password,
+        try:
+            # Determine auth method and build header
+            if self._token:
+                auth_header = build_auth_header(AuthMethod.TOKEN, token=self._token)
+                self._connection.token = self._token
+            elif self._username and self._password:
+                auth_header = build_auth_header(
+                    AuthMethod.BASIC,
+                    username=self._username,
+                    password=self._password,
+                )
+            else:
+                raise ValueError("Either token or username/password required")
+
+            session = self._connection.session
+            if session is None:
+                raise NotConnectedError("Session not initialized")
+
+            if not self._connection._owns_session:
+                self._connection._pre_connect_headers = {
+                    key: cast("str | None", session.headers.get(key))
+                    for key in (
+                        "Authorization",
+                        HEADER_CONTENT_TYPE,
+                        HEADER_ACCEPT,
+                    )
+                }
+
+            session.headers.update(auth_header)
+            session.headers.update(
+                {
+                    HEADER_CONTENT_TYPE: CONTENT_TYPE_JSON,
+                    HEADER_ACCEPT: CONTENT_TYPE_JSON,
+                }
             )
-        else:
-            raise ValueError("Either token or username/password required")
 
-        session = self._connection._session
-        if session is None:
-            raise NotConnectedError("Session not initialized")
-
-        session.headers.update(auth_header)
-        session.headers.update(
-            {
-                HEADER_CONTENT_TYPE: CONTENT_TYPE_JSON,
-                HEADER_ACCEPT: CONTENT_TYPE_JSON,
-            }
-        )
-
-        # Validate connection
-        self._validate_connection()
+            # Validate connection
+            self._validate_connection()
+        except Exception:
+            self.disconnect()
+            raise
 
         return self
 
@@ -402,7 +437,7 @@ class VergeClient:
             url = f"{self._connection.api_base_url}/system"
             params = {"fields": "$key,yb_version,os_version,cloud_name"}
 
-            session = self._connection._session
+            session = self._connection.session
             if session is None:
                 raise NotConnectedError("Session not initialized")
 
@@ -514,7 +549,7 @@ class VergeClient:
         if not self._connection or not self._connection.is_connected:
             raise NotConnectedError("Not connected to VergeOS")
 
-        session = self._connection._session
+        session = self._connection.session
         if session is None:
             raise NotConnectedError("Session not initialized")
 

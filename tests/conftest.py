@@ -25,6 +25,7 @@ def mock_session(mock_response: MagicMock) -> Generator[MagicMock, None, None]:
     """Create a mock requests session."""
     with patch("pyvergeos.connection.requests.Session") as mock:
         session = MagicMock()
+        session.headers = {}
         session.request.return_value = mock_response
         mock.return_value = session
         yield session

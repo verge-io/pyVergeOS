@@ -4,10 +4,11 @@ from http import HTTPStatus
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from pyvergeos import VergeClient
 from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
-from pyvergeos.exceptions import NotConnectedError
+from pyvergeos.exceptions import AuthenticationError, NotConnectedError, VergeConnectionError
 
 
 class TestVergeClient:
@@ -91,6 +92,188 @@ class TestVergeClient:
 
         with pytest.raises(NotConnectedError):
             client._request("GET", "vms")
+
+
+class TestVergeClientByoSession:
+    """Tests for caller-supplied session wiring."""
+
+    def _session(self, status_code: int = 200) -> MagicMock:
+        response = MagicMock()
+        response.status_code = status_code
+        response.text = "{}"
+        response.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+            "os_version": "26.0",
+            "cloud_name": "test-cloud",
+        }
+
+        session = MagicMock(spec=requests.Session)
+        session.headers = {}
+        session.request.return_value = response
+        return session
+
+    def test_constructor_stores_session_config(self) -> None:
+        session = self._session()
+
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+            close_session=True,
+            auto_connect=False,
+        )
+
+        assert client._session is session
+        assert client._close_session is True
+
+    def test_connect_forwards_session_to_connection(self) -> None:
+        session = self._session()
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+            auto_connect=False,
+        )
+
+        client.connect()
+
+        assert client._connection is not None
+        assert client._connection.session is session
+        client.disconnect()
+
+    def test_reconnect_uses_same_byo_session(self) -> None:
+        session = self._session()
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+            auto_connect=False,
+        )
+
+        client.connect()
+        client.disconnect()
+        client.connect()
+
+        assert client._connection is not None
+        assert client._connection.session is session
+        client.disconnect()
+
+    def test_byo_disconnect_does_not_close_session(self) -> None:
+        session = self._session()
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+        )
+
+        client.disconnect()
+
+        session.close.assert_not_called()
+
+    def test_byo_disconnect_restores_absent_headers(self) -> None:
+        session = self._session()
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+        )
+
+        assert "Authorization" in session.headers
+        assert "Content-Type" in session.headers
+        assert "Accept" in session.headers
+
+        client.disconnect()
+
+        assert "Authorization" not in session.headers
+        assert "Content-Type" not in session.headers
+        assert "Accept" not in session.headers
+
+    def test_byo_disconnect_restores_present_headers(self) -> None:
+        session = self._session()
+        session.headers = {
+            "Authorization": "Bearer caller-token",
+            "Content-Type": "text/plain",
+            "Accept": "text/plain",
+        }
+        client = VergeClient(
+            host="test.example.com",
+            token="verge-token",
+            session=session,
+        )
+
+        assert session.headers["Authorization"] == "Bearer verge-token"
+        assert session.headers["Content-Type"] == "application/json"
+        assert session.headers["Accept"] == "application/json"
+
+        client.disconnect()
+
+        assert session.headers["Authorization"] == "Bearer caller-token"
+        assert session.headers["Content-Type"] == "text/plain"
+        assert session.headers["Accept"] == "text/plain"
+
+    def test_failed_connect_cleans_up_byo_headers_and_state(self) -> None:
+        session = self._session(status_code=HTTPStatus.UNAUTHORIZED)
+        session.request.return_value.json.return_value = {"err": "invalid credentials"}
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            session=session,
+            auto_connect=False,
+        )
+
+        with pytest.raises(AuthenticationError):
+            client.connect()
+
+        assert client._connection is None
+        assert "Authorization" not in session.headers
+        assert "Content-Type" not in session.headers
+        assert "Accept" not in session.headers
+        session.close.assert_not_called()
+
+    def test_failed_connect_closes_owned_session_and_clears_state(
+        self, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.status_code = HTTPStatus.INTERNAL_SERVER_ERROR
+        mock_session.request.return_value.text = "server error"
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            auto_connect=False,
+        )
+
+        with pytest.raises(VergeConnectionError):
+            client.connect()
+
+        assert client._connection is None
+        mock_session.close.assert_called_once_with()
+
+    def test_default_session_config_is_legacy_owned_path(self, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "yb_version": "4.12.0",
+        }
+        client = VergeClient(
+            host="test.example.com",
+            username="admin",
+            password="secret",
+            auto_connect=False,
+        )
+
+        assert client._session is None
+        client.connect()
+
+        assert client._connection is not None
+        assert client._connection._pre_connect_headers is None
+        client.disconnect()
+        mock_session.close.assert_called_once_with()
 
 
 class TestVergeClientResourceManagers:

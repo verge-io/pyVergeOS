@@ -2,8 +2,10 @@
 
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from pyvergeos.connection import AuthMethod, VergeConnection, build_auth_header
 from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
@@ -73,11 +75,12 @@ class TestVergeConnection:
 
     def test_session_created(self) -> None:
         conn = VergeConnection(host="test.local")
-        assert conn._session is not None
+        assert conn.session is not None
 
     def test_ssl_verification_disabled(self) -> None:
         conn = VergeConnection(host="test.local", verify_ssl=False)
-        assert conn._session.verify is False
+        assert conn.session is not None
+        assert conn.session.verify is False
 
     def test_disconnect_clears_state(self) -> None:
         conn = VergeConnection(host="test.local")
@@ -152,3 +155,107 @@ class TestVergeConnectionRetryConfig:
         assert conn.retry_total == 10
         assert conn.retry_backoff_factor == 0.5
         assert conn.retry_status_codes == custom_codes
+
+
+class TestVergeConnectionByoSession:
+    """Tests for caller-supplied session behavior."""
+
+    def _session(self) -> MagicMock:
+        session = MagicMock(spec=requests.Session)
+        session.headers = {}
+        return session
+
+    def test_byo_session_is_public_field_and_not_reconfigured(self) -> None:
+        session = self._session()
+
+        conn = VergeConnection(host="test.local", session=session)
+
+        assert conn.session is session
+        session.mount.assert_not_called()
+        assert "verify" not in session.__dict__
+
+    def test_byo_verify_ssl_false_warns_without_mutating_session(self) -> None:
+        session = self._session()
+
+        with (
+            patch("pyvergeos.connection.warnings.filterwarnings") as filterwarnings,
+            pytest.warns(UserWarning, match="verify_ssl"),
+        ):
+            VergeConnection(host="test.local", session=session, verify_ssl=False)
+
+        filterwarnings.assert_not_called()
+        assert "verify" not in session.__dict__
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"retry_total": RETRY_TOTAL + 1}, "retry_total"),
+            ({"retry_backoff_factor": RETRY_BACKOFF_FACTOR + 1}, "retry_backoff_factor"),
+            ({"retry_status_codes": frozenset({HTTPStatus.BAD_GATEWAY})}, "retry_status_codes"),
+        ],
+    )
+    def test_byo_ignored_config_warns(self, kwargs: dict[str, object], expected: str) -> None:
+        session = self._session()
+
+        with pytest.warns(UserWarning, match=expected):
+            VergeConnection(host="test.local", session=session, **kwargs)
+
+    def test_byo_disconnect_does_not_close_by_default(self) -> None:
+        session = self._session()
+        conn = VergeConnection(host="test.local", session=session)
+
+        conn.disconnect()
+
+        session.close.assert_not_called()
+
+    def test_byo_disconnect_closes_when_requested(self) -> None:
+        session = self._session()
+        conn = VergeConnection(host="test.local", session=session, close_session=True)
+
+        conn.disconnect()
+
+        session.close.assert_called_once_with()
+
+    def test_owned_disconnect_can_skip_close(self, mock_session: MagicMock) -> None:
+        conn = VergeConnection(host="test.local", close_session=False)
+
+        conn.disconnect()
+
+        assert conn.session is mock_session
+        mock_session.close.assert_not_called()
+
+    def test_disconnect_restores_byo_headers(self) -> None:
+        session = self._session()
+        session.headers = {
+            "Authorization": "Bearer caller-token",
+            "Accept": "text/plain",
+            "Content-Type": "text/plain",
+        }
+        conn = VergeConnection(host="test.local", session=session)
+        conn._pre_connect_headers = {
+            "Authorization": "Bearer caller-token",
+            "Accept": "text/plain",
+            "Content-Type": None,
+        }
+        session.headers.update(
+            {
+                "Authorization": "Basic verge-token",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+        )
+
+        conn.disconnect()
+
+        assert session.headers["Authorization"] == "Bearer caller-token"
+        assert session.headers["Accept"] == "text/plain"
+        assert "Content-Type" not in session.headers
+
+    def test_disconnect_header_restore_missing_key_is_idempotent(self) -> None:
+        session = self._session()
+        conn = VergeConnection(host="test.local", session=session)
+        conn._pre_connect_headers = {"Authorization": None}
+
+        conn.disconnect()
+
+        assert "Authorization" not in session.headers

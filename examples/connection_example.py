@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Example: Connection management with pyvergeos.
 
-This example demonstrates various ways to connect to a VergeOS system.
+This example demonstrates various ways to connect to a VergeOS system,
+including using a caller-managed requests.Session.
 """
 
 import os
+
+import requests
+from requests.adapters import HTTPAdapter
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import AuthenticationError, VergeConnectionError
@@ -60,6 +64,35 @@ def context_manager() -> None:
 
     # Client is automatically disconnected when exiting the 'with' block
     print(f"After context: Connected = {client.is_connected}")
+
+
+def byo_session() -> None:
+    """Connect using a caller-managed requests.Session."""
+    print("\n=== Bring Your Own Session ===")
+
+    session = requests.Session()
+    session.headers.update({"User-Agent": "my-automation/1.0"})
+    # session.verify = "/path/to/ca-bundle.pem"
+
+    my_adapter = HTTPAdapter(pool_connections=4, pool_maxsize=20)
+    session.mount("https://", my_adapter)
+
+    client = VergeClient(
+        host="192.168.1.100",
+        username="admin",
+        password="your-password",
+        session=session,
+        auto_connect=False,
+    )
+    client.connect()
+
+    print(f"Connected: {client.is_connected}")
+    assert session.get_adapter("https://") is my_adapter
+
+    client.disconnect()
+    # The caller still owns the session. VergeOS auth headers have been
+    # restored, the custom adapter is still mounted, and the session remains
+    # open for other requests.
 
 
 def from_environment() -> None:
@@ -142,6 +175,7 @@ if __name__ == "__main__":
     # basic_connection()
     # token_connection()
     # context_manager()
+    # byo_session()
     # from_environment()
     # error_handling()
     # deferred_connection()
@@ -150,6 +184,7 @@ if __name__ == "__main__":
     print("  - Basic username/password connection")
     print("  - API token connection")
     print("  - Context manager (with statement)")
+    print("  - Caller-managed requests.Session")
     print("  - Environment variable configuration")
     print("  - Error handling")
     print("  - Deferred connection")
