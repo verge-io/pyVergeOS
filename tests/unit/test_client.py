@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from requests.structures import CaseInsensitiveDict
 
 from pyvergeos import VergeClient
 from pyvergeos.connection import VergeConnection
@@ -120,7 +121,7 @@ class TestVergeClientByoSession:
         }
 
         session = MagicMock(spec=requests.Session)
-        session.headers = {}
+        session.headers = CaseInsensitiveDict()
         session.request.return_value = response
         return session
 
@@ -157,29 +158,49 @@ class TestVergeClientByoSession:
 
     def test_reconnect_uses_same_byo_session(self) -> None:
         session = self._session()
+        session.headers = CaseInsensitiveDict(
+            {
+                "aUtHoRiZaTiOn": "Bearer caller-token",
+                "Content-Type": "text/plain",
+                "Accept": "text/plain",
+            }
+        )
         client = VergeClient(
             host="test.example.com",
-            username="admin",
-            password="secret",
+            token="verge-token",
             session=session,
             auto_connect=False,
         )
 
         client.connect()
+        assert session.headers["Authorization"] == "Bearer verge-token"
         client.disconnect()
-        client.connect()
-
-        assert client._connection is not None
-        assert client._connection.session is session
-        client.disconnect()
-
-    def test_connect_twice_restores_byo_headers_before_reconnecting(self) -> None:
-        session = self._session()
-        session.headers = {
-            "Authorization": "Bearer caller-token",
+        assert dict(session.headers.items()) == {
+            "aUtHoRiZaTiOn": "Bearer caller-token",
             "Content-Type": "text/plain",
             "Accept": "text/plain",
         }
+
+        client.connect()
+        assert session.headers["Authorization"] == "Bearer verge-token"
+        client.disconnect()
+
+        assert dict(session.headers.items()) == {
+            "aUtHoRiZaTiOn": "Bearer caller-token",
+            "Content-Type": "text/plain",
+            "Accept": "text/plain",
+        }
+        session.close.assert_not_called()
+
+    def test_connect_twice_restores_byo_headers_before_reconnecting(self) -> None:
+        session = self._session()
+        session.headers = CaseInsensitiveDict(
+            {
+                "Authorization": "Bearer caller-token",
+                "Content-Type": "text/plain",
+                "Accept": "text/plain",
+            }
+        )
         client = VergeClient(
             host="test.example.com",
             token="verge-token",
@@ -250,11 +271,13 @@ class TestVergeClientByoSession:
 
     def test_byo_disconnect_restores_present_headers(self) -> None:
         session = self._session()
-        session.headers = {
-            "Authorization": "Bearer caller-token",
-            "Content-Type": "text/plain",
-            "Accept": "text/plain",
-        }
+        session.headers = CaseInsensitiveDict(
+            {
+                "Authorization": "Bearer caller-token",
+                "Content-Type": "text/plain",
+                "Accept": "text/plain",
+            }
+        )
         client = VergeClient(
             host="test.example.com",
             token="verge-token",

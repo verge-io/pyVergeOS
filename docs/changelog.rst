@@ -19,6 +19,7 @@ Changed
 ^^^^^^^
 
 - ``VergeConnection`` now exposes its session as the public ``session`` field.
+  The previous private ``_session`` attribute has been removed.
 - Caller-supplied sessions are not closed by default on disconnect, and
   VergeOS auth/content headers are restored to their pre-connect values.
 - Retry and ``verify_ssl`` connection options are ignored with a warning when

@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, cast
+from typing import Optional, Union
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -19,6 +19,9 @@ from pyvergeos.constants import (
     RETRY_STATUS_CODES,
     RETRY_TOTAL,
 )
+
+HeaderValue = Union[str, bytes]
+HeaderSnapshot = tuple[str, Optional[HeaderValue]]
 
 
 class AuthMethod(Enum):
@@ -77,13 +80,14 @@ class VergeConnection:
     close_session: Optional[bool] = None
 
     _owns_session: bool = field(init=False, default=True, repr=False)
-    _pre_connect_headers: Optional[dict[str, Optional[str]]] = field(
+    _pre_connect_headers: Optional[dict[str, HeaderSnapshot]] = field(
         init=False, default=None, repr=False
     )
 
     def __post_init__(self) -> None:
         self.api_base_url = f"https://{self.host}/api/{API_VERSION}"
         self._owns_session = self.session is None
+        self.retry_status_codes = frozenset(self.retry_status_codes)
 
         if self._owns_session and self.close_session is False:
             raise ValueError("close_session=False requires a caller-supplied session")
@@ -155,11 +159,26 @@ class VergeConnection:
                 self._pre_connect_headers = {}
             for key in headers:
                 if key not in self._pre_connect_headers:
-                    self._pre_connect_headers[key] = cast(
-                        Optional[str], self.session.headers.get(key)
+                    prior_key = self._matching_header_key(key)
+                    prior_value = (
+                        self.session.headers.get(prior_key)
+                        if prior_key in self.session.headers
+                        else None
                     )
+                    self._pre_connect_headers[key] = (prior_key, prior_value)
 
         self.session.headers.update(headers)
+
+    def _matching_header_key(self, key: str) -> str:
+        """Return the current header spelling matching key, if present."""
+        if self.session is None:
+            raise RuntimeError("Session not initialized")
+
+        key_lower = key.lower()
+        for existing_key in self.session.headers:
+            if existing_key.lower() == key_lower:
+                return existing_key
+        return key
 
     def is_token_valid(self) -> bool:
         """Check if the current token/credentials are valid.
@@ -189,11 +208,10 @@ class VergeConnection:
         self.is_connected = False
 
         if self.session and not self._owns_session and self._pre_connect_headers is not None:
-            for key, prior_value in self._pre_connect_headers.items():
-                if prior_value is None:
-                    self.session.headers.pop(key, None)
-                else:
-                    self.session.headers[key] = prior_value
+            for key, (prior_key, prior_value) in self._pre_connect_headers.items():
+                self.session.headers.pop(key, None)
+                if prior_value is not None:
+                    self.session.headers[prior_key] = prior_value
             self._pre_connect_headers = None
 
         should_close = self.close_session if self.close_session is not None else self._owns_session

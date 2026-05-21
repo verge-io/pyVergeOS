@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from requests.structures import CaseInsensitiveDict
 
 from pyvergeos.connection import AuthMethod, VergeConnection, build_auth_header
 from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
@@ -140,6 +141,17 @@ class TestVergeConnectionRetryConfig:
         conn = VergeConnection(host="test.local", retry_status_codes=custom_codes)
         assert conn.retry_status_codes == custom_codes
 
+    def test_retry_status_codes_generator_is_normalized(self) -> None:
+        retry_status_codes = (
+            status for status in (HTTPStatus.BAD_GATEWAY, HTTPStatus.GATEWAY_TIMEOUT)
+        )
+
+        conn = VergeConnection(host="test.local", retry_status_codes=retry_status_codes)
+
+        assert conn.retry_status_codes == frozenset(
+            {HTTPStatus.BAD_GATEWAY, HTTPStatus.GATEWAY_TIMEOUT}
+        )
+
     def test_retry_disabled_with_zero_total(self) -> None:
         conn = VergeConnection(host="test.local", retry_total=0)
         assert conn.retry_total == 0
@@ -162,7 +174,7 @@ class TestVergeConnectionByoSession:
 
     def _session(self) -> MagicMock:
         session = MagicMock(spec=requests.Session)
-        session.headers = {}
+        session.headers = CaseInsensitiveDict()
         return session
 
     def test_byo_session_is_public_field_and_not_reconfigured(self) -> None:
@@ -200,6 +212,22 @@ class TestVergeConnectionByoSession:
         with pytest.warns(UserWarning, match=expected):
             VergeConnection(host="test.local", session=session, **kwargs)
 
+    def test_byo_ignored_config_warns_with_joined_config_names(self) -> None:
+        session = self._session()
+
+        with pytest.warns(
+            UserWarning,
+            match="retry_total, retry_backoff_factor, retry_status_codes, verify_ssl",
+        ):
+            VergeConnection(
+                host="test.local",
+                session=session,
+                retry_total=RETRY_TOTAL + 1,
+                retry_backoff_factor=RETRY_BACKOFF_FACTOR + 1,
+                retry_status_codes=frozenset({HTTPStatus.BAD_GATEWAY}),
+                verify_ssl=False,
+            )
+
     def test_byo_disconnect_does_not_close_by_default(self) -> None:
         session = self._session()
         conn = VergeConnection(host="test.local", session=session)
@@ -222,10 +250,12 @@ class TestVergeConnectionByoSession:
 
     def test_apply_auth_headers_snapshots_byo_headers(self) -> None:
         session = self._session()
-        session.headers = {
-            "Authorization": "Bearer caller-token",
-            "Accept": "text/plain",
-        }
+        session.headers = CaseInsensitiveDict(
+            {
+                "Authorization": "Bearer caller-token",
+                "Accept": "text/plain",
+            }
+        )
         conn = VergeConnection(host="test.local", session=session)
 
         conn.apply_auth_headers(
@@ -245,10 +275,11 @@ class TestVergeConnectionByoSession:
         assert session.headers["Authorization"] == "Bearer caller-token"
         assert "Content-Type" not in session.headers
         assert session.headers["Accept"] == "text/plain"
+        assert conn._pre_connect_headers is None
 
     def test_apply_auth_headers_preserves_original_snapshot(self) -> None:
         session = self._session()
-        session.headers = {"Authorization": "Bearer caller-token"}
+        session.headers = CaseInsensitiveDict({"Authorization": "Bearer caller-token"})
         conn = VergeConnection(host="test.local", session=session)
 
         conn.apply_auth_headers({"Authorization": "Bearer verge-token-1"})
@@ -259,19 +290,40 @@ class TestVergeConnectionByoSession:
         conn.disconnect()
 
         assert session.headers["Authorization"] == "Bearer caller-token"
+        assert conn._pre_connect_headers is None
+
+    def test_apply_auth_headers_resets_snapshot_between_byo_cycles(self) -> None:
+        session = self._session()
+        session.headers = CaseInsensitiveDict({"aUtHoRiZaTiOn": "Bearer caller-token"})
+        conn = VergeConnection(host="test.local", session=session)
+
+        conn.apply_auth_headers({"Authorization": "Bearer verge-token-1"})
+        conn.disconnect()
+
+        assert conn._pre_connect_headers is None
+        assert dict(session.headers.items()) == {"aUtHoRiZaTiOn": "Bearer caller-token"}
+
+        session.headers["aUtHoRiZaTiOn"] = "Bearer caller-token-2"
+        conn.apply_auth_headers({"Authorization": "Bearer verge-token-2"})
+        conn.disconnect()
+
+        assert conn._pre_connect_headers is None
+        assert dict(session.headers.items()) == {"aUtHoRiZaTiOn": "Bearer caller-token-2"}
 
     def test_disconnect_restores_byo_headers(self) -> None:
         session = self._session()
-        session.headers = {
-            "Authorization": "Bearer caller-token",
-            "Accept": "text/plain",
-            "Content-Type": "text/plain",
-        }
+        session.headers = CaseInsensitiveDict(
+            {
+                "Authorization": "Bearer caller-token",
+                "Accept": "text/plain",
+                "Content-Type": "text/plain",
+            }
+        )
         conn = VergeConnection(host="test.local", session=session)
         conn._pre_connect_headers = {
-            "Authorization": "Bearer caller-token",
-            "Accept": "text/plain",
-            "Content-Type": None,
+            "Authorization": ("Authorization", "Bearer caller-token"),
+            "Accept": ("Accept", "text/plain"),
+            "Content-Type": ("Content-Type", None),
         }
         session.headers.update(
             {
@@ -286,12 +338,14 @@ class TestVergeConnectionByoSession:
         assert session.headers["Authorization"] == "Bearer caller-token"
         assert session.headers["Accept"] == "text/plain"
         assert "Content-Type" not in session.headers
+        assert conn._pre_connect_headers is None
 
     def test_disconnect_header_restore_missing_key_is_idempotent(self) -> None:
         session = self._session()
         conn = VergeConnection(host="test.local", session=session)
-        conn._pre_connect_headers = {"Authorization": None}
+        conn._pre_connect_headers = {"Authorization": ("Authorization", None)}
 
         conn.disconnect()
 
         assert "Authorization" not in session.headers
+        assert conn._pre_connect_headers is None
