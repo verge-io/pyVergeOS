@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from requests.structures import CaseInsensitiveDict
 
 from pyvergeos import VergeClient
 
@@ -25,6 +26,7 @@ def mock_session(mock_response: MagicMock) -> Generator[MagicMock, None, None]:
     """Create a mock requests session."""
     with patch("pyvergeos.connection.requests.Session") as mock:
         session = MagicMock()
+        session.headers = CaseInsensitiveDict()
         session.request.return_value = mock_response
         mock.return_value = session
         yield session

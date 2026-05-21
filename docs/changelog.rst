@@ -6,6 +6,31 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.2.3] - 2026-05-21
+--------------------
+
+Added
+^^^^^
+
+- Added ``session=`` and ``close_session=`` kwargs to ``VergeClient`` for
+  caller-managed ``requests.Session`` support.
+
+Changed
+^^^^^^^
+
+- ``VergeConnection`` now exposes its session as the public ``session`` field.
+  The previous private ``_session`` attribute has been removed.
+- Caller-supplied sessions are not closed by default on disconnect, and
+  VergeOS auth/content headers are restored to their pre-connect values.
+- Retry and ``verify_ssl`` connection options are ignored with a warning when
+  a caller-supplied session is used; configure those behaviors on the supplied
+  session instead.
+- Caller-supplied sessions must not be shared by multiple active
+  ``VergeClient`` instances because authentication is stored in session headers
+  while connected.
+- ``close_session=False`` now requires a caller-supplied session to avoid
+  leaking SDK-created connection pools.
+
 [1.0.0] - 2026-02-01
 --------------------
 
