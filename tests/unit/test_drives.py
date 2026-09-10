@@ -65,6 +65,7 @@ class TestDriveManager:
         call_args = mock_session.request.call_args
         params = call_args.kwargs.get("params", {})
         assert "machine eq 200" in params.get("filter", "")
+        assert "ms_2023_kek_applied" in params.get("fields", "")
 
     def test_list_drives_by_media(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
@@ -205,6 +206,20 @@ class TestDriveManager:
 
         assert drive.get("description") == "New description"
 
+    def test_apply_universal_vars(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test applying the Microsoft 2023 Secure Boot keys by drive key."""
+        mock_session.request.return_value.json.return_value = {"task": 123}
+
+        result = vm.drives.apply_universal_vars(7)
+
+        assert result == {"task": 123}
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["url"].endswith("/api/v4/machine_drives/7/apply_universal_vars")
+        assert call_args.kwargs["json"] == {}
+
     def test_import_drive_by_file_key(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
@@ -340,6 +355,7 @@ class TestDrive:
             "used_bytes": 21474836480,  # 20 GB
             "enabled": True,
             "readonly": False,
+            "ms_2023_kek_applied": False,
         }
 
     @pytest.fixture
@@ -395,6 +411,29 @@ class TestDrive:
         drive_data["readonly"] = True
         drive = Drive(drive_data, mock_drive_manager)
         assert drive.is_readonly is True
+
+    def test_ms_2023_kek_applied(
+        self, drive_data: dict[str, Any], mock_drive_manager: DriveManager
+    ) -> None:
+        """Test Microsoft 2023 Secure Boot key status."""
+        drive = Drive(drive_data, mock_drive_manager)
+        assert drive.ms_2023_kek_applied is False
+
+        drive_data["ms_2023_kek_applied"] = True
+        drive = Drive(drive_data, mock_drive_manager)
+        assert drive.ms_2023_kek_applied is True
+
+    def test_apply_universal_vars_delegates_to_manager(
+        self, drive_data: dict[str, Any], mock_drive_manager: DriveManager
+    ) -> None:
+        """Test applying Secure Boot keys from a Drive object."""
+        mock_drive_manager.apply_universal_vars = MagicMock(return_value={"task": 123})
+        drive = Drive(drive_data, mock_drive_manager)
+
+        result = drive.apply_universal_vars()
+
+        assert result == {"task": 123}
+        mock_drive_manager.apply_universal_vars.assert_called_once_with(1)
 
 
 class TestDriveMaps:

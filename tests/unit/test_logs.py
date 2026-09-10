@@ -589,6 +589,8 @@ class TestObjectTypeMappings:
         assert OBJECT_TYPE_MAP["Cluster"] == "cluster"
         assert OBJECT_TYPE_MAP["Task"] == "task"
         assert OBJECT_TYPE_MAP["NASService"] == "vm_service"
+        assert OBJECT_TYPE_MAP["Tag"] == "tag"
+        assert OBJECT_TYPE_MAP["TagCategory"] == "tag_category"
 
     def test_object_type_display_entries(self) -> None:
         """Test reverse object type mappings exist."""
@@ -601,6 +603,8 @@ class TestObjectTypeMappings:
         assert OBJECT_TYPE_DISPLAY["cluster"] == "Cluster"
         assert OBJECT_TYPE_DISPLAY["task"] == "Task"
         assert OBJECT_TYPE_DISPLAY["vm_service"] == "NASService"
+        assert OBJECT_TYPE_DISPLAY["tag"] == "Tag"
+        assert OBJECT_TYPE_DISPLAY["tag_category"] == "TagCategory"
 
 
 # =============================================================================
