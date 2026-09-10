@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import builtins
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -26,6 +26,7 @@ DRIVE_DEFAULT_FIELDS = [
     "serial",
     "preferred_tier",
     "readonly",
+    "ms_2023_kek_applied",
     "disksize",
     "used_bytes",
     "media_source",
@@ -61,6 +62,17 @@ MEDIA_DISPLAY_MAP = {
     "clone": "Clone Disk",
     "nonpersistent": "Non-Persistent",
 }
+
+
+def _supports_ms_2023_kek(os_version: str | None) -> bool:
+    """Return whether a VergeOS version exposes the Microsoft 2023 KEK field."""
+    parts = (os_version or "").split(".")
+    if len(parts) < 2:
+        return False
+    try:
+        return (int(parts[0]), int(parts[1])) >= (26, 1)
+    except ValueError:
+        return False
 
 
 class Drive(ResourceObject):
@@ -100,6 +112,23 @@ class Drive(ResourceObject):
         """Check if drive is read-only."""
         return bool(self.get("readonly", False))
 
+    @property
+    def ms_2023_kek_applied(self) -> bool:
+        """Check if the Microsoft 2023 Secure Boot keys have been applied."""
+        return bool(self.get("ms_2023_kek_applied", False))
+
+    def apply_universal_vars(self) -> dict[str, Any] | None:
+        """Apply the Microsoft 2023 Secure Boot keys to this EFI disk.
+
+        The owning VM must be offline with Secure Boot enabled. VergeOS also
+        requires this drive to use the ``efidisk`` media type.
+
+        Returns:
+            Action response, which may include task information.
+        """
+        manager = cast("DriveManager", self._manager)
+        return manager.apply_universal_vars(self.key)
+
 
 class DriveManager(ResourceManager[Drive]):
     """Manager for VM Drive operations.
@@ -113,6 +142,11 @@ class DriveManager(ResourceManager[Drive]):
     def __init__(self, client: VergeClient, vm: VM) -> None:
         super().__init__(client)
         self._vm = vm
+        self._default_fields = [
+            field
+            for field in DRIVE_DEFAULT_FIELDS
+            if field != "ms_2023_kek_applied" or _supports_ms_2023_kek(client.os_version)
+        ]
 
     @property
     def machine_key(self) -> int:
@@ -326,6 +360,26 @@ class DriveManager(ResourceManager[Drive]):
         if not isinstance(response, dict):
             return self.get(key)
         return self._to_model(response)
+
+    def apply_universal_vars(self, key: int) -> dict[str, Any] | None:
+        """Apply the Microsoft 2023 Secure Boot keys to an EFI disk.
+
+        Args:
+            key: Drive $key (ID).
+
+        Returns:
+            Action response, which may include task information.
+
+        Note:
+            The owning VM must be offline with Secure Boot enabled. VergeOS
+            validates those preconditions along with the EFI media type.
+        """
+        response = self._client._request(
+            "POST", f"{self._endpoint}/{key}/apply_universal_vars", json_data={}
+        )
+        if isinstance(response, dict):
+            return response
+        return None
 
     def import_drive(
         self,

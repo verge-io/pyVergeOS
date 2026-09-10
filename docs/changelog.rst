@@ -6,6 +6,17 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.2.4] - 2026-09-10
+--------------------
+
+Added
+^^^^^
+
+- Added ``Drive.ms_2023_kek_applied`` and
+  ``Drive.apply_universal_vars()`` / ``DriveManager.apply_universal_vars()``
+  for Microsoft 2023 Secure Boot key status and application on EFI disks.
+- Added ``Tag`` and ``TagCategory`` log object-type mappings.
+
 [1.2.3] - 2026-05-21
 --------------------
 
