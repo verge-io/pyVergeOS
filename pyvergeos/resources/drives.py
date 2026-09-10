@@ -64,6 +64,17 @@ MEDIA_DISPLAY_MAP = {
 }
 
 
+def _supports_ms_2023_kek(os_version: str | None) -> bool:
+    """Return whether a VergeOS version exposes the Microsoft 2023 KEK field."""
+    parts = (os_version or "").split(".")
+    if len(parts) < 2:
+        return False
+    try:
+        return (int(parts[0]), int(parts[1])) >= (26, 1)
+    except ValueError:
+        return False
+
+
 class Drive(ResourceObject):
     """VM Drive resource object."""
 
@@ -131,6 +142,11 @@ class DriveManager(ResourceManager[Drive]):
     def __init__(self, client: VergeClient, vm: VM) -> None:
         super().__init__(client)
         self._vm = vm
+        self._default_fields = [
+            field
+            for field in DRIVE_DEFAULT_FIELDS
+            if field != "ms_2023_kek_applied" or _supports_ms_2023_kek(client.os_version)
+        ]
 
     @property
     def machine_key(self) -> int:
