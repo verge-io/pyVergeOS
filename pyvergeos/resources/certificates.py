@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -498,12 +498,13 @@ class CertificateManager(ResourceManager[Certificate]):
 
         if domain is not None:
             # Escape single quotes in domain name
-            escaped_domain = domain.replace("'", "''")
-            results = self.list(filter=f"domain eq '{escaped_domain}'", fields=field_list, limit=1)
+            results = self.list(
+                filter=f"domain eq {quote_value(domain)}", fields=field_list, limit=1
+            )
             if not results:
                 # Try domainname field as fallback
                 results = self.list(
-                    filter=f"domainname eq '{escaped_domain}'", fields=field_list, limit=1
+                    filter=f"domainname eq {quote_value(domain)}", fields=field_list, limit=1
                 )
             if not results:
                 raise NotFoundError(f"Certificate for domain '{domain}' not found")

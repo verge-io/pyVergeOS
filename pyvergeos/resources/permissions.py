@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -267,8 +267,7 @@ class PermissionManager(ResourceManager[Permission]):
 
         # Add table filter
         if table is not None:
-            escaped_table = table.replace("'", "''")
-            filters.append(f"table eq '{escaped_table}'")
+            filters.append(f"table eq {quote_value(table)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

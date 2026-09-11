@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -293,8 +293,7 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
             return self._to_model(response)
 
         if name is not None:
-            escaped = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"vGPU profile with name '{name}' not found")
             return results[0]
@@ -623,8 +622,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
             return self._to_model(response)
 
         if name is not None:
-            escaped = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"GPU with name '{name}' not found")
             return results[0]
@@ -1380,8 +1378,7 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
             filters.append(f"node eq {self._node_key}")
 
         if vendor is not None:
-            escaped = vendor.replace("'", "''")
-            filters.append(f"vendor ct '{escaped}'")
+            filters.append(f"vendor ct {quote_value(vendor)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -1633,8 +1630,7 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
             filters.append(f"node eq {self._node_key}")
 
         if vendor is not None:
-            escaped = vendor.replace("'", "''")
-            filters.append(f"vendor ct '{escaped}'")
+            filters.append(f"vendor ct {quote_value(vendor)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -1903,8 +1899,7 @@ class NodeVgpuProfileManager(ResourceManager[NodeVgpuProfile]):
             return self._to_model(response)
 
         if name is not None:
-            escaped = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"vGPU profile with name '{name}' not found")
             return results[0]

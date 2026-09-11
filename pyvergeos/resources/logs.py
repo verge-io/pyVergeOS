@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -292,13 +292,11 @@ class LogManager(ResourceManager[Log]):
 
         # User filter (contains search)
         if user:
-            escaped_user = user.replace("'", "''")
-            conditions.append(f"user ct '{escaped_user}'")
+            conditions.append(f"user ct {quote_value(user)}")
 
         # Text filter (contains search)
         if text:
-            escaped_text = text.replace("'", "''")
-            conditions.append(f"text ct '{escaped_text}'")
+            conditions.append(f"text ct {quote_value(text)}")
 
         # Time filters (timestamp is in microseconds)
         if since:

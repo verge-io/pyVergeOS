@@ -376,7 +376,7 @@ class TestLogManagerList:
 
         call_args = mock_session.request.call_args
         params = call_args.kwargs.get("params", {})
-        assert "user ct 'user''name'" in params.get("filter", "")
+        assert "user ct 'user\\'name'" in params.get("filter", "")
 
     def test_list_logs_text_escape_quotes(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -388,7 +388,7 @@ class TestLogManagerList:
 
         call_args = mock_session.request.call_args
         params = call_args.kwargs.get("params", {})
-        assert "text ct 'it''s'" in params.get("filter", "")
+        assert "text ct 'it\\'s'" in params.get("filter", "")
 
 
 # =============================================================================

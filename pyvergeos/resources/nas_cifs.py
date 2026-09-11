@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -315,8 +315,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            filter_str = f"name eq '{escaped_name}'"
+            filter_str = f"name eq {quote_value(name)}"
 
             # Add volume filter if specified
             if volume is not None:
@@ -647,7 +646,11 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         vol_response = self._client._request(
             "GET",
             "volumes",
-            params={"filter": f"name eq '{volume}'", "fields": "$key,id,name", "limit": "1"},
+            params={
+                "filter": f"name eq {quote_value(volume)}",
+                "fields": "$key,id,name",
+                "limit": "1",
+            },
         )
         if vol_response:
             if isinstance(vol_response, list):

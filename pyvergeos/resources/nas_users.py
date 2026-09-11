@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -370,8 +370,7 @@ class NASUserManager(ResourceManager["NASUser"]):
                 raise NotFoundError(f"NAS service '{service}' not found")
 
             # Search by name and service
-            escaped_name = name.replace("'", "''")
-            filter_str = f"service eq {service_key} and name eq '{escaped_name}'"
+            filter_str = f"service eq {service_key} and name eq {quote_value(name)}"
 
             results = self.list(filter=filter_str, fields=fields, limit=1)
             if not results:
@@ -612,7 +611,7 @@ class NASUserManager(ResourceManager["NASUser"]):
             "GET",
             "vm_services",
             params={
-                "filter": f"name eq '{service}'",
+                "filter": f"name eq {quote_value(service)}",
                 "fields": "$key,name",
                 "limit": "1",
             },
@@ -642,7 +641,7 @@ class NASUserManager(ResourceManager["NASUser"]):
             "GET",
             "volume_cifs_shares",
             params={
-                "filter": f"volume#service eq {service_key} and name eq '{share}'",
+                "filter": f"volume#service eq {service_key} and name eq {quote_value(share)}",
                 "fields": "$key,name",
                 "limit": "1",
             },

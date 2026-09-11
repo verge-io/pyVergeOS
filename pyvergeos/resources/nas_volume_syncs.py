@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -307,7 +307,11 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
                 svc_response = self._client._request(
                     "GET",
                     "vm_services",
-                    params={"filter": f"name eq '{service}'", "fields": "$key", "limit": "1"},
+                    params={
+                        "filter": f"name eq {quote_value(service)}",
+                        "fields": "$key",
+                        "limit": "1",
+                    },
                 )
                 if svc_response:
                     if isinstance(svc_response, list):
@@ -401,9 +405,8 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
             results = self.list(
-                filter=f"name eq '{escaped_name}'",
+                filter=f"name eq {quote_value(name)}",
                 service=service,
                 fields=fields,
                 limit=1,
@@ -500,7 +503,11 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
             svc_response = self._client._request(
                 "GET",
                 "vm_services",
-                params={"filter": f"name eq '{service}'", "fields": "$key,name", "limit": "1"},
+                params={
+                    "filter": f"name eq {quote_value(service)}",
+                    "fields": "$key,name",
+                    "limit": "1",
+                },
             )
             if not svc_response:
                 raise ValueError(f"NAS service '{service}' not found")

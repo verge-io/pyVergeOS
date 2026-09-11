@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -300,8 +300,7 @@ class NASServiceManager(ResourceManager[NASService]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"NAS service with name '{name}' not found")
             return results[0]
@@ -395,7 +394,11 @@ class NASServiceManager(ResourceManager[NASService]):
                 net_response = self._client._request(
                     "GET",
                     "vnets",
-                    params={"filter": f"name eq '{network}'", "fields": "$key,name", "limit": "1"},
+                    params={
+                        "filter": f"name eq {quote_value(network)}",
+                        "fields": "$key,name",
+                        "limit": "1",
+                    },
                 )
                 if net_response:
                     if isinstance(net_response, list):

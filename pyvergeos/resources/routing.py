@@ -6,6 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -1063,8 +1064,7 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"BGP interface with name '{name}' not found")
             return results[0]
@@ -1569,9 +1569,8 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
             return self._to_model(response)
 
         if tag is not None and sequence is not None:
-            escaped_tag = tag.replace("'", "''")
             results = self.list(
-                filter=f"tag eq '{escaped_tag}' and sequence eq {sequence}",
+                filter=f"tag eq {quote_value(tag)} and sequence eq {sequence}",
                 fields=fields,
             )
             if not results:

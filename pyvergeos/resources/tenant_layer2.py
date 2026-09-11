@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -264,11 +265,12 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
         if network is not None:
             net_key = network
         else:
+            assert network_name is not None  # Validated above.
             # Look up network by name
             response = self._client._request(
                 "GET",
                 "vnets",
-                params={"filter": f"name eq '{network_name}'", "fields": "$key,name"},
+                params={"filter": f"name eq {quote_value(network_name)}", "fields": "$key,name"},
             )
             if not response:
                 from pyvergeos.exceptions import NotFoundError

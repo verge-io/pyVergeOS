@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -1053,8 +1053,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
             filters.append(f"node eq {self._node_key}")
 
         if driver_name is not None:
-            escaped = driver_name.replace("'", "''")
-            filters.append(f"driver_name ct '{escaped}'")
+            filters.append(f"driver_name ct {quote_value(driver_name)}")
 
         if status is not None:
             status_map = {
@@ -1243,12 +1242,10 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
                 filters.append(f"device_type eq '{type_map[device_type]}'")
 
         if device_class is not None:
-            escaped = device_class.replace("'", "''")
-            filters.append(f"class ct '{escaped}'")
+            filters.append(f"class ct {quote_value(device_class)}")
 
         if vendor is not None:
-            escaped = vendor.replace("'", "''")
-            filters.append(f"vendor ct '{escaped}'")
+            filters.append(f"vendor ct {quote_value(vendor)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -1393,12 +1390,10 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
             filters.append(f"node eq {self._node_key}")
 
         if vendor is not None:
-            escaped = vendor.replace("'", "''")
-            filters.append(f"vendor ct '{escaped}'")
+            filters.append(f"vendor ct {quote_value(vendor)}")
 
         if model is not None:
-            escaped = model.replace("'", "''")
-            filters.append(f"model ct '{escaped}'")
+            filters.append(f"model ct {quote_value(model)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -1559,12 +1554,10 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
             filters.append(f"node eq {self._node_key}")
 
         if vendor is not None:
-            escaped = vendor.replace("'", "''")
-            filters.append(f"vendor ct '{escaped}'")
+            filters.append(f"vendor ct {quote_value(vendor)}")
 
         if physical_function is not None:
-            escaped = physical_function.replace("'", "''")
-            filters.append(f"physical_function eq '{escaped}'")
+            filters.append(f"physical_function eq {quote_value(physical_function)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -1750,12 +1743,10 @@ class NodeManager(ResourceManager[Node]):
             filters.append(filter)
 
         if name is not None:
-            escaped = name.replace("'", "''")
-            filters.append(f"name eq '{escaped}'")
+            filters.append(f"name eq {quote_value(name)}")
 
         if cluster is not None:
-            escaped = cluster.replace("'", "''")
-            filters.append(f"cluster#name eq '{escaped}'")
+            filters.append(f"cluster#name eq {quote_value(cluster)}")
 
         if maintenance is not None:
             filters.append(f"maintenance eq {str(maintenance).lower()}")

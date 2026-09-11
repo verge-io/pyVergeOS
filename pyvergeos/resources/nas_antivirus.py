@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -379,7 +379,11 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
                 vol_response = self._client._request(
                     "GET",
                     "volumes",
-                    params={"filter": f"name eq '{volume}'", "fields": "$key", "limit": "1"},
+                    params={
+                        "filter": f"name eq {quote_value(volume)}",
+                        "fields": "$key",
+                        "limit": "1",
+                    },
                 )
                 if vol_response:
                     if isinstance(vol_response, list):
@@ -476,7 +480,11 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
                 vol_response = self._client._request(
                     "GET",
                     "volumes",
-                    params={"filter": f"name eq '{volume_key}'", "fields": "$key", "limit": "1"},
+                    params={
+                        "filter": f"name eq {quote_value(volume_key)}",
+                        "fields": "$key",
+                        "limit": "1",
+                    },
                 )
                 if vol_response:
                     if isinstance(vol_response, list):

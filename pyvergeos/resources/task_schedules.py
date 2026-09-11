@@ -55,7 +55,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -371,10 +371,9 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
             if "*" in name or "?" in name:
                 search_term = name.replace("*", "").replace("?", "")
                 if search_term:
-                    filters.append(f"name ct '{search_term}'")
+                    filters.append(f"name ct {quote_value(search_term)}")
             else:
-                escaped_name = name.replace("'", "''")
-                filters.append(f"name eq '{escaped_name}'")
+                filters.append(f"name eq {quote_value(name)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -440,8 +439,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Task schedule with name '{name}' not found")
             return results[0]
