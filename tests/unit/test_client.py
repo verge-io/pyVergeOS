@@ -540,3 +540,88 @@ class TestVergeClientRetryConfig:
         assert client._connection is not None
         assert client._connection.retry_total == 7
         client.disconnect()
+
+
+class TestErrorResponseBody:
+    """Error dispatch preserves the complete body and parses JSON only once."""
+
+    @pytest.mark.parametrize(
+        ("status", "error_name"),
+        [
+            (400, "APIError"),
+            (401, "AuthenticationError"),
+            (403, "AuthenticationError"),
+            (404, "NotFoundError"),
+            (405, "APIError"),
+            (409, "ConflictError"),
+            (422, "ValidationError"),
+            (500, "APIError"),
+        ],
+    )
+    def test_preserves_body_for_all_error_types(self, mock_client, status, error_name):
+        from pyvergeos import exceptions
+
+        body = {"err": "Request failed", "response": {"logs": ["diagnostic"], "key": 42}}
+        response = MagicMock(spec=requests.Response)
+        response.status_code = status
+        response.json.return_value = body
+
+        with pytest.raises(getattr(exceptions, error_name)) as caught:
+            mock_client._handle_response(response)
+
+        assert type(caught.value).__name__ == error_name
+        assert caught.value.status_code == status
+        assert caught.value.response_body is body
+        assert str(caught.value) == "Request failed"
+        assert caught.value.args == ("Request failed",)
+        response.json.assert_called_once_with()
+
+    @pytest.mark.parametrize(
+        ("body", "message"),
+        [
+            ({"err": "first", "error": "second", "message": "third"}, "first"),
+            ({"error": {"message": "nested"}}, "nested"),
+            ({"message": "message only"}, "message only"),
+            ({"other": 123}, "{'other': 123}"),
+            (["err"], "['err']"),
+            ("plain JSON string", "plain JSON string"),
+            (None, "None"),
+            (7, "7"),
+            (False, "False"),
+        ],
+    )
+    def test_json_body_shapes(self, mock_client, body, message):
+        from pyvergeos.exceptions import APIError
+
+        response = MagicMock(spec=requests.Response)
+        response.status_code = 400
+        response.json.return_value = body
+        with pytest.raises(APIError) as caught:
+            mock_client._handle_response(response)
+        assert caught.value.response_body is body
+        assert str(caught.value) == message
+        response.json.assert_called_once_with()
+
+    @pytest.mark.parametrize("body", ["<html>Bad gateway</html>", ""])
+    def test_non_json_body(self, mock_client, body):
+        from pyvergeos.exceptions import APIError
+
+        response = requests.Response()
+        response.status_code = 502
+        response._content = body.encode()
+        with pytest.raises(APIError) as caught:
+            mock_client._handle_response(response)
+        assert caught.value.response_body == body
+        assert str(caught.value) == (body or "HTTP 502")
+
+    @pytest.mark.parametrize("status", [401, 403])
+    def test_connection_authentication_preserves_body(self, mock_session, status):
+        response = mock_session.request.return_value
+        response.status_code = status
+        body = {"err": "Invalid credentials", "response": {"reason": "expired"}}
+        response.json.return_value = body
+        with pytest.raises(AuthenticationError) as caught:
+            VergeClient(host="test.example.com", token="test")
+        assert caught.value.response_body is body
+        assert caught.value.status_code == status
+        response.json.assert_called_once_with()

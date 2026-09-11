@@ -455,9 +455,7 @@ class VergeClient:
             )
 
             if resp.status_code in HTTP_AUTH_FAILURE_CODES:
-                raise AuthenticationError(
-                    self._extract_error_message(resp), status_code=resp.status_code
-                )
+                self._handle_response(resp)
 
             if resp.status_code in HTTP_SUCCESS_CODES and resp.text:
                 response = resp.json()
@@ -594,23 +592,30 @@ class VergeClient:
             return None
 
         # Error responses
-        error_message = self._extract_error_message(response)
-
-        if response.status_code in HTTP_AUTH_FAILURE_CODES:
-            raise AuthenticationError(error_message, status_code=response.status_code)
-        elif response.status_code == HTTP_NOT_FOUND:
-            raise NotFoundError(error_message, status_code=response.status_code)
-        elif response.status_code == HTTP_CONFLICT:
-            raise ConflictError(error_message, status_code=response.status_code)
-        elif response.status_code == HTTP_UNPROCESSABLE_ENTITY:
-            raise ValidationError(error_message, status_code=response.status_code)
-        else:
-            raise APIError(error_message, status_code=response.status_code)
-
-    def _extract_error_message(self, response: requests.Response) -> str:
-        """Extract error message from API response."""
         try:
-            data = response.json()
+            response_body = response.json()
+        except (json.JSONDecodeError, requests.exceptions.JSONDecodeError):
+            response_body = response.text
+        error_message = self._extract_error_message(response_body, response.status_code)
+
+        error_type: type[APIError]
+        if response.status_code in HTTP_AUTH_FAILURE_CODES:
+            error_type = AuthenticationError
+        elif response.status_code == HTTP_NOT_FOUND:
+            error_type = NotFoundError
+        elif response.status_code == HTTP_CONFLICT:
+            error_type = ConflictError
+        elif response.status_code == HTTP_UNPROCESSABLE_ENTITY:
+            error_type = ValidationError
+        else:
+            error_type = APIError
+        raise error_type(
+            error_message, status_code=response.status_code, response_body=response_body
+        )
+
+    def _extract_error_message(self, data: Any, status_code: int) -> str:
+        """Extract an error message from an already parsed response body."""
+        if isinstance(data, dict):
             # VergeOS uses 'err', 'error', or 'message' fields
             for field in ("err", "error", "message"):
                 if field in data:
@@ -619,9 +624,9 @@ class VergeClient:
                         return msg
                     elif isinstance(msg, dict) and "message" in msg:
                         return str(msg["message"])
-            return str(data)
-        except (json.JSONDecodeError, KeyError):
-            return response.text or f"HTTP {response.status_code}"
+        if data == "":
+            return f"HTTP {status_code}"
+        return str(data)
 
     # Resource manager properties
 

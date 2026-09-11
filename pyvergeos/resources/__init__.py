@@ -240,6 +240,7 @@ from pyvergeos.resources.vm_recipes import (
     VmRecipeLog,
     VmRecipeLogManager,
     VmRecipeManager,
+    VmRecipeSimulationResult,
 )
 from pyvergeos.resources.webhooks import Webhook, WebhookHistory, WebhookManager
 
@@ -437,6 +438,7 @@ __all__ = [
     "VmRecipeLog",
     "VmRecipeLogManager",
     "VmRecipeManager",
+    "VmRecipeSimulationResult",
     "TenantRecipe",
     "TenantRecipeInstance",
     "TenantRecipeInstanceManager",
