@@ -59,3 +59,16 @@ class TestExceptions:
         error = TaskTimeoutError("Timed out", task_id=456)
         assert error.task_id == 456
         assert issubclass(TaskTimeoutError, TaskError)
+
+    def test_api_error_default_body_is_none(self) -> None:
+        error = APIError("Failure", 500)
+        assert error.response_body is None
+        assert error.status_code == 500
+        assert error.args == ("Failure",)
+
+    def test_api_error_body_is_separate_from_message(self) -> None:
+        body = {"response": {"password": "sensitive"}}
+        error = APIError("Failure", 500, response_body=body)
+        assert error.response_body is body
+        assert str(error) == "Failure"
+        assert "sensitive" not in repr(error)

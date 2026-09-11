@@ -306,6 +306,49 @@ Automated VM provisioning templates.
    :undoc-members:
    :show-inheritance:
 
+.. _vm-recipe-simulation:
+
+Recipe simulation
+~~~~~~~~~~~~~~~~~
+
+Use a downloaded or published recipe and supply answers to its required questions.
+Simulation evaluates deployment and returns a ``VmRecipeSimulationResult`` dictionary
+with ``cloudinit_files``, ``logs``, and ``answers``. Predicted resource keys in the report
+are not persisted resources. The report may contain guest credentials and rendered
+cloud-init secrets.
+
+.. code-block:: python
+
+   recipe = client.vm_recipes.get(name="Ubuntu Server 20.04 (Focal Fossa)")
+   report = client.vm_recipe_instances.simulate(
+       recipe=recipe.key,
+       name="preview-ubuntu",
+       answers={
+           "HOSTNAME": "preview-ubuntu",
+           "USER": "ubuntu",
+           "PASSWORD": guest_password,
+           "YB_NIC_ETH0": "Internal",
+           "YB_IP_ADDR_TYPE": "dhcp",
+       },
+   )
+   for entry in report["logs"]:
+       print(entry)
+
+``Internal`` must be an existing workload network; network names are resolved in
+answers just as they are for ``create()``. ``guest_password`` is supplied by the caller.
+Question names and requirements depend on the recipe.
+
+VergeOS signals completion with HTTP 405, ``err="Simulation complete"``, and a report
+in ``response``. Only this completion response is converted to a result. Other API
+errors propagate with their complete ``response_body``. An unexpected successful HTTP
+response raises ``APIError`` without attempting to fetch an instance.
+
+For direct API behavior, ``create(..., simulate=True)`` sends the flag and raises
+``APIError`` on simulation completion, preserving the full report. Both methods accept
+an optional ``verify`` flag, passed through unchanged; it is used by the server for
+recipe-update verification and does not enable simulation. Existing ``create()`` calls
+retain their deployment behavior.
+
 Tenant Recipes
 ^^^^^^^^^^^^^^
 
