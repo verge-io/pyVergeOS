@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -561,7 +562,11 @@ class VM(ResourceObject):
         users = self._manager._client._request(
             "GET",
             "users",
-            params={"filter": f"name eq '{username}'", "fields": "$key,name", "limit": 1},
+            params={
+                "filter": f"name eq {quote_value(username)}",
+                "fields": "$key,name",
+                "limit": 1,
+            },
         )
         if not isinstance(users, list) or not users:
             raise ValueError(f"Could not find user '{username}'")

@@ -6,6 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -155,12 +156,10 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
         ]
 
         if hostname:
-            escaped_hostname = hostname.replace("'", "''")
-            filters.append(f"host eq '{escaped_hostname}'")
+            filters.append(f"host eq {quote_value(hostname)}")
 
         if ip:
-            escaped_ip = ip.replace("'", "''")
-            filters.append(f"ip eq '{escaped_ip}'")
+            filters.append(f"ip eq {quote_value(ip)}")
 
         if host_type:
             filters.append(f"type eq '{host_type}'")

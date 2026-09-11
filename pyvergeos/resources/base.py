@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -181,8 +181,7 @@ class ResourceManager(Generic[T]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"{self._endpoint} with name '{name}' not found")
             return results[0]

@@ -6,6 +6,17 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- Fixed resource lookups and generated filters containing apostrophes or
+  backslashes, including NAS paths and related-resource name resolution.
+  Shared ``quote_value()`` now uses VergeOS backslash escaping instead of
+  SQL quote doubling. Raw ``filter=`` expressions remain caller-controlled.
+
 [1.2.4] - 2026-09-10
 --------------------
 

@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -493,8 +493,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             return period
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"Period '{name}' not found in profile {self._profile_key}")
             return results[0]
@@ -816,8 +815,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
             return self._to_model(response, periods=profile_periods)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Snapshot profile '{name}' not found")
 

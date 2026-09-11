@@ -8,6 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -294,8 +295,7 @@ class QueryManager(ResourceManager[QueryResult]):
             return self._to_model(response)
 
         if query_id is not None:
-            escaped_id = query_id.replace("'", "''")
-            results = self.list(filter=f"id eq '{escaped_id}'", fields=fields, limit=1)
+            results = self.list(filter=f"id eq {quote_value(query_id)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Query with id '{query_id}' not found")
             return results[0]

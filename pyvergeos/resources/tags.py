@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -710,9 +710,8 @@ class TagManager(ResourceManager[Tag]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
             results = self.list(
-                filter=f"name eq '{escaped_name}'",
+                filter=f"name eq {quote_value(name)}",
                 category_key=category_key,
                 category_name=category_name,
                 fields=fields,
@@ -1165,8 +1164,7 @@ class TagCategoryManager(ResourceManager[TagCategory]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Tag category '{name}' not found")
             return results[0]

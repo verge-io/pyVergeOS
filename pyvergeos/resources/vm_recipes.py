@@ -47,7 +47,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -387,7 +387,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                         "GET",
                         "catalogs",
                         params={
-                            "filter": f"name eq '{catalog}'",
+                            "filter": f"name eq {quote_value(catalog)}",
                             "fields": "$key",
                             "limit": "1",
                         },
@@ -479,8 +479,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"VM recipe with name '{name}' not found")
             return results[0]
@@ -759,8 +758,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Recipe instance with name '{name}' not found")
             return results[0]
@@ -812,7 +810,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
                 "GET",
                 "vnets",
                 params={
-                    "filter": f"name eq '{val.replace(chr(39), chr(39) * 2)}'",
+                    "filter": f"name eq {quote_value(val)}",
                     "fields": "$key,name",
                 },
             )

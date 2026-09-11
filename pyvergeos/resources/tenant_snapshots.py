@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -186,7 +187,7 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
             return self._to_model(response)
 
         if name is not None:
-            snapshots = self.list(filter=f"name eq '{name}'", fields=fields)
+            snapshots = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not snapshots:
                 from pyvergeos.exceptions import NotFoundError
 

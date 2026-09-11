@@ -53,7 +53,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -399,9 +399,9 @@ class TaskManager(ResourceManager[Task]):
                 # Use contains for partial match
                 search_term = name.replace("*", "").replace("?", "")
                 if search_term:
-                    conditions.append(f"name ct '{search_term}'")
+                    conditions.append(f"name ct {quote_value(search_term)}")
             else:
-                conditions.append(f"name eq '{name}'")
+                conditions.append(f"name eq {quote_value(name)}")
 
         # Add any additional filter kwargs
         if filter_kwargs:
@@ -534,8 +534,7 @@ class TaskManager(ResourceManager[Task]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Task with name '{name}' not found")
             return results[0]

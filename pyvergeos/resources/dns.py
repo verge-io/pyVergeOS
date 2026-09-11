@@ -6,6 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -188,8 +189,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
         ]
 
         if host is not None:
-            escaped_host = host.replace("'", "''")
-            filters.append(f"host eq '{escaped_host}'")
+            filters.append(f"host eq {quote_value(host)}")
 
         if record_type:
             filters.append(f"type eq '{record_type}'")
@@ -601,8 +601,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         filters: builtins.list[str] = [f"view eq {view_key}"]
 
         if domain:
-            escaped_domain = domain.replace("'", "''")
-            filters.append(f"domain eq '{escaped_domain}'")
+            filters.append(f"domain eq {quote_value(domain)}")
 
         if zone_type:
             filters.append(f"type eq '{zone_type}'")

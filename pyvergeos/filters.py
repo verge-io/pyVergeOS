@@ -4,6 +4,17 @@ from enum import Enum
 from typing import Any, Union
 
 
+def quote_value(value: str) -> str:
+    """Quote a string literal for a VergeOS filter expression.
+
+    VergeOS uses backslash escaping, not SQL quote doubling. Escape existing
+    backslashes first so they cannot consume an apostrophe's escape character.
+    This only quotes the value; wildcard conversion belongs to the caller.
+    """
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
 class FilterOperator(Enum):
     """Supported filter operators."""
 
@@ -41,26 +52,14 @@ class Filter:
         if op == FilterOperator.IN:
             if not isinstance(value, (list, tuple)):
                 value = [value]
-            formatted = ", ".join(self._format_single(v) for v in value)
+            formatted = ", ".join(_format_value(v) for v in value)
             return f"({formatted})"
 
         if op == FilterOperator.LIKE and isinstance(value, str):
             # Convert wildcards: * -> %, ? -> _
             value = value.replace("*", "%").replace("?", "_")
 
-        return self._format_single(value)
-
-    def _format_single(self, value: Any) -> str:
-        """Format a single value."""
-        if value is None:
-            return "null"
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        if isinstance(value, (int, float)):
-            return str(value)
-        # String - quote and escape
-        value = str(value).replace("'", "''")
-        return f"'{value}'"
+        return _format_value(value)
 
     def _auto_and(self) -> None:
         """Auto-add AND if needed (implicit AND between conditions)."""
@@ -135,8 +134,7 @@ def _format_value(value: Any) -> str:
         return "true" if value else "false"
     if isinstance(value, (int, float)):
         return str(value)
-    value = str(value).replace("'", "''")
-    return f"'{value}'"
+    return quote_value(str(value))
 
 
 def build_filter(**kwargs: Any) -> str:
@@ -168,10 +166,9 @@ def build_filter(**kwargs: Any) -> str:
             formatted = ", ".join(_format_value(v) for v in value)
             parts.append(f"{field} in ({formatted})")
         elif isinstance(value, str) and ("*" in value or "?" in value):
-            # LIKE query - escape single quotes, then convert wildcards
-            escaped = value.replace("'", "''")
-            pattern = escaped.replace("*", "%").replace("?", "_")
-            parts.append(f"{field} like '{pattern}'")
+            # LIKE query - convert wildcards before quoting the literal
+            pattern = value.replace("*", "%").replace("?", "_")
+            parts.append(f"{field} like {quote_value(pattern)}")
         else:
             # Equality
             parts.append(f"{field} eq {_format_value(value)}")

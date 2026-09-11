@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -419,8 +419,7 @@ class WebhookManager(ResourceManager[Webhook]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=field_list, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=field_list, limit=1)
             if not results:
                 raise NotFoundError(f"Webhook with name '{name}' not found")
             return results[0]

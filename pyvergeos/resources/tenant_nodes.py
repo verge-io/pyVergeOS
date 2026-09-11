@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -261,7 +262,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
             return self._to_model(response)
 
         if name is not None:
-            nodes = self.list(filter=f"name eq '{name}'", fields=fields)
+            nodes = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not nodes:
                 raise NotFoundError(
                     f"Tenant node '{name}' not found for tenant '{self._tenant.name}'"
