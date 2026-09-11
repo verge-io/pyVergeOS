@@ -6,6 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -207,8 +208,7 @@ class DNSViewManager(ResourceManager[DNSView]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            views = self.list(filter=f"name eq '{escaped_name}'")
+            views = self.list(filter=f"name eq {quote_value(name)}")
             if not views:
                 raise NotFoundError(f"DNS view '{name}' not found on this network")
             return views[0]

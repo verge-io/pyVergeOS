@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -453,7 +454,7 @@ class LicenseManager(ResourceManager[License]):
         if filter:
             filters.append(filter)
         if name:
-            filters.append(f"name eq '{name}'")
+            filters.append(f"name eq {quote_value(name)}")
 
         combined_filter = " and ".join(filters) if filters else None
 

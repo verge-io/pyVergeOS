@@ -6,6 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -321,8 +322,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            rules = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            rules = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not rules:
                 raise NotFoundError(f"Rule with name '{name}' not found on this network")
             return rules[0]

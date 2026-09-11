@@ -67,6 +67,32 @@ For programmatic filter construction, use the ``Filter`` class:
    f = Filter().eq("status", "running").and_().startswith("name", "prod-")
    vms = client.vms.list(filter=str(f))
 
+String Values
+-------------
+
+Pass unescaped values to ``get(name=...)``, keyword filters, and ``Filter``.
+The SDK quotes apostrophes and backslashes using VergeOS's backslash escaping:
+
+.. code-block:: python
+
+   group = client.groups.get(name="O'Brien")
+   groups = client.groups.list(name="O'Brien")
+   f = Filter().eq("path", r"C:\O'Brien\share")
+
+When composing a raw ``filter=`` expression, use ``quote_value`` for string
+literals. It includes the surrounding quotes and preserves wildcard characters:
+
+.. code-block:: python
+
+   from pyvergeos.filters import quote_value
+
+   name = "O'Brien"
+   groups = client.groups.list(filter=f"name eq {quote_value(name)}")
+
+Raw ``filter=`` strings are sent unchanged. SQL-style doubled apostrophes are
+not valid VergeOS escaping. ``get(name=...)`` matches names exactly;
+keyword filters and ``Filter.like()`` retain their existing wildcard behavior.
+
 Field Selection
 ---------------
 

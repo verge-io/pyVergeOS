@@ -276,21 +276,41 @@ class TestGroupMemberOperations:
         members = test_group.members.list()
         assert len(members) == 0
 
-    def test_remove_user_by_user_key(self, test_group, live_client: VergeClient) -> None:
-        """Test removing user using remove_user method."""
+    @pytest.mark.parametrize("prefix", ["", "/v4/"])
+    def test_remove_user_by_user_key(
+        self, test_group, live_client: VergeClient, prefix: str
+    ) -> None:
+        """Remove users from both native and SDK membership references."""
         admin = live_client.users.get(name="admin")
-        test_group.members.add_user(admin.key)
+        ref = f"{prefix}users/{admin.key}"
+        live_client._request(
+            "POST", "members", json_data={"parent_group": test_group.key, "member": ref}
+        )
+
+        member = test_group.members.list()[0]
+        assert member.member_ref == ref
+        assert member.member_type == "User"
+        assert member.member_key == admin.key
 
         test_group.members.remove_user(admin.key)
 
         members = test_group.members.list()
         assert len(members) == 0
 
+    @pytest.mark.parametrize("prefix", ["", "/v4/"])
     def test_remove_group_from_group(
-        self, test_group, test_child_group, live_client: VergeClient
+        self, test_group, test_child_group, live_client: VergeClient, prefix: str
     ) -> None:
-        """Test removing nested group using remove_group method."""
-        test_group.members.add_group(test_child_group.key)
+        """Remove nested groups from both native and SDK membership references."""
+        ref = f"{prefix}groups/{test_child_group.key}"
+        live_client._request(
+            "POST", "members", json_data={"parent_group": test_group.key, "member": ref}
+        )
+
+        member = test_group.members.list()[0]
+        assert member.member_ref == ref
+        assert member.member_type == "Group"
+        assert member.member_key == test_child_group.key
 
         test_group.members.remove_group(test_child_group.key)
 

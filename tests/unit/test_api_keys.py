@@ -380,7 +380,7 @@ class TestAPIKeyManager:
 
         call_args = client._request.call_args
         filter_param = call_args.kwargs["params"]["filter"]
-        assert "name eq 'test''key'" in filter_param
+        assert "name eq 'test\\'key'" in filter_param
 
     def test_get_not_found_by_key(self) -> None:
         """Test get raises NotFoundError when key not found."""

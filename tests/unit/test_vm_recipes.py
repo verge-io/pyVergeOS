@@ -497,6 +497,8 @@ class TestVmRecipeInstanceManagerCreate:
         assert body["name"] == "my-ubuntu"
         assert body["answers"] == {"ram": 4096}
         assert body["auto_update"] is True
+        assert "simulate" not in body
+        assert "verify" not in body
 
 
 class TestVmRecipeInstanceNetworkResolution:
@@ -814,3 +816,135 @@ class TestVmRecipeLogManagerHelpers:
         assert len(result) == 1
         args = mock_client._request.call_args
         assert "level eq 'warning'" in args[1]["params"]["filter"]
+
+
+class TestVmRecipeSimulation:
+    """Simulation returns reports only for the documented completion response."""
+
+    @pytest.fixture
+    def report(self):
+        return {
+            "cloudinit_files": [{"name": "user-data", "contents": "#cloud-config\n"}],
+            "logs": ["Rendered file 'user-data'"],
+            "answers": {"YB_VM_KEY": "123", "HOSTNAME": "preview"},
+            "future_field": {"preserved": True},
+        }
+
+    def test_returns_complete_report(self, vm_recipe_instance_manager, mock_client, report):
+        from pyvergeos.exceptions import APIError
+
+        mock_client.recipe_questions.list.return_value = [
+            {"name": "YB_NIC_ETH0", "type": "network"}
+        ]
+        mock_client._request.side_effect = [
+            [{"$key": 12, "name": "Internal"}],
+            APIError(
+                "Simulation complete",
+                405,
+                response_body={"err": "Simulation complete", "response": report},
+            ),
+        ]
+        answers = {"YB_NIC_ETH0": "Internal"}
+        result = vm_recipe_instance_manager.simulate(
+            recipe="recipe-key", name="preview", answers=answers, auto_update=True, verify=False
+        )
+        assert result is report
+        assert answers == {"YB_NIC_ETH0": "Internal"}
+        assert mock_client._request.call_count == 2
+        mock_client._request.assert_called_with(
+            "POST",
+            "vm_recipe_instances",
+            json_data={
+                "recipe": "recipe-key",
+                "name": "preview",
+                "answers": {"YB_NIC_ETH0": 12},
+                "auto_update": True,
+                "simulate": True,
+                "verify": False,
+            },
+        )
+
+    @pytest.mark.parametrize(
+        ("status", "body"),
+        [
+            (405, {"err": "Method not allowed", "response": {}}),
+            (405, {"err": "Simulation complete"}),
+            (405, {"err": "Simulation complete", "response": None}),
+            (405, {"err": "Simulation complete", "response": []}),
+            (405, {"err": "Simulation complete", "response": {}}),
+            (405, "Simulation complete"),
+            (405, None),
+            (
+                422,
+                {
+                    "err": "Simulation complete",
+                    "response": {"cloudinit_files": [], "logs": [], "answers": {}},
+                },
+            ),
+        ],
+    )
+    def test_reraises_other_errors(self, vm_recipe_instance_manager, mock_client, status, body):
+        from pyvergeos.exceptions import APIError, ValidationError
+
+        cls = ValidationError if status == 422 else APIError
+        error = cls("Failure", status, response_body=body)
+        mock_client._request.side_effect = error
+        with pytest.raises(cls) as caught:
+            vm_recipe_instance_manager.simulate(recipe="recipe-key", name="preview")
+        assert caught.value is error
+        mock_client._request.assert_called_once()
+
+    @pytest.mark.parametrize("verify", [True, False])
+    def test_create_plumbs_flags(self, vm_recipe_instance_manager, mock_client, report, verify):
+        from pyvergeos.exceptions import APIError
+
+        error = APIError(
+            "Simulation complete",
+            405,
+            response_body={"err": "Simulation complete", "response": report},
+        )
+        mock_client._request.side_effect = error
+        with pytest.raises(APIError) as caught:
+            vm_recipe_instance_manager.create(
+                recipe="recipe-key", name="preview", simulate=True, verify=verify
+            )
+        assert caught.value is error
+        mock_client._request.assert_called_once_with(
+            "POST",
+            "vm_recipe_instances",
+            json_data={
+                "recipe": "recipe-key",
+                "name": "preview",
+                "simulate": True,
+                "verify": verify,
+            },
+        )
+
+    @pytest.mark.parametrize("response", [None, {}, {"$key": 123}, []])
+    def test_unexpected_success_does_not_fetch_instance(
+        self, vm_recipe_instance_manager, mock_client, response
+    ):
+        from pyvergeos.exceptions import APIError
+
+        mock_client._request.return_value = response
+        with pytest.raises(APIError, match="Unexpected successful") as caught:
+            vm_recipe_instance_manager.simulate(recipe="recipe-key", name="preview")
+        assert caught.value.response_body is response
+        mock_client._request.assert_called_once_with(
+            "POST",
+            "vm_recipe_instances",
+            json_data={"recipe": "recipe-key", "name": "preview", "simulate": True},
+        )
+
+    def test_http_simulation_report_end_to_end(self, mock_session, report):
+        from pyvergeos.exceptions import APIError
+
+        client = VergeClient(host="test.example.com", token="test")
+        response = mock_session.request.return_value
+        response.status_code = 405
+        body = {"err": "Simulation complete", "response": report}
+        response.json.return_value = body
+        with pytest.raises(APIError) as caught:
+            client.vm_recipe_instances.create(recipe="recipe-key", name="preview", simulate=True)
+        assert caught.value.response_body is body
+        assert client.vm_recipe_instances.simulate(recipe="recipe-key", name="preview") is report

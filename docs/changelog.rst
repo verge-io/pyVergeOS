@@ -6,6 +6,31 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.2.5] - 2026-09-11
+--------------------
+
+Added
+^^^^^
+
+- Added ``vm_recipe_instances.simulate()`` to return recipe practice-run reports
+  containing rendered cloud-init files, logs, and resolved answers. The helper
+  recognizes VergeOS's HTTP 405 ``Simulation complete`` response without creating
+  a persistent instance. ``create()`` also accepts ``simulate`` and ``verify`` flags.
+
+Fixed
+^^^^^
+
+- Recognize native group membership references such as ``users/1`` and ``groups/3``,
+  as well as prefixed references. Membership types and keys now resolve correctly,
+  allowing removal helpers to find native memberships. Stored references are unchanged.
+- Preserve the complete JSON error body in ``APIError.response_body`` and all
+  subclasses, including the generic VergeOS ``response`` payload. Non-JSON error
+  responses retain their raw text; error messages and status codes remain available.
+- Fixed resource lookups and generated filters containing apostrophes or
+  backslashes, including NAS paths and related-resource name resolution.
+  Shared ``quote_value()`` now uses VergeOS backslash escaping instead of
+  SQL quote doubling. Raw ``filter=`` expressions remain caller-controlled.
+
 [1.2.4] - 2026-09-10
 --------------------
 

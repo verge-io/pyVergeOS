@@ -44,14 +44,27 @@ Example:
 from __future__ import annotations
 
 import builtins
-from typing import TYPE_CHECKING, Any
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
-from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.exceptions import APIError, NotFoundError
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+
+class VmRecipeSimulationResult(TypedDict):
+    """Recipe practice-run report returned as a dictionary, without a persisted VM.
+
+    Contains rendered cloud-init files, execution logs, and resolved answers,
+    including predicted resource keys. Contents may include guest credentials.
+    """
+
+    cloudinit_files: list[dict[str, Any]]
+    logs: list[str]
+    answers: dict[str, Any]
 
 
 class VmRecipe(ResourceObject):
@@ -387,7 +400,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                         "GET",
                         "catalogs",
                         params={
-                            "filter": f"name eq '{catalog}'",
+                            "filter": f"name eq {quote_value(catalog)}",
                             "fields": "$key",
                             "limit": "1",
                         },
@@ -479,8 +492,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"VM recipe with name '{name}' not found")
             return results[0]
@@ -759,8 +771,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Recipe instance with name '{name}' not found")
             return results[0]
@@ -812,7 +823,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
                 "GET",
                 "vnets",
                 params={
-                    "filter": f"name eq '{val.replace(chr(39), chr(39) * 2)}'",
+                    "filter": f"name eq {quote_value(val)}",
                     "fields": "$key,name",
                 },
             )
@@ -834,6 +845,8 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         *,
         answers: dict[str, Any] | None = None,
         auto_update: bool = False,
+        simulate: bool = False,
+        verify: bool | None = None,
     ) -> VmRecipeInstance:
         """Create a new recipe instance (deploy a recipe).
 
@@ -846,6 +859,10 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             name: Name for the new VM.
             answers: Recipe question answers.
             auto_update: Auto-update when recipe updates are available.
+            simulate: Send the API simulation flag. Completion raises APIError
+                with the report in response_body; prefer simulate() to return it.
+            verify: Optional API verification flag. This is not a dry-run flag;
+                the server uses it when verifying recipe updates.
 
         Returns:
             Created VmRecipeInstance object.
@@ -868,7 +885,19 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         if auto_update:
             body["auto_update"] = True
 
+        if simulate:
+            body["simulate"] = True
+        if verify is not None:
+            body["verify"] = verify
+
         response = self._client._request("POST", self._endpoint, json_data=body)
+
+        if simulate:
+            # Simulation must finish with the server's rollback sentinel. Do not
+            # fetch an instance (possibly an unrelated VM with the same name).
+            raise APIError(
+                "Unexpected successful recipe simulation response", response_body=response
+            )
 
         # Get the created instance
         if response and isinstance(response, dict):
@@ -878,6 +907,58 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
 
         # Fallback: search by name
         return self.get(name=name)
+
+    def simulate(
+        self,
+        recipe: str,
+        name: str,
+        *,
+        answers: dict[str, Any] | None = None,
+        auto_update: bool = False,
+        verify: bool | None = None,
+    ) -> VmRecipeSimulationResult:
+        """Preview recipe deployment and return its report without persisting a VM.
+
+        Accepts the same recipe, name, answers, auto_update, and verify arguments
+        as create(), including network names in answers. Requires a downloaded
+        or published recipe and valid answers to its required questions.
+
+        Returns:
+            Dictionary containing cloudinit_files, logs, and resolved answers.
+            Resource keys in the report are predictions, not persisted rows.
+
+        Raises:
+            APIError: If the server does not return HTTP 405 with the exact
+                "Simulation complete" marker and a report. Other errors retain
+                their original type and response_body.
+
+        Example:
+            >>> report = client.vm_recipe_instances.simulate(
+            ...     recipe="8f73f8bcc9c9...", name="preview-vm", answers=answers
+            ... )
+            >>> print(report["logs"])
+        """
+        try:
+            self.create(
+                recipe,
+                name,
+                answers=answers,
+                auto_update=auto_update,
+                simulate=True,
+                verify=verify,
+            )
+        except APIError as exc:
+            body = exc.response_body
+            if (
+                exc.status_code == HTTPStatus.METHOD_NOT_ALLOWED
+                and isinstance(body, dict)
+                and body.get("err") == "Simulation complete"
+                and isinstance(body.get("response"), dict)
+                and {"cloudinit_files", "logs", "answers"} <= body["response"].keys()
+            ):
+                return cast(VmRecipeSimulationResult, body["response"])
+            raise
+        raise APIError("Recipe simulation did not return a report")
 
     def update(  # type: ignore[override]
         self,

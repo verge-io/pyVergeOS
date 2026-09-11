@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -926,7 +926,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
                 site = self._client.sites.get(name=site_name)
                 site_key = site.key
 
-            conditions = [f"name eq '{name.replace(chr(39), chr(39) + chr(39))}'"]
+            conditions = [f"name eq {quote_value(name)}"]
             if site_key is not None:
                 conditions.append(f"site eq {site_key}")
 
@@ -1510,7 +1510,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
                 site = self._client.sites.get(name=site_name)
                 site_key = site.key
 
-            conditions = [f"name eq '{name.replace(chr(39), chr(39) + chr(39))}'"]
+            conditions = [f"name eq {quote_value(name)}"]
             if site_key is not None:
                 conditions.append(f"site eq {site_key}")
 
@@ -2968,8 +2968,7 @@ class SiteSyncRemoteSnapManager:
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"Remote snapshot '{name}' not found")
             return results[0]

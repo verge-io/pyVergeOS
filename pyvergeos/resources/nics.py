@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -285,7 +286,7 @@ class MachineNICManager(ResourceManager[NIC]):
             return self._to_model(response)
 
         if name is not None:
-            nics = self.list(filter=f"name eq '{name}'", fields=fields)
+            nics = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not nics:
                 from pyvergeos.exceptions import NotFoundError
 
@@ -397,7 +398,7 @@ class NICManager(ResourceManager[NIC]):
             return self._to_model(response)
 
         if name is not None:
-            nics = self.list(filter=f"name eq '{name}'", fields=fields)
+            nics = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not nics:
                 from pyvergeos.exceptions import NotFoundError
 
@@ -446,7 +447,7 @@ class NICManager(ResourceManager[NIC]):
                 response = self._client._request(
                     "GET",
                     "vnets",
-                    params={"filter": f"name eq '{network}'", "fields": "$key,name"},
+                    params={"filter": f"name eq {quote_value(network)}", "fields": "$key,name"},
                 )
                 if not response:
                     raise ValueError(f"Network '{network}' not found")
@@ -504,7 +505,7 @@ class NICManager(ResourceManager[NIC]):
                 response = self._client._request(
                     "GET",
                     "vnets",
-                    params={"filter": f"name eq '{network}'", "fields": "$key,name"},
+                    params={"filter": f"name eq {quote_value(network)}", "fields": "$key,name"},
                 )
                 if not response:
                     raise ValueError(f"Network '{network}' not found")

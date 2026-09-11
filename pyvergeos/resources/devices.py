@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -423,8 +423,7 @@ class DeviceManager(ResourceManager[Device]):
             return self._to_model(response)
 
         if name is not None:
-            escaped = name.replace("'", "''")
-            devices = self.list(filter=f"name eq '{escaped}'", fields=fields, limit=1)
+            devices = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not devices:
                 raise NotFoundError(f"Device with name '{name}' not found")
             return devices[0]

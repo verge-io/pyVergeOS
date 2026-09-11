@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import builtins
+import re
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+
+# VergeOS stores native references (users/1) and SDK references (/v4/users/1) verbatim.
+_MEMBER_REF_PATTERN = re.compile(r"(?:^|/)(users|groups)/(\d+)\Z")
 
 
 class GroupMember(ResourceObject):
@@ -21,7 +26,7 @@ class GroupMember(ResourceObject):
     Attributes:
         key: Membership primary key ($key).
         group_key: Parent group key.
-        member_type: Type of member ('User' or 'Group').
+        member_type: Type of member ('User', 'Group', or 'Unknown').
         member_key: Key of the member (user or group).
         member_name: Display name of the member.
         member_ref: API reference to the member.
@@ -35,34 +40,23 @@ class GroupMember(ResourceObject):
 
     @property
     def member_ref(self) -> str:
-        """Get the member API reference (e.g., '/v4/users/1')."""
+        """Get the stored member reference (e.g., 'users/1' or '/v4/users/1')."""
         return str(self.get("member", ""))
 
     @property
     def member_type(self) -> str:
-        """Get the member type ('User' or 'Group')."""
-        ref = self.member_ref
-        if "/users/" in ref:
-            return "User"
-        elif "/groups/" in ref:
-            return "Group"
+        """Get the member type ('User', 'Group', or 'Unknown')."""
+        match = _MEMBER_REF_PATTERN.search(self.member_ref)
+        if match:
+            return "User" if match.group(1) == "users" else "Group"
         return "Unknown"
 
     @property
     def member_key(self) -> int | None:
         """Get the member key (user or group ID)."""
-        ref = self.member_ref
-        # Parse reference like "/v4/users/1" or "/v4/groups/2"
-        if "/users/" in ref:
-            try:
-                return int(ref.split("/users/")[1])
-            except (ValueError, IndexError):
-                return None
-        elif "/groups/" in ref:
-            try:
-                return int(ref.split("/groups/")[1])
-            except (ValueError, IndexError):
-                return None
+        match = _MEMBER_REF_PATTERN.search(self.member_ref)
+        if match:
+            return int(match.group(2))
         return None
 
     @property
@@ -590,8 +584,7 @@ class GroupManager(ResourceManager[Group]):
 
         if name is not None:
             # Search by name
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields, limit=1)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Group '{name}' not found")
             return results[0]

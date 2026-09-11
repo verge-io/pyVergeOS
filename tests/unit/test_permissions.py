@@ -365,7 +365,7 @@ class TestPermissionManager:
 
         mock_client._request.assert_called_once()
         call_args = mock_client._request.call_args
-        assert "table eq 'test''table'" in call_args[1]["params"]["filter"]
+        assert "table eq 'test\\'table'" in call_args[1]["params"]["filter"]
 
     # Get tests
 

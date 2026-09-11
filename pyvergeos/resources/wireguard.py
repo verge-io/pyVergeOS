@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -414,8 +415,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"WireGuard interface with name '{name}' not found")
             return results[0]
@@ -676,8 +676,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"WireGuard peer with name '{name}' not found")
             return results[0]

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import ValidationError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -595,8 +595,7 @@ class ClusterManager(ResourceManager[Cluster]):
             filters.append(filter)
 
         if name is not None:
-            escaped = name.replace("'", "''")
-            filters.append(f"name eq '{escaped}'")
+            filters.append(f"name eq {quote_value(name)}")
 
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
@@ -1125,8 +1124,7 @@ class ClusterManager(ResourceManager[Cluster]):
         params: dict[str, Any] = {"fields": ",".join(fields)}
 
         if cluster_name:
-            escaped = cluster_name.replace("'", "''")
-            params["filter"] = f"name eq '{escaped}'"
+            params["filter"] = f"name eq {quote_value(cluster_name)}"
 
         response = self._client._request("GET", self._endpoint, params=params)
 

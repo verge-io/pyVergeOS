@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -216,7 +217,7 @@ class SharedObjectManager:
         if tenant_key is not None:
             filters.append(f"recipient eq {tenant_key}")
         if name is not None:
-            filters.append(f"name eq '{name}'")
+            filters.append(f"name eq {quote_value(name)}")
         if inbox_only:
             filters.append("inbox eq true")
 

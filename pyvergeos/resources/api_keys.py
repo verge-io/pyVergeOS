@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -342,9 +342,8 @@ class APIKeyManager(ResourceManager[APIKey]):
             if user_key is None:
                 raise NotFoundError(f"User '{user}' not found")
 
-            escaped_name = name.replace("'", "''")
             results = self.list(
-                filter=f"name eq '{escaped_name}' and user eq {user_key}",
+                filter=f"name eq {quote_value(name)} and user eq {user_key}",
                 fields=fields,
                 limit=1,
             )

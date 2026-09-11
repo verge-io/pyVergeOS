@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -464,8 +465,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"IPSec connection with name '{name}' not found")
             return results[0]
@@ -808,8 +808,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             return self._to_model(response)
 
         if name is not None:
-            escaped_name = name.replace("'", "''")
-            results = self.list(filter=f"name eq '{escaped_name}'", fields=fields)
+            results = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not results:
                 raise NotFoundError(f"IPSec policy with name '{name}' not found")
             return results[0]

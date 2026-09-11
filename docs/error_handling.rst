@@ -76,6 +76,28 @@ API Errors
    except ConflictError as e:
        print(f"Conflict: {e}")
 
+Error bodies are available separately from the message as ``response_body`` on
+``APIError`` and its subclasses. JSON responses retain the entire decoded value,
+including VergeOS's generic top-level ``response`` payload. Non-JSON responses
+retain raw text (an empty body is ``""``). Errors constructed without a body have
+``response_body=None``. Existing message and status-code handling is unchanged.
+
+.. code-block:: python
+
+   try:
+       client.vm_recipe_instances.create(
+           recipe=recipe.key, name="preview-vm", answers=answers, simulate=True
+       )
+   except APIError as exc:
+       body = exc.response_body
+       if isinstance(body, dict):
+           details = body.get("response")
+           # Inspect details locally; reports can contain guest credentials.
+
+For recipe practice runs, prefer ``vm_recipe_instances.simulate()`` as shown in
+:ref:`vm-recipe-simulation`; it returns the report for the documented completion
+response and propagates other errors.
+
 Task Errors
 -----------
 

@@ -1,6 +1,11 @@
 """Tests for filter builder."""
 
-from pyvergeos.filters import Filter, build_filter
+from pathlib import PureWindowsPath
+from typing import Any
+
+import pytest
+
+from pyvergeos.filters import Filter, build_filter, quote_value
 
 
 class TestFilter:
@@ -69,7 +74,7 @@ class TestFilter:
 
     def test_escape_quotes(self) -> None:
         f = Filter().eq("name", "test's vm")
-        assert str(f) == "name eq 'test''s vm'"
+        assert str(f) == "name eq 'test\\'s vm'"
 
     def test_empty_filter_is_falsy(self) -> None:
         f = Filter()
@@ -116,3 +121,56 @@ class TestBuildFilter:
     def test_none_values_skipped(self) -> None:
         result = build_filter(status="running", name=None)
         assert result == "status eq 'running'"
+
+
+# Expected wire literals are explicit: these must not share the implementation's
+# escaping logic, or the SQL-doubling regression could go unnoticed again.
+STRING_LITERALS = [
+    ("", "''"),
+    ("plain", "'plain'"),
+    ("O'Brien", r"'O\'Brien'"),
+    (r"C:\NAS\share", r"'C:\\NAS\\share'"),
+    ("trailing\\", r"'trailing\\'"),
+    (r"back\'quote", r"'back\\\'quote'"),
+    ('a"b', "'a\"b'"),
+    ("équipe's", r"'équipe\'s'"),
+    ("x' or name ne 'x", r"'x\' or name ne \'x'"),
+]
+
+
+@pytest.mark.parametrize(("value", "literal"), STRING_LITERALS)
+def test_quote_value(value: str, literal: str) -> None:
+    assert quote_value(value) == literal
+
+
+@pytest.mark.parametrize(("value", "literal"), STRING_LITERALS)
+def test_builders_quote_equality(value: str, literal: str) -> None:
+    assert str(Filter().eq("name", value)) == f"name eq {literal}"
+    assert build_filter(name=value) == f"name eq {literal}"
+
+
+@pytest.mark.parametrize("container", [list, tuple])
+def test_builders_quote_in_values(container: Any) -> None:
+    values = container(["O'Brien", r"C:\NAS", None, True, False, 42, 1.5])
+    expected = r"name in ('O\'Brien', 'C:\\NAS', null, true, false, 42, 1.5)"
+    assert str(Filter().in_("name", values)) == expected
+    assert build_filter(name=values) == expected
+
+
+def test_builders_quote_wildcards() -> None:
+    value = r"O'Brien\share*?"
+    expected = r"name like 'O\'Brien\\share%_'"
+    assert str(Filter().like("name", value)) == expected
+    assert build_filter(name=value) == expected
+
+
+def test_exact_filter_preserves_literal_wildcards() -> None:
+    assert str(Filter().eq("name", "a*?%_")) == "name eq 'a*?%_'"
+    assert quote_value("a*?%_") == "'a*?%_'"
+
+
+def test_builders_stringify_objects() -> None:
+    value = PureWindowsPath(r"C:\O'Brien\share")
+    expected = r"name eq 'C:\\O\'Brien\\share'"
+    assert str(Filter().eq("name", value)) == expected
+    assert build_filter(name=value) == expected

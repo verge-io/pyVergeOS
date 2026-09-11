@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -242,7 +243,7 @@ class DriveManager(ResourceManager[Drive]):
             return self._to_model(response)
 
         if name is not None:
-            drives = self.list(filter=f"name eq '{name}'", fields=fields)
+            drives = self.list(filter=f"name eq {quote_value(name)}", fields=fields)
             if not drives:
                 from pyvergeos.exceptions import NotFoundError
 
@@ -312,7 +313,10 @@ class DriveManager(ResourceManager[Drive]):
                 response = self._client._request(
                     "GET",
                     "files",
-                    params={"filter": f"name eq '{media_source}'", "fields": "$key,name"},
+                    params={
+                        "filter": f"name eq {quote_value(media_source)}",
+                        "fields": "$key,name",
+                    },
                 )
                 if not response:
                     raise ValueError(f"Media file '{media_source}' not found")
@@ -448,7 +452,7 @@ class DriveManager(ResourceManager[Drive]):
             response = self._client._request(
                 "GET",
                 "files",
-                params={"filter": f"name eq '{file_name}'", "fields": "$key,name"},
+                params={"filter": f"name eq {quote_value(file_name)}", "fields": "$key,name"},
             )
             if not response:
                 raise ValueError(f"File '{file_name}' not found in media catalog")
