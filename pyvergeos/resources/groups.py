@@ -42,9 +42,9 @@ class GroupMember(ResourceObject):
     def member_type(self) -> str:
         """Get the member type ('User' or 'Group')."""
         ref = self.member_ref
-        if "/users/" in ref:
+        if "/users/" in ref or ref.startswith("users/"):
             return "User"
-        elif "/groups/" in ref:
+        elif "/groups/" in ref or ref.startswith("groups/"):
             return "Group"
         return "Unknown"
 
@@ -52,15 +52,20 @@ class GroupMember(ResourceObject):
     def member_key(self) -> int | None:
         """Get the member key (user or group ID)."""
         ref = self.member_ref
-        # Parse reference like "/v4/users/1" or "/v4/groups/2"
+        # Parse reference like "/v4/users/1", "users/1" or "/v4/groups/2", "groups/2"
+        separator = None
         if "/users/" in ref:
-            try:
-                return int(ref.split("/users/")[1])
-            except (ValueError, IndexError):
-                return None
+            separator = "/users/"
+        elif ref.startswith("users/"):
+            separator = "users/"
         elif "/groups/" in ref:
+            separator = "/groups/"
+        elif ref.startswith("groups/"):
+            separator = "groups/"
+
+        if separator is not None:
             try:
-                return int(ref.split("/groups/")[1])
+                return int(ref.split(separator)[1])
             except (ValueError, IndexError):
                 return None
         return None

@@ -88,6 +88,36 @@ class TestGroupMember:
         member = GroupMember(data, MagicMock())
         assert member.member_key is None
 
+    def test_member_type_user_short_ref(self) -> None:
+        """Test member_type property for user with short ref (e.g., 'users/10')."""
+        data = {"$key": 1, "member": "users/10"}
+        member = GroupMember(data, MagicMock())
+        assert member.member_type == "User"
+
+    def test_member_type_group_short_ref(self) -> None:
+        """Test member_type property for group with short ref (e.g., 'groups/5')."""
+        data = {"$key": 1, "member": "groups/5"}
+        member = GroupMember(data, MagicMock())
+        assert member.member_type == "Group"
+
+    def test_member_key_user_short_ref(self) -> None:
+        """Test member_key property for user with short ref."""
+        data = {"$key": 1, "member": "users/10"}
+        member = GroupMember(data, MagicMock())
+        assert member.member_key == 10
+
+    def test_member_key_group_short_ref(self) -> None:
+        """Test member_key property for group with short ref."""
+        data = {"$key": 1, "member": "groups/5"}
+        member = GroupMember(data, MagicMock())
+        assert member.member_key == 5
+
+    def test_member_key_short_ref_invalid(self) -> None:
+        """Test member_key property for short ref with invalid ID."""
+        data = {"$key": 1, "member": "users/invalid"}
+        member = GroupMember(data, MagicMock())
+        assert member.member_key is None
+
     def test_member_key_unknown(self) -> None:
         """Test member_key property for unknown type."""
         data = {"$key": 1, "member": "/v4/other/1"}
@@ -468,6 +498,48 @@ class TestGroupMemberManager:
 
         with pytest.raises(NotFoundError, match="not a member"):
             manager.remove_group(member_group_key=999)
+
+    def test_remove_user_short_ref(self, mock_client: MagicMock) -> None:
+        """Test remove_user finds and removes user membership with short ref ('users/1')."""
+        mock_client._request.side_effect = [
+            [
+                {
+                    "$key": 10,
+                    "parent_group": 5,
+                    "member": "users/1",
+                    "member_display": "testuser",
+                }
+            ],
+            None,
+        ]
+        manager = GroupMemberManager(mock_client, group_key=5)
+
+        manager.remove_user(user_key=1)
+
+        assert mock_client._request.call_count == 2
+        delete_call = mock_client._request.call_args_list[1]
+        assert delete_call[0] == ("DELETE", "members/10")
+
+    def test_remove_group_short_ref(self, mock_client: MagicMock) -> None:
+        """Test remove_group finds and removes group membership with short ref ('groups/3')."""
+        mock_client._request.side_effect = [
+            [
+                {
+                    "$key": 11,
+                    "parent_group": 5,
+                    "member": "groups/3",
+                    "member_display": "ChildGroup",
+                }
+            ],
+            None,
+        ]
+        manager = GroupMemberManager(mock_client, group_key=5)
+
+        manager.remove_group(member_group_key=3)
+
+        assert mock_client._request.call_count == 2
+        delete_call = mock_client._request.call_args_list[1]
+        assert delete_call[0] == ("DELETE", "members/11")
 
 
 class TestGroupManager:
