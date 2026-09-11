@@ -94,6 +94,43 @@ class TestGroupMember:
         member = GroupMember(data, MagicMock())
         assert member.member_key is None
 
+    @pytest.mark.parametrize("prefix", ["", "/", "/v4/", "/api/v4/"])
+    @pytest.mark.parametrize("table, expected_type", [("users", "User"), ("groups", "Group")])
+    def test_member_reference_formats(self, prefix: str, table: str, expected_type: str) -> None:
+        """Recognize native and SDK references without changing the stored value."""
+        ref = f"{prefix}{table}/123"
+        member = GroupMember({"$key": 1, "member": ref}, MagicMock())
+
+        assert member.member_ref == ref
+        assert member.member_type == expected_type
+        assert member.member_key == 123
+
+    @pytest.mark.parametrize(
+        "ref",
+        [
+            "",
+            None,
+            "other/1",
+            "/v4/other/1",
+            "notusers/1",
+            "notgroups/1",
+            "users/",
+            "groups/invalid",
+            "/v4/users/invalid",
+            "/v4/groups/invalid",
+            "users/-1",
+            "groups/1/extra",
+            "/v4/users/1/",
+            "users/1\n",
+        ],
+    )
+    def test_unrecognized_member_reference(self, ref: str | None) -> None:
+        """Unknown tables and malformed references have no user or group identity."""
+        member = GroupMember({"$key": 1, "member": ref}, MagicMock())
+
+        assert member.member_type == "Unknown"
+        assert member.member_key is None
+
     def test_member_name_property(self) -> None:
         """Test member_name property."""
         data = {"$key": 1, "member_display": "John Smith"}
@@ -405,17 +442,20 @@ class TestGroupMemberManager:
 
         mock_client._request.assert_called_once_with("DELETE", "members/10")
 
-    def test_remove_user(self, mock_client: MagicMock) -> None:
+    @pytest.mark.parametrize("prefix", ["", "/", "/v4/", "/api/v4/"])
+    def test_remove_user(self, mock_client: MagicMock, prefix: str) -> None:
         """Test remove_user finds and removes user membership."""
         mock_client._request.side_effect = [
             # First call is list() to find the membership
             [
+                {"$key": 20, "parent_group": 5, "member": "groups/1"},
+                {"$key": 21, "parent_group": 5, "member": "other/1"},
                 {
                     "$key": 10,
                     "parent_group": 5,
-                    "member": "/v4/users/1",
+                    "member": f"{prefix}users/1",
                     "member_display": "testuser",
-                }
+                },
             ],
             # Second call is delete
             None,
@@ -437,17 +477,20 @@ class TestGroupMemberManager:
         with pytest.raises(NotFoundError, match="not a member"):
             manager.remove_user(user_key=999)
 
-    def test_remove_group(self, mock_client: MagicMock) -> None:
+    @pytest.mark.parametrize("prefix", ["", "/", "/v4/", "/api/v4/"])
+    def test_remove_group(self, mock_client: MagicMock, prefix: str) -> None:
         """Test remove_group finds and removes group membership."""
         mock_client._request.side_effect = [
             # First call is list() to find the membership
             [
+                {"$key": 20, "parent_group": 5, "member": "users/3"},
+                {"$key": 21, "parent_group": 5, "member": "other/3"},
                 {
                     "$key": 11,
                     "parent_group": 5,
-                    "member": "/v4/groups/3",
+                    "member": f"{prefix}groups/3",
                     "member_display": "ChildGroup",
-                }
+                },
             ],
             # Second call is delete
             None,
