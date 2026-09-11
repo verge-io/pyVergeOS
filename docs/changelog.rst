@@ -6,8 +6,8 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
-[Unreleased]
-------------
+[1.2.5] - 2026-09-11
+--------------------
 
 Added
 ^^^^^
@@ -20,6 +20,9 @@ Added
 Fixed
 ^^^^^
 
+- Recognize native group membership references such as ``users/1`` and ``groups/3``,
+  as well as prefixed references. Membership types and keys now resolve correctly,
+  allowing removal helpers to find native memberships. Stored references are unchanged.
 - Preserve the complete JSON error body in ``APIError.response_body`` and all
   subclasses, including the generic VergeOS ``response`` payload. Non-JSON error
   responses retain their raw text; error messages and status codes remain available.
