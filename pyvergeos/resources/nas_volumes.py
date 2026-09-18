@@ -80,8 +80,7 @@ class NASVolume(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("NASVolumeManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("NASVolume", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this volume."""

@@ -6,6 +6,18 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- ``ResourceObject.save()`` now sends fields modified via attribute or item
+  assignment (``vm.cpu_cores = 4; vm.save()``). Previously only keyword arguments
+  were transmitted, so the ``setattr`` + ``save()`` pattern issued an empty ``PUT``
+  and silently persisted nothing. Keyword arguments still take precedence over
+  locally modified fields.
+
 [1.2.5] - 2026-09-11
 --------------------
 

@@ -527,8 +527,7 @@ class Tag(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("TagManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("Tag", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this tag."""
@@ -991,8 +990,7 @@ class TagCategory(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("TagCategoryManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("TagCategory", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this category.
