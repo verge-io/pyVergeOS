@@ -240,7 +240,7 @@ class SiteSyncOutgoing(ResourceObject):
         from typing import cast
 
         manager = cast("SiteSyncOutgoingManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return manager.update(self.key, **self._pending_changes(**kwargs))
 
     def delete(self) -> None:
         """Delete this sync."""
@@ -549,7 +549,7 @@ class SiteSyncIncoming(ResourceObject):
         from typing import cast
 
         manager = cast("SiteSyncIncomingManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return manager.update(self.key, **self._pending_changes(**kwargs))
 
     def delete(self) -> None:
         """Delete this sync."""

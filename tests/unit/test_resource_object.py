@@ -55,3 +55,35 @@ class TestResourceObjectSave:
     def test_init_data_not_dirty(self) -> None:
         obj, _ = _obj(extra=1)
         assert obj._dirty == set()
+
+
+class TestSaveOverrides:
+    """Subclasses overriding save() must still persist attribute assignments."""
+
+    def test_every_override_uses_pending_changes(self) -> None:
+        import importlib
+        import inspect
+        import pkgutil
+
+        import pyvergeos.resources as pkg
+
+        offenders = []
+        for mod in pkgutil.iter_modules(pkg.__path__):
+            module = importlib.import_module(f"pyvergeos.resources.{mod.name}")
+            for _, cls in inspect.getmembers(module, inspect.isclass):
+                if not issubclass(cls, ResourceObject) or cls is ResourceObject:
+                    continue
+                if cls.__module__ != module.__name__ or "save" not in cls.__dict__:
+                    continue
+                if "_pending_changes" not in inspect.getsource(cls.__dict__["save"]):
+                    offenders.append(f"{module.__name__}.{cls.__name__}")
+        assert offenders == []
+
+    def test_tenant_override_sends_dirty_fields(self) -> None:
+        from pyvergeos.resources.tenant_manager import Tenant, TenantManager
+
+        manager = MagicMock(spec=TenantManager)
+        tenant = Tenant({"$key": 3, "name": "t"}, manager)
+        tenant.description = "x"
+        tenant.save(enabled=False)
+        manager.update.assert_called_once_with(3, description="x", enabled=False)

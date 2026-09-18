@@ -186,7 +186,7 @@ class Tenant(ResourceObject):
         from typing import cast
 
         manager = cast("TenantManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return manager.update(self.key, **self._pending_changes(**kwargs))
 
     @property
     def is_running(self) -> bool:

@@ -63,7 +63,7 @@ class VnetProxyTenant(ResourceObject):
         manager = self._manager
         if not isinstance(manager, VnetProxyTenantManager):
             raise TypeError("Manager must be VnetProxyTenantManager")
-        return manager.update(self.key, **kwargs)
+        return manager.update(self.key, **self._pending_changes(**kwargs))
 
     def delete(self) -> None:
         """Delete this tenant mapping."""
@@ -397,7 +397,7 @@ class VnetProxy(ResourceObject):
         if default_self is not None:
             update_data["default_self"] = default_self
 
-        return manager.update(self.key, **update_data)
+        return manager.update(self.key, **self._pending_changes(**update_data))
 
     def delete(self) -> None:
         """Delete this proxy configuration.

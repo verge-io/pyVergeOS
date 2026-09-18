@@ -91,12 +91,20 @@ class ResourceObject(dict[str, Any]):
         """
         if self.key is None:
             raise ValueError("Cannot save resource without $key")
+        result = self._manager.update(self.key, **self._pending_changes(**kwargs))
+        return result  # type: ignore[no-any-return]
+
+    def _pending_changes(self, **kwargs: Any) -> dict[str, Any]:
+        """Return locally modified fields merged with ``kwargs`` and reset tracking.
+
+        Subclasses that override ``save()`` must pass their kwargs through this
+        so attribute assignments are persisted too.
+        """
         dirty = self.__dict__.get("_dirty", set())
         changes = {k: self[k] for k in dirty if k in self and not k.startswith("$")}
         changes.update(kwargs)
-        result = self._manager.update(self.key, **changes)
         dirty.clear()
-        return result  # type: ignore[no-any-return]
+        return changes
 
     def delete(self) -> None:
         """Delete this resource."""

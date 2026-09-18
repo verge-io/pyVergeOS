@@ -131,7 +131,7 @@ class TenantStorage(ResourceObject):
         manager = cast("TenantStorageManager", self._manager)
         if provisioned_gb is not None:
             kwargs["provisioned"] = provisioned_gb * 1073741824
-        return manager.update(self.key, **kwargs)
+        return manager.update(self.key, **self._pending_changes(**kwargs))
 
     def delete(self) -> None:
         """Delete this storage allocation."""
