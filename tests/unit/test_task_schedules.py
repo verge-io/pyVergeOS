@@ -530,6 +530,13 @@ class TestTaskScheduleManagerUpdate:
 
         assert schedule.name == "Updated Schedule"
 
+        put_calls = [
+            call for call in mock_session.request.call_args_list if call.kwargs["method"] == "PUT"
+        ]
+        assert len(put_calls) == 1
+        assert put_calls[0].kwargs["url"].endswith("/task_schedules/1")
+        assert put_calls[0].kwargs["json"] == {"name": "Updated Schedule"}
+
     def test_update_schedule_enabled(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:

@@ -860,13 +860,33 @@ class TestUpdateSettingsManager:
         ]
 
         manager = UpdateSettingsManager(mock_client)
-        settings = manager.update(auto_refresh=True, update_time="02:00")
+        settings = manager.update(key=999, auto_refresh=True, update_time="02:00")
 
         assert settings["auto_refresh"] is True
         put_call = mock_client._request.call_args_list[0]
         assert put_call[0] == ("PUT", "update_settings/1")
-        assert put_call[1]["json_data"]["auto_refresh"] is True
-        assert put_call[1]["json_data"]["update_time"] == "02:00"
+        assert put_call[1]["json_data"] == {"auto_refresh": True, "update_time": "02:00"}
+
+    def test_save_omits_read_only_fields(self, mock_client: MagicMock) -> None:
+        """Saving a fetched settings object must not replay its read-only fields."""
+        data = {
+            "$key": 1,
+            "auto_refresh": True,
+            "installed": True,
+            "reboot_required": False,
+            "applying_updates": False,
+            "applying_updates_force": False,
+            "release_notes_url": "https://example.com/release-notes",
+        }
+        mock_client._request.side_effect = [data, None, {**data, "auto_refresh": False}]
+        manager = UpdateSettingsManager(mock_client)
+
+        settings = manager.get().save(auto_refresh=False)
+
+        assert settings["auto_refresh"] is False
+        put_call = mock_client._request.call_args_list[1]
+        assert put_call[0] == ("PUT", "update_settings/1")
+        assert put_call[1]["json_data"] == {"auto_refresh": False}
 
     def test_update_no_changes_returns_current(self, mock_client: MagicMock) -> None:
         """Test update with no changes returns current settings."""
