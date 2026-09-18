@@ -878,6 +878,33 @@ class TestSettingsManagerExtended:
         with pytest.raises(NotFoundError):
             mock_client.system.settings.update("nonexistent", "value")
 
+    def test_save_setting_omits_read_only_fields(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Saving a fetched setting sends changes, not the original row fields."""
+        current = {
+            "$key": 1,
+            "key": "max_connections",
+            "value": "500",
+            "default_value": "500",
+            "description": "Maximum connections",
+        }
+        mock_session.request.reset_mock()
+        mock_session.request.return_value.json.side_effect = [
+            [current],
+            [current],
+            None,
+            [{**current, "value": "1000"}],
+        ]
+
+        setting = mock_client.system.settings.get("max_connections").save(value="1000")
+
+        assert setting.value == "1000"
+        _, _, update, _ = mock_session.request.call_args_list
+        assert update.kwargs["method"] == "PUT"
+        assert update.kwargs["url"].endswith("/settings/1")
+        assert update.kwargs["json"] == {"value": "1000"}
+
     def test_update_setting_requires_key(self, mock_client: VergeClient) -> None:
         """Test that update requires a key."""
         with pytest.raises(ValueError, match="Setting key must be provided"):
