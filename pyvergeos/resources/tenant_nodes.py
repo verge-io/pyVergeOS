@@ -142,8 +142,7 @@ class TenantNode(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("TenantNodeManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("TenantNode", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this node from the tenant."""

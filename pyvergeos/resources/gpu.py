@@ -458,8 +458,7 @@ class NodeGpu(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("NodeGpuManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("NodeGpu", self._save(**kwargs))
 
     def __repr__(self) -> str:
         return (

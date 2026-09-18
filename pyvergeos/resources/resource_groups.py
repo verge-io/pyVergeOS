@@ -186,8 +186,7 @@ class ResourceGroup(ResourceObject):
         """Update this resource group with the given values."""
         from typing import cast
 
-        manager = cast("ResourceGroupManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("ResourceGroup", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this resource group."""
@@ -975,8 +974,7 @@ class ResourceRule(ResourceObject):
         """Update this rule with the given values."""
         from typing import cast
 
-        manager = cast("ResourceRuleManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("ResourceRule", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this rule."""

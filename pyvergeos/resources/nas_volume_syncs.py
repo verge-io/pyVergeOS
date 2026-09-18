@@ -91,8 +91,7 @@ class NASVolumeSync(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("NASVolumeSyncManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("NASVolumeSync", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this sync job."""

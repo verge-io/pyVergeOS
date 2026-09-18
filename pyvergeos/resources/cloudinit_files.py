@@ -173,8 +173,7 @@ class CloudInitFile(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("CloudInitFileManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("CloudInitFile", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this cloud-init file."""

@@ -251,8 +251,7 @@ class Certificate(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("CertificateManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("Certificate", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this certificate."""

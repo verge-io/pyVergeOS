@@ -210,8 +210,7 @@ class SnapshotProfilePeriod(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("SnapshotProfilePeriodManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("SnapshotProfilePeriod", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this period."""
@@ -280,8 +279,7 @@ class SnapshotProfile(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("SnapshotProfileManager", self._manager)
-        return manager.update(self.key, **self._pending_changes(**kwargs))
+        return cast("SnapshotProfile", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this profile."""

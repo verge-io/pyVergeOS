@@ -89,22 +89,29 @@ class ResourceObject(dict[str, Any]):
             >>> vm.ram = 2048
             >>> vm = vm.save()  # PUT {"cpu_cores": 4, "ram": 2048}
         """
-        if self.key is None:
-            raise ValueError("Cannot save resource without $key")
-        result = self._manager.update(self.key, **self._pending_changes(**kwargs))
+        result = self._save(**kwargs)
         return result  # type: ignore[no-any-return]
 
-    def _pending_changes(self, **kwargs: Any) -> dict[str, Any]:
-        """Return locally modified fields merged with ``kwargs`` and reset tracking.
+    def _save(self, **kwargs: Any) -> Any:
+        """Persist locally modified fields plus ``kwargs``.
 
-        Subclasses that override ``save()`` must pass their kwargs through this
-        so attribute assignments are persisted too.
+        Subclasses that override ``save()`` must delegate here. Modified fields
+        carry API field names, so when the manager has a typed ``update()`` they
+        are sent as a raw PUT and only ``kwargs`` go through ``update()``.
+        Tracking is reset only after the request succeeds.
         """
+        if self.key is None:
+            raise ValueError("Cannot save resource without $key")
+        manager = self._manager
         dirty = self.__dict__.get("_dirty", set())
         changes = {k: self[k] for k in dirty if k in self and not k.startswith("$")}
-        changes.update(kwargs)
+        if changes and type(manager).update is not ResourceManager.update:
+            ResourceManager.update(manager, self.key, **changes)
+            result = manager.update(self.key, **kwargs) if kwargs else manager.get(self.key)
+        else:
+            result = manager.update(self.key, **{**changes, **kwargs})
         dirty.clear()
-        return changes
+        return result
 
     def delete(self) -> None:
         """Delete this resource."""
