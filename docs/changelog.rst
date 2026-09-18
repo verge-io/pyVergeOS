@@ -6,6 +6,17 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- Accept an empty ``cloudinit_datasource`` as a disable alias in VM creation,
+  updates, and explicit ``save()`` arguments, consistent with
+  ``set_cloudinit_datasource()``. Requests send VergeOS's valid ``"none"`` value;
+  disabling delivery preserves files until callers explicitly delete them.
+
 [1.2.5] - 2026-09-11
 --------------------
 
