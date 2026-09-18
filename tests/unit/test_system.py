@@ -830,19 +830,44 @@ class TestSystemManager:
 class TestSettingsManagerExtended:
     """Unit tests for SettingsManager extended functionality."""
 
-    def test_update_setting(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
-        """Test updating a system setting."""
+    @pytest.mark.parametrize("row_id", [1, "max_connections", None])
+    @pytest.mark.parametrize("value", ["1000", ""])
+    def test_update_setting(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        row_id: int | str | None,
+        value: str,
+    ) -> None:
+        """Send only the editable value to the resolved row, then read it back."""
+        current = {"key": "max_connections", "value": "500", "default_value": "500"}
+        if row_id is not None:
+            current["$key"] = row_id
+        mock_session.request.reset_mock()
         # First call is GET to find the setting, second is PUT, third is GET for refresh
         mock_session.request.return_value.json.side_effect = [
-            [{"$key": 1, "key": "max_connections", "value": "500", "default_value": "500"}],
+            [current],
             None,  # PUT returns no content
-            [{"$key": 1, "key": "max_connections", "value": "1000", "default_value": "500"}],
+            [{**current, "value": value}],
         ]
 
-        setting = mock_client.system.settings.update("max_connections", "1000")
+        setting = mock_client.system.settings.update("max_connections", value)
 
-        assert setting.value == "1000"
+        assert setting.key == "max_connections"
+        assert setting.value == value
         assert setting.is_modified is True
+        lookup, update, refresh = mock_session.request.call_args_list
+        assert lookup.kwargs["method"] == "GET"
+        assert lookup.kwargs["params"] == {
+            "filter": "key eq 'max_connections'",
+            "fields": "all",
+        }
+        assert update.kwargs["method"] == "PUT"
+        assert update.kwargs["url"] == (
+            f"https://test.example.com/api/v4/settings/{row_id or 'max_connections'}"
+        )
+        assert update.kwargs["json"] == {"value": value}
+        assert refresh == lookup
 
     def test_update_setting_not_found(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -860,6 +885,7 @@ class TestSettingsManagerExtended:
 
     def test_reset_setting(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test resetting a setting to default value."""
+        mock_session.request.reset_mock()
         mock_session.request.return_value.json.side_effect = [
             # First call: get current setting
             [{"$key": 1, "key": "max_connections", "value": "1000", "default_value": "500"}],
@@ -875,6 +901,11 @@ class TestSettingsManagerExtended:
 
         assert setting.value == "500"
         assert setting.is_modified is False
+        current, lookup, update, refresh = mock_session.request.call_args_list
+        assert update.kwargs["method"] == "PUT"
+        assert update.kwargs["url"] == "https://test.example.com/api/v4/settings/1"
+        assert update.kwargs["json"] == {"value": "500"}
+        assert current == lookup == refresh
 
     def test_list_modified(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing only modified settings."""
