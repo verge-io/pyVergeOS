@@ -19,6 +19,27 @@ Core VM Management
    :undoc-members:
    :show-inheritance:
 
+Disabling cloud-init
+^^^^^^^^^^^^^^^^^^^^
+
+VergeOS uses ``"none"`` to disable cloud-init delivery. The SDK also accepts
+``""`` as a disable alias in ``vms.create()``, ``vms.update()``,
+``vm.save(cloudinit_datasource="")``, and ``vm.set_cloudinit_datasource()``.
+Disabling delivery preserves existing files. To remove the configuration entirely::
+
+    vm = client.vms.get(name="my-vm")
+    vm.set_cloudinit_datasource("none")
+    for file in vm.cloudinit_files.list():
+        file.delete()
+
+The scoped file manager filters by ``owner eq 'vms/<key>'``. A raw filter on
+``vm`` does not identify these files and cannot verify that removal succeeded.
+
+Ansible's ``state: absent`` and ``hostname`` convenience parameters belong to
+the separate ``verge-io/ansible-collection-vergeio.platform`` collection. That
+collection sends HTTP requests directly; SDK normalization does not change its
+payloads or its ``hostname``/``user_data``/``meta_data`` argument validation.
+
 VM Drives
 ^^^^^^^^^
 

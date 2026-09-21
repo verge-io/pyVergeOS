@@ -806,7 +806,9 @@ class VMManager(ResourceManager[VM]):
             machine_type: QEMU machine type.
             cloudinit_datasource: Cloud-init datasource type. Valid values are
                 "ConfigDrive" (Config Drive v2), "NoCloud", or None (disabled, default).
-                Automatically set to "ConfigDrive" if cloud_init files are provided.
+                Use "none" or "" to explicitly disable delivery, even when files
+                are provided. Automatically set to "ConfigDrive" if cloud_init
+                files are provided and this argument is None.
             cloud_init: Cloud-init file configuration for VM provisioning.
                 Can be a string (content for /user-data), a dict mapping file names
                 to contents (e.g., {"/user-data": "...", "/meta-data": "..."}), or
@@ -861,6 +863,7 @@ class VMManager(ResourceManager[VM]):
             "nocloud": "nocloud",
             "None": "none",
             "none": "none",
+            "": "none",
             None: None,
         }
 
@@ -887,9 +890,9 @@ class VMManager(ResourceManager[VM]):
             if api_datasource is None and effective_datasource not in datasource_map:
                 raise ValueError(
                     f"Invalid cloudinit_datasource: {effective_datasource!r}. "
-                    "Valid values: 'ConfigDrive', 'NoCloud', or None."
+                    "Valid values: 'ConfigDrive', 'NoCloud', 'none', '', or None."
                 )
-            if api_datasource and api_datasource != "none":
+            if api_datasource is not None:
                 data["cloudinit_datasource"] = api_datasource
 
         # Create VM and fetch full data with all fields
@@ -902,6 +905,17 @@ class VMManager(ResourceManager[VM]):
             self._create_cloud_init_files(vm.key, cloud_init)
 
         return vm
+
+    def update(self, key: int, **kwargs: Any) -> VM:
+        """Update a VM, accepting an empty datasource as an alias for 'none'.
+
+        Setting cloudinit_datasource to "none" or "" disables delivery but
+        preserves cloud-init files. Delete files through vm.cloudinit_files
+        when removing the configuration entirely.
+        """
+        if kwargs.get("cloudinit_datasource") == "":
+            kwargs["cloudinit_datasource"] = "none"
+        return super().update(key, **kwargs)
 
     def _create_cloud_init_files(
         self,

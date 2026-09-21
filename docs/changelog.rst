@@ -12,11 +12,10 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
-- ``ResourceObject.save()`` now sends fields modified via attribute or item
-  assignment (``vm.cpu_cores = 4; vm.save()``). Previously only keyword arguments
-  were transmitted, so the ``setattr`` + ``save()`` pattern issued an empty ``PUT``
-  and silently persisted nothing. Keyword arguments still take precedence over
-  locally modified fields.
+- Accept an empty ``cloudinit_datasource`` as a disable alias in VM creation,
+  updates, and explicit ``save()`` arguments, consistent with
+  ``set_cloudinit_datasource()``. Requests send VergeOS's valid ``"none"`` value;
+  disabling delivery preserves files until callers explicitly delete them.
 
 [1.2.5] - 2026-09-11
 --------------------
