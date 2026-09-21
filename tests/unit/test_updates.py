@@ -619,6 +619,25 @@ class TestUpdateSourceManager:
             "POST", "update_actions", json_data={"source": 1, "action": "refresh"}
         )
 
+    def test_run_preinstall_check(self, mock_client: MagicMock) -> None:
+        """Test running the table-level pre-install check (26.1+)."""
+        mock_client._request.return_value = {"status": "ok"}
+
+        manager = UpdateSourceManager(mock_client)
+        result = manager.run_preinstall_check()
+
+        assert result == {"status": "ok"}
+        mock_client._request.assert_called_with(
+            "POST", "update_actions/runpreinstallcheck", json_data={}
+        )
+
+    def test_run_preinstall_check_list_response(self, mock_client: MagicMock) -> None:
+        """A list response is passed through unchanged."""
+        mock_client._request.return_value = []
+
+        manager = UpdateSourceManager(mock_client)
+        assert manager.run_preinstall_check() == []
+
     def test_get_status(self, mock_client: MagicMock) -> None:
         """Test getting status for a source."""
         mock_client._request.return_value = [

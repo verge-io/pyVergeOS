@@ -174,6 +174,31 @@ class TestDriveManager:
         with pytest.raises(ValueError, match="size_gb is required"):
             vm.drives.create(media="disk")
 
+    def test_create_efidisk_rejects_size(self, mock_client: VergeClient, vm: VM) -> None:
+        """A caller-sized efidisk is a raw volume, not a templated vars store."""
+        with pytest.raises(ValueError, match="not applicable to efidisk"):
+            vm.drives.create(media="efidisk", size_gb=1)
+
+    def test_create_efidisk_without_size_omits_disksize(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """efidisk creation lets the platform template the vars store size."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672},
+            {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672},
+        ]
+
+        drive = vm.drives.create(media="efidisk", name="efi")
+
+        post_body = next(
+            c.kwargs["json"]
+            for c in mock_session.request.call_args_list
+            if c.kwargs.get("method") == "POST"
+        )
+        assert post_body["media"] == "efidisk"
+        assert "disksize" not in post_body
+        assert drive["media"] == "efidisk"
+
     def test_create_drive_with_tier(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
@@ -219,6 +244,63 @@ class TestDriveManager:
         drive = vm.drives.update(1, description="New description")
 
         assert drive.get("description") == "New description"
+
+    def test_update_drive_tier_translates_to_preferred_tier(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test that update translates tier to the API's preferred_tier field.
+
+        The machine_drives resource has no 'tier' field; VergeOS accepts a
+        raw PUT {'tier': N} with HTTP 200 and silently ignores it (issue #81).
+        update() must translate tier -> preferred_tier just like create().
+        """
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "TieredDrive",
+            "preferred_tier": "4",
+        }
+
+        drive = vm.drives.update(1, tier=4)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "PUT"
+        assert "machine_drives/1" in call_args.kwargs["url"]
+        body = call_args.kwargs["json"]
+        assert "tier" not in body
+        assert body["preferred_tier"] == "4"
+        assert drive.get("preferred_tier") == "4"
+
+    def test_update_drive_tier_none_is_omitted(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test that tier=None is dropped instead of sent to the API."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Drive",
+            "description": "updated",
+        }
+
+        vm.drives.update(1, tier=None, description="updated")
+
+        body = mock_session.request.call_args.kwargs["json"]
+        assert "tier" not in body
+        assert "preferred_tier" not in body
+        assert body == {"description": "updated"}
+
+    def test_update_drive_preferred_tier_passthrough(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Test that an explicit preferred_tier still passes through unchanged."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "Drive",
+            "preferred_tier": "2",
+        }
+
+        vm.drives.update(1, preferred_tier="2")
+
+        body = mock_session.request.call_args.kwargs["json"]
+        assert body == {"preferred_tier": "2"}
 
     def test_apply_universal_vars(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM

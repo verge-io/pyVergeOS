@@ -6,6 +6,35 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.2.7] - 2026-09-21
+--------------------
+
+Added
+^^^^^
+
+- ``UpdateSourceManager.run_preinstall_check()`` exposing the VergeOS 26.1
+  table-level ``POST /update_actions/runpreinstallcheck`` action. The
+  ``install`` action runs this check automatically; the method surfaces it
+  directly as a convenience. (#68)
+
+Fixed
+^^^^^
+
+- ``DriveManager.update()`` now translates ``tier`` to the API's
+  ``preferred_tier`` field (as a string), matching ``create()`` and
+  ``import_drive()``. Previously the raw ``tier`` field was sent, which
+  VergeOS accepted with HTTP 200 and silently ignored, so a drive could be
+  placed on a tier at creation but never re-tiered. ``tier=None`` is dropped;
+  explicit ``preferred_tier`` passes through unchanged. (#81)
+- ``VMDriveManager.create()`` now rejects ``size_gb`` for ``efidisk`` media.
+  A caller-sized efidisk is created as a raw volume without the templated
+  OVMF vars layout, so UEFI variables cannot persist and
+  ``apply_universal_vars()`` fails with ``Operation not permitted``
+  (verified on VergeOS 26.1.8). Omit the size so the platform templates the
+  vars store. Documented that ``apply_universal_vars`` requires the
+  path-form invocation - the generic ``?action=`` form is accepted with
+  HTTP 200 but is a silent no-op. (#68)
+
 [1.2.6] - 2026-09-21
 --------------------
 
