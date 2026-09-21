@@ -18,10 +18,25 @@ Fixed
   VergeOS accepted with HTTP 200 and silently ignored, so a drive could be
   placed on a tier at creation but never re-tiered. ``tier=None`` is dropped;
   explicit ``preferred_tier`` passes through unchanged. (#81)
+
+[1.2.6] - 2026-09-21
+--------------------
+
+Fixed
+^^^^^
+
+- ``ResourceObject.save()`` now sends fields modified via attribute or item
+  assignment (``vm.cpu_cores = 4; vm.save()``). Previously only keyword arguments
+  were transmitted, so the ``setattr`` + ``save()`` pattern issued an empty ``PUT``
+  and silently persisted nothing. Keyword arguments still take precedence over
+  locally modified fields. (#80)
+- System setting updates no longer send the read-only ``key`` field, which the
+  API rejected with HTTP 422 (``field 'key' is readonly``). Only ``value`` is
+  transmitted. (#86)
 - Accept an empty ``cloudinit_datasource`` as a disable alias in VM creation,
   updates, and explicit ``save()`` arguments, consistent with
   ``set_cloudinit_datasource()``. Requests send VergeOS's valid ``"none"`` value;
-  disabling delivery preserves files until callers explicitly delete them.
+  disabling delivery preserves files until callers explicitly delete them. (#82)
 
 [1.2.5] - 2026-09-11
 --------------------
