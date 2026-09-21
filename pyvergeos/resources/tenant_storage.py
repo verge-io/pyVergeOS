@@ -128,10 +128,9 @@ class TenantStorage(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("TenantStorageManager", self._manager)
         if provisioned_gb is not None:
             kwargs["provisioned"] = provisioned_gb * 1073741824
-        return manager.update(self.key, **kwargs)
+        return cast("TenantStorage", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this storage allocation."""

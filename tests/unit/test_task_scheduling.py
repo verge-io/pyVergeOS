@@ -667,13 +667,21 @@ class TestTaskManagerCRUD:
         """Test updating a task."""
         mock_client._request.side_effect = [None, sample_task]
 
-        task_manager.update(1, description="Updated description", enabled=False)
+        task_manager.update(
+            1,
+            description="Updated description",
+            enabled=False,
+            settings_args={"example_option": "value"},
+        )
 
         first_call = mock_client._request.call_args_list[0]
-        assert first_call.args[0] == "PUT"
+        assert first_call.args == ("PUT", "tasks/1")
         json_data = first_call.kwargs.get("json_data", {})
-        assert json_data.get("description") == "Updated description"
-        assert json_data.get("enabled") is False
+        assert json_data == {
+            "description": "Updated description",
+            "enabled": False,
+            "settings_args": {"example_option": "value"},
+        }
 
     def test_delete_task(self, task_manager, mock_client):
         """Test deleting a task."""

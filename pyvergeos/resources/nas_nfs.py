@@ -79,8 +79,7 @@ class NASNFSShare(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("NASNFSShareManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("NASNFSShare", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this share."""

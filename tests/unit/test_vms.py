@@ -158,6 +158,7 @@ class TestVMManager:
         vm = mock_client.vms.update(123, description="New description")
 
         assert vm.get("description") == "New description"
+        assert mock_session.request.call_args.kwargs["json"] == {"description": "New description"}
 
     def test_delete_vm(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a VM."""
@@ -169,6 +170,55 @@ class TestVMManager:
         call_args = mock_session.request.call_args
         assert call_args.kwargs["method"] == "DELETE"
         assert "vms/123" in call_args.kwargs["url"]
+
+    @pytest.mark.parametrize("datasource", ["", "none"])
+    @pytest.mark.parametrize("operation", ["update", "save", "setter"])
+    def test_disable_cloudinit(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        datasource: str,
+        operation: str,
+    ) -> None:
+        """All VM mutation paths send the API's 'none' disable value."""
+        vm = VM({"$key": 123, "cloudinit_datasource": "nocloud"}, mock_client.vms)
+        mock_session.request.return_value.json.return_value = {
+            "$key": 123,
+            "cloudinit_datasource": "none",
+        }
+
+        if operation == "update":
+            mock_client.vms.update(vm.key, cloudinit_datasource=datasource)
+        elif operation == "save":
+            vm.save(cloudinit_datasource=datasource)
+        else:
+            vm.set_cloudinit_datasource(datasource)
+            assert vm["cloudinit_datasource"] == "none"
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "PUT"
+        assert call_args.kwargs["url"].endswith("/vms/123")
+        assert call_args.kwargs["json"] == {"cloudinit_datasource": "none"}
+
+    @pytest.mark.parametrize("datasource", ["", "none", "None"])
+    def test_create_vm_with_cloudinit_disabled(
+        self, mock_client: VergeClient, mock_session: MagicMock, datasource: str
+    ) -> None:
+        """Explicit disabling must not auto-enable delivery when files are supplied."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1},
+            {"$key": 1, "cloudinit_datasource": "none"},
+        ]
+
+        vm = mock_client.vms.create(name="cloud-vm", cloudinit_datasource=datasource, cloud_init={})
+
+        post_call = next(
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        )
+        assert post_call.kwargs["json"]["cloudinit_datasource"] == "none"
+        assert vm["cloudinit_datasource"] == "none"
 
     def test_create_vm_with_cloudinit_datasource(
         self, mock_client: VergeClient, mock_session: MagicMock

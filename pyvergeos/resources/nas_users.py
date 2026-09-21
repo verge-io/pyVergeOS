@@ -77,8 +77,7 @@ class NASUser(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("NASUserManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("NASUser", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this user."""

@@ -59,6 +59,52 @@ def test_cloudinit_file(live_client: VergeClient, test_vm, test_cloudinit_name: 
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("operation", ["update", "save", "setter"])
+def test_disable_cloudinit_and_remove_files(live_client: VergeClient, operation: str) -> None:
+    """Disable a disposable VM and verify teardown through the owner filter."""
+    vm = live_client.vms.create(
+        name=f"pyvergeos-cloudinit-disable-{uuid.uuid4().hex[:8]}",
+        ram=256,
+        cpu_cores=1,
+        cloudinit_datasource="",
+    )
+    try:
+        assert live_client.vms.get(vm.key)["cloudinit_datasource"] == "none"
+        contents = {
+            "/user-data": "#cloud-config\nhostname: sdk-cloudinit-test\n",
+            "/meta-data": "instance-id: sdk-cloudinit-test\n",
+        }
+        for name, content in contents.items():
+            vm.cloudinit_files.create(name=name, contents=content)
+
+        # Create files first: enabling NoCloud auto-creates missing standard files.
+        vm.set_cloudinit_datasource("nocloud")
+        assert live_client.vms.get(vm.key)["cloudinit_datasource"] == "nocloud"
+        files = live_client.cloudinit_files.list(filter=f"owner eq 'vms/{vm.key}'")
+        assert {file.name for file in files} == set(contents)
+
+        if operation == "update":
+            live_client.vms.update(vm.key, cloudinit_datasource="")
+        elif operation == "save":
+            vm.save(cloudinit_datasource="")
+        else:
+            vm.set_cloudinit_datasource("")
+
+        assert live_client.vms.get(vm.key)["cloudinit_datasource"] == "none"
+        # Disabling delivery intentionally preserves the files until explicitly deleted.
+        files = vm.cloudinit_files.list()
+        assert {file.name for file in files} == set(contents)
+        for file in files:
+            assert file.get_content() == contents[file.name]
+            file.delete()
+        assert live_client.cloudinit_files.list(filter=f"owner eq 'vms/{vm.key}'") == []
+    finally:
+        vm.delete()
+    with pytest.raises(NotFoundError):
+        live_client.vms.get(vm.key)
+
+
+@pytest.mark.integration
 class TestCloudInitFileListIntegration:
     """Integration tests for CloudInitFileManager list operations."""
 

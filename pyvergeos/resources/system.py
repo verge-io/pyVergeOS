@@ -213,7 +213,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         if not key:
             raise ValueError("Setting key must be provided")
 
-        # Settings API uses the key as the identifier in the URL
+        # Only value is editable; the setting key is read-only.
         body = {"value": value}
 
         # First, we need to get the setting to find its row key
@@ -238,8 +238,6 @@ class SettingsManager(ResourceManager[SystemSetting]):
         # Use the row identifier for PUT
         row_key = results[0].get("$key") or results[0].get("key")
 
-        # For settings, we PUT with the key value in the body
-        body["key"] = key
         self._client._request("PUT", f"{self._endpoint}/{row_key}", json_data=body)
 
         # Fetch and return the updated setting

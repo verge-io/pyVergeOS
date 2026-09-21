@@ -111,8 +111,7 @@ class TenantRecipe(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("TenantRecipeManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("TenantRecipe", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this recipe."""

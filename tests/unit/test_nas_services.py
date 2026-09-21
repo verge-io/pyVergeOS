@@ -339,8 +339,8 @@ class TestNASServiceCIFSSettings:
         ]
         assert len(put_calls) == 1
         body = put_calls[0].kwargs.get("json", {})
-        assert body["workgroup"] == "newgroup"
-        assert body["server_min_protocol"] == "SMB3"
+        assert put_calls[0].kwargs["url"].endswith("/vm_service_cifs/10")
+        assert body == {"workgroup": "newgroup", "server_min_protocol": "SMB3"}
 
 
 class TestNASServiceNFSSettings:
@@ -393,8 +393,8 @@ class TestNASServiceNFSSettings:
         ]
         assert len(put_calls) == 1
         body = put_calls[0].kwargs.get("json", {})
-        assert body["enable_nfsv4"] is True
-        assert body["allowed_hosts"] == "10.0.0.0/8"
+        assert put_calls[0].kwargs["url"].endswith("/vm_service_nfs/20")
+        assert body == {"enable_nfsv4": True, "allowed_hosts": "10.0.0.0/8"}
 
     def test_set_nfs_settings_squash_mapping(
         self, mock_client: VergeClient, mock_session: MagicMock
