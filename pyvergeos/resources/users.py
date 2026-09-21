@@ -555,7 +555,7 @@ class UserManager(ResourceManager[User]):
         # Fallback: search by name
         return self.get(name=name.lower())
 
-    def update(  # type: ignore[override]
+    def update(
         self,
         key: int,
         *,
@@ -569,6 +569,7 @@ class UserManager(ResourceManager[User]):
         two_factor_type: TwoFactorType | None = None,
         two_factor_setup_required: bool | None = None,
         ssh_keys: builtins.list[str] | str | None = None,
+        **extra_fields: Any,
     ) -> User:
         """Update a user.
 
@@ -584,6 +585,7 @@ class UserManager(ResourceManager[User]):
             two_factor_type: Type of 2FA ('email' or 'authenticator').
             two_factor_setup_required: Require 2FA setup on next login.
             ssh_keys: SSH public keys (list, string, or empty string to clear).
+            **extra_fields: Additional raw API fields to update.
 
         Returns:
             Updated User object.
@@ -606,7 +608,7 @@ class UserManager(ResourceManager[User]):
             ...     two_factor_type="authenticator"
             ... )
         """
-        body: dict[str, Any] = {}
+        body: dict[str, Any] = dict(extra_fields)
 
         if password is not None:
             body["password"] = password

@@ -20,9 +20,16 @@ class ResourceObject(dict[str, Any]):
 
     Provides a dict-like object that also supports attribute access
     and common resource operations like refresh, save, and delete.
+
+    Local modifications (attribute or item assignment) are tracked and
+    persisted to the server on :meth:`save`.
     """
 
+    _dirty: set[str]
+    _manager: ResourceManager[Any]
+
     def __init__(self, data: dict[str, Any], manager: ResourceManager[Any]) -> None:
+        object.__setattr__(self, "_dirty", set())
         super().__init__(data)
         self._manager = manager
 
@@ -37,6 +44,21 @@ class ResourceObject(dict[str, Any]):
             super().__setattr__(name, value)
         else:
             self[name] = value
+
+    def __setitem__(self, name: str, value: Any) -> None:
+        dirty: set[str] | None = getattr(self, "_dirty", None)
+        if dirty is not None and isinstance(name, str) and not name.startswith("$"):
+            dirty.add(name)
+        super().__setitem__(name, value)
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        """Update local fields (dict semantics), marking them as modified.
+
+        Note: this only changes the local object. Call :meth:`save` to
+        persist the changes to the server.
+        """
+        for key, value in dict(*args, **kwargs).items():
+            self[key] = value
 
     @property
     def key(self) -> int:
@@ -64,15 +86,26 @@ class ResourceObject(dict[str, Any]):
     def save(self, **kwargs: Any) -> ResourceObject:
         """Save changes to resource.
 
+        Persists any fields modified locally (via attribute or item
+        assignment) along with any explicitly passed keyword arguments.
+        Explicit kwargs take precedence over locally modified fields.
+
         Args:
             **kwargs: Fields to update.
 
         Returns:
-            Updated resource object.
+            Updated resource object. If there is nothing to save, the
+            resource is re-fetched from the server without issuing a PUT.
         """
         if self.key is None:
             raise ValueError("Cannot save resource without $key")
-        result = self._manager.update(self.key, **kwargs)
+        payload: dict[str, Any] = {k: self[k] for k in self._dirty if k in self}
+        payload.update(kwargs)
+        if not payload:
+            # Nothing modified - avoid a pointless empty PUT
+            return self._manager.get(self.key)  # type: ignore[no-any-return]
+        result = self._manager.update(self.key, **payload)
+        self._dirty.clear()
         return result  # type: ignore[no-any-return]
 
     def delete(self) -> None:
