@@ -109,10 +109,12 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
     def _to_model(self, data: dict[str, Any]) -> TenantSnapshot:
         return TenantSnapshot(data, self)
 
-    def list(  # type: ignore[override]
+    def list(
         self,
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[TenantSnapshot]:
         """List snapshots for this tenant.
@@ -140,6 +142,10 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
             "fields": ",".join(fields),
             "sort": "-created",  # Most recent first
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

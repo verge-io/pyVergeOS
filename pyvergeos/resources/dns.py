@@ -166,6 +166,8 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
         fields: builtins.list[str] | None = None,
         host: str | None = None,
         record_type: RecordType | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[DNSRecord]:
         """List DNS records in this zone.
@@ -209,6 +211,10 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
             "fields": ",".join(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -534,6 +540,8 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         domain: str | None = None,
         zone_type: ZoneType | None = None,
         include_records: bool = False,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[DNSZone]:
         """List DNS zones for this network or view.
@@ -557,7 +565,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
 
         # When scoped to a view, query directly
         if self._view is not None:
-            return self._list_for_view(
+            zones = self._list_for_view(
                 self._view.key,
                 self._view.get("name"),
                 filter=merged_filter,
@@ -565,6 +573,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
                 domain=domain,
                 zone_type=zone_type,
             )
+            return self._paginate(zones, limit, offset)
 
         # Otherwise iterate all views for this network
         views = self._get_views()
@@ -591,7 +600,16 @@ class DNSZoneManager(ResourceManager[DNSZone]):
                 )
             )
 
-        return all_zones
+        return self._paginate(all_zones, limit, offset)
+
+    @staticmethod
+    def _paginate(
+        zones: builtins.list[DNSZone], limit: int | None, offset: int | None
+    ) -> builtins.list[DNSZone]:
+        """Apply limit/offset client-side (zones aggregate across views)."""
+        start = offset or 0
+        end = start + limit if limit is not None else None
+        return zones[start:end]
 
     def _list_for_view(
         self,

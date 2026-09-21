@@ -193,6 +193,8 @@ class StorageTierManager(ResourceManager[StorageTier]):
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
         include_stats: bool = True,
+        limit: int | None = None,
+        offset: int | None = None,
         **filter_kwargs: Any,
     ) -> builtins.list[StorageTier]:
         """List all storage tiers.
@@ -227,7 +229,9 @@ class StorageTierManager(ResourceManager[StorageTier]):
                 "stats[reads,writes,read_bytes,write_bytes,rops,wops,rbps,wbps]",
             ]
 
-        return super().list(filter=filter, fields=fields, **filter_kwargs)
+        return super().list(
+            filter=filter, fields=fields, limit=limit, offset=offset, **filter_kwargs
+        )
 
     def get(  # type: ignore[override]
         self,

@@ -132,6 +132,8 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
         hostname: str | None = None,
         ip: str | None = None,
         host_type: HostType | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[NetworkHost]:
         """List DHCP/DNS host overrides for this network.
@@ -179,6 +181,10 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
             "fields": ",".join(fields),
             "sort": "+host",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

@@ -189,10 +189,12 @@ class MachineNICManager(ResourceManager[NIC]):
     def _to_model(self, data: dict[str, Any]) -> NIC:
         return NIC(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
         fields: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[NIC]:
         """List NICs with optional filtering.
@@ -227,6 +229,10 @@ class MachineNICManager(ResourceManager[NIC]):
         params: dict[str, Any] = {"fields": ",".join(fields)}
         if combined:
             params["filter"] = combined
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         if kwargs:
             from pyvergeos.filters import build_filter
 
@@ -320,10 +326,12 @@ class NICManager(ResourceManager[NIC]):
     def _to_model(self, data: dict[str, Any]) -> NIC:
         return NIC(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
         fields: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[NIC]:
         """List NICs for this VM.
@@ -351,6 +359,10 @@ class NICManager(ResourceManager[NIC]):
             "fields": ",".join(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

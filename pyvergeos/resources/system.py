@@ -104,6 +104,8 @@ class SettingsManager(ResourceManager[SystemSetting]):
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
         key_contains: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **filter_kwargs: Any,
     ) -> builtins.list[SystemSetting]:
         """List system settings.
@@ -136,7 +138,9 @@ class SettingsManager(ResourceManager[SystemSetting]):
 
         combined_filter = " and ".join(filters) if filters else None
 
-        return super().list(filter=combined_filter, fields=fields, **filter_kwargs)
+        return super().list(
+            filter=combined_filter, fields=fields, limit=limit, offset=offset, **filter_kwargs
+        )
 
     def get(  # type: ignore[override]
         self,
@@ -412,6 +416,8 @@ class LicenseManager(ResourceManager[License]):
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
         name: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **filter_kwargs: Any,
     ) -> builtins.list[License]:
         """List licenses.
@@ -456,7 +462,9 @@ class LicenseManager(ResourceManager[License]):
 
         combined_filter = " and ".join(filters) if filters else None
 
-        return super().list(filter=combined_filter, fields=fields, **filter_kwargs)
+        return super().list(
+            filter=combined_filter, fields=fields, limit=limit, offset=offset, **filter_kwargs
+        )
 
     def get(
         self,

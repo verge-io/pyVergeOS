@@ -132,10 +132,12 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
     def _to_model(self, data: dict[str, Any]) -> TenantLayer2Network:
         return TenantLayer2Network(data, self)
 
-    def list(  # type: ignore[override]
+    def list(
         self,
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[TenantLayer2Network]:
         """List Layer 2 networks assigned to this tenant.
@@ -162,6 +164,10 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             "filter": combined_filter,
             "fields": ",".join(fields),
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

@@ -142,10 +142,12 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
     def _to_model(self, data: dict[str, Any]) -> VMSnapshot:
         return VMSnapshot(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
         fields: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[VMSnapshot]:
         """List snapshots for this VM.
@@ -173,6 +175,10 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             "fields": ",".join(fields),
             "sort": "-created",  # Most recent first
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
