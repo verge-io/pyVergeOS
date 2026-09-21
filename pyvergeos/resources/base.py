@@ -20,11 +20,21 @@ class ResourceObject(dict[str, Any]):
 
     Provides a dict-like object that also supports attribute access
     and common resource operations like refresh, save, and delete.
+
+    Attribute or item assignment marks the field as modified; ``save()``
+    sends every modified field along with any keyword arguments.
     """
 
     def __init__(self, data: dict[str, Any], manager: ResourceManager[Any]) -> None:
         super().__init__(data)
         self._manager = manager
+        self._dirty: set[str] = set()
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        # ponytail: only __setitem__/__setattr__ are tracked; dict.update()
+        # and setdefault() bypass this. Override them if callers need it.
+        self.__dict__.setdefault("_dirty", set()).add(key)
+        super().__setitem__(key, value)
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -64,16 +74,44 @@ class ResourceObject(dict[str, Any]):
     def save(self, **kwargs: Any) -> ResourceObject:
         """Save changes to resource.
 
+        Sends fields modified via attribute/item assignment since the object
+        was loaded (or last saved), merged with ``kwargs``. Keyword arguments
+        take precedence over locally modified fields.
+
         Args:
-            **kwargs: Fields to update.
+            **kwargs: Additional fields to update.
 
         Returns:
             Updated resource object.
+
+        Example:
+            >>> vm.cpu_cores = 4
+            >>> vm.ram = 2048
+            >>> vm = vm.save()  # PUT {"cpu_cores": 4, "ram": 2048}
+        """
+        result = self._save(**kwargs)
+        return result  # type: ignore[no-any-return]
+
+    def _save(self, **kwargs: Any) -> Any:
+        """Persist locally modified fields plus ``kwargs``.
+
+        Subclasses that override ``save()`` must delegate here. Modified fields
+        carry API field names, so when the manager has a typed ``update()`` they
+        are sent as a raw PUT and only ``kwargs`` go through ``update()``.
+        Tracking is reset only after the request succeeds.
         """
         if self.key is None:
             raise ValueError("Cannot save resource without $key")
-        result = self._manager.update(self.key, **kwargs)
-        return result  # type: ignore[no-any-return]
+        manager = self._manager
+        dirty = self.__dict__.get("_dirty", set())
+        changes = {k: self[k] for k in dirty if k in self and not k.startswith("$")}
+        if changes and type(manager).update is not ResourceManager.update:
+            ResourceManager.update(manager, self.key, **changes)
+            result = manager.update(self.key, **kwargs) if kwargs else manager.get(self.key)
+        else:
+            result = manager.update(self.key, **{**changes, **kwargs})
+        dirty.clear()
+        return result
 
     def delete(self) -> None:
         """Delete this resource."""

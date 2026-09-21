@@ -719,8 +719,7 @@ class Catalog(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("CatalogManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("Catalog", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this catalog."""
