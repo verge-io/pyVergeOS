@@ -1194,6 +1194,34 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
             return result
         return None
 
+    def run_preinstall_check(self) -> Any:
+        """Run the update pre-install check (VergeOS 26.1+).
+
+        Validates that the system is ready for an update install: every
+        tenant must be online or offline and every node running or
+        unlicensed. The ``install`` action runs this check automatically
+        and fails with a validation error when it does not pass; this
+        method exposes the check directly as a convenience.
+
+        Returns:
+            Check response (shape depends on platform version), or None.
+
+        Raises:
+            APIError: If the check fails or cannot run. On systems with no
+                downloaded update package the server reports
+                ``Unable to verify the signature of the pre-install check
+                file`` - download an update first.
+
+        Note:
+            Invoked as ``POST /update_actions/runpreinstallcheck``
+            (table-level action, no body). Requires VergeOS 26.1 or later;
+            older systems return an error. Verified against 26.1.8.
+        """
+        result = self._client._request("POST", "update_actions/runpreinstallcheck", json_data={})
+        if isinstance(result, (dict, list)):
+            return result
+        return None
+
     def get_status(self, key: int) -> UpdateSourceStatus:
         """Get the current status for an update source.
 

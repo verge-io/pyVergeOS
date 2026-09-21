@@ -174,6 +174,31 @@ class TestDriveManager:
         with pytest.raises(ValueError, match="size_gb is required"):
             vm.drives.create(media="disk")
 
+    def test_create_efidisk_rejects_size(self, mock_client: VergeClient, vm: VM) -> None:
+        """A caller-sized efidisk is a raw volume, not a templated vars store."""
+        with pytest.raises(ValueError, match="not applicable to efidisk"):
+            vm.drives.create(media="efidisk", size_gb=1)
+
+    def test_create_efidisk_without_size_omits_disksize(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """efidisk creation lets the platform template the vars store size."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672},
+            {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672},
+        ]
+
+        drive = vm.drives.create(media="efidisk", name="efi")
+
+        post_body = next(
+            c.kwargs["json"]
+            for c in mock_session.request.call_args_list
+            if c.kwargs.get("method") == "POST"
+        )
+        assert post_body["media"] == "efidisk"
+        assert "disksize" not in post_body
+        assert drive["media"] == "efidisk"
+
     def test_create_drive_with_tier(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:

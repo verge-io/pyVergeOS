@@ -287,6 +287,16 @@ class DriveManager(ResourceManager[Drive]):
         """
         if media == "disk" and size_gb is None:
             raise ValueError("size_gb is required for disk media")
+        if media == "efidisk" and size_gb is not None:
+            # The platform templates EFI vars stores at a fixed size
+            # (~528 KiB). A caller-sized efidisk is created as a raw volume
+            # without the OVMF vars layout: the VM cannot persist UEFI
+            # variables and apply_universal_vars() fails with
+            # 'Operation not permitted'. Verified on VergeOS 26.1.8.
+            raise ValueError(
+                "size_gb is not applicable to efidisk media; omit it so the "
+                "platform creates a templated EFI vars store"
+            )
 
         body: dict[str, Any] = {
             "machine": self.machine_key,
@@ -389,6 +399,13 @@ class DriveManager(ResourceManager[Drive]):
         Note:
             The owning VM must be offline with Secure Boot enabled. VergeOS
             validates those preconditions along with the EFI media type.
+            Verified against VergeOS 26.1.8: this path-form invocation
+            (``POST machine_drives/{key}/apply_universal_vars``) is required.
+            The generic ``?action=`` form returns HTTP 200 but is a silent
+            no-op - do not use :meth:`ResourceManager.action` for this.
+            The EFI disk must be a platform-templated vars store (create the
+            drive with ``media="efidisk"`` and no ``size_gb``); the patch
+            fails with ``Operation not permitted`` on raw fixed-size disks.
         """
         response = self._client._request(
             "POST", f"{self._endpoint}/{key}/apply_universal_vars", json_data={}
