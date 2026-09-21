@@ -6,16 +6,24 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
-[Unreleased]
-------------
+[1.2.6] - 2026-09-21
+--------------------
 
 Fixed
 ^^^^^
 
+- ``ResourceObject.save()`` now sends fields modified via attribute or item
+  assignment (``vm.cpu_cores = 4; vm.save()``). Previously only keyword arguments
+  were transmitted, so the ``setattr`` + ``save()`` pattern issued an empty ``PUT``
+  and silently persisted nothing. Keyword arguments still take precedence over
+  locally modified fields. (#80)
+- System setting updates no longer send the read-only ``key`` field, which the
+  API rejected with HTTP 422 (``field 'key' is readonly``). Only ``value`` is
+  transmitted. (#86)
 - Accept an empty ``cloudinit_datasource`` as a disable alias in VM creation,
   updates, and explicit ``save()`` arguments, consistent with
   ``set_cloudinit_datasource()``. Requests send VergeOS's valid ``"none"`` value;
-  disabling delivery preserves files until callers explicitly delete them.
+  disabling delivery preserves files until callers explicitly delete them. (#82)
 
 [1.2.5] - 2026-09-11
 --------------------
