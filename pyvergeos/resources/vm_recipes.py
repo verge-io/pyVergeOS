@@ -128,8 +128,7 @@ class VmRecipe(ResourceObject):
         """
         from typing import cast
 
-        manager = cast("VmRecipeManager", self._manager)
-        return manager.update(self.key, **kwargs)
+        return cast("VmRecipe", self._save(**kwargs))
 
     def delete(self) -> None:
         """Delete this recipe."""
