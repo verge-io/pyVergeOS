@@ -353,11 +353,23 @@ class DriveManager(ResourceManager[Drive]):
 
         Args:
             key: Drive $key (ID).
-            **kwargs: Fields to update.
+            **kwargs: Fields to update. ``tier`` is accepted as an alias for
+                the API's ``preferred_tier`` field and is translated the same
+                way ``create()`` translates it. Passing the raw ``tier`` name
+                to the API is silently ignored by VergeOS, so it is never
+                sent as-is.
 
         Returns:
             Updated Drive object.
         """
+        # The API has no 'tier' field on machine_drives; the writable field
+        # is 'preferred_tier' (a string). create() already translates this,
+        # so accept the same alias here instead of sending a field the
+        # platform ignores with HTTP 200. See issue #81.
+        if "tier" in kwargs:
+            tier = kwargs.pop("tier")
+            if tier is not None:
+                kwargs["preferred_tier"] = str(tier)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)

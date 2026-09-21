@@ -12,6 +12,12 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``DriveManager.update()`` now translates ``tier`` to the API's
+  ``preferred_tier`` field (as a string), matching ``create()`` and
+  ``import_drive()``. Previously the raw ``tier`` field was sent, which
+  VergeOS accepted with HTTP 200 and silently ignored, so a drive could be
+  placed on a tier at creation but never re-tiered. ``tier=None`` is dropped;
+  explicit ``preferred_tier`` passes through unchanged. (#81)
 - Accept an empty ``cloudinit_datasource`` as a disable alias in VM creation,
   updates, and explicit ``save()`` arguments, consistent with
   ``set_cloudinit_datasource()``. Requests send VergeOS's valid ``"none"`` value;
