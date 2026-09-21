@@ -19,6 +19,29 @@ Fixed
   placed on a tier at creation but never re-tiered. ``tier=None`` is dropped;
   explicit ``preferred_tier`` passes through unchanged. (#81)
 
+[Unreleased]
+------------
+
+Added
+^^^^^
+
+- ``UpdateSourceManager.run_preinstall_check()`` exposing the VergeOS 26.1
+  table-level ``POST /update_actions/runpreinstallcheck`` action. The
+  ``install`` action runs this check automatically; the method surfaces it
+  directly as a convenience. (#68)
+
+Fixed
+^^^^^
+
+- ``VMDriveManager.create()`` now rejects ``size_gb`` for ``efidisk`` media.
+  A caller-sized efidisk is created as a raw volume without the templated
+  OVMF vars layout, so UEFI variables cannot persist and
+  ``apply_universal_vars()`` fails with ``Operation not permitted``
+  (verified on VergeOS 26.1.8). Omit the size so the platform templates the
+  vars store. Documented that ``apply_universal_vars`` requires the
+  path-form invocation - the generic ``?action=`` form is accepted with
+  HTTP 200 but is a silent no-op. (#68)
+
 [1.2.6] - 2026-09-21
 --------------------
 
