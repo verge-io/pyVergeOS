@@ -175,13 +175,6 @@ class ResourceGroup(ResourceObject):
         manager = cast("ResourceGroupManager", self._manager)
         return ResourceRuleManager(manager._client, self.key)
 
-    def refresh(self) -> ResourceGroup:
-        """Refresh this resource group's data from the server."""
-        from typing import cast
-
-        manager = cast("ResourceGroupManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> ResourceGroup:
         """Update this resource group with the given values."""
         from typing import cast
@@ -962,13 +955,6 @@ class ResourceRule(ResourceObject):
         if ts:
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None
-
-    def refresh(self) -> ResourceRule:
-        """Refresh this rule's data from the server."""
-        from typing import cast
-
-        manager = cast("ResourceRuleManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> ResourceRule:
         """Update this rule with the given values."""

@@ -6,7 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -151,9 +151,11 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
             owner_filter = f"{owner_filter} and ip eq '{ip}'"
         if filter:
             owner_filter = f"{owner_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(owner_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": owner_filter,
+            "filter": combined_filter,
             "fields": ",".join(fields),
         }
 

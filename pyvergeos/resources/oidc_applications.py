@@ -854,17 +854,6 @@ class OidcApplication(ResourceObject):
         manager = cast("OidcApplicationManager", self._manager)
         return manager.update(self.key, enabled=False)
 
-    def refresh(self) -> OidcApplication:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated OidcApplication object.
-        """
-        from typing import cast
-
-        manager = cast("OidcApplicationManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> OidcApplication:
         """Save changes to resource.
 

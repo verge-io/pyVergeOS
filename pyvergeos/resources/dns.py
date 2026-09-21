@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -196,6 +196,11 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
 
         if filter:
             filters.append(f"({filter})")
+
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, kwargs)
+        if extra:
+            filters.append(extra)
 
         combined_filter = " and ".join(filters)
 
@@ -547,12 +552,15 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         if fields is None:
             fields = self._default_fields.copy()
 
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        merged_filter = combine_filters(filter, kwargs)
+
         # When scoped to a view, query directly
         if self._view is not None:
             return self._list_for_view(
                 self._view.key,
                 self._view.get("name"),
-                filter=filter,
+                filter=merged_filter,
                 fields=fields,
                 domain=domain,
                 zone_type=zone_type,
@@ -576,7 +584,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
                 self._list_for_view(
                     view_key,
                     view_name,
-                    filter=filter,
+                    filter=merged_filter,
                     fields=fields,
                     domain=domain,
                     zone_type=zone_type,

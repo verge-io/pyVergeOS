@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import combine_filters
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -201,9 +202,11 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
         tenant_filter = f"tenant eq {self._tenant.key}"
         if filter:
             tenant_filter = f"{tenant_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(tenant_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": tenant_filter,
+            "filter": combined_filter,
             "fields": ",".join(fields),
         }
 

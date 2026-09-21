@@ -69,17 +69,6 @@ class NASVolumeSync(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> NASVolumeSync:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated NASVolumeSync object.
-        """
-        from typing import cast
-
-        manager = cast("NASVolumeSyncManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> NASVolumeSync:
         """Save changes to resource.
 

@@ -40,17 +40,6 @@ class VnetProxyTenant(ResourceObject):
         """Get the parent proxy configuration key."""
         return int(self.get("proxy", 0))
 
-    def refresh(self) -> VnetProxyTenant:
-        """Refresh this tenant mapping from the API.
-
-        Returns:
-            Updated VnetProxyTenant instance.
-        """
-        manager = self._manager
-        if not isinstance(manager, VnetProxyTenantManager):
-            raise TypeError("Manager must be VnetProxyTenantManager")
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> VnetProxyTenant:
         """Save changes to this tenant mapping.
 
@@ -359,17 +348,6 @@ class VnetProxy(ResourceObject):
                 )
         """
         return VnetProxyTenantManager(self._manager._client, self)
-
-    def refresh(self) -> VnetProxy:
-        """Refresh this proxy configuration from the API.
-
-        Returns:
-            Updated VnetProxy instance.
-        """
-        manager = self._manager
-        if not isinstance(manager, VnetProxyManager):
-            raise TypeError("Manager must be VnetProxyManager")
-        return manager.get(self.key)
 
     def save(
         self,

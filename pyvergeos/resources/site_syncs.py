@@ -290,17 +290,6 @@ class SiteSyncOutgoing(ResourceObject):
         """
         return self.disable()
 
-    def refresh(self) -> SiteSyncOutgoing:
-        """Refresh sync data from server.
-
-        Returns:
-            Updated SiteSyncOutgoing object.
-        """
-        from typing import cast
-
-        manager = cast("SiteSyncOutgoingManager", self._manager)
-        return manager.get(self.key)
-
     def add_to_queue(
         self,
         snapshot_key: int,
@@ -577,17 +566,6 @@ class SiteSyncIncoming(ResourceObject):
 
         manager = cast("SiteSyncIncomingManager", self._manager)
         return manager.disable(self.key)
-
-    def refresh(self) -> SiteSyncIncoming:
-        """Refresh sync data from server.
-
-        Returns:
-            Updated SiteSyncIncoming object.
-        """
-        from typing import cast
-
-        manager = cast("SiteSyncIncomingManager", self._manager)
-        return manager.get(self.key)
 
     @property
     def verified(self) -> SiteSyncIncomingVerifiedManager:

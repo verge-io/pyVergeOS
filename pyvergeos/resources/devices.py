@@ -211,17 +211,6 @@ class Device(ResourceObject):
         """Check if this is an SR-IOV NIC device."""
         return self.device_type_raw == "node_sriov_nic_devices"
 
-    def refresh(self) -> Device:
-        """Refresh this device's data from the server.
-
-        Returns:
-            Updated Device object.
-        """
-        from typing import cast
-
-        manager = cast("DeviceManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Device:
         """Update this device with the given values.
 

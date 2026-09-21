@@ -141,3 +141,119 @@ class TestSaveOverrides:
         tenant.description = "x"
         tenant.save()
         assert {"description": "x"} in _puts(client)
+
+
+class AliasManager(ResourceManager[ResourceObject]):
+    """Manager with a write-alias translation and a typed update()."""
+
+    _endpoint = "things"
+
+    def update(self, key: int, **kwargs: Any) -> ResourceObject:  # type: ignore[override]
+        kwargs = self._prepare_write_fields(kwargs)
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
+        return self.get(key)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        if "tier" not in fields:
+            return fields
+        fields = dict(fields)
+        fields["preferred_tier"] = str(fields.pop("tier"))
+        return fields
+
+
+class TestWriteAliasTranslation:
+    """_save() must apply manager alias translation to dirty fields (issue #97)."""
+
+    def test_dirty_alias_is_translated(self) -> None:
+        obj, client = _setup(AliasManager)
+        obj.tier = 2
+        obj.save()
+        assert _puts(client) == [{"preferred_tier": "2"}]
+
+    def test_dirty_alias_and_kwargs_both_translated(self) -> None:
+        obj, client = _setup(AliasManager)
+        obj.tier = 2
+        obj.save(name="x")
+        assert _puts(client) == [{"preferred_tier": "2"}, {"name": "x"}]
+
+    def test_api_field_passes_through(self) -> None:
+        obj, client = _setup(AliasManager)
+        obj.preferred_tier = "4"
+        obj.save()
+        assert _puts(client) == [{"preferred_tier": "4"}]
+
+    def test_default_hook_is_identity(self) -> None:
+        obj, client = _setup(PlainManager)
+        obj.tier = 2
+        obj.save()
+        assert _puts(client) == [{"tier": 2}]
+
+
+class TestRefreshInPlace:
+    """refresh() must update the receiver, not just return a new object (issue #98)."""
+
+    def _client_with_fresh(self, fresh: dict[str, Any]) -> MagicMock:
+        client = MagicMock()
+        client._request.return_value = fresh
+        return client
+
+    def test_refresh_mutates_receiver_and_returns_self(self) -> None:
+        client = self._client_with_fresh({"$key": 7, "name": "vm1", "description": "CHANGED"})
+        manager = PlainManager(client)
+        obj = ResourceObject({"$key": 7, "name": "vm1", "description": "stale"}, manager)
+
+        result = obj.refresh()
+
+        assert result is obj
+        assert obj["description"] == "CHANGED"
+
+    def test_refresh_drops_fields_removed_on_server(self) -> None:
+        client = self._client_with_fresh({"$key": 7, "name": "vm1"})
+        manager = PlainManager(client)
+        obj = ResourceObject({"$key": 7, "name": "vm1", "stale_field": 1}, manager)
+
+        obj.refresh()
+
+        assert "stale_field" not in obj
+
+    def test_refresh_discards_unsaved_changes_and_clears_dirty(self) -> None:
+        client = self._client_with_fresh({"$key": 7, "name": "server-name", "ram": 512})
+        manager = PlainManager(client)
+        obj = ResourceObject({"$key": 7, "name": "vm1", "ram": 512}, manager)
+        obj.ram = 4096  # unsaved local change
+
+        obj.refresh()
+
+        assert obj["ram"] == 512
+        assert obj._dirty == set()
+
+    def test_wait_loop_observes_fresh_state(self) -> None:
+        client = MagicMock()
+        client._request.side_effect = [
+            {"$key": 7, "running": False},
+            {"$key": 7, "running": True},
+        ]
+        manager = PlainManager(client)
+        obj = ResourceObject({"$key": 7, "running": False}, manager)
+
+        for _ in range(5):
+            obj.refresh()
+            if obj["running"]:
+                break
+        assert obj["running"] is True
+        assert client._request.call_count == 2
+
+    def test_refresh_preserves_subclass_and_manager(self) -> None:
+        from pyvergeos.resources.tenant_manager import Tenant, TenantManager
+
+        client = MagicMock()
+        client._request.return_value = {"$key": 3, "name": "t2"}
+        manager = TenantManager(client)
+        tenant = Tenant({"$key": 3, "name": "t1"}, manager)
+
+        result = tenant.refresh()
+
+        assert result is tenant
+        assert isinstance(tenant, Tenant)
+        assert tenant["name"] == "t2"
+        assert tenant._manager is manager

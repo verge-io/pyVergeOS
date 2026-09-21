@@ -61,17 +61,6 @@ class NASCIFSShare(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> NASCIFSShare:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated NASCIFSShare object.
-        """
-        from typing import cast
-
-        manager = cast("NASCIFSShareManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> NASCIFSShare:
         """Save changes to resource.
 

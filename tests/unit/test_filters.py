@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from pyvergeos.filters import Filter, build_filter, quote_value
+from pyvergeos.filters import Filter, build_filter, combine_filters, quote_value
 
 
 class TestFilter:
@@ -174,3 +174,35 @@ def test_builders_stringify_objects() -> None:
     expected = r"name eq 'C:\\O\'Brien\\share'"
     assert str(Filter().eq("name", value)) == expected
     assert build_filter(name=value) == expected
+
+
+class TestCombineFilters:
+    """Tests for combine_filters (issue #96)."""
+
+    def test_both_supplied_are_merged(self) -> None:
+        result = combine_filters("is_snapshot eq false", {"name": "web1"})
+        assert result == "(is_snapshot eq false) and (name eq 'web1')"
+
+    def test_filter_only(self) -> None:
+        assert combine_filters("name eq 'a'", {}) == "name eq 'a'"
+
+    def test_kwargs_only(self) -> None:
+        assert combine_filters(None, {"name": "a"}) == "name eq 'a'"
+
+    def test_neither_returns_none(self) -> None:
+        assert combine_filters(None, {}) is None
+        assert combine_filters("", {}) is None
+
+    def test_all_none_kwargs_raise(self) -> None:
+        with pytest.raises(ValueError, match="empty filter"):
+            combine_filters(None, {"name": None})
+        with pytest.raises(ValueError, match="empty filter"):
+            combine_filters("vnet eq 1", {"name": None, "enabled": None})
+
+    def test_partial_none_kwargs_are_kept(self) -> None:
+        result = combine_filters(None, {"name": "DMZ", "enabled": None})
+        assert result == "name eq 'DMZ'"
+
+    def test_multiple_kwargs(self) -> None:
+        result = combine_filters("vnet eq 1", {"name": "a", "enabled": True})
+        assert result == "(vnet eq 1) and (name eq 'a' and enabled eq true)"

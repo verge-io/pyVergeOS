@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -294,6 +294,10 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
         filters = [f"bgp_router eq {self._router.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -549,6 +553,10 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -755,6 +763,10 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
         filters = [f"bgp_interface eq {self._interface.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -1009,6 +1021,10 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -1265,6 +1281,10 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
         filters = [f"bgp_routemap eq {self._routemap.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -1512,6 +1532,10 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -1763,6 +1787,10 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -2003,6 +2031,10 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -2252,6 +2284,10 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
         filters = [f"eigrp_router eq {self._router.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
@@ -2508,6 +2544,10 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:

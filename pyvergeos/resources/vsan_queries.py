@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
+from pyvergeos.filters import combine_filters
 from pyvergeos.resources.base import ResourceManager
 from pyvergeos.resources.queries import QUERY_DEFAULT_FIELDS, QueryResult
 
@@ -69,8 +70,10 @@ class VsanQueryManager(ResourceManager[QueryResult]):
 
         params: dict[str, Any] = {"fields": ",".join(fields)}
 
-        if filter:
-            params["filter"] = filter
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(filter, filter_kwargs)
+        if combined_filter:
+            params["filter"] = combined_filter
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

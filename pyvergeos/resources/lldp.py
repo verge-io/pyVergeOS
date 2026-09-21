@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.filters import combine_filters
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -151,6 +152,11 @@ class NodeLLDPNeighborManager(ResourceManager[NodeLLDPNeighbor]):
             filters.append(f"node eq {self._node_key}")
         if filter:
             filters.append(f"({filter})")
+
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
 
         params: dict[str, Any] = {
             "fields": ",".join(fields),

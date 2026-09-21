@@ -697,17 +697,6 @@ class Catalog(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> Catalog:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated Catalog object.
-        """
-        from typing import cast
-
-        manager = cast("CatalogManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Catalog:
         """Save changes to resource.
 

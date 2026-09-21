@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -165,9 +165,11 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         machine_filter = f"machine eq {self.machine_key}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(machine_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": machine_filter,
+            "filter": combined_filter,
             "fields": ",".join(fields),
             "sort": "-created",  # Most recent first
         }

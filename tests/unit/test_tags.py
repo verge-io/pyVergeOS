@@ -221,17 +221,16 @@ class TestTag:
         assert result == mock_member_manager
 
     def test_refresh_method(self) -> None:
-        """Test refresh method calls manager.get."""
+        """Test refresh updates the object in place and returns self."""
         mock_manager = MagicMock(spec=TagManager)
-        expected_tag = MagicMock(spec=Tag)
-        mock_manager.get.return_value = expected_tag
+        mock_manager.get.return_value = Tag({"$key": 123, "name": "fresh"}, mock_manager)
 
-        data = {"$key": 123}
-        tag = Tag(data, mock_manager)
+        tag = Tag({"$key": 123, "name": "stale"}, mock_manager)
 
         result = tag.refresh()
         mock_manager.get.assert_called_once_with(123)
-        assert result == expected_tag
+        assert result is tag
+        assert tag["name"] == "fresh"
 
     def test_save_method(self) -> None:
         """Test save method calls manager.update."""
@@ -435,17 +434,17 @@ class TestTagCategory:
         assert result == mock_tags
 
     def test_refresh_method(self) -> None:
-        """Test refresh method calls manager.get."""
+        """Test refresh updates the object in place and returns self."""
         mock_manager = MagicMock(spec=TagCategoryManager)
-        expected_category = MagicMock(spec=TagCategory)
-        mock_manager.get.return_value = expected_category
+        mock_manager.get.return_value = TagCategory({"$key": 123, "name": "fresh"}, mock_manager)
 
-        data = {"$key": 123}
+        data = {"$key": 123, "name": "stale"}
         category = TagCategory(data, mock_manager)
 
         result = category.refresh()
         mock_manager.get.assert_called_once_with(123)
-        assert result == expected_category
+        assert result is category
+        assert category["name"] == "fresh"
 
     def test_save_method(self) -> None:
         """Test save method calls manager.update."""

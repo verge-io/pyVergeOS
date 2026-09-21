@@ -89,17 +89,6 @@ class TenantRecipe(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> TenantRecipe:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated TenantRecipe object.
-        """
-        from typing import cast
-
-        manager = cast("TenantRecipeManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> TenantRecipe:
         """Save changes to resource.
 

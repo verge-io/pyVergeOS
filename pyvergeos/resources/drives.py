@@ -6,7 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -188,9 +188,11 @@ class DriveManager(ResourceManager[Drive]):
             machine_filter = f"{machine_filter} and media eq '{media}'"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(machine_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": machine_filter,
+            "filter": combined_filter,
             "fields": ",".join(fields),
             "sort": "+orderid",
         }
@@ -372,20 +374,31 @@ class DriveManager(ResourceManager[Drive]):
         Returns:
             Updated Drive object.
         """
-        # The API has no 'tier' field on machine_drives; the writable field
-        # is 'preferred_tier' (a string). create() already translates this,
-        # so accept the same alias here instead of sending a field the
-        # platform ignores with HTTP 200. See issue #81.
-        if "tier" in kwargs:
-            tier = kwargs.pop("tier")
-            if tier is not None:
-                kwargs["preferred_tier"] = str(tier)
+        kwargs = self._prepare_write_fields(kwargs)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
         return self._to_model(response)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Translate the ``tier`` alias to the API's ``preferred_tier`` field.
+
+        The API has no ``tier`` field on machine_drives; the writable field
+        is ``preferred_tier`` (a string). ``create()`` already translates
+        this, so apply the same alias on every write path instead of sending
+        a field the platform ignores with HTTP 200. Used by both ``update()``
+        and ``ResourceObject._save()`` so ``drive.tier = N; drive.save()``
+        works too. See issues #81 and #97.
+        """
+        if "tier" not in fields:
+            return fields
+        fields = dict(fields)
+        tier = fields.pop("tier")
+        if tier is not None:
+            fields["preferred_tier"] = str(tier)
+        return fields
 
     def apply_universal_vars(self, key: int) -> dict[str, Any] | None:
         """Apply the Microsoft 2023 Secure Boot keys to an EFI disk.

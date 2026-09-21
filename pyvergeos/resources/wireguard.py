@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -354,6 +354,10 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         filters = [f"vnet eq {self._network.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         # Default fields
@@ -615,6 +619,10 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         filters = [f"wireguard eq {self._interface.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         # Default fields

@@ -163,17 +163,6 @@ class Tenant(ResourceObject):
         result = self._manager._client._request("POST", "tenant_actions", json_data=body)
         return result if isinstance(result, dict) else None
 
-    def refresh(self) -> Tenant:
-        """Refresh tenant data from API.
-
-        Returns:
-            Updated Tenant object.
-        """
-        from typing import cast
-
-        manager = cast("TenantManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Tenant:
         """Save changes to tenant.
 
