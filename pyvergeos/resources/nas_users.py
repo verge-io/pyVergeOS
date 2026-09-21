@@ -55,17 +55,6 @@ class NASUser(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> NASUser:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated NASUser object.
-        """
-        from typing import cast
-
-        manager = cast("NASUserManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> NASUser:
         """Save changes to resource.
 

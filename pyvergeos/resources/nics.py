@@ -6,7 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -343,9 +343,11 @@ class NICManager(ResourceManager[NIC]):
         machine_filter = f"machine eq {self.machine_key}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(machine_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": machine_filter,
+            "filter": combined_filter,
             "fields": ",".join(fields),
             "sort": "+orderid",
         }
@@ -498,28 +500,37 @@ class NICManager(ResourceManager[NIC]):
         Returns:
             Updated NIC object.
         """
-        # Handle network name -> key resolution
-        if "network" in kwargs:
-            network = kwargs.pop("network")
-            if isinstance(network, str):
-                response = self._client._request(
-                    "GET",
-                    "vnets",
-                    params={"filter": f"name eq {quote_value(network)}", "fields": "$key,name"},
-                )
-                if not response:
-                    raise ValueError(f"Network '{network}' not found")
-                if isinstance(response, list):
-                    if not response:
-                        raise ValueError(f"Network '{network}' not found")
-                    network = response[0].get("$key")
-                else:
-                    network = response.get("$key")
-            kwargs["vnet"] = int(network)
-
+        kwargs = self._prepare_write_fields(kwargs)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
         return self._to_model(response)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Translate the ``network`` alias to the API's ``vnet`` field.
+
+        ``network`` accepts a network name or key and is resolved to the
+        ``vnet`` key the API expects. Used by both ``update()`` and
+        ``ResourceObject._save()`` so ``nic.network = X; nic.save()`` works
+        the same as ``update(key, network=X)`` (issue #97).
+        """
+        if "network" not in fields:
+            return fields
+        fields = dict(fields)
+        network = fields.pop("network")
+        if isinstance(network, str):
+            response = self._client._request(
+                "GET",
+                "vnets",
+                params={"filter": f"name eq {quote_value(network)}", "fields": "$key,name"},
+            )
+            if not response:
+                raise ValueError(f"Network '{network}' not found")
+            if isinstance(response, list):
+                network = response[0].get("$key")
+            else:
+                network = response.get("$key")
+        fields["vnet"] = int(network)
+        return fields

@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import combine_filters
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -550,6 +551,11 @@ class BillingManager(ResourceManager[BillingRecord]):
         if until is not None:
             until_epoch = int(until.timestamp()) if isinstance(until, datetime) else int(until)
             filters.append(f"created le {until_epoch}")
+
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
 
         combined_filter = " and ".join(filters) if filters else None
 

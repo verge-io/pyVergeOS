@@ -8,7 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -244,9 +244,11 @@ class QueryManager(ResourceManager[QueryResult]):
         parent_filter = f"{self._parent_field} eq {self._parent_key}"
         if filter:
             parent_filter = f"{parent_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(parent_filter, filter_kwargs)
 
         params: dict[str, Any] = {
-            "filter": parent_filter,
+            "filter": combined_filter,
             "fields": ",".join(fields),
         }
         if limit is not None:

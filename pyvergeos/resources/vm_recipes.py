@@ -106,17 +106,6 @@ class VmRecipe(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> VmRecipe:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated VmRecipe object.
-        """
-        from typing import cast
-
-        manager = cast("VmRecipeManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> VmRecipe:
         """Save changes to resource.
 

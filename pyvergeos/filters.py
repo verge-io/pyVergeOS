@@ -1,7 +1,9 @@
 """OData-style filter expression builder for VergeOS API queries."""
 
+from __future__ import annotations
+
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 
 def quote_value(value: str) -> str:
@@ -41,7 +43,7 @@ class Filter:
     def __init__(self) -> None:
         self._parts: list[str] = []
 
-    def _add(self, field: str, op: FilterOperator, value: Any) -> "Filter":
+    def _add(self, field: str, op: FilterOperator, value: Any) -> Filter:
         """Add a filter condition."""
         formatted_value = self._format_value(value, op)
         self._parts.append(f"{field} {op.value} {formatted_value}")
@@ -66,52 +68,52 @@ class Filter:
         if self._parts and self._parts[-1] not in ("and", "or"):
             self._parts.append("and")
 
-    def eq(self, field: str, value: Any) -> "Filter":
+    def eq(self, field: str, value: Any) -> Filter:
         """Add equals condition."""
         self._auto_and()
         return self._add(field, FilterOperator.EQ, value)
 
-    def ne(self, field: str, value: Any) -> "Filter":
+    def ne(self, field: str, value: Any) -> Filter:
         """Add not equals condition."""
         self._auto_and()
         return self._add(field, FilterOperator.NE, value)
 
-    def lt(self, field: str, value: Any) -> "Filter":
+    def lt(self, field: str, value: Any) -> Filter:
         """Add less than condition."""
         self._auto_and()
         return self._add(field, FilterOperator.LT, value)
 
-    def gt(self, field: str, value: Any) -> "Filter":
+    def gt(self, field: str, value: Any) -> Filter:
         """Add greater than condition."""
         self._auto_and()
         return self._add(field, FilterOperator.GT, value)
 
-    def le(self, field: str, value: Any) -> "Filter":
+    def le(self, field: str, value: Any) -> Filter:
         """Add less than or equal condition."""
         self._auto_and()
         return self._add(field, FilterOperator.LE, value)
 
-    def ge(self, field: str, value: Any) -> "Filter":
+    def ge(self, field: str, value: Any) -> Filter:
         """Add greater than or equal condition."""
         self._auto_and()
         return self._add(field, FilterOperator.GE, value)
 
-    def like(self, field: str, pattern: str) -> "Filter":
+    def like(self, field: str, pattern: str) -> Filter:
         """Add LIKE pattern condition. Use * for wildcard."""
         self._auto_and()
         return self._add(field, FilterOperator.LIKE, pattern)
 
-    def in_(self, field: str, values: Union[list[Any], Any]) -> "Filter":
+    def in_(self, field: str, values: list[Any] | Any) -> Filter:
         """Add IN condition."""
         self._auto_and()
         return self._add(field, FilterOperator.IN, values)
 
-    def and_(self) -> "Filter":
+    def and_(self) -> Filter:
         """Add explicit AND connector (usually not needed, AND is implicit)."""
         self._parts.append("and")
         return self
 
-    def or_(self) -> "Filter":
+    def or_(self) -> Filter:
         """Add OR connector (must be explicit, unlike AND)."""
         self._parts.append("or")
         return self
@@ -135,6 +137,39 @@ def _format_value(value: Any) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     return quote_value(str(value))
+
+
+def combine_filters(filter: str | None, filter_kwargs: dict[str, Any]) -> str | None:  # noqa: A002
+    """Merge an explicit filter string with shorthand filter kwargs.
+
+    Both filter forms are honoured: when both are supplied the result is
+    ``(filter) and (built)``. Previously shorthand kwargs were silently
+    dropped whenever an explicit filter was present (issue #96).
+
+    Args:
+        filter: OData filter string, or None.
+        filter_kwargs: Shorthand field-value filter arguments.
+
+    Returns:
+        Combined filter string, or None when no filtering was requested.
+
+    Raises:
+        ValueError: If filter kwargs were supplied but every value was None.
+            An empty filter would silently match every row, so it is rejected
+            instead of widening the result set (issue #96).
+    """
+    built = ""
+    if filter_kwargs:
+        built = build_filter(**filter_kwargs)
+        if not built:
+            names = ", ".join(sorted(filter_kwargs))
+            raise ValueError(
+                f"Filter argument(s) {names} are all None and would produce an "
+                "empty filter matching every row; omit them to list all resources"
+            )
+    if filter and built:
+        return f"({filter}) and ({built})"
+    return filter or built or None
 
 
 def build_filter(**kwargs: Any) -> str:

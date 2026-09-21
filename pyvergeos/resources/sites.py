@@ -253,17 +253,6 @@ class Site(ResourceObject):
         manager = cast("SiteManager", self._manager)
         return manager.disable(self.key)
 
-    def refresh(self) -> Site:
-        """Refresh site data from server.
-
-        Returns:
-            Updated Site object.
-        """
-        from typing import cast
-
-        manager = cast("SiteManager", self._manager)
-        return manager.get(self.key)
-
     def reauthenticate(self, username: str, password: str) -> Site:
         """Reauthenticate with the remote site.
 

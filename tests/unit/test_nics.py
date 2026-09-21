@@ -189,6 +189,53 @@ class TestNICManager:
 
         assert nic.get("description") == "Updated description"
 
+    def test_update_nic_network_key_translates_to_vnet(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """update(network=key) must send the API's vnet field."""
+        mock_session.request.return_value.json.return_value = {"$key": 1, "vnet": 7}
+
+        vm.nics.update(1, network=7)
+
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs["method"] == "PUT"
+        body = call_args.kwargs["json"]
+        assert "network" not in body
+        assert body["vnet"] == 7
+
+    def test_save_dirty_network_attribute_translates_to_vnet(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """nic.network = key; nic.save() must translate like update() (issue #97)."""
+        mock_session.request.return_value.json.return_value = {"$key": 1, "vnet": 7}
+
+        nic = NIC({"$key": 1, "name": "eth0", "vnet": 3}, vm.nics)
+        nic.network = 7
+        nic.save()
+
+        puts = [
+            c
+            for c in mock_session.request.call_args_list
+            if c.kwargs.get("method") == "PUT" and "machine_nics/1" in c.kwargs.get("url", "")
+        ]
+        assert len(puts) == 1
+        body = puts[0].kwargs["json"]
+        assert "network" not in body
+        assert body["vnet"] == 7
+
+    def test_list_nics_name_kwarg_is_merged(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Shorthand kwargs must merge into the scoped filter (issue #96)."""
+        mock_session.request.return_value.json.return_value = []
+
+        vm.nics.list(name="does-not-exist")
+
+        params = mock_session.request.call_args.kwargs.get("params", {})
+        filter_value = params.get("filter", "")
+        assert "machine eq 200" in filter_value
+        assert "name eq 'does-not-exist'" in filter_value
+
 
 class TestNIC:
     """Unit tests for NIC object."""

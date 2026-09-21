@@ -55,17 +55,6 @@ class VmImport(ResourceObject):
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
 
-    def refresh(self) -> VmImport:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated VmImport object.
-        """
-        from typing import cast
-
-        manager = cast("VmImportManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> VmImport:
         """Save changes to resource.
 

@@ -229,17 +229,6 @@ class Certificate(ResourceObject):
         val = self.get("chain")
         return str(val) if val else None
 
-    def refresh(self) -> Certificate:
-        """Refresh certificate data from API.
-
-        Returns:
-            Updated Certificate object.
-        """
-        from typing import cast
-
-        manager = cast("CertificateManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Certificate:
         """Update certificate with new values.
 

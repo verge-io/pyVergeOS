@@ -603,16 +603,24 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         Returns:
             Updated SnapshotProfilePeriod object.
         """
-        # Validate parameters if provided
-        if "frequency" in kwargs and kwargs["frequency"] not in FREQUENCIES:
-            raise ValueError(f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}")
-        if "day_of_week" in kwargs and kwargs["day_of_week"] not in DAYS_OF_WEEK:
-            raise ValueError(f"Invalid day_of_week. Must be one of: {', '.join(DAYS_OF_WEEK)}")
-        if "max_tier" in kwargs:
-            kwargs["max_tier"] = str(kwargs["max_tier"])
-
+        kwargs = self._prepare_write_fields(kwargs)
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         return self.get(key)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Validate period fields and convert ``max_tier`` to the API string.
+
+        Used by both ``update()`` and ``ResourceObject._save()`` so attribute
+        assignment behaves the same as ``update()`` (issue #97).
+        """
+        if "frequency" in fields and fields["frequency"] not in FREQUENCIES:
+            raise ValueError(f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}")
+        if "day_of_week" in fields and fields["day_of_week"] not in DAYS_OF_WEEK:
+            raise ValueError(f"Invalid day_of_week. Must be one of: {', '.join(DAYS_OF_WEEK)}")
+        if "max_tier" in fields:
+            fields = dict(fields)
+            fields["max_tier"] = str(fields["max_tier"])
+        return fields
 
     def delete(self, key: int) -> None:
         """Delete a period.

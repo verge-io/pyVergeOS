@@ -102,6 +102,17 @@ class SharedObject(dict[str, Any]):
             return datetime.fromtimestamp(created, tz=timezone.utc)
         return None
 
+    def refresh(self) -> SharedObject:
+        """Refresh this shared object in place with fresh data from the API.
+
+        Returns:
+            This object, updated with the latest data.
+        """
+        result = self._manager.get(self.key)
+        dict.clear(self)
+        dict.update(self, result)
+        return self
+
     def import_object(self) -> dict[str, Any] | None:
         """Import this shared object into the tenant.
 
@@ -116,14 +127,6 @@ class SharedObject(dict[str, Any]):
             >>> shared_obj.import_object()
         """
         return self._manager.import_object(self.key)
-
-    def refresh(self) -> SharedObject:
-        """Refresh shared object data from API.
-
-        Returns:
-            Updated SharedObject.
-        """
-        return self._manager.get(self.key)
 
     def delete(self) -> None:
         """Delete this shared object.

@@ -7,12 +7,13 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.filters import combine_filters, quote_value
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 T = TypeVar("T", bound="ResourceObject")
+SelfT = TypeVar("SelfT", bound="ResourceObject")
 
 
 class ResourceObject(dict[str, Any]):
@@ -60,16 +61,26 @@ class ResourceObject(dict[str, Any]):
             raise ValueError("Resource has no $key - may not be persisted")
         return int(k)
 
-    def refresh(self) -> ResourceObject:
-        """Refresh resource data from API.
+    def refresh(self: SelfT) -> SelfT:
+        """Refresh this object in place with fresh data from the API.
+
+        The object this is called on is updated, so wait loops like
+        ``while not vm.running: vm.refresh()`` observe new state. Unsaved
+        local modifications are discarded. Returns ``self``, so
+        ``vm = vm.refresh()`` also remains correct.
 
         Returns:
-            Updated resource object.
+            This object, updated with the latest data.
         """
         if self.key is None:
             raise ValueError("Cannot refresh resource without $key")
         result = self._manager.get(self.key)
-        return result  # type: ignore[no-any-return]
+        # Replace the backing mapping without marking fields dirty
+        # (dict methods bypass the tracking __setitem__).
+        dict.clear(self)
+        dict.update(self, result)
+        self.__dict__.setdefault("_dirty", set()).clear()
+        return self
 
     def save(self, **kwargs: Any) -> ResourceObject:
         """Save changes to resource.
@@ -96,8 +107,9 @@ class ResourceObject(dict[str, Any]):
         """Persist locally modified fields plus ``kwargs``.
 
         Subclasses that override ``save()`` must delegate here. Modified fields
-        carry API field names, so when the manager has a typed ``update()`` they
-        are sent as a raw PUT and only ``kwargs`` go through ``update()``.
+        are first run through the manager's ``_prepare_write_fields()`` alias
+        translation, then when the manager has a typed ``update()`` they are
+        sent as a raw PUT and only ``kwargs`` go through ``update()``.
         Tracking is reset only after the request succeeds.
         """
         if self.key is None:
@@ -105,6 +117,10 @@ class ResourceObject(dict[str, Any]):
         manager = self._manager
         dirty = self.__dict__.get("_dirty", set())
         changes = {k: self[k] for k in dirty if k in self and not k.startswith("$")}
+        if changes:
+            # Apply the manager's write-alias translation so attribute
+            # assignment and typed update() behave identically (issue #97).
+            changes = manager._prepare_write_fields(changes)
         if changes and type(manager).update is not ResourceManager.update:
             ResourceManager.update(manager, self.key, **changes)
             result = manager.update(self.key, **kwargs) if kwargs else manager.get(self.key)
@@ -150,18 +166,23 @@ class ResourceManager(Generic[T]):
             fields: List of fields to return.
             limit: Maximum number of results.
             offset: Skip this many results.
-            **filter_kwargs: Shorthand filter arguments.
+            **filter_kwargs: Shorthand filter arguments. Merged with ``filter``
+                when both are supplied.
 
         Returns:
             List of resource objects.
+
+        Raises:
+            ValueError: If filter kwargs are supplied but every value is None,
+                which would silently match every row (issue #96).
         """
         params: dict[str, Any] = {}
 
-        # Build filter
-        if filter:
-            params["filter"] = filter
-        elif filter_kwargs:
-            params["filter"] = build_filter(**filter_kwargs)
+        # Merge explicit filter with shorthand kwargs (issue #96: kwargs were
+        # silently dropped whenever a filter string was already present).
+        combined_filter = combine_filters(filter, filter_kwargs)
+        if combined_filter:
+            params["filter"] = combined_filter
 
         # Field selection
         if fields:
@@ -291,6 +312,24 @@ class ResourceManager(Generic[T]):
         Override in subclasses to return specific model types.
         """
         return ResourceObject(data, self)  # type: ignore[return-value]
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Translate SDK-level field aliases to API field names for writes.
+
+        ``ResourceObject._save()`` sends locally modified fields as a raw PUT,
+        bypassing a manager's typed ``update()``. Managers whose ``update()``
+        translates aliases (e.g. ``tier`` -> ``preferred_tier``) must apply the
+        same translation here so attribute assignment plus ``save()`` and
+        ``update()`` behave identically (issue #97). The default is a
+        passthrough. Implementations must not mutate the input mapping.
+
+        Args:
+            fields: Field-value pairs as provided by the caller.
+
+        Returns:
+            Field-value pairs ready to send to the API.
+        """
+        return fields
 
     def iter_all(self, page_size: int = 100, **kwargs: Any) -> Iterator[T]:
         """Iterate through all resources, handling pagination automatically.

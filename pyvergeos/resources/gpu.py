@@ -436,17 +436,6 @@ class NodeGpu(ResourceObject):
         manager = cast("NodeGpuManager", self._manager)
         return NodeGpuInstanceManager(manager._client, self.key)
 
-    def refresh(self) -> NodeGpu:
-        """Refresh this GPU's data from the server.
-
-        Returns:
-            Updated NodeGpu object.
-        """
-        from typing import cast
-
-        manager = cast("NodeGpuManager", self._manager)
-        return manager.get(key=self.key)
-
     def save(self, **kwargs: Any) -> NodeGpu:
         """Update this GPU with the given values.
 

@@ -505,17 +505,6 @@ class Tag(ResourceObject):
         manager = cast("TagManager", self._manager)
         return manager.members(self.key)
 
-    def refresh(self) -> Tag:
-        """Refresh tag data from the server.
-
-        Returns:
-            Updated Tag object.
-        """
-        from typing import cast
-
-        manager = cast("TagManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Tag:
         """Save changes to this tag.
 
@@ -967,17 +956,6 @@ class TagCategory(ResourceObject):
 
         manager = cast("TagCategoryManager", self._manager)
         return manager._client.tags.list(category_key=self.key)
-
-    def refresh(self) -> TagCategory:
-        """Refresh category data from the server.
-
-        Returns:
-            Updated TagCategory object.
-        """
-        from typing import cast
-
-        manager = cast("TagCategoryManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> TagCategory:
         """Save changes to this category.

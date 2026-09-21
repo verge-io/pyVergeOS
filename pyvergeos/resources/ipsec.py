@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -404,6 +404,10 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         filters = [f"ipsec eq {ipsec_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         # Default fields
@@ -747,6 +751,10 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         filters = [f"phase1 eq {self._connection.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         # Default fields

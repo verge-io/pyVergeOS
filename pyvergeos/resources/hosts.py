@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
+from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -166,6 +166,11 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
 
         if filter:
             filters.append(f"({filter})")
+
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, kwargs)
+        if extra:
+            filters.append(extra)
 
         combined_filter = " and ".join(filters)
 

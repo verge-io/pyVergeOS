@@ -1328,17 +1328,6 @@ class SystemDiagnostic(ResourceObject):
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None
 
-    def refresh(self) -> SystemDiagnostic:
-        """Refresh diagnostic data from API.
-
-        Returns:
-            Updated SystemDiagnostic object.
-        """
-        from typing import cast
-
-        manager = cast("SystemDiagnosticManager", self._manager)
-        return manager.get(self.key)
-
     def send_to_support(self) -> None:
         """Send this diagnostic report to Verge.io support.
 

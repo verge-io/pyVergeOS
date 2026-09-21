@@ -395,17 +395,6 @@ class AuthSource(ResourceObject):
         manager = cast("AuthSourceManager", self._manager)
         return manager.update(self.key, debug=False)
 
-    def refresh(self) -> AuthSource:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated AuthSource object.
-        """
-        from typing import cast
-
-        manager = cast("AuthSourceManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> AuthSource:
         """Save changes to resource.
 
