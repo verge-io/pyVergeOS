@@ -146,7 +146,8 @@ class Network(ResourceObject):
         """Power off the network.
 
         Args:
-            force: Force immediate power off (killpower) instead of graceful.
+            force: If True, immediately terminates the network (``kill``).
+                If False (default), requests a graceful shutdown (``poweroff``).
 
         Returns:
             Self for chaining.
@@ -154,7 +155,10 @@ class Network(ResourceObject):
         manager = self._manager
         if not isinstance(manager, NetworkManager):
             raise TypeError("Manager must be NetworkManager")
-        action = "killpower" if force else "poweroff"
+        # 'kill' = immediate termination, 'poweroff' = graceful shutdown.
+        # 'killpower' is not a valid vnet action and is rejected by the
+        # platform, so forced power off never worked (issue #112, cf. #42).
+        action = "kill" if force else "poweroff"
         manager._power_action(self.key, action)
         return self
 
@@ -826,7 +830,7 @@ class NetworkManager(ResourceManager[Network]):
 
         Args:
             key: Network $key (ID).
-            action: Power action (poweron, poweroff, killpower, reset).
+            action: Power action (poweron, poweroff, kill, reset).
             **params: Action parameters (e.g., apply=True).
 
         Returns:
