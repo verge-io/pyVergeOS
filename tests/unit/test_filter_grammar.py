@@ -139,18 +139,55 @@ class TestLiteralReservedCharacters:
         assert quote_value("\\{") == r"'\\\{'"
         assert quote_value("\\'") == r"'\\\''"
 
+    @staticmethod
+    def _unescaped_brace_positions(body: str) -> list[int]:
+        """Indexes of '{' not preceded by an ODD number of backslashes.
+
+        Counting matters: a single preceding backslash escapes the brace, but
+        two form an escaped backslash and leave the brace bare. Checking only
+        body[i - 1] would pass a value like '\\{' straight through.
+        """
+        out = []
+        for i, ch in enumerate(body):
+            if ch != "{":
+                continue
+            backslashes = 0
+            j = i - 1
+            while j >= 0 and body[j] == "\\":
+                backslashes += 1
+                j -= 1
+            if backslashes % 2 == 0:
+                out.append(i)
+        return out
+
     def test_balanced_braces_cannot_reach_the_wire_unescaped(self) -> None:
         # The silent-wrong-row case: every '{' must carry an escape.
-        for value in ["a{x}b", "{}", "a{b{c}d}e", "{{", "pre{mid}post"]:
+        for value in [
+            "a{x}b",
+            "{}",
+            "a{b{c}d}e",
+            "{{",
+            "pre{mid}post",
+            "\\{",
+            "\\\\{",
+            "a\\{b",
+            "'{",
+            "{'",
+        ]:
             literal = quote_value(value)
             body = literal[1:-1]
-            unescaped = [
-                i for i, ch in enumerate(body) if ch == "{" and (i == 0 or body[i - 1] != "\\")
-            ]
-            assert not unescaped, (
+            bare = self._unescaped_brace_positions(body)
+            assert not bare, (
                 f"quote_value({value!r}) = {literal!r} leaves an unescaped "
-                "'{' on the wire (issue #100)"
+                f"'{{' at {bare} on the wire (issue #100)"
             )
+
+    def test_the_brace_detector_itself_is_sound(self) -> None:
+        # Guard the guard: the helper must call a bare brace bare.
+        assert self._unescaped_brace_positions("{") == [0]
+        assert self._unescaped_brace_positions(r"\\{") == [2]  # escaped backslash, bare brace
+        assert self._unescaped_brace_positions(r"\{") == []  # escaped brace
+        assert self._unescaped_brace_positions(r"\\\{") == []  # escaped backslash + escaped brace
 
     def test_reserved_set_matches_the_implementation(self) -> None:
         # Guards against the set being trimmed without re-measuring.
