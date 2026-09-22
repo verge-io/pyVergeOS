@@ -96,6 +96,17 @@ Fixed
   (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
   containing a non-string, is rejected with ``TypeError`` rather than
   serialized into a plausible-looking but wrong projection. (#101)
+- ``ResourceObject.update()`` and ``setdefault()`` bypassed dirty tracking,
+  so ``obj.update({...}); obj.save()`` reported success while persisting
+  nothing - the fields were changed locally and an empty ``PUT`` was sent.
+  Both now route through the tracked ``__setitem__``, so a batch update
+  behaves like a sequence of assignments. ``refresh()`` still bypasses
+  tracking, as it loads server state rather than local edits. All 165
+  resource classes inherit the fix. (#110)
+- ``save()`` with nothing to save no longer issues an empty ``PUT``. An empty
+  write is still subject to permissions, audit logging and update side
+  effects, for a request the caller did not make; current state is returned
+  instead. (#111)
 - ``OidcApplicationManager.create()`` failed on any system without auth
   source key 0 and user key 0 - that is, any normal system. Both
   ``force_auth_source`` and ``map_user`` are required by the API but are

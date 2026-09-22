@@ -58,17 +58,19 @@ class TestPlainManagerSave:
         obj.save(ram=4096, description="d")
         assert _puts(client) == [{"ram": 4096, "description": "d"}]
 
-    def test_nothing_dirty_sends_empty(self) -> None:
+    def test_nothing_dirty_sends_no_put(self) -> None:
+        """An empty PUT is still a write the caller did not ask for (#111)."""
         obj, client = _setup(PlainManager)
         obj.save()
-        assert _puts(client) == [{}]
+        assert _puts(client) == []
 
     def test_dirty_cleared_after_save(self) -> None:
         obj, client = _setup(PlainManager)
         obj.ram = 1024
         obj.save()
         obj.save()
-        assert _puts(client) == [{"ram": 1024}, {}]
+        # The second save has nothing to write, so it must not PUT (#111).
+        assert _puts(client) == [{"ram": 1024}]
 
     def test_dirty_kept_when_request_fails(self) -> None:
         obj, client = _setup(PlainManager)
@@ -83,7 +85,8 @@ class TestPlainManagerSave:
         obj, client = _setup(PlainManager)
         obj._cache = "internal"
         obj.save()
-        assert _puts(client) == [{}]
+        # Nothing was tracked, so there is nothing to write (#111).
+        assert _puts(client) == []
         assert "_cache" not in obj
 
     def test_init_data_not_dirty(self) -> None:
@@ -257,3 +260,60 @@ class TestRefreshInPlace:
         assert isinstance(tenant, Tenant)
         assert tenant["name"] == "t2"
         assert tenant._manager is manager
+
+
+class TestBatchMutationTracking:
+    """update()/setdefault() must mark fields modified (issue #110).
+
+    dict.update() writes straight to the backing mapping, so before the
+    override a batch update marked nothing dirty and the following save()
+    sent an empty PUT and reported success while persisting nothing.
+    """
+
+    def test_update_with_mapping_is_tracked(self) -> None:
+        obj, client = _setup(PlainManager)
+        obj.update({"ram": 1024, "description": "d"})
+        obj.save()
+        assert _puts(client) == [{"ram": 1024, "description": "d"}]
+
+    def test_update_with_kwargs_is_tracked(self) -> None:
+        obj, client = _setup(PlainManager)
+        obj.update(ram=2048)
+        obj.save()
+        assert _puts(client) == [{"ram": 2048}]
+
+    def test_update_with_pairs_is_tracked(self) -> None:
+        obj, client = _setup(PlainManager)
+        obj.update([("ram", 512)])
+        obj.save()
+        assert _puts(client) == [{"ram": 512}]
+
+    def test_update_applies_values_locally(self) -> None:
+        obj, _ = _setup(PlainManager)
+        obj.update({"ram": 1024})
+        assert obj["ram"] == 1024
+        assert obj.ram == 1024
+
+    def test_setdefault_missing_key_is_tracked(self) -> None:
+        obj, client = _setup(PlainManager)
+        assert obj.setdefault("description", "new") == "new"
+        obj.save()
+        assert _puts(client) == [{"description": "new"}]
+
+    def test_setdefault_existing_key_is_not_tracked(self) -> None:
+        obj, client = _setup(PlainManager)
+        obj["ram"] = 1024
+        obj.save()
+        assert obj.setdefault("ram", 9999) == 1024
+        obj.save()
+        # The key already existed, so nothing new was modified (#111).
+        assert _puts(client) == [{"ram": 1024}]
+
+    def test_refresh_does_not_dirty_the_object(self) -> None:
+        """refresh() uses dict.update(self, ...) and must bypass tracking."""
+        obj, client = _setup(PlainManager)
+        client._request.return_value = {"$key": 7, "ram": 64}
+        obj.refresh()
+        assert obj._dirty == set()
+        obj.save()
+        assert _puts(client) == []

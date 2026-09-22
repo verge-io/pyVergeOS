@@ -134,8 +134,9 @@ class ResourceObject(dict[str, Any]):
     Provides a dict-like object that also supports attribute access
     and common resource operations like refresh, save, and delete.
 
-    Attribute or item assignment marks the field as modified; ``save()``
-    sends every modified field along with any keyword arguments.
+    Attribute assignment, item assignment, ``update()`` and ``setdefault()``
+    all mark the field as modified; ``save()`` sends every modified field
+    along with any keyword arguments.
     """
 
     def __init__(self, data: dict[str, Any], manager: ResourceManager[Any]) -> None:
@@ -144,10 +145,28 @@ class ResourceObject(dict[str, Any]):
         self._dirty: set[str] = set()
 
     def __setitem__(self, key: str, value: Any) -> None:
-        # ponytail: only __setitem__/__setattr__ are tracked; dict.update()
-        # and setdefault() bypass this. Override them if callers need it.
         self.__dict__.setdefault("_dirty", set()).add(key)
         super().__setitem__(key, value)
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        """Merge values in, marking each one modified (issue #110).
+
+        ``dict.update()`` writes straight to the backing mapping, so before
+        this override a batch update marked nothing dirty and the following
+        ``save()`` sent an empty ``PUT`` and reported success while
+        persisting nothing.
+
+        ``refresh()`` deliberately calls ``dict.update(self, ...)`` to load
+        server state without dirtying it, which bypasses this override.
+        """
+        for key, value in dict(*args, **kwargs).items():
+            self[key] = value
+
+    def setdefault(self, key: str, default: Any = None) -> Any:
+        """Insert ``default`` if absent, marking it modified (issue #110)."""
+        if key not in self:
+            self[key] = default
+        return self[key]
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -233,6 +252,13 @@ class ResourceObject(dict[str, Any]):
             # Apply the manager's write-alias translation so attribute
             # assignment and typed update() behave identically (issue #97).
             changes = manager._prepare_write_fields(changes)
+        if not changes and not kwargs:
+            # Nothing to write. An empty PUT is still a write - subject to
+            # permissions, audit logging and any update side effects - for a
+            # request the caller did not ask for (issue #111). Return current
+            # state, which is what the write path would have returned.
+            dirty.clear()
+            return manager.get(self.key)
         if changes and type(manager).update is not ResourceManager.update:
             ResourceManager.update(manager, self.key, **changes)
             result = manager.update(self.key, **kwargs) if kwargs else manager.get(self.key)
