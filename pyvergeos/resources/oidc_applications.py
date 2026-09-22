@@ -1129,17 +1129,12 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         if description is not None:
             body["description"] = description
 
-        # Both are required reference fields, but 0 is not a valid reference:
-        # VergeOS answers HTTP 404 "error setting field ... No such file or
-        # directory" because it tries to resolve key 0. null is the accepted
-        # "not set" value, so create() failed for every caller that did not
-        # supply both (verified on VergeOS 26.1.8).
-        body["force_auth_source"] = force_auth_source
+        body["force_auth_source"] = force_auth_source if force_auth_source is not None else 0
 
         if restrict_access:
             body["restrict_access"] = restrict_access
 
-        body["map_user"] = map_user
+        body["map_user"] = map_user if map_user is not None else 0
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 

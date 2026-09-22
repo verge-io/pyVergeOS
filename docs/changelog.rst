@@ -96,12 +96,6 @@ Fixed
   (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
   containing a non-string, is rejected with ``TypeError`` rather than
   serialized into a plausible-looking but wrong projection. (#101)
-- ``OidcApplicationManager.create()`` always failed unless the caller
-  supplied both ``force_auth_source`` and ``map_user``. Both are required
-  reference fields and the SDK defaulted them to ``0``, which VergeOS cannot
-  resolve - it answers HTTP 404 ``error setting field ... No such file or
-  directory``. ``null`` is the accepted "not set" value and is now sent, so
-  creating an OIDC application with only a name works.
 - Every multi-value write parameter (``ssh_keys``, ``dns_servers``,
   ``ip_allow_list``, ``domain_list``, ``redirect_uri``, the NAS CIFS user and
   host lists, volume-sync ``include``/``exclude``) rejects a mapping, an

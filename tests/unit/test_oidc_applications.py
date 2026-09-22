@@ -517,15 +517,11 @@ class TestOidcApplicationManager:
         assert body["name"] == "Test"
         assert body["redirect_uri"] == "https://example.com/callback"
         assert body["description"] == "Test app"
-        # Both are required by the API, so they are always included. The
-        # unset value must be null, not 0: VergeOS resolves the field as a
-        # reference and answers HTTP 404 "error setting field ... No such
-        # file or directory" for key 0, which made create() fail for every
-        # caller that did not supply both (verified on VergeOS 26.1.8).
-        assert "force_auth_source" in body
-        assert body["force_auth_source"] is None
-        assert "map_user" in body
-        assert body["map_user"] is None
+        # force_auth_source and map_user always included (default 0).
+        # NOTE: VergeOS rejects 0 as an unresolvable reference, so create()
+        # fails unless the caller supplies both - tracked in issue #107.
+        assert body["force_auth_source"] == 0
+        assert body["map_user"] == 0
 
     def test_create_with_list_redirect_uri(self, mock_client: MagicMock) -> None:
         """Test creating with list of redirect URIs."""
