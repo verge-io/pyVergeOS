@@ -165,6 +165,8 @@ class DriveManager(ResourceManager[Drive]):
         filter: str | None = None,  # noqa: A002
         fields: list[str] | None = None,
         media: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[Drive]:
         """List drives for this VM.
@@ -196,6 +198,10 @@ class DriveManager(ResourceManager[Drive]):
             "fields": ",".join(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

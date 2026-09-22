@@ -124,6 +124,8 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
         fields: builtins.list[str] | None = None,
         ip: str | None = None,
         hostname: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[NetworkAlias]:
         """List IP aliases for this network.
@@ -168,6 +170,10 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
             "fields": ",".join(fields),
             "sort": "+ip",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

@@ -182,6 +182,8 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
         filter: str | None = None,  # noqa: A002
         fields: builtins.list[str] | None = None,
         tier: int | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[TenantStorage]:
         """List storage allocations for this tenant.
@@ -209,6 +211,10 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
             "filter": combined_filter,
             "fields": ",".join(fields),
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 

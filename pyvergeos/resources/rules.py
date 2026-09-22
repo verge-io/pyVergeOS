@@ -233,6 +233,8 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
         action: Action | None = None,
         protocol: Protocol | None = None,
         enabled: bool | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[NetworkRule]:
         """List firewall rules for this network.
@@ -282,6 +284,10 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
             "fields": ",".join(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
