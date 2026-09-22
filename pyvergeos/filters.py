@@ -67,11 +67,13 @@ def _escape_regex_literal(text: str) -> str:
     escapes ``' '``, ``#``, ``&``, ``-`` and ``~``, which produces noisy
     patterns and relies on escape sequences this engine does not define.
 
-    A literal ``{`` cannot be expressed at all: VergeOS 26.1.8 rejects it with
-    HTTP 422 in bare, escaped and character-class form, for *every* operator
-    including ``eq``. It is escaped here as the metacharacter it is; the
-    request fails either way, exactly as an equality filter on the same value
-    already does.
+    ``{`` is escaped here as the regex metacharacter it is. Note that ``{`` is
+    *also* reserved by the filter-string grammar itself and must be escaped by
+    :func:`quote_value` (issue #100); until that lands, any value containing a
+    brace fails for every operator, equality included. The two escapes
+    compose correctly once it does: this function emits ``\\{``, quote_value
+    then escapes the backslash and the brace, and the parser unwraps both to
+    leave the regex engine a literal brace.
     """
     return "".join(f"\\{char}" if char in _REGEX_METACHARS else char for char in text)
 

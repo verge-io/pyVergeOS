@@ -294,12 +294,12 @@ class TestWildcardTranslation:
     def test_brace_is_escaped_as_a_metacharacter(self) -> None:
         r"""'{' is a regex metacharacter and is escaped as one.
 
-        Verified on VergeOS 26.1.8: a '{' in a filter *value* is rejected with
-        HTTP 422 by the filter parser for all eleven operators, including
-        plain ``eq``, in bare, escaped (``\{``) and character-class (``[{]``)
-        forms. No form matches a literal '{' correctly, so this is a
-        pre-existing platform limitation independent of issue #103 - the
-        wildcard path is no worse off than the equality path.
+        '{' is additionally reserved by the filter-string grammar and must be
+        escaped by quote_value(), which is issue #100 and not fixed here.
+        Until it is, a braced value fails for every operator including plain
+        ``eq``, so the wildcard path is no worse off than the equality path.
+        The two escapes compose: once quote_value() escapes '{', the '\\{'
+        emitted here survives to the regex engine as a literal brace.
         """
         assert build_filter(name="a{b?") == r"name rx '^a\\{b.$'"
         # The closing brace, by contrast, is accepted by the platform.
