@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.filters import build_filter, wildcard_condition
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -254,7 +254,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             limit: Maximum number of results.
             offset: Skip this many results.
             vm_key: Filter by VM $key.
-            name: Filter by file name (exact match or wildcard ``*``).
+            name: Filter by file name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             render: Filter by render type (No, Variables, Jinja2).
             **filter_kwargs: Additional filter arguments.
 
@@ -274,13 +274,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
 
         # Filter by name
         if name is not None:
-            if "*" in name or "?" in name:
-                # Wildcard search - use contains
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    filters.append(f"name ct {quote_value(search_term)}")
-            else:
-                filters.append(f"name eq {quote_value(name)}")
+            filters.append(wildcard_condition("name", name))
 
         # Filter by render type
         if render:
@@ -606,7 +600,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
             fields: List of fields to return.
             limit: Maximum number of results.
             offset: Skip this many results.
-            name: Filter by file name (exact match or wildcard ``*``).
+            name: Filter by file name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             render: Filter by render type (No, Variables, Jinja2).
             **filter_kwargs: Additional filter arguments.
 

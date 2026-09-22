@@ -53,7 +53,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
-from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -358,7 +358,7 @@ class TaskManager(ResourceManager[Task]):
             status: Filter by status ('running' or 'idle').
             running: If True, filter for running tasks only.
             enabled: Filter by enabled state.
-            name: Filter by name (supports partial match with 'ct' operator).
+            name: Filter by name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -395,13 +395,7 @@ class TaskManager(ResourceManager[Task]):
 
         if name:
             # Check if name contains wildcards
-            if "*" in name or "?" in name:
-                # Use contains for partial match
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    conditions.append(f"name ct {quote_value(search_term)}")
-            else:
-                conditions.append(f"name eq {quote_value(name)}")
+            conditions.append(wildcard_condition("name", name))
 
         # Add any additional filter kwargs
         if filter_kwargs:
