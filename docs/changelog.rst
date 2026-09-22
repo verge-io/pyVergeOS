@@ -140,6 +140,16 @@ Fixed
   as ``",".join()`` does. A new ``split_fields()`` helper returns the list
   form, and the AST tripwire now follows locals that alias a parameter, which
   is how the original guard missed these. (#101)
+- ``Network.power_off(force=True)`` no longer sends an action the platform
+  rejects. It emitted ``action="killpower"``, which is not in the vnet action
+  list, so every forced power off of a network failed with ``ValidationError:
+  value 'killpower' is not in list for field 'action'`` - forced power off was
+  simply unavailable through the SDK. The valid value is ``kill``, the same
+  value #42 applied to VMs; that fix was never carried across to networks, and
+  the unit test asserted the broken string, so CI defended the bug. The
+  ``_power_action()`` docstring advertised ``killpower`` as well. A new AST
+  tripwire scans every resource module, so a third occurrence cannot ship.
+  (#112)
 
 Changed
 ^^^^^^^

@@ -138,7 +138,7 @@ def network_power_operations(client: VergeClient) -> None:
     # Stop a network gracefully
     network.power_off()
 
-    # Force stop (killpower)
+    # Force stop (immediate termination)
     network.power_off(force=True)
 
     # Restart a network
