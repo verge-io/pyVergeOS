@@ -41,6 +41,25 @@ Fixed
   ``SharedObject.refresh()`` gained the same in-place semantics;
   ``UpdateSource.refresh()``, which triggers an update check, is unchanged.
   (#98)
+- Wildcard and list filter shorthands no longer fail with HTTP 422. VergeOS
+  filtering is *similar to* OData but is not OData: its grammar has no ``like``
+  and no ``in`` operator, yet ``build_filter()`` emitted both - so the
+  documented ``list(name="web*")`` and ``list(status=["a", "b"])`` shorthands
+  raised ``APIError: Invalid argument`` on every call. Wildcards are now
+  translated to the operators the platform does have (``eq``/``bw``/``ew``/
+  ``cs``, or an anchored ``rx`` for patterns like ``a*b`` and ``web?``), and
+  lists expand to a parenthesised ``or`` chain. All operators chosen are
+  case-sensitive, so matching no longer depends on wildcard position. (#103)
+- ``tasks``, ``task_scripts``, ``task_schedules`` and ``cloudinit_files``
+  interpreted a ``name`` wildcard as a case-insensitive *contains*, so
+  ``name="Backup*"`` also matched ``Nightly Backup``. They now share the
+  wildcard translation, making a prefix pattern a prefix match. An
+  all-wildcard name (``"*"`` or ``"?"``) previously dropped the name condition
+  entirely and returned every row; it is now a real filter. (#103)
+- ``Filter`` exposes the platform's string operators - ``bw``, ``ew``, ``cs``,
+  ``ct`` and ``rx`` - which the grammar supports but the builder could not
+  express. ``Filter.like()`` and ``Filter.in_()`` are reimplemented on top of
+  them rather than emitting the rejected tokens. (#103)
 - Iterating a scoped collection no longer returns zero rows.
   ``iter_all()``/``__iter__`` pass ``limit``/``offset`` to ``list()``, and 19
   overrides consumed them as ``**kwargs`` filter arguments, producing filters
@@ -60,6 +79,12 @@ Changed
   still filter on the non-``None`` conditions. (#96)
 - Invalid snapshot profile period fields now raise at ``save()`` as well as
   ``update()``, rather than being sent raw and silently ignored. (#97)
+- ``FilterOperator.LIKE`` and ``FilterOperator.IN`` were removed. Every filter
+  built with them was rejected by the platform, so no working code depends on
+  them. (#103)
+- An empty sequence as a filter value (``list(name=[])``) now raises
+  ``ValueError`` instead of building an ``in ()`` expression that the platform
+  rejected. (#103)
 
 [1.2.7] - 2026-09-21
 --------------------

@@ -223,7 +223,8 @@ class TestCloudInitFileManager:
 
         assert len(files) == 2
         call_args = mock_session.request.call_args
-        assert "name ct 'user'" in call_args.kwargs.get("params", {}).get("filter", "")
+        # '*user*' is a contains match: cs (case-sensitive), not ct (#103).
+        assert "name cs 'user'" in call_args.kwargs.get("params", {}).get("filter", "")
 
     def test_list_cloudinit_files_with_render_filter(
         self, mock_client: VergeClient, mock_session: MagicMock

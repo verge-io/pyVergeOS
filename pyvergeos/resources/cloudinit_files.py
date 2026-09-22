@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.filters import build_filter, wildcard_condition
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -274,13 +274,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
 
         # Filter by name
         if name is not None:
-            if "*" in name or "?" in name:
-                # Wildcard search - use contains
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    filters.append(f"name ct {quote_value(search_term)}")
-            else:
-                filters.append(f"name eq {quote_value(name)}")
+            filters.append(wildcard_condition("name", name))
 
         # Filter by render type
         if render:

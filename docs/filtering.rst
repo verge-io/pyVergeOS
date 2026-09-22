@@ -16,13 +16,16 @@ The simplest way to filter is with keyword arguments:
    # Filter by multiple fields
    linux_vms = client.vms.list(os_family="linux", status="running")
 
-   # Wildcard matching
+   # Wildcard matching: * is any run of characters, ? is exactly one
    web_servers = client.vms.list(name="web-*")
 
-OData Filter Strings
---------------------
+   # A list matches any of several values
+   vms = client.vms.list(status=["running", "stopped"])
 
-For complex queries, use OData filter syntax:
+Filter Strings
+--------------
+
+For complex queries, pass a filter expression directly:
 
 .. code-block:: python
 
@@ -32,19 +35,60 @@ For complex queries, use OData filter syntax:
    # Compound conditions
    vms = client.vms.list(filter="os_family eq 'linux' and ram gt 2048")
 
-   # String functions
-   vms = client.vms.list(filter="startswith(name, 'prod-')")
+   # Prefix match
+   vms = client.vms.list(filter="name bw 'prod-'")
 
-Supported operators:
+VergeOS filtering is *similar to* OData but is **not** OData. This is the
+complete operator set; anything else is rejected with HTTP 422
+``Invalid argument``:
 
-- ``eq`` - Equal
-- ``ne`` - Not equal
-- ``gt`` - Greater than
-- ``lt`` - Less than
-- ``ge`` - Greater than or equal
-- ``le`` - Less than or equal
-- ``and`` - Logical and
-- ``or`` - Logical or
+.. list-table::
+   :header-rows: 1
+   :widths: 10 30 25
+
+   * - Operator
+     - Meaning
+     - Case sensitivity
+   * - ``eq``
+     - Equal
+     - sensitive
+   * - ``ne``
+     - Not equal
+     - sensitive
+   * - ``gt`` / ``ge``
+     - Greater than / or equal
+     -
+   * - ``lt`` / ``le``
+     - Less than / or equal
+     -
+   * - ``bw``
+     - Begins with
+     - sensitive
+   * - ``ew``
+     - Ends with
+     - sensitive
+   * - ``cs``
+     - Contains
+     - sensitive
+   * - ``ct``
+     - Contains
+     - **insensitive**
+   * - ``rx``
+     - Regular expression, unanchored
+     - sensitive
+   * - ``and`` / ``or``
+     - Logical connectors
+     -
+
+.. warning::
+
+   There is no ``like`` and no ``in`` operator, and OData string functions
+   such as ``startswith(...)`` and ``contains(...)`` do not exist either. The
+   SDK's wildcard and list shorthands are translated to the operators above,
+   so prefer them over hand-writing an expression.
+
+   The token ``re`` is accepted by the platform but matches nothing - the
+   regex operator is ``rx``.
 
 Filter Builder
 --------------
@@ -64,8 +108,67 @@ For programmatic filter construction, use the ``Filter`` class:
    vms = client.vms.list(filter=str(f))
 
    # Method chaining
-   f = Filter().eq("status", "running").and_().startswith("name", "prod-")
+   f = Filter().eq("status", "running").and_().bw("name", "prod-")
    vms = client.vms.list(filter=str(f))
+
+``Filter`` exposes every operator in the grammar - ``eq``, ``ne``, ``gt``,
+``ge``, ``lt``, ``le``, ``bw``, ``ew``, ``cs``, ``ct`` and ``rx`` - plus two
+shorthands that are translated for you:
+
+.. code-block:: python
+
+   Filter().like("name", "web*")          # -> name bw 'web'
+   Filter().in_("status", ["a", "b"])     # -> (status eq 'a' or status eq 'b')
+
+Wildcard Translation
+--------------------
+
+``*`` matches any run of characters and ``?`` matches exactly one. Because
+VergeOS has no ``like`` operator, patterns are translated to the operators it
+does have. Every operator chosen is case-sensitive, so matching does not
+change with wildcard position:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 45
+
+   * - Pattern
+     - Sent to the API
+   * - ``"web"``
+     - ``name eq 'web'``
+   * - ``"web*"``
+     - ``name bw 'web'``
+   * - ``"*web"``
+     - ``name ew 'web'``
+   * - ``"*web*"``
+     - ``name cs 'web'``
+   * - ``"*"``
+     - ``name bw ''`` (matches everything)
+   * - ``"a*b"``, ``"web?"``
+     - ``name rx '^a.*b$'`` (anchored regex)
+
+Lists expand to a parenthesised ``or`` chain, and wildcards inside a list are
+translated per element:
+
+.. code-block:: python
+
+   client.vms.list(status=["running", "stopped"])
+   # -> (status eq 'running' or status eq 'stopped')
+
+   client.vms.list(name=["web*", "db*"])
+   # -> (name bw 'web' or name bw 'db')
+
+An empty list raises ``ValueError`` rather than silently matching nothing.
+
+.. note::
+
+   ``%`` and ``_`` are ordinary literal characters, not wildcards. There is no
+   escape for a literal ``*`` or ``?`` in the shorthand - to match those
+   exactly, use ``get(name=...)`` or a raw ``filter=`` expression with
+   ``quote_value()``.
+
+   Wildcards only apply to text columns. A wildcard against a numeric column
+   is accepted by the platform but matches nothing.
 
 String Values
 -------------
@@ -90,8 +193,9 @@ literals. It includes the surrounding quotes and preserves wildcard characters:
    groups = client.groups.list(filter=f"name eq {quote_value(name)}")
 
 Raw ``filter=`` strings are sent unchanged. SQL-style doubled apostrophes are
-not valid VergeOS escaping. ``get(name=...)`` matches names exactly;
-keyword filters and ``Filter.like()`` retain their existing wildcard behavior.
+not valid VergeOS escaping. ``get(name=...)`` matches names exactly, treating
+``*`` and ``?`` as literal characters; keyword filters and ``Filter.like()``
+apply the wildcard translation described above.
 
 Field Selection
 ---------------

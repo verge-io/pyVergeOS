@@ -261,7 +261,8 @@ class TestTaskManagerList:
 
         assert len(tasks) == 2
         call_args = mock_session.request.call_args
-        assert "name ct 'Backup'" in str(call_args)
+        # 'Backup*' is a prefix match, so bw rather than a contains (#103).
+        assert "name bw 'Backup'" in str(call_args)
 
     def test_list_tasks_multiple_filters(
         self, mock_client: VergeClient, mock_session: MagicMock

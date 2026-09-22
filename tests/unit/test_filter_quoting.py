@@ -60,7 +60,8 @@ def test_task_name_search_quotes_literal(
 
     manager.list(name=name + ("*" if wildcard else ""))
 
-    op = "ct" if wildcard else "eq"
+    # A trailing '*' is a prefix match, so it maps to bw, not a contains (#103).
+    op = "bw" if wildcard else "eq"
     expected = rf"name {op} 'O\'Brien\\share'"
     assert expected in mock_client._request.call_args.kwargs["params"]["filter"]
 
@@ -119,3 +120,40 @@ def test_node_filters_quote_name_and_cluster(mock_client: Any) -> None:
     expression = mock_client._request.call_args.kwargs["params"]["filter"]
     assert r"name eq 'O\'Brien\\node'" in expression
     assert r"cluster#name eq 'O\'Brien\\cluster'" in expression
+
+
+@pytest.mark.parametrize(
+    "manager_name", ["tasks", "task_scripts", "task_schedules", "cloudinit_files"]
+)
+@pytest.mark.parametrize("pattern", ["*", "?", "**"])
+def test_all_wildcard_name_still_sends_a_filter(
+    mock_client: Any, manager_name: str, pattern: str
+) -> None:
+    """An all-wildcard name must not drop the filter entirely (#103).
+
+    These managers stripped '*' and '?' from the name and appended a filter
+    only ``if search_term:`` - so a name of ``"*"`` left no name condition at
+    all and returned every row, the fail-open shape of #96.
+    """
+    mock_client._request = MagicMock(return_value=[])
+    manager = getattr(mock_client, manager_name)
+
+    manager.list(name=pattern)
+
+    sent = mock_client._request.call_args.kwargs["params"].get("filter", "")
+    assert "name " in sent, f"{manager_name} dropped the name filter for {pattern!r}"
+
+
+@pytest.mark.parametrize(
+    "manager_name", ["tasks", "task_scripts", "task_schedules", "cloudinit_files"]
+)
+def test_prefix_wildcard_is_not_a_contains(mock_client: Any, manager_name: str) -> None:
+    """``name="Backup*"`` is a prefix match, not a contains match (#103)."""
+    mock_client._request = MagicMock(return_value=[])
+    manager = getattr(mock_client, manager_name)
+
+    manager.list(name="Backup*")
+
+    sent = mock_client._request.call_args.kwargs["params"]["filter"]
+    assert "name bw 'Backup'" in sent
+    assert " ct " not in sent

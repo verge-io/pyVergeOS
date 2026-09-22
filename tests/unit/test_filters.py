@@ -37,15 +37,15 @@ class TestFilter:
 
     def test_like_with_asterisk(self) -> None:
         f = Filter().like("name", "web*")
-        assert str(f) == "name like 'web%'"
+        assert str(f) == "name bw 'web'"
 
     def test_like_with_question(self) -> None:
         f = Filter().like("name", "web?")
-        assert str(f) == "name like 'web_'"
+        assert str(f) == "name rx '^web.$'"
 
     def test_in_with_list(self) -> None:
         f = Filter().in_("status", ["running", "stopped"])
-        assert str(f) == "status in ('running', 'stopped')"
+        assert str(f) == "(status eq 'running' or status eq 'stopped')"
 
     def test_and_connector(self) -> None:
         f = Filter().eq("status", "running").and_().gt("ram", 2048)
@@ -54,7 +54,7 @@ class TestFilter:
     def test_implicit_and(self) -> None:
         """AND is implicit between conditions - no need to call and_()."""
         f = Filter().eq("status", "running").gt("ram", 2048).like("name", "web*")
-        assert str(f) == "status eq 'running' and ram gt 2048 and name like 'web%'"
+        assert str(f) == "status eq 'running' and ram gt 2048 and name bw 'web'"
 
     def test_or_connector(self) -> None:
         f = Filter().eq("os", "linux").or_().eq("os", "windows")
@@ -104,11 +104,11 @@ class TestBuildFilter:
 
     def test_wildcard_pattern(self) -> None:
         result = build_filter(name="web*")
-        assert result == "name like 'web%'"
+        assert result == "name bw 'web'"
 
     def test_list_values(self) -> None:
         result = build_filter(status=["running", "stopped"])
-        assert result == "status in ('running', 'stopped')"
+        assert result == "(status eq 'running' or status eq 'stopped')"
 
     def test_integer_value(self) -> None:
         result = build_filter(ram=4096)
@@ -152,14 +152,19 @@ def test_builders_quote_equality(value: str, literal: str) -> None:
 @pytest.mark.parametrize("container", [list, tuple])
 def test_builders_quote_in_values(container: Any) -> None:
     values = container(["O'Brien", r"C:\NAS", None, True, False, 42, 1.5])
-    expected = r"name in ('O\'Brien', 'C:\\NAS', null, true, false, 42, 1.5)"
+    expected = (
+        r"(name eq 'O\'Brien' or name eq 'C:\\NAS' or name eq null or name eq true "
+        r"or name eq false or name eq 42 or name eq 1.5)"
+    )
     assert str(Filter().in_("name", values)) == expected
     assert build_filter(name=values) == expected
 
 
 def test_builders_quote_wildcards() -> None:
+    # '?' forces the rx path; the literal backslash is regex-escaped and then
+    # quote_value-escaped, so four backslashes reach the wire for one literal.
     value = r"O'Brien\share*?"
-    expected = r"name like 'O\'Brien\\share%_'"
+    expected = r"name rx '^O\'Brien\\\\share.*.$'"
     assert str(Filter().like("name", value)) == expected
     assert build_filter(name=value) == expected
 
@@ -206,3 +211,192 @@ class TestCombineFilters:
     def test_multiple_kwargs(self) -> None:
         result = combine_filters("vnet eq 1", {"name": "a", "enabled": True})
         assert result == "(vnet eq 1) and (name eq 'a' and enabled eq true)"
+
+
+class TestWildcardTranslation:
+    """Wildcards map to the VergeOS grammar, never to `like` (issue #103).
+
+    Expected strings are written out literally rather than derived from the
+    implementation, and every mapping below was verified on the wire against
+    VergeOS 26.1.8.
+    """
+
+    @pytest.mark.parametrize(
+        ("pattern", "expected"),
+        [
+            # No wildcard: plain equality.
+            ("web", "name eq 'web'"),
+            # Simple shapes use the dedicated (and cheaper) operators.
+            ("web*", "name bw 'web'"),
+            ("*web", "name ew 'web'"),
+            ("*web*", "name cs 'web'"),
+            ("**web**", "name cs 'web'"),
+            # All-wildcard matches everything; `cs ''` would match nothing.
+            ("*", "name bw ''"),
+            ("***", "name bw ''"),
+            # Anything else becomes an anchored regex.
+            ("a*b", "name rx '^a.*b$'"),
+            ("web?", "name rx '^web.$'"),
+            ("?web", "name rx '^.web$'"),
+            ("?", "name rx '^.$'"),
+            ("*a*b*", "name rx '^.*a.*b.*$'"),
+            # Regex metacharacters in the literal parts are escaped.
+            ("a.b?", r"name rx '^a\\.b.$'"),
+            ("a+b?", r"name rx '^a\\+b.$'"),
+            ("a(b)?", r"name rx '^a\\(b\\).$'"),
+            ("a[b]?", r"name rx '^a\\[b\\].$'"),
+            ("a^b?", r"name rx '^a\\^b.$'"),
+            ("a$b?", r"name rx '^a\\$b.$'"),
+            ("a|b?", r"name rx '^a\\|b.$'"),
+            # '%' and '_' were the old LIKE wildcards; now plain literals.
+            ("50%*", "name bw '50%'"),
+            ("under_*", "name bw 'under_'"),
+            ("%_?", "name rx '^%_.$'"),
+        ],
+    )
+    def test_pattern_maps_to_supported_operator(self, pattern: str, expected: str) -> None:
+        assert build_filter(name=pattern) == expected
+        assert str(Filter().like("name", pattern)) == expected
+
+    def test_simple_shapes_are_case_sensitive_operators(self) -> None:
+        """bw/ew/cs are all case-sensitive; ct (insensitive) is never chosen.
+
+        Mixing ct in would make matching depend on wildcard position.
+        """
+        for pattern in ("web*", "*web", "*web*"):
+            assert " ct " not in build_filter(name=pattern)
+
+    def test_anchors_prevent_substring_matches(self) -> None:
+        """rx is unanchored on the platform, so ^ and $ must be emitted."""
+        result = build_filter(name="a*b")
+        assert result.startswith("name rx '^")
+        assert result.endswith("$'")
+
+    def test_backslash_is_regex_escaped_then_quote_escaped(self) -> None:
+        r"""One literal backslash becomes four: \ -> \\ (regex) -> \\\\ (quote)."""
+        assert build_filter(name="a\\b?") == r"name rx '^a\\\\b.$'"
+
+    def test_apostrophe_survives_the_regex_path(self) -> None:
+        assert build_filter(name="O'B?") == r"name rx '^O\'B.$'"
+
+    def test_escaping_is_not_python_re_escape(self) -> None:
+        r"""Python's re.escape() escapes far more than this engine accepts.
+
+        re.escape() escapes ' ', '#', '&', '-' and '~' among others. Escaping
+        only true metacharacters keeps patterns readable and avoids relying on
+        escapes the platform's engine may not define.
+        """
+        assert build_filter(name="a b?") == "name rx '^a b.$'"
+        assert build_filter(name="a-b?") == "name rx '^a-b.$'"
+        assert build_filter(name="a#b?") == "name rx '^a#b.$'"
+        assert build_filter(name="a~b?") == "name rx '^a~b.$'"
+
+    def test_brace_is_escaped_as_a_metacharacter(self) -> None:
+        r"""'{' is a regex metacharacter and is escaped as one.
+
+        Verified on VergeOS 26.1.8: a '{' in a filter *value* is rejected with
+        HTTP 422 by the filter parser for all eleven operators, including
+        plain ``eq``, in bare, escaped (``\{``) and character-class (``[{]``)
+        forms. No form matches a literal '{' correctly, so this is a
+        pre-existing platform limitation independent of issue #103 - the
+        wildcard path is no worse off than the equality path.
+        """
+        assert build_filter(name="a{b?") == r"name rx '^a\\{b.$'"
+        # The closing brace, by contrast, is accepted by the platform.
+        assert build_filter(name="a}b?") == r"name rx '^a\\}b.$'"
+
+
+class TestInTranslation:
+    """Lists expand to an `or` chain, never to `in` (issue #103)."""
+
+    def test_multiple_values_are_parenthesised(self) -> None:
+        assert build_filter(status=["running", "stopped"]) == (
+            "(status eq 'running' or status eq 'stopped')"
+        )
+
+    def test_parentheses_keep_and_merge_correct(self) -> None:
+        result = combine_filters("is_snapshot eq false", {"name": ["a", "b"]})
+        assert result == "(is_snapshot eq false) and ((name eq 'a' or name eq 'b'))"
+
+    def test_single_value_needs_no_parentheses(self) -> None:
+        assert build_filter(status=["running"]) == "status eq 'running'"
+
+    def test_tuple_behaves_like_list(self) -> None:
+        assert build_filter(status=("a", "b")) == "(status eq 'a' or status eq 'b')"
+
+    def test_numeric_values(self) -> None:
+        assert build_filter(key=[1, 33]) == "(key eq 1 or key eq 33)"
+
+    def test_wildcards_inside_a_list_are_translated(self) -> None:
+        assert build_filter(name=["web*", "db*"]) == "(name bw 'web' or name bw 'db')"
+
+    def test_mixed_wildcard_and_exact(self) -> None:
+        assert build_filter(name=["web*", "db1"]) == "(name bw 'web' or name eq 'db1')"
+
+    @pytest.mark.parametrize("empty", [[], ()])
+    def test_empty_sequence_raises(self, empty: Any) -> None:
+        with pytest.raises(ValueError, match="empty sequence"):
+            build_filter(name=empty)
+        with pytest.raises(ValueError, match="empty sequence"):
+            Filter().in_("name", empty)
+
+
+class TestGrammarSafety:
+    """No generated filter may contain an operator the platform rejects."""
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"name": "web*"},
+            {"name": "*web"},
+            {"name": "*web*"},
+            {"name": "a*b"},
+            {"name": "web?"},
+            {"name": "*"},
+            {"name": ["a", "b"]},
+            {"name": ["a*", "b?"]},
+            {"name": "a.b*"},
+            {"name": "50%*"},
+        ],
+    )
+    def test_no_unsupported_operator_token(self, kwargs: Any) -> None:
+        result = build_filter(**kwargs)
+        assert " like " not in result
+        assert " in (" not in result
+        # 're' is accepted by the platform but silently matches nothing.
+        assert " re " not in result
+
+    def test_filter_operator_enum_has_no_unsupported_members(self) -> None:
+        from pyvergeos.filters import FilterOperator
+
+        values = {op.value for op in FilterOperator}
+        assert "like" not in values
+        assert "in" not in values
+        # The documented VergeOS grammar.
+        assert values == {"eq", "ne", "gt", "ge", "lt", "le", "bw", "ew", "cs", "ct", "rx"}
+
+
+class TestNewOperatorMethods:
+    """The platform's string operators are reachable from Filter."""
+
+    def test_bw(self) -> None:
+        assert str(Filter().bw("name", "web")) == "name bw 'web'"
+
+    def test_ew(self) -> None:
+        assert str(Filter().ew("name", "web")) == "name ew 'web'"
+
+    def test_cs(self) -> None:
+        assert str(Filter().cs("name", "web")) == "name cs 'web'"
+
+    def test_ct(self) -> None:
+        assert str(Filter().ct("name", "web")) == "name ct 'web'"
+
+    def test_rx_is_sent_verbatim(self) -> None:
+        assert str(Filter().rx("name", "^web.*$")) == "name rx '^web.*$'"
+
+    def test_operators_quote_values(self) -> None:
+        assert str(Filter().cs("name", "O'Brien")) == r"name cs 'O\'Brien'"
+
+    def test_chaining_with_implicit_and(self) -> None:
+        f = Filter().bw("name", "web").ct("description", "prod")
+        assert str(f) == "name bw 'web' and description ct 'prod'"

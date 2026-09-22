@@ -27,7 +27,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
@@ -166,12 +166,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
             filters.append(f"({filter})")
 
         if name is not None:
-            if "*" in name or "?" in name:
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    filters.append(f"name ct {quote_value(search_term)}")
-            else:
-                filters.append(f"name eq {quote_value(name)}")
+            filters.append(wildcard_condition("name", name))
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
