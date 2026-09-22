@@ -96,6 +96,25 @@ Fixed
   (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
   containing a non-string, is rejected with ``TypeError`` rather than
   serialized into a plausible-looking but wrong projection. (#101)
+- ``OidcApplicationManager.create()`` always failed unless the caller
+  supplied both ``force_auth_source`` and ``map_user``. Both are required
+  reference fields and the SDK defaulted them to ``0``, which VergeOS cannot
+  resolve - it answers HTTP 404 ``error setting field ... No such file or
+  directory``. ``null`` is the accepted "not set" value and is now sent, so
+  creating an OIDC application with only a name works.
+- Every multi-value write parameter (``ssh_keys``, ``dns_servers``,
+  ``ip_allow_list``, ``domain_list``, ``redirect_uri``, the NAS CIFS user and
+  host lists, volume-sync ``include``/``exclude``) rejects a mapping, an
+  unordered collection and non-string values instead of serializing them.
+  Iterating a mapping yields its keys, so ``ssh_keys={"a": 1}`` was sent as
+  ``'a'``; a ``set`` was joined in arbitrary order, and order is part of the
+  value - the first entry of ``dnslist`` is the primary DNS server. (#101)
+- ``CertificateManager.get()`` and ``.list()`` silently ignored
+  ``include_keys`` whenever an explicit ``fields`` projection was supplied, so
+  the requested key material was missing from the result. The key fields are
+  now appended to whatever projection was asked for, without duplicating
+  entries, matching ``AuthSourceManager.get(include_settings=...)`` and
+  ``OidcApplicationManager.get(include_secret=...)``. (#101)
 - Six ``get()``/``list()`` methods still corrupted a ``fields`` string after
   the #101 sweep: ``auth_sources``, ``certificates``, ``cloudinit_files``
   (list and get), ``oidc_applications`` and ``webhooks`` build an *augmented*

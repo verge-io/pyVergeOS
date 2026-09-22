@@ -40,6 +40,32 @@ class TestSerializeHelpers:
         assert serialize_list([]) == ""
         assert serialize_list("") == ""
 
+    def test_mapping_is_rejected(self) -> None:
+        """Iterating a mapping yields its keys, which look like real values.
+
+        ``ssh_keys={"a": 1}`` previously serialised to ``'a'`` and was sent.
+        """
+        with pytest.raises(TypeError, match="iterating a mapping yields its keys"):
+            serialize_list({"a": 1, "b": 2})
+
+    def test_unordered_collection_is_rejected(self) -> None:
+        """Order is part of the value for several of these parameters.
+
+        The first entry of ``dnslist`` is the primary DNS server, so joining
+        a set would send a different value run to run.
+        """
+        for unordered in ({"b", "a"}, frozenset({"b", "a"})):
+            with pytest.raises(TypeError, match="ordered sequence"):
+                serialize_list(unordered)
+
+    def test_non_string_values_are_rejected_clearly(self) -> None:
+        for bad in ([1, 2], ["ok", None], [["nested"]]):
+            with pytest.raises(TypeError, match="values must be strings"):
+                serialize_list(bad)
+
+    def test_generator_is_accepted(self) -> None:
+        assert serialize_list(x for x in ["a", "b"]) == "a,b"
+
     def test_tuple_works(self) -> None:
         assert serialize_list(("a", "b")) == "a,b"
 
@@ -347,3 +373,65 @@ class TestParamJoinTripwire:
         caught = {o.split("py:")[1].split("(")[0].split()[1] for o in offenders}
         assert caught == {"get", "get_alias", "get_or"}, offenders
         assert not any("safe" in o for o in offenders), offenders
+
+
+class TestCertificateIncludeKeys:
+    """include_keys must augment whatever projection was requested (#101).
+
+    It previously applied only to the default projection, so supplying
+    ``fields`` silently dropped the key material the caller asked for --
+    matching neither AuthSourceManager.get(include_settings=...) nor
+    OidcApplicationManager.get(include_secret=...), which both append.
+    """
+
+    def _fields(self, mock_session: MagicMock) -> str:
+        return str(mock_session.request.call_args.kwargs["params"]["fields"])
+
+    def test_get_appends_key_fields_to_explicit_projection(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1, "domain": "d"}
+
+        mock_client.certificates.get(1, fields="$key,domain", include_keys=True)
+
+        sent = self._fields(mock_session)
+        assert sent == "$key,domain,public,private,chain"
+
+    def test_list_appends_key_fields_to_explicit_projection(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = []
+
+        mock_client.certificates.list(fields="$key,domain", include_keys=True)
+
+        assert self._fields(mock_session) == "$key,domain,public,private,chain"
+
+    def test_without_include_keys_no_key_material_is_requested(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1}
+
+        mock_client.certificates.get(1, fields="$key,domain")
+
+        assert self._fields(mock_session) == "$key,domain"
+
+    def test_key_fields_are_not_duplicated(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1}
+
+        mock_client.certificates.get(1, fields="$key,public", include_keys=True)
+
+        assert self._fields(mock_session) == "$key,public,private,chain"
+
+    def test_degenerate_projection_falls_back_to_defaults(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """A projection with no field names must not send an empty fields=."""
+        mock_session.request.return_value.json.return_value = {"$key": 1}
+
+        mock_client.certificates.get(1, fields=",")
+
+        sent = self._fields(mock_session)
+        assert sent != ""
+        assert "domain" in sent

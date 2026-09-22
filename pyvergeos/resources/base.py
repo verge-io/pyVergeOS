@@ -25,6 +25,9 @@ def serialize_list(value: str | builtins.list[str] | None, sep: str = ",") -> st
     ``'$,k,e,y,,,n,a,m,e'``), which the API accepts and silently honours,
     corrupting the request (issue #101).
 
+    An empty sequence serializes to ``""``, which callers use to clear a
+    multi-value field, so it is deliberately not treated as "unset".
+
     Args:
         value: A string already in wire format, a sequence of values,
             or None.
@@ -32,12 +35,35 @@ def serialize_list(value: str | builtins.list[str] | None, sep: str = ",") -> st
 
     Returns:
         The wire-format string, or None if ``value`` is None.
+
+    Raises:
+        TypeError: If ``value`` is a mapping, an unordered collection, or
+            contains a non-string. Each of these would otherwise be
+            serialized into a plausible-looking but wrong request rather
+            than failing.
     """
     if value is None:
         return None
     if isinstance(value, str):
         return value
-    return sep.join(value)
+    if isinstance(value, Mapping):
+        raise TypeError(
+            f"expected a string or a sequence of strings, not {type(value).__name__}; "
+            "iterating a mapping yields its keys, which would be sent as the value"
+        )
+    if isinstance(value, (set, frozenset)):
+        # Order is part of the value for several of these parameters - the
+        # first entry of dnslist is the primary DNS server - and a set has
+        # no defined order, so the wire value would vary run to run.
+        raise TypeError(
+            f"expected an ordered sequence, not {type(value).__name__}; "
+            "pass a list so the order sent to the API is defined"
+        )
+    items = list(value)
+    for item in items:
+        if not isinstance(item, str):
+            raise TypeError(f"values must be strings, got {type(item).__name__}: {item!r}")
+    return sep.join(items)
 
 
 def normalize_fields(fields: str | builtins.list[str] | None) -> str | None:
