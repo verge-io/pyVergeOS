@@ -229,7 +229,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
             raise ValueError("Key must be provided")
 
         params: dict[str, Any] = {
-            "filter": f"state eq '{key}'",
+            "filter": f"state eq {quote_value(key)}",
         }
         if fields:
             params["fields"] = normalize_fields(fields)
@@ -513,7 +513,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
 
         # Add driver filter
         if driver is not None:
-            filters.append(f"driver eq '{driver}'")
+            filters.append(f"driver eq {quote_value(driver)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

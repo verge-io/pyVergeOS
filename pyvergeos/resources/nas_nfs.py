@@ -289,7 +289,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)
@@ -637,7 +637,11 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
             vol_response = self._client._request(
                 "GET",
                 "volumes",
-                params={"filter": f"id eq '{volume}'", "fields": "$key,id,name", "limit": "1"},
+                params={
+                    "filter": f"id eq {quote_value(volume)}",
+                    "fields": "$key,id,name",
+                    "limit": "1",
+                },
             )
             if vol_response:
                 if isinstance(vol_response, list):

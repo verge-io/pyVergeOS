@@ -329,7 +329,7 @@ class NASUserManager(ResourceManager["NASUser"]):
         if key is not None:
             # Fetch by key using filter (keys are hex strings)
             params: dict[str, Any] = {
-                "filter": f"$key eq '{key}'",
+                "filter": f"$key eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)

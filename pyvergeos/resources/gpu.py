@@ -235,7 +235,7 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
             filters.append(filter)
 
         if profile_type is not None:
-            filters.append(f"profile_type eq '{profile_type}'")
+            filters.append(f"profile_type eq {quote_value(profile_type)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -550,7 +550,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
             filters.append(f"node eq {self._node_key}")
 
         if mode is not None:
-            filters.append(f"mode eq '{mode}'")
+            filters.append(f"mode eq {quote_value(mode)}")
         elif enabled_only:
             filters.append("mode ne 'none'")
 
@@ -1829,7 +1829,7 @@ class NodeVgpuProfileManager(ResourceManager[NodeVgpuProfile]):
             filters.append(f"physical_gpu eq {self._physical_gpu_key}")
 
         if profile_type is not None:
-            filters.append(f"profile_type eq '{profile_type}'")
+            filters.append(f"profile_type eq {quote_value(profile_type)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))

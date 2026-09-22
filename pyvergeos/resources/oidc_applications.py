@@ -597,7 +597,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

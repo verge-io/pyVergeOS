@@ -366,7 +366,7 @@ class WebhookManager(ResourceManager[Webhook]):
         # Filter by authorization type
         if authorization_type:
             api_auth_type = AUTH_TYPE_MAP.get(authorization_type, authorization_type.lower())
-            filters.append(f"authorization_type eq '{api_auth_type}'")
+            filters.append(f"authorization_type eq {quote_value(api_auth_type)}")
 
         # Add filter kwargs
         if filter_kwargs:
@@ -689,7 +689,7 @@ class WebhookManager(ResourceManager[Webhook]):
             # Filter by status
             if status:
                 api_status = status.lower()
-                filters.append(f"status eq '{api_status}'")
+                filters.append(f"status eq {quote_value(api_status)}")
             elif pending:
                 filters.append("(status eq 'queued' or status eq 'running')")
             elif failed:

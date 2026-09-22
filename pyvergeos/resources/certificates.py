@@ -353,7 +353,7 @@ class CertificateManager(ResourceManager[Certificate]):
         # Filter by certificate type
         if cert_type:
             api_type = CERT_TYPE_MAP.get(cert_type, cert_type.lower())
-            filters.append(f"type eq '{api_type}'")
+            filters.append(f"type eq {quote_value(api_type)}")
 
         # Filter by valid status
         if valid is not None:

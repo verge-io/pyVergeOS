@@ -194,7 +194,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
             filters.append(f"host eq {quote_value(host)}")
 
         if record_type:
-            filters.append(f"type eq '{record_type}'")
+            filters.append(f"type eq {quote_value(record_type)}")
 
         if filter:
             filters.append(f"({filter})")
@@ -630,7 +630,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             filters.append(f"domain eq {quote_value(domain)}")
 
         if zone_type:
-            filters.append(f"type eq '{zone_type}'")
+            filters.append(f"type eq {quote_value(zone_type)}")
 
         if filter:
             filters.append(f"({filter})")

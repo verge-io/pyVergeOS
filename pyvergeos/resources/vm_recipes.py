@@ -381,7 +381,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
             elif isinstance(catalog, str):
                 # Check if it looks like a catalog key (40-char hex) or a name
                 if len(catalog) == 40 and all(c in "0123456789abcdef" for c in catalog.lower()):
-                    filters.append(f"catalog eq '{catalog}'")
+                    filters.append(f"catalog eq {quote_value(catalog)}")
                 else:
                     # Look up catalog by name
                     cat_response = self._client._request(
@@ -397,7 +397,9 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                         if isinstance(cat_response, list):
                             cat_response = cat_response[0] if cat_response else None
                         if cat_response:
-                            filters.append(f"catalog eq '{cat_response.get('$key')}'")
+                            filters.append(
+                                f"catalog eq {quote_value(str(cat_response.get('$key')))}"
+                            )
 
         # Add downloaded filter
         if downloaded is not None:
@@ -459,7 +461,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)
@@ -696,7 +698,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             recipe_key = recipe
 
         if recipe_key is not None:
-            filters.append(f"recipe eq '{recipe_key}'")
+            filters.append(f"recipe eq {quote_value(recipe_key)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1068,11 +1070,11 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
             recipe_key = vm_recipe
 
         if recipe_key is not None:
-            filters.append(f"vm_recipe eq '{recipe_key}'")
+            filters.append(f"vm_recipe eq {quote_value(recipe_key)}")
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

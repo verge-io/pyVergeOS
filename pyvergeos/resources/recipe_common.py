@@ -273,7 +273,7 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
             recipe = recipe_ref
 
         if recipe is not None:
-            filters.append(f"recipe eq '{recipe}'")
+            filters.append(f"recipe eq {quote_value(recipe)}")
 
         # Add section filter (from scope or parameter)
         sect = self._section_key
@@ -680,7 +680,7 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
             recipe = recipe_ref
 
         if recipe is not None:
-            filters.append(f"recipe eq '{recipe}'")
+            filters.append(f"recipe eq {quote_value(recipe)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
@@ -436,9 +436,9 @@ class AlarmManager(ResourceManager[Alarm]):
         # Level filter
         if level:
             if isinstance(level, str):
-                conditions.append(f"level eq '{level.lower()}'")
+                conditions.append(f"level eq {quote_value(level.lower())}")
             else:
-                level_filters = [f"level eq '{lv.lower()}'" for lv in level]
+                level_filters = [f"level eq {quote_value(lv.lower())}" for lv in level]
                 if len(level_filters) == 1:
                     conditions.append(level_filters[0])
                 else:
@@ -447,7 +447,7 @@ class AlarmManager(ResourceManager[Alarm]):
         # Owner type filter
         if owner_type:
             api_owner_type = OWNER_TYPE_MAP.get(owner_type, owner_type)
-            conditions.append(f"owner_type eq '{api_owner_type}'")
+            conditions.append(f"owner_type eq {quote_value(api_owner_type)}")
 
         # Active (non-snoozed) filter - default behavior
         if not include_snoozed:
@@ -736,9 +736,9 @@ class AlarmManager(ResourceManager[Alarm]):
         # Level filter
         if level:
             if isinstance(level, str):
-                conditions.append(f"level eq '{level.lower()}'")
+                conditions.append(f"level eq {quote_value(level.lower())}")
             else:
-                level_filters = [f"level eq '{lv.lower()}'" for lv in level]
+                level_filters = [f"level eq {quote_value(lv.lower())}" for lv in level]
                 if len(level_filters) == 1:
                     conditions.append(level_filters[0])
                 else:

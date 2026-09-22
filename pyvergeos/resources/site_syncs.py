@@ -2555,7 +2555,7 @@ class SiteSyncQueueManager:
         conditions: builtins.list[str] = [f"site_syncs_outgoing eq {self._sync_key}"]
 
         if status is not None:
-            conditions.append(f"status eq '{status}'")
+            conditions.append(f"status eq {quote_value(status)}")
 
         if filter:
             conditions.append(f"({filter})")
@@ -3356,7 +3356,7 @@ class SiteSyncOutgoingLogManager:
         conditions: builtins.list[str] = [f"site_syncs_outgoing eq {self._sync_key}"]
 
         if level is not None:
-            conditions.append(f"level eq '{level}'")
+            conditions.append(f"level eq {quote_value(level)}")
 
         if filter:
             conditions.append(f"({filter})")
@@ -3473,7 +3473,7 @@ class SiteSyncIncomingLogManager:
         conditions: builtins.list[str] = [f"site_syncs_incoming eq {self._sync_key}"]
 
         if level is not None:
-            conditions.append(f"level eq '{level}'")
+            conditions.append(f"level eq {quote_value(level)}")
 
         if filter:
             conditions.append(f"({filter})")

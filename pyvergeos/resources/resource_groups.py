@@ -331,7 +331,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         # key parameter is actually UUID for resource groups
         if key is not None:
             key_str = str(key).lower()
-            results = self.list(filter=f"uuid eq '{key_str}'", fields=fields, limit=1)
+            results = self.list(filter=f"uuid eq {quote_value(key_str)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Resource group with UUID '{key}' not found")
             return results[0]
@@ -346,7 +346,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         if uuid is not None:
             # Search by UUID (alias for key)
             uuid_lower = uuid.lower()
-            results = self.list(filter=f"uuid eq '{uuid_lower}'", fields=fields, limit=1)
+            results = self.list(filter=f"uuid eq {quote_value(uuid_lower)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Resource group with UUID '{uuid}' not found")
             return results[0]
@@ -417,7 +417,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         # Convert display name to API value if needed
         api_type = DEVICE_TYPE_REVERSE_MAP.get(device_type, device_type)
 
-        filters = [f"type eq '{api_type}'"]
+        filters = [f"type eq {quote_value(api_type)}"]
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
@@ -454,7 +454,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         # Convert display name to API value if needed
         api_class = DEVICE_CLASS_REVERSE_MAP.get(device_class.lower(), device_class.lower())
 
-        filters = [f"class eq '{api_class}'"]
+        filters = [f"class eq {quote_value(api_class)}"]
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
@@ -1063,7 +1063,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             # Resource groups use UUID strings, which need quotes in filters
             rg_key = str(self._resource_group_key)
             if "-" in rg_key:  # UUID format needs quotes
-                filters.append(f"resource_group eq '{rg_key}'")
+                filters.append(f"resource_group eq {quote_value(rg_key)}")
             else:  # Integer key (for backwards compatibility)
                 filters.append(f"resource_group eq {rg_key}")
 

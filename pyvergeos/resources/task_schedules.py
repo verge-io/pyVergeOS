@@ -365,7 +365,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
             filters.append(f"enabled eq {str(enabled).lower()}")
 
         if repeat_every is not None:
-            filters.append(f"repeat_every eq '{repeat_every}'")
+            filters.append(f"repeat_every eq {quote_value(repeat_every)}")
 
         if name is not None:
             filters.append(wildcard_condition("name", name))

@@ -326,7 +326,7 @@ class UserManager(ResourceManager[User]):
 
         # Add user_type filter
         if user_type is not None:
-            filters.append(f"type eq '{user_type}'")
+            filters.append(f"type eq {quote_value(user_type)}")
 
         # Add enabled filter
         if enabled is not None:

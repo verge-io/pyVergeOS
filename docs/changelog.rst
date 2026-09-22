@@ -140,6 +140,25 @@ Fixed
   as ``",".join()`` does. A new ``split_fields()`` helper returns the list
   form, and the AST tripwire now follows locals that alias a parameter, which
   is how the original guard missed these. (#101)
+- Filter values are no longer interpolated straight into a quoted literal.
+  ``quote_value()`` exists so a caller-supplied value cannot be parsed as
+  filter grammar, but **91 conditions across 40 modules never called it**,
+  writing ``f"key ct '{key_contains}'"`` instead. A value containing an
+  apostrophe broke out of the literal and the remainder was evaluated as
+  grammar: measured on a live system,
+  ``settings.list(key_contains="zzzz' or key ne 'zzzz")`` returned all 68
+  rows instead of zero, and the same shape leaked whole tables from
+  ``tasks.list_by_action()`` and ``task_events.list()``. The #100 brace
+  effect reached these sites too - ``key_contains="clou{x}"`` silently
+  matched ``clou`` - and a trailing backslash was rejected outright. This is
+  not a privilege escalation: the injected condition runs with the caller's
+  own permissions. The damage is wrong rows, and since the standard pattern
+  is look-up-by-name then act on the returned key, a ``get_by_*`` resolving
+  to the wrong row can lead to modifying or deleting the wrong object. All
+  91 now route through ``quote_value()``; output is byte-identical for
+  values with no reserved characters, so behaviour is unchanged otherwise.
+  An AST tripwire fails CI if any filter condition interpolates a value
+  directly inside ``'...'``. (#115)
 - ``quote_value()`` now escapes ``{``, so a lookup by a name containing a
   brace no longer resolves to a different object. VergeOS reserves three
   characters inside a filter string literal - ``\\``, ``'`` and ``{`` - and

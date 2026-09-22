@@ -277,9 +277,9 @@ class LogManager(ResourceManager[Log]):
         # Level filter
         if level:
             if isinstance(level, str):
-                conditions.append(f"level eq '{level.lower()}'")
+                conditions.append(f"level eq {quote_value(level.lower())}")
             else:
-                level_filters = [f"level eq '{lv.lower()}'" for lv in level]
+                level_filters = [f"level eq {quote_value(lv.lower())}" for lv in level]
                 if len(level_filters) == 1:
                     conditions.append(level_filters[0])
                 else:
@@ -288,7 +288,7 @@ class LogManager(ResourceManager[Log]):
         # Object type filter
         if object_type:
             api_object_type = OBJECT_TYPE_MAP.get(object_type, object_type)
-            conditions.append(f"object_type eq '{api_object_type}'")
+            conditions.append(f"object_type eq {quote_value(api_object_type)}")
 
         # User filter (contains search)
         if user:

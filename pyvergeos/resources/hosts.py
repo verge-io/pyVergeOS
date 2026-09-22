@@ -164,7 +164,7 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
             filters.append(f"ip eq {quote_value(ip)}")
 
         if host_type:
-            filters.append(f"type eq '{host_type}'")
+            filters.append(f"type eq {quote_value(host_type)}")
 
         if filter:
             filters.append(f"({filter})")

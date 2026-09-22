@@ -134,7 +134,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         if filter:
             filters.append(filter)
         if key_contains:
-            filters.append(f"key ct '{key_contains}'")
+            filters.append(f"key ct {quote_value(key_contains)}")
 
         combined_filter = " and ".join(filters) if filters else None
 
@@ -174,7 +174,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
 
         # Settings uses 'key' as the keyfield, not $key
         params: dict[str, Any] = {
-            "filter": f"key eq '{key}'",
+            "filter": f"key eq {quote_value(key)}",
             "fields": normalize_fields(fields),
         }
 
@@ -223,7 +223,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         # First, we need to get the setting to find its row key
         # Settings uses 'key' as the keyfield, so we filter by it
         params: dict[str, Any] = {
-            "filter": f"key eq '{key}'",
+            "filter": f"key eq {quote_value(key)}",
             "fields": "all",
         }
 
@@ -1473,7 +1473,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
         if filter:
             filters.append(filter)
         if status:
-            filters.append(f"status eq '{status}'")
+            filters.append(f"status eq {quote_value(status)}")
 
         combined_filter = " and ".join(filters) if filters else None
 
@@ -1858,7 +1858,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
         Raises:
             NotFoundError: If certificate not found.
         """
-        results = self.list(filter=f"subject ct '{subject}'", limit=1)
+        results = self.list(filter=f"subject ct {quote_value(subject)}", limit=1)
         if not results:
             from pyvergeos.exceptions import NotFoundError
 
@@ -1877,7 +1877,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
         Raises:
             NotFoundError: If certificate not found.
         """
-        results = self.list(filter=f"fingerprint eq '{fingerprint}'", limit=1)
+        results = self.list(filter=f"fingerprint eq {quote_value(fingerprint)}", limit=1)
         if not results:
             from pyvergeos.exceptions import NotFoundError
 

@@ -349,7 +349,7 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -555,11 +555,11 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
             cat_key = catalog
 
         if cat_key is not None:
-            filters.append(f"catalog eq '{cat_key}'")
+            filters.append(f"catalog eq {quote_value(cat_key)}")
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -893,7 +893,7 @@ class CatalogManager(ResourceManager["Catalog"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)
@@ -1253,7 +1253,7 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
 
         # Add type filter
         if type is not None:
-            filters.append(f"type eq '{type}'")
+            filters.append(f"type eq {quote_value(type)}")
 
         # Add enabled filter
         if enabled is not None:
