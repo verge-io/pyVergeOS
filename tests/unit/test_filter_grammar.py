@@ -20,6 +20,8 @@ import ast
 import pathlib
 import re
 
+from pyvergeos.filters import _RESERVED_IN_LITERAL, quote_value
+
 PACKAGE_DIR = pathlib.Path(__file__).resolve().parents[2] / "pyvergeos"
 
 VERIFIED_OPERATORS = {"eq", "ne", "gt", "ge", "lt", "le", "bw", "ew", "cs", "ct", "rx", "and", "or"}
@@ -90,3 +92,67 @@ def test_only_verified_filter_operators_are_emitted() -> None:
         "rejects unknown operators with HTTP 422, or worse, accepts and "
         "silently never matches (see issue #103):\n" + "\n".join(offenders)
     )
+
+
+# ---------------------------------------------------------------------------
+# Reserved characters inside a filter string literal (issue #100)
+# ---------------------------------------------------------------------------
+#
+# Measured by sweeping all 95 printable ASCII characters through
+# ``name eq '...<CHAR>...'`` against a live VergeOS 26.1.8 system, and by
+# round-tripping real rows whose names contain each character:
+#
+#   '\'  the escape character itself
+#   '''  terminates the literal
+#   '{'  opens a balanced, nesting-aware construct
+#
+# The other 92 are inert, including '}'. An unescaped '{' is the dangerous
+# one: a balanced {...} is consumed silently and the query matches whatever
+# the stripped string names, so a lookup-by-name can resolve to - and the
+# caller then modify or delete - the wrong object.
+
+RESERVED_LITERAL_CHARS = ("\\", "'", "{")
+INERT_SAMPLE = '}()[]*?%_.+|^$&#@!~`"<>=,;:/ -0aZ'
+
+
+class TestLiteralReservedCharacters:
+    """quote_value() must escape every reserved character and nothing else."""
+
+    def test_each_reserved_char_is_escaped_exactly_once(self) -> None:
+        for char in RESERVED_LITERAL_CHARS:
+            assert quote_value(char) == f"'\\{char}'", (
+                f"{char!r} is reserved inside a filter literal and must be "
+                "backslash-escaped (issue #100)"
+            )
+
+    def test_inert_characters_are_not_escaped(self) -> None:
+        # Over-escaping is a bug too: a backslash before an inert character
+        # is consumed by the platform and silently removes it from the value.
+        for char in INERT_SAMPLE:
+            assert quote_value(char) == f"'{char}'", (
+                f"{char!r} is not reserved and must be passed through unescaped"
+            )
+
+    def test_backslash_is_escaped_before_the_others(self) -> None:
+        # If '{' were replaced before '\\', the backslash inserted for the
+        # brace would itself be doubled and the brace would arrive unescaped.
+        assert quote_value("\\{") == r"'\\\{'"
+        assert quote_value("\\'") == r"'\\\''"
+
+    def test_balanced_braces_cannot_reach_the_wire_unescaped(self) -> None:
+        # The silent-wrong-row case: every '{' must carry an escape.
+        for value in ["a{x}b", "{}", "a{b{c}d}e", "{{", "pre{mid}post"]:
+            literal = quote_value(value)
+            body = literal[1:-1]
+            unescaped = [
+                i for i, ch in enumerate(body) if ch == "{" and (i == 0 or body[i - 1] != "\\")
+            ]
+            assert not unescaped, (
+                f"quote_value({value!r}) = {literal!r} leaves an unescaped "
+                "'{' on the wire (issue #100)"
+            )
+
+    def test_reserved_set_matches_the_implementation(self) -> None:
+        # Guards against the set being trimmed without re-measuring.
+        assert set(_RESERVED_IN_LITERAL) == set(RESERVED_LITERAL_CHARS)
+        assert _RESERVED_IN_LITERAL[0] == "\\", "backslash must be replaced first"

@@ -24,14 +24,36 @@ from typing import Any
 _POSIX_ERE_SPECIALS = re.compile(r"[.\[\]()*+?{}|^$\\]")
 
 
+# Characters the platform reserves inside a filter string literal. Measured by
+# sweeping all 95 printable ASCII characters against a live system (issue #100):
+# only these three carry meaning; the other 92 are inert, including ``}``.
+#   ``\\``  the escape character itself
+#   ``'``   terminates the literal
+#   ``{``   opens a balanced, nesting-aware construct
+# All three are escaped with a single backslash. ``\\`` MUST be replaced first,
+# or the backslash it inserts for a later character gets doubled.
+_RESERVED_IN_LITERAL = ("\\", "'", "{")
+
+
 def quote_value(value: str) -> str:
     """Quote a string literal for a VergeOS filter expression.
 
-    VergeOS uses backslash escaping, not SQL quote doubling. Escape existing
-    backslashes first so they cannot consume an apostrophe's escape character.
+    VergeOS uses backslash escaping, not SQL quote doubling. Three characters
+    are reserved inside a literal and each is escaped with a backslash:
+    ``\\`` (the escape character), ``'`` (terminates the literal) and ``{``
+    (opens a balanced construct). ``}`` is not reserved.
+
+    An unescaped ``{`` is the dangerous one: a *balanced* ``{...}`` is consumed
+    silently and the query matches whatever the stripped string names, so a
+    lookup-by-name can return - and the caller can then modify or delete - the
+    wrong object (issue #100). An unbalanced ``{`` is merely rejected with
+    HTTP 422.
+
     This only quotes the value; wildcard conversion belongs to the caller.
     """
-    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    escaped = value
+    for char in _RESERVED_IN_LITERAL:
+        escaped = escaped.replace(char, "\\" + char)
     return f"'{escaped}'"
 
 

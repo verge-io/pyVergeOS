@@ -140,6 +140,22 @@ Fixed
   as ``",".join()`` does. A new ``split_fields()`` helper returns the list
   form, and the AST tripwire now follows locals that alias a parameter, which
   is how the original guard missed these. (#101)
+- ``quote_value()`` now escapes ``{``, so a lookup by a name containing a
+  brace no longer resolves to a different object. VergeOS reserves three
+  characters inside a filter string literal - ``\\``, ``'`` and ``{`` - and
+  only the first two were escaped. ``{`` opens a balanced, nesting-aware
+  construct, so a *balanced* ``{...}`` was consumed silently and the query
+  matched whatever the stripped string named: ``get(name="br{x}ace")``
+  returned the unrelated row ``brace``, and because the standard pattern is
+  look-up-by-name then act on the returned key, a caller could update or
+  delete an object it never asked for. An unbalanced ``{`` was merely
+  rejected with HTTP 422. The reserved set was re-measured by sweeping all 95
+  printable ASCII characters against a live system and by round-tripping rows
+  whose names contain each one; ``}`` is not reserved. The ``rx`` path is
+  fixed by the same change - a brace there carries both the POSIX-ERE escape
+  and the literal escape, and the previous single escape matched nothing. A
+  tripwire test now pins the reserved set and fails if any ``{`` can reach the
+  wire unescaped. (#100)
 - ``Network.power_off(force=True)`` no longer sends an action the platform
   rejects. It emitted ``action="killpower"``, which is not in the vnet action
   list, so every forced power off of a network failed with ``ValidationError:
