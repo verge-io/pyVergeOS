@@ -96,6 +96,14 @@ Fixed
   (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
   containing a non-string, is rejected with ``TypeError`` rather than
   serialized into a plausible-looking but wrong projection. (#101)
+- ``OidcApplicationManager.create()`` failed on any system without auth
+  source key 0 and user key 0 - that is, any normal system. Both
+  ``force_auth_source`` and ``map_user`` are required by the API but are
+  resolved as row references, and the SDK coerced an unsupplied value from
+  ``None`` to ``0``, which VergeOS rejects with HTTP 404 ``error setting
+  field ... No such file or directory``. ``null`` is the accepted "not set"
+  value and is now sent, so creating an application with only a name works.
+  Explicitly supplied keys are unaffected. (#107)
 - Every multi-value write parameter (``ssh_keys``, ``dns_servers``,
   ``ip_allow_list``, ``domain_list``, ``redirect_uri``, the NAS CIFS user and
   host lists, volume-sync ``include``/``exclude``) rejects a mapping, an
