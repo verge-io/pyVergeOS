@@ -92,9 +92,10 @@ Fixed
   VergeOS 26.1.8, a five-VM list collapsed to one meaningless row: the same
   silent-empty result #101 was filed for. Such values now mean "no projection
   requested". ``normalize_fields()`` and ``split_fields()`` also clean field
-  names identically, so the string and sequence forms are interchangeable,
-  and a mapping is rejected with ``TypeError`` rather than being serialized
-  from its keys. (#101)
+  names identically, so the string and sequence forms are interchangeable
+  (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
+  containing a non-string, is rejected with ``TypeError`` rather than
+  serialized into a plausible-looking but wrong projection. (#101)
 - Six ``get()``/``list()`` methods still corrupted a ``fields`` string after
   the #101 sweep: ``auth_sources``, ``certificates``, ``cloudinit_files``
   (list and get), ``oidc_applications`` and ``webhooks`` build an *augmented*

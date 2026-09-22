@@ -473,10 +473,11 @@ class CertificateManager(ResourceManager[Certificate]):
             NotFoundError: If certificate not found.
             ValueError: If neither key nor domain provided.
         """
-        # Build field list
-        if fields:
-            field_list = split_fields(fields)
-        else:
+        # Build field list. A projection that contains no field names falls
+        # back to the defaults rather than sending an empty ``fields=``,
+        # matching the other managers that augment a projection (issue #101).
+        field_list = split_fields(fields)
+        if not field_list:
             field_list = list(_DEFAULT_CERT_FIELDS)
             if include_keys:
                 field_list.extend(_CERT_KEY_FIELDS)

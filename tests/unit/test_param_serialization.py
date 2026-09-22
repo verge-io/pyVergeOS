@@ -78,6 +78,34 @@ class TestSerializeHelpers:
         assert normalize_fields("$key,name as vm_name") == "$key,name as vm_name"
         assert split_fields("$key,name as vm_name") == ["$key", "name as vm_name"]
 
+    def test_non_string_field_names_are_rejected(self) -> None:
+        """Coercing with str() would silently produce a wrong projection.
+
+        ``normalize_fields([1, 2])`` raised TypeError before this change (the
+        join refused the ints). Coercing them to "1,2" would send a
+        plausible-looking but wrong projection instead of failing, which is
+        the corruption this issue exists to prevent.
+        """
+        for bad in ([1, 2], ["ok", 3], (None,)):
+            with pytest.raises(TypeError, match="field names must be strings"):
+                normalize_fields(bad)  # type: ignore[arg-type]
+            with pytest.raises(TypeError, match="field names must be strings"):
+                split_fields(bad)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("string_form", "sequence_form"),
+        [
+            ("$key,", ["$key", ""]),
+            (" $key , name ", [" $key ", "name"]),
+            ("$key,,name", ["$key", "", "name"]),
+        ],
+    )
+    def test_string_and_sequence_forms_agree(
+        self, string_form: str, sequence_form: list[str]
+    ) -> None:
+        """The two forms must clean identically, as the docstring promises."""
+        assert normalize_fields(string_form) == normalize_fields(sequence_form)
+
     def test_fields_mapping_is_rejected(self) -> None:
         """Iterating a dict yields its keys, which would look plausible."""
         with pytest.raises(TypeError, match="sequence of field names"):

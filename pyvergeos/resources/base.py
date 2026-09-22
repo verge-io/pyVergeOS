@@ -76,9 +76,11 @@ def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
         A list of field names; empty when no projection was requested.
 
     Raises:
-        TypeError: If ``fields`` is a mapping. Iterating one yields its keys,
-            so it would be serialized into a plausible-looking but wrong
-            projection instead of failing.
+        TypeError: If ``fields`` is a mapping, or if any element is not a
+            string. Iterating a mapping yields its keys, and coercing
+            elements with ``str()`` would turn ``[1, 2]`` into the projection
+            ``"1,2"`` - a plausible-looking but wrong request. Both must fail
+            loudly rather than silently corrupt the query.
     """
     if not fields:
         return []
@@ -88,7 +90,16 @@ def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
         raise TypeError(
             f"fields must be a string or a sequence of field names, not {type(fields).__name__}"
         )
-    return [str(name).strip() for name in fields]
+    names = []
+    for name in fields:
+        if not isinstance(name, str):
+            raise TypeError(f"field names must be strings, got {type(name).__name__}: {name!r}")
+        stripped = name.strip()
+        # Empty entries are dropped here exactly as they are for the string
+        # form, so ["$key", ""] and "$key," produce the same projection.
+        if stripped:
+            names.append(stripped)
+    return names
 
 
 class ResourceObject(dict[str, Any]):
