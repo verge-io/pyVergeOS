@@ -17,8 +17,10 @@ import pathlib
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from pyvergeos import VergeClient
-from pyvergeos.resources.base import normalize_fields, serialize_list
+from pyvergeos.resources.base import normalize_fields, serialize_list, split_fields
 from pyvergeos.resources.vms import VM
 
 PACKAGE_DIR = pathlib.Path(__file__).resolve().parents[2] / "pyvergeos"
@@ -52,6 +54,36 @@ class TestSerializeHelpers:
         assert normalize_fields(None) is None
         assert normalize_fields([]) is None
         assert normalize_fields("") is None
+
+    def test_normalize_fields_rejects_degenerate_strings(self) -> None:
+        """A projection with no field names must mean "no projection".
+
+        Passing "," or "   " through asks the API for a projection with no
+        columns; it answers with a single {"$count": N} row instead of the
+        requested resources -- measured on VergeOS 26.1.8, a 5-VM list
+        collapsed to one meaningless row. That is the silent-empty result
+        #101 was filed for, so it must not reach the wire.
+        """
+        for degenerate in (",", ",,,", "   ", " , "):
+            assert normalize_fields(degenerate) is None, degenerate
+
+    def test_normalize_fields_cleans_like_split_fields(self) -> None:
+        """String and sequence forms must stay interchangeable."""
+        for value in (" $key , name ", "$key,,name", "$key,name,"):
+            assert normalize_fields(value) == "$key,name", value
+        assert normalize_fields("$key,name") == ",".join(split_fields("$key,name"))
+
+    def test_normalize_fields_preserves_alias_syntax(self) -> None:
+        """'name as vm_name' contains a space but is one field expression."""
+        assert normalize_fields("$key,name as vm_name") == "$key,name as vm_name"
+        assert split_fields("$key,name as vm_name") == ["$key", "name as vm_name"]
+
+    def test_fields_mapping_is_rejected(self) -> None:
+        """Iterating a dict yields its keys, which would look plausible."""
+        with pytest.raises(TypeError, match="sequence of field names"):
+            normalize_fields({"name": 1})  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="sequence of field names"):
+            split_fields({"name": 1})  # type: ignore[arg-type]
 
 
 class TestFieldsParameter:

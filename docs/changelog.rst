@@ -86,6 +86,15 @@ Fixed
   re-fetching the full table. An AST-based guard test fails CI if a future
   ``list()`` override consumes ``**kwargs`` without declaring them. (#102)
 
+- A ``fields`` string containing no field names - ``","``, ``"   "``, ``",,,"``
+  - was passed through to the API, which answered with a single
+  ``{"$count": N}`` row instead of the requested resources. Measured on
+  VergeOS 26.1.8, a five-VM list collapsed to one meaningless row: the same
+  silent-empty result #101 was filed for. Such values now mean "no projection
+  requested". ``normalize_fields()`` and ``split_fields()`` also clean field
+  names identically, so the string and sequence forms are interchangeable,
+  and a mapping is rejected with ``TypeError`` rather than being serialized
+  from its keys. (#101)
 - Six ``get()``/``list()`` methods still corrupted a ``fields`` string after
   the #101 sweep: ``auth_sources``, ``certificates``, ``cloudinit_files``
   (list and get), ``oidc_applications`` and ``webhooks`` build an *augmented*

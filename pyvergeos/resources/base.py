@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import builtins
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pyvergeos.exceptions import NotFoundError
@@ -44,11 +44,19 @@ def normalize_fields(fields: str | builtins.list[str] | None) -> str | None:
     """Serialize a ``fields`` projection parameter.
 
     Accepts a sequence of field names or the API's comma-separated string.
-    Empty values mean "no projection requested" (issue #101).
+    Empty values - including strings that contain no field names, such as
+    ``","`` or ``"   "`` - mean "no projection requested" (issue #101).
+    Passing those through would ask the API for a projection with no
+    columns, which answers with a single ``{"$count": N}`` row instead of
+    the requested resources: the silent-empty result #101 was filed for.
+
+    Field names are cleaned exactly as :func:`split_fields` cleans them, so
+    the string and sequence forms stay interchangeable.
     """
-    if not fields:
+    names = split_fields(fields)
+    if not names:
         return None
-    return serialize_list(fields, ",")
+    return ",".join(names)
 
 
 def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
@@ -66,12 +74,21 @@ def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
 
     Returns:
         A list of field names; empty when no projection was requested.
+
+    Raises:
+        TypeError: If ``fields`` is a mapping. Iterating one yields its keys,
+            so it would be serialized into a plausible-looking but wrong
+            projection instead of failing.
     """
     if not fields:
         return []
     if isinstance(fields, str):
         return [name.strip() for name in fields.split(",") if name.strip()]
-    return list(fields)
+    if isinstance(fields, Mapping):
+        raise TypeError(
+            f"fields must be a string or a sequence of field names, not {type(fields).__name__}"
+        )
+    return [str(name).strip() for name in fields]
 
 
 class ResourceObject(dict[str, Any]):
