@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import builtins
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pyvergeos.exceptions import NotFoundError
@@ -25,6 +25,9 @@ def serialize_list(value: str | builtins.list[str] | None, sep: str = ",") -> st
     ``'$,k,e,y,,,n,a,m,e'``), which the API accepts and silently honours,
     corrupting the request (issue #101).
 
+    An empty sequence serializes to ``""``, which callers use to clear a
+    multi-value field, so it is deliberately not treated as "unset".
+
     Args:
         value: A string already in wire format, a sequence of values,
             or None.
@@ -32,23 +35,97 @@ def serialize_list(value: str | builtins.list[str] | None, sep: str = ",") -> st
 
     Returns:
         The wire-format string, or None if ``value`` is None.
+
+    Raises:
+        TypeError: If ``value`` is a mapping, an unordered collection, or
+            contains a non-string. Each of these would otherwise be
+            serialized into a plausible-looking but wrong request rather
+            than failing.
     """
     if value is None:
         return None
     if isinstance(value, str):
         return value
-    return sep.join(value)
+    if isinstance(value, Mapping):
+        raise TypeError(
+            f"expected a string or a sequence of strings, not {type(value).__name__}; "
+            "iterating a mapping yields its keys, which would be sent as the value"
+        )
+    if isinstance(value, (set, frozenset)):
+        # Order is part of the value for several of these parameters - the
+        # first entry of dnslist is the primary DNS server - and a set has
+        # no defined order, so the wire value would vary run to run.
+        raise TypeError(
+            f"expected an ordered sequence, not {type(value).__name__}; "
+            "pass a list so the order sent to the API is defined"
+        )
+    items = list(value)
+    for item in items:
+        if not isinstance(item, str):
+            raise TypeError(f"values must be strings, got {type(item).__name__}: {item!r}")
+    return sep.join(items)
 
 
 def normalize_fields(fields: str | builtins.list[str] | None) -> str | None:
     """Serialize a ``fields`` projection parameter.
 
     Accepts a sequence of field names or the API's comma-separated string.
-    Empty values mean "no projection requested" (issue #101).
+    Empty values - including strings that contain no field names, such as
+    ``","`` or ``"   "`` - mean "no projection requested" (issue #101).
+    Passing those through would ask the API for a projection with no
+    columns, which answers with a single ``{"$count": N}`` row instead of
+    the requested resources: the silent-empty result #101 was filed for.
+
+    Field names are cleaned exactly as :func:`split_fields` cleans them, so
+    the string and sequence forms stay interchangeable.
+    """
+    names = split_fields(fields)
+    if not names:
+        return None
+    return ",".join(names)
+
+
+def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
+    """Split a ``fields`` projection into individual field names.
+
+    The list counterpart of :func:`normalize_fields`, for the callers that
+    must *augment* the projection (adding ``settings``, ``client_secret``
+    and similar) before serializing it. Those callers cannot use
+    ``normalize_fields()``, and ``list("$key,name")`` would split a
+    caller-supplied string into single characters - the same silent
+    corruption as ``",".join()`` (issue #101).
+
+    Args:
+        fields: A comma-separated string, a sequence of names, or None.
+
+    Returns:
+        A list of field names; empty when no projection was requested.
+
+    Raises:
+        TypeError: If ``fields`` is a mapping, or if any element is not a
+            string. Iterating a mapping yields its keys, and coercing
+            elements with ``str()`` would turn ``[1, 2]`` into the projection
+            ``"1,2"`` - a plausible-looking but wrong request. Both must fail
+            loudly rather than silently corrupt the query.
     """
     if not fields:
-        return None
-    return serialize_list(fields, ",")
+        return []
+    if isinstance(fields, str):
+        return [name.strip() for name in fields.split(",") if name.strip()]
+    if isinstance(fields, Mapping):
+        raise TypeError(
+            f"fields must be a string or a sequence of field names, not {type(fields).__name__}"
+        )
+    names = []
+    for name in fields:
+        if not isinstance(name, str):
+            raise TypeError(f"field names must be strings, got {type(name).__name__}: {name!r}")
+        stripped = name.strip()
+        # Empty entries are dropped here exactly as they are for the string
+        # form, so ["$key", ""] and "$key," produce the same projection.
+        if stripped:
+            names.append(stripped)
+    return names
 
 
 class ResourceObject(dict[str, Any]):
@@ -57,8 +134,9 @@ class ResourceObject(dict[str, Any]):
     Provides a dict-like object that also supports attribute access
     and common resource operations like refresh, save, and delete.
 
-    Attribute or item assignment marks the field as modified; ``save()``
-    sends every modified field along with any keyword arguments.
+    Attribute assignment, item assignment, ``update()`` and ``setdefault()``
+    all mark the field as modified; ``save()`` sends every modified field
+    along with any keyword arguments.
     """
 
     def __init__(self, data: dict[str, Any], manager: ResourceManager[Any]) -> None:
@@ -67,10 +145,28 @@ class ResourceObject(dict[str, Any]):
         self._dirty: set[str] = set()
 
     def __setitem__(self, key: str, value: Any) -> None:
-        # ponytail: only __setitem__/__setattr__ are tracked; dict.update()
-        # and setdefault() bypass this. Override them if callers need it.
         self.__dict__.setdefault("_dirty", set()).add(key)
         super().__setitem__(key, value)
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        """Merge values in, marking each one modified (issue #110).
+
+        ``dict.update()`` writes straight to the backing mapping, so before
+        this override a batch update marked nothing dirty and the following
+        ``save()`` sent an empty ``PUT`` and reported success while
+        persisting nothing.
+
+        ``refresh()`` deliberately calls ``dict.update(self, ...)`` to load
+        server state without dirtying it, which bypasses this override.
+        """
+        for key, value in dict(*args, **kwargs).items():
+            self[key] = value
+
+    def setdefault(self, key: str, default: Any = None) -> Any:
+        """Insert ``default`` if absent, marking it modified (issue #110)."""
+        if key not in self:
+            self[key] = default
+        return self[key]
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -156,6 +252,13 @@ class ResourceObject(dict[str, Any]):
             # Apply the manager's write-alias translation so attribute
             # assignment and typed update() behave identically (issue #97).
             changes = manager._prepare_write_fields(changes)
+        if not changes and not kwargs:
+            # Nothing to write. An empty PUT is still a write - subject to
+            # permissions, audit logging and any update side effects - for a
+            # request the caller did not ask for (issue #111). Return current
+            # state, which is what the write path would have returned.
+            dirty.clear()
+            return manager.get(self.key)
         if changes and type(manager).update is not ResourceManager.update:
             ResourceManager.update(manager, self.key, **changes)
             result = manager.update(self.key, **kwargs) if kwargs else manager.get(self.key)

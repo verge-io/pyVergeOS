@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -63,6 +63,17 @@ _DEFAULT_HISTORY_FIELDS = [
     "last_attempt",
     "created",
 ]
+
+
+def _header_string(headers: str) -> str:
+    """Normalise a header block to the API's trailing-newline form.
+
+    An empty string means "no headers" and must stay empty: appending a
+    newline would store a lone blank line rather than clearing the field.
+    """
+    if not headers:
+        return ""
+    return headers if headers.endswith("\n") else f"{headers}\n"
 
 
 class Webhook(ResourceObject):
@@ -407,7 +418,7 @@ class WebhookManager(ResourceManager[Webhook]):
             NotFoundError: If webhook not found.
             ValueError: If neither key nor name provided.
         """
-        field_list = fields or _DEFAULT_WEBHOOK_FIELDS
+        field_list = split_fields(fields) or list(_DEFAULT_WEBHOOK_FIELDS)
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(field_list)}
@@ -471,8 +482,7 @@ class WebhookManager(ResourceManager[Webhook]):
                 header_lines = [f"{k}:{v}" for k, v in headers.items()]
                 body["headers"] = "\n".join(header_lines) + "\n"
             else:
-                # String format
-                body["headers"] = headers if headers.endswith("\n") else f"{headers}\n"
+                body["headers"] = _header_string(headers)
 
         # Authorization
         api_auth_type = AUTH_TYPE_MAP.get(authorization_type, authorization_type.lower())
@@ -552,7 +562,9 @@ class WebhookManager(ResourceManager[Webhook]):
                 else:
                     body["headers"] = ""
             else:
-                body["headers"] = headers if headers.endswith("\n") else f"{headers}\n"
+                # An empty string clears the headers, like an empty dict does;
+                # appending a newline to it would store a lone blank line.
+                body["headers"] = _header_string(headers)
 
         if authorization_type is not None:
             api_auth_type = AUTH_TYPE_MAP.get(authorization_type, authorization_type.lower())

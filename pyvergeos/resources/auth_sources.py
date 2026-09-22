@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -575,7 +575,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
             >>> print(source.settings)
         """
         # Determine which fields to request
-        request_fields = list(fields) if fields else list(self._default_fields)
+        request_fields = split_fields(fields) or list(self._default_fields)
         if include_settings and "settings" not in request_fields:
             request_fields.append("settings")
 

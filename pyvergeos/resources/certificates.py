@@ -11,8 +11,8 @@ from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
-    normalize_fields,
     serialize_list,
+    split_fields,
 )
 
 if TYPE_CHECKING:
@@ -366,14 +366,12 @@ class CertificateManager(ResourceManager[Certificate]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Field selection
-        if fields:
-            params["fields"] = normalize_fields(fields)
-        else:
-            field_list = list(_DEFAULT_CERT_FIELDS)
-            if include_keys:
-                field_list.extend(_CERT_KEY_FIELDS)
-            params["fields"] = ",".join(field_list)
+        # Field selection. include_keys augments whatever projection was
+        # requested, rather than applying only to the defaults (issue #101).
+        field_list = split_fields(fields) or list(_DEFAULT_CERT_FIELDS)
+        if include_keys:
+            field_list.extend(f for f in _CERT_KEY_FIELDS if f not in field_list)
+        params["fields"] = ",".join(field_list)
 
         # Pagination
         if limit is not None:
@@ -472,13 +470,16 @@ class CertificateManager(ResourceManager[Certificate]):
             NotFoundError: If certificate not found.
             ValueError: If neither key nor domain provided.
         """
-        # Build field list
-        if fields:
-            field_list = fields
-        else:
-            field_list = list(_DEFAULT_CERT_FIELDS)
-            if include_keys:
-                field_list.extend(_CERT_KEY_FIELDS)
+        # Build field list. A projection that contains no field names falls
+        # back to the defaults rather than sending an empty ``fields=``,
+        # matching the other managers that augment a projection (issue #101).
+        field_list = split_fields(fields) or list(_DEFAULT_CERT_FIELDS)
+        if include_keys:
+            # Appended whether or not the caller supplied a projection, so
+            # include_keys is never silently ignored - matching
+            # AuthSourceManager.get(include_settings=...) and
+            # OidcApplicationManager.get(include_secret=...).
+            field_list.extend(f for f in _CERT_KEY_FIELDS if f not in field_list)
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(field_list)}

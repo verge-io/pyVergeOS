@@ -86,6 +86,61 @@ Fixed
   re-fetching the full table. An AST-based guard test fails CI if a future
   ``list()`` override consumes ``**kwargs`` without declaring them. (#102)
 
+- A ``fields`` string containing no field names - ``","``, ``"   "``, ``",,,"``
+  - was passed through to the API, which answered with a single
+  ``{"$count": N}`` row instead of the requested resources. Measured on
+  VergeOS 26.1.8, a five-VM list collapsed to one meaningless row: the same
+  silent-empty result #101 was filed for. Such values now mean "no projection
+  requested". ``normalize_fields()`` and ``split_fields()`` also clean field
+  names identically, so the string and sequence forms are interchangeable
+  (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
+  containing a non-string, is rejected with ``TypeError`` rather than
+  serialized into a plausible-looking but wrong projection. (#101)
+- ``ResourceObject.update()`` and ``setdefault()`` bypassed dirty tracking,
+  so ``obj.update({...}); obj.save()`` reported success while persisting
+  nothing - the fields were changed locally and an empty ``PUT`` was sent.
+  Both now route through the tracked ``__setitem__``, so a batch update
+  behaves like a sequence of assignments. ``refresh()`` still bypasses
+  tracking, as it loads server state rather than local edits. All 165
+  resource classes inherit the fix. (#110)
+- ``save()`` with nothing to save no longer issues an empty ``PUT``. An empty
+  write is still subject to permissions, audit logging and update side
+  effects, for a request the caller did not make; current state is returned
+  instead. (#111)
+- ``OidcApplicationManager.create()`` failed on any system without auth
+  source key 0 and user key 0 - that is, any normal system. Both
+  ``force_auth_source`` and ``map_user`` are required by the API but are
+  resolved as row references, and the SDK coerced an unsupplied value from
+  ``None`` to ``0``, which VergeOS rejects with HTTP 404 ``error setting
+  field ... No such file or directory``. ``null`` is the accepted "not set"
+  value and is now sent, so creating an application with only a name works.
+  Explicitly supplied keys are unaffected. (#107)
+- Every multi-value write parameter (``ssh_keys``, ``dns_servers``,
+  ``ip_allow_list``, ``domain_list``, ``redirect_uri``, the NAS CIFS user and
+  host lists, volume-sync ``include``/``exclude``) rejects a mapping, an
+  unordered collection and non-string values instead of serializing them.
+  Iterating a mapping yields its keys, so ``ssh_keys={"a": 1}`` was sent as
+  ``'a'``; a ``set`` was joined in arbitrary order, and order is part of the
+  value - the first entry of ``dnslist`` is the primary DNS server. (#101)
+- ``WebhookManager.update(headers="")`` stored a lone blank line instead of
+  clearing the header block, which ``headers={}`` already did correctly.
+  Both forms now clear it. (#101)
+- ``CertificateManager.get()`` and ``.list()`` silently ignored
+  ``include_keys`` whenever an explicit ``fields`` projection was supplied, so
+  the requested key material was missing from the result. The key fields are
+  now appended to whatever projection was asked for, without duplicating
+  entries, matching ``AuthSourceManager.get(include_settings=...)`` and
+  ``OidcApplicationManager.get(include_secret=...)``. (#101)
+- Six ``get()``/``list()`` methods still corrupted a ``fields`` string after
+  the #101 sweep: ``auth_sources``, ``certificates``, ``cloudinit_files``
+  (list and get), ``oidc_applications`` and ``webhooks`` build an *augmented*
+  projection (adding ``settings``, ``client_secret`` and similar), so they
+  aliased the parameter with ``list(fields)`` before joining and bypassed
+  ``normalize_fields()``. ``list("$key,name")`` splits into characters exactly
+  as ``",".join()`` does. A new ``split_fields()`` helper returns the list
+  form, and the AST tripwire now follows locals that alias a parameter, which
+  is how the original guard missed these. (#101)
+
 Changed
 ^^^^^^^
 
