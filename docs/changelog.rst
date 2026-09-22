@@ -12,6 +12,21 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``fields="$key,name"`` no longer silently destroys the projection.
+  ``fields`` was typed as a list but every call site serialised it with
+  ``",".join(fields)``; a caller-supplied string - the API's own native
+  format - was joined character by character (``'$,k,e,y,,,n,a,m,e'``),
+  which the API accepted and answered with rows containing no usable
+  fields. All 272 call sites now serialise through ``normalize_fields()``,
+  which accepts a list of names or a comma-separated string, and the
+  ``fields`` signatures were widened to match. The same footgun corrupted
+  write-path sequence parameters (``ip_allow_list``/``ip_deny_list`` on API
+  keys, ``valid_users``/``valid_groups``/``admin_users``/``admin_groups``/
+  ``allowed_hosts``/``denied_hosts`` on CIFS shares, ``include``/``exclude``
+  on volume syncs, ``dns_servers`` on networks); those now serialise through
+  ``serialize_list()``, which passes strings through unchanged. An AST
+  tripwire test fails CI if any function joins a caller-supplied parameter
+  directly. (#101)
 - The ``name`` search in ``tasks``, ``task_scripts``, ``task_schedules``
   and ``cloudinit_files`` no longer fails open for all-wildcard patterns.
   These managers carried a hand-rolled workaround that stripped ``*``/``?``

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -136,7 +136,7 @@ class DNSViewManager(ResourceManager[DNSView]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **kwargs: Any,
@@ -168,7 +168,7 @@ class DNSViewManager(ResourceManager[DNSView]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -190,7 +190,7 @@ class DNSViewManager(ResourceManager[DNSView]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> DNSView:
         """Get a DNS view by key or name.
 
@@ -210,7 +210,7 @@ class DNSViewManager(ResourceManager[DNSView]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS view {key} not found")

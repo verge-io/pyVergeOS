@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -730,7 +730,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -792,7 +792,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -811,7 +811,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncOutgoing]:
         """List enabled outgoing syncs.
 
@@ -825,7 +825,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncOutgoing]:
         """List disabled outgoing syncs.
 
@@ -841,7 +841,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         self,
         site_key: int | None = None,
         site_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncOutgoing]:
         """List outgoing syncs for a specific site.
 
@@ -862,7 +862,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         name: str | None = None,
         site_key: int | None = None,
         site_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncOutgoing:
         """Get an outgoing sync by key or name.
 
@@ -886,7 +886,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1342,7 +1342,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1404,7 +1404,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1425,7 +1425,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         self,
         site_key: int | None = None,
         site_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncIncoming]:
         """List incoming syncs for a specific site.
 
@@ -1446,7 +1446,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         name: str | None = None,
         site_key: int | None = None,
         site_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncIncoming:
         """Get an incoming sync by key or name.
 
@@ -1470,7 +1470,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1713,7 +1713,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1767,7 +1767,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1788,7 +1788,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         self,
         sync_key: int | None = None,
         sync_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncSchedule]:
         """List schedules for a specific outgoing sync.
 
@@ -1806,7 +1806,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         self,
         key: int,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncSchedule:
         """Get a schedule by key.
 
@@ -1825,7 +1825,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -2237,7 +2237,7 @@ class SiteSyncStatsManager:
 
     def get(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncStats | None:
         """Get current stats for this sync.
 
@@ -2256,7 +2256,7 @@ class SiteSyncStatsManager:
             "limit": 1,
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", self._endpoint, params=params)
         if response is None:
@@ -2273,7 +2273,7 @@ class SiteSyncStatsManager:
         self,
         limit: int | None = 20,
         offset: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncStats]:
         """List recent stats entries.
 
@@ -2293,7 +2293,7 @@ class SiteSyncStatsManager:
             "sort": "-timestamp",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -2312,7 +2312,7 @@ class SiteSyncStatsManager:
         self,
         limit: int | None = 100,
         offset: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncStatsHistory]:
         """Get historical stats (long-term).
 
@@ -2332,7 +2332,7 @@ class SiteSyncStatsManager:
             "sort": "-timestamp",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -2532,7 +2532,7 @@ class SiteSyncQueueManager:
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -2573,7 +2573,7 @@ class SiteSyncQueueManager:
             "sort": "+priority",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -2590,7 +2590,7 @@ class SiteSyncQueueManager:
 
     def list_queued(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncQueueItem]:
         """List items waiting to sync.
 
@@ -2604,7 +2604,7 @@ class SiteSyncQueueManager:
 
     def list_syncing(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncQueueItem]:
         """List items currently syncing.
 
@@ -2619,7 +2619,7 @@ class SiteSyncQueueManager:
     def list_complete(
         self,
         limit: int | None = 20,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncQueueItem]:
         """List completed items.
 
@@ -2634,7 +2634,7 @@ class SiteSyncQueueManager:
 
     def list_errors(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncQueueItem]:
         """List items with errors.
 
@@ -2649,7 +2649,7 @@ class SiteSyncQueueManager:
     def get(
         self,
         key: int,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncQueueItem:
         """Get a queue item by key.
 
@@ -2668,7 +2668,7 @@ class SiteSyncQueueManager:
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -2856,7 +2856,7 @@ class SiteSyncRemoteSnapManager:
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -2891,7 +2891,7 @@ class SiteSyncRemoteSnapManager:
             "sort": "+expires",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -2911,7 +2911,7 @@ class SiteSyncRemoteSnapManager:
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncRemoteSnap:
         """Get a remote snapshot by key or name.
 
@@ -2933,7 +2933,7 @@ class SiteSyncRemoteSnapManager:
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -3115,7 +3115,7 @@ class SiteSyncIncomingVerifiedManager:
 
     def get(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SiteSyncIncomingVerified | None:
         """Get the verified sync entry for this incoming sync.
 
@@ -3133,7 +3133,7 @@ class SiteSyncIncomingVerifiedManager:
             "limit": 1,
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", self._endpoint, params=params)
         if response is None:
@@ -3333,7 +3333,7 @@ class SiteSyncOutgoingLogManager:
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = 100,
         offset: int | None = None,
         *,
@@ -3374,7 +3374,7 @@ class SiteSyncOutgoingLogManager:
             "sort": "-timestamp",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -3392,7 +3392,7 @@ class SiteSyncOutgoingLogManager:
     def list_errors(
         self,
         limit: int | None = 100,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncLog]:
         """List error and critical logs.
 
@@ -3412,7 +3412,7 @@ class SiteSyncOutgoingLogManager:
     def list_warnings(
         self,
         limit: int | None = 100,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncLog]:
         """List warning logs.
 
@@ -3450,7 +3450,7 @@ class SiteSyncIncomingLogManager:
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = 100,
         offset: int | None = None,
         *,
@@ -3491,7 +3491,7 @@ class SiteSyncIncomingLogManager:
             "sort": "-timestamp",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -3509,7 +3509,7 @@ class SiteSyncIncomingLogManager:
     def list_errors(
         self,
         limit: int | None = 100,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncLog]:
         """List error and critical logs.
 
@@ -3529,7 +3529,7 @@ class SiteSyncIncomingLogManager:
     def list_warnings(
         self,
         limit: int | None = 100,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[SiteSyncLog]:
         """List warning logs.
 

@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -135,7 +135,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **kwargs: Any,
@@ -162,7 +162,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -184,7 +184,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
         key: int | None = None,
         *,
         network_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantLayer2Network:
         """Get a Layer 2 network by key or network name.
 
@@ -207,7 +207,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             # Query by key with tenant filter to ensure it belongs to this tenant
             params: dict[str, Any] = {
                 "filter": f"$key eq {key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if response is None:

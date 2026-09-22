@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -384,7 +384,7 @@ class AlarmManager(ResourceManager[Alarm]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -469,7 +469,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -559,7 +559,7 @@ class AlarmManager(ResourceManager[Alarm]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Alarm:
         """Get an alarm by key.
 
@@ -586,7 +586,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if fields is None:
             fields = _DEFAULT_ALARM_FIELDS
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -701,7 +701,7 @@ class AlarmManager(ResourceManager[Alarm]):
     def list_history(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -759,7 +759,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -782,7 +782,7 @@ class AlarmManager(ResourceManager[Alarm]):
         self,
         key: int,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> AlarmHistory:
         """Get an alarm history entry by key.
 
@@ -800,7 +800,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if fields is None:
             fields = _DEFAULT_HISTORY_FIELDS
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"alarm_history/{key}", params=params)
         if response is None:

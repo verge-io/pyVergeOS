@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -514,7 +514,7 @@ class BillingManager(ResourceManager[BillingRecord]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -563,7 +563,7 @@ class BillingManager(ResourceManager[BillingRecord]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -583,7 +583,7 @@ class BillingManager(ResourceManager[BillingRecord]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BillingRecord:
         """Get a specific billing record by key.
 
@@ -604,7 +604,7 @@ class BillingManager(ResourceManager[BillingRecord]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:
@@ -615,7 +615,7 @@ class BillingManager(ResourceManager[BillingRecord]):
 
         return self._to_model(response)
 
-    def get_latest(self, fields: builtins.list[str] | None = None) -> BillingRecord:
+    def get_latest(self, fields: str | builtins.list[str] | None = None) -> BillingRecord:
         """Get the most recent billing record.
 
         Args:

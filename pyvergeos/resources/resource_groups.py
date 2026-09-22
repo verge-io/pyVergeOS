@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -256,7 +256,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -298,7 +298,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         *,
         name: str | None = None,
         uuid: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> ResourceGroup:
         """Get a resource group by key (UUID), name, or UUID.
 
@@ -355,7 +355,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List enabled resource groups.
 
@@ -374,7 +374,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List disabled resource groups.
 
@@ -391,7 +391,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         device_type: str,
         *,
         enabled: bool | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List resource groups by device type.
 
@@ -428,7 +428,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         device_class: str,
         *,
         enabled: bool | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List resource groups by device class.
 
@@ -1029,7 +1029,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1078,7 +1078,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
 
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1102,7 +1102,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> ResourceRule:
         """Get a resource rule by key or name.
 
@@ -1122,7 +1122,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Resource rule with key {key} not found")

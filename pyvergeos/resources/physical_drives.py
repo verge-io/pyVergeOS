@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -270,7 +270,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -317,7 +317,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -340,7 +340,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> PhysicalDrive:
         """Get a physical drive by key.
 
@@ -360,7 +360,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 

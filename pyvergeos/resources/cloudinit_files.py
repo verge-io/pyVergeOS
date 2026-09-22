@@ -234,7 +234,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -314,7 +314,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         *,
         name: str | None = None,
         vm_key: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CloudInitFile:
         """Get a cloud-init file by key or name.
 
@@ -585,7 +585,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -623,7 +623,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CloudInitFile:
         """Get a cloud-init file by key or name for this VM.
 

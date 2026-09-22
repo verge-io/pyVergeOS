@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -206,7 +206,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -276,7 +276,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -300,7 +300,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TaskEvent:
         """Get a task event by key.
 
@@ -320,7 +320,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

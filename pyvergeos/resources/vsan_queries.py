@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
 from pyvergeos.filters import combine_filters
-from pyvergeos.resources.base import ResourceManager
+from pyvergeos.resources.base import ResourceManager, normalize_fields
 from pyvergeos.resources.queries import QUERY_DEFAULT_FIELDS, QueryResult
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -68,7 +68,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
         if fields is None:
             fields = QUERY_DEFAULT_FIELDS
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
         # Merge shorthand kwargs instead of silently dropping them (issue #96)
         combined_filter = combine_filters(filter, filter_kwargs)
@@ -90,7 +90,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
         self,
         key: str | int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> QueryResult:
         """Get a vSAN query by key.
 
@@ -111,7 +111,7 @@ class VsanQueryManager(ResourceManager[QueryResult]):
         if fields is None:
             fields = QUERY_DEFAULT_FIELDS
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None or not isinstance(response, dict):

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -181,7 +181,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         volume: str | int | None = None,
@@ -236,7 +236,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -262,7 +262,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
         *,
         name: str | None = None,
         volume: str | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASNFSShare:
         """Get a single NFS share by key or name.
 
@@ -292,7 +292,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
                 "filter": f"id eq '{key}'",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

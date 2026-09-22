@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -118,7 +118,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -149,7 +149,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SystemDiagnostic:
         """Get a diagnostic by key or name.
 
@@ -169,7 +169,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Diagnostic {key} not found")

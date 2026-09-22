@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -400,7 +400,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -432,7 +432,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -454,7 +454,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SnapshotProfilePeriod:
         """Get a period by key or name.
 
@@ -476,7 +476,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -699,7 +699,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -745,7 +745,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -779,7 +779,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_periods: bool = False,
     ) -> SnapshotProfile:
         """Get a snapshot profile by key or name.
@@ -803,7 +803,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

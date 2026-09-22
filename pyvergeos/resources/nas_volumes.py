@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -280,7 +280,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         enabled: bool | None = None,
@@ -359,7 +359,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -384,7 +384,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASVolume:
         """Get a single NAS volume by key or name.
 
@@ -413,7 +413,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
                 "filter": f"id eq '{key}'",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -819,7 +819,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         volume: str | None = None,
@@ -889,7 +889,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -914,7 +914,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASVolumeSnapshot:
         """Get a single volume snapshot by key or name.
 
@@ -941,7 +941,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
             # Fetch by key with default fields
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

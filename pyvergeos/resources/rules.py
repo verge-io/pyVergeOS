@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -228,7 +228,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         direction: Direction | None = None,
         action: Action | None = None,
         protocol: Protocol | None = None,
@@ -281,7 +281,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+orderid",
         }
         if limit is not None:
@@ -304,7 +304,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NetworkRule:
         """Get a rule by key or name.
 
@@ -324,7 +324,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Rule {key} not found")

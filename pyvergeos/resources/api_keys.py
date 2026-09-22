@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -216,7 +221,7 @@ class APIKeyManager(ResourceManager[APIKey]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         user: int | str | None = None,
@@ -268,7 +273,7 @@ class APIKeyManager(ResourceManager[APIKey]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -294,7 +299,7 @@ class APIKeyManager(ResourceManager[APIKey]):
         *,
         name: str | None = None,
         user: int | str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> APIKey:
         """Get a single API key by key or name.
 
@@ -322,7 +327,7 @@ class APIKeyManager(ResourceManager[APIKey]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -361,8 +366,8 @@ class APIKeyManager(ResourceManager[APIKey]):
         description: str | None = None,
         expires_in: str | None = None,
         expires: datetime | None = None,
-        ip_allow_list: builtins.list[str] | None = None,
-        ip_deny_list: builtins.list[str] | None = None,
+        ip_allow_list: str | builtins.list[str] | None = None,
+        ip_deny_list: str | builtins.list[str] | None = None,
     ) -> APIKeyCreated:
         """Create a new API key.
 
@@ -441,10 +446,10 @@ class APIKeyManager(ResourceManager[APIKey]):
 
         # IP lists
         if ip_allow_list:
-            body["ip_allow_list"] = ",".join(ip_allow_list)
+            body["ip_allow_list"] = serialize_list(ip_allow_list)
 
         if ip_deny_list:
-            body["ip_deny_list"] = ",".join(ip_deny_list)
+            body["ip_deny_list"] = serialize_list(ip_deny_list)
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 

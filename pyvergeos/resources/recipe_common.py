@@ -63,7 +63,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -226,7 +226,7 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         recipe_ref: str | None = None,
@@ -292,7 +292,7 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -320,7 +320,7 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> RecipeQuestion:
         """Get a single recipe question by key or name.
 
@@ -339,7 +339,7 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -640,7 +640,7 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         recipe_ref: str | None = None,
@@ -687,7 +687,7 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -715,7 +715,7 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> RecipeSection:
         """Get a single recipe section by key or name.
 
@@ -734,7 +734,7 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

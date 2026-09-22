@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -338,7 +338,7 @@ class TaskManager(ResourceManager[Task]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -412,7 +412,7 @@ class TaskManager(ResourceManager[Task]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -430,7 +430,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_running(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List running tasks.
@@ -446,7 +446,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_idle(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List idle tasks.
@@ -462,7 +462,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List enabled tasks.
@@ -478,7 +478,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List disabled tasks.
@@ -497,7 +497,7 @@ class TaskManager(ResourceManager[Task]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Task:
         """Get a task by key or name.
 
@@ -518,7 +518,7 @@ class TaskManager(ResourceManager[Task]):
             if fields is None:
                 fields = _DEFAULT_LIST_FIELDS
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -843,7 +843,7 @@ class TaskManager(ResourceManager[Task]):
     def list_by_owner(
         self,
         owner_key: int,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List tasks for a specific owner resource.
@@ -861,7 +861,7 @@ class TaskManager(ResourceManager[Task]):
     def list_by_action(
         self,
         action: str,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List tasks by action type.

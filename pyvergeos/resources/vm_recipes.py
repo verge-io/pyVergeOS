@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from pyvergeos.exceptions import APIError, NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -334,7 +334,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         catalog: str | int | None = None,
@@ -408,7 +408,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -433,7 +433,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VmRecipe:
         """Get a single VM recipe by key or name.
 
@@ -462,7 +462,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                 "filter": f"id eq '{key}'",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -662,7 +662,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         recipe: str | None = None,
@@ -703,7 +703,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -728,7 +728,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VmRecipeInstance:
         """Get a single recipe instance by key or name.
 
@@ -747,7 +747,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -1032,7 +1032,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         vm_recipe: str | None = None,
@@ -1079,7 +1079,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1106,7 +1106,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VmRecipeLog:
         """Get a single log entry by key.
 
@@ -1126,7 +1126,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

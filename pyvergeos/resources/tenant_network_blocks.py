@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -130,7 +130,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         cidr: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -161,7 +161,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -183,7 +183,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
         key: int | None = None,
         *,
         cidr: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantNetworkBlock:
         """Get a network block by key or CIDR.
 
@@ -203,7 +203,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError

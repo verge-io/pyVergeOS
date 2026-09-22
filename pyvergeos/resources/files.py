@@ -159,7 +159,7 @@ class FileManager(ResourceManager[File]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         file_type: str | builtins.list[str] | None = None,
@@ -217,7 +217,7 @@ class FileManager(ResourceManager[File]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> File:
         """Get a file by key or name.
 

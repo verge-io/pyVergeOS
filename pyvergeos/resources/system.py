@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -102,7 +102,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
     def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         key_contains: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -146,7 +146,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         self,
         key: str | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SystemSetting:
         """Get a system setting by key.
 
@@ -175,7 +175,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         # Settings uses 'key' as the keyfield, not $key
         params: dict[str, Any] = {
             "filter": f"key eq '{key}'",
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -414,7 +414,7 @@ class LicenseManager(ResourceManager[License]):
     def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -471,7 +471,7 @@ class LicenseManager(ResourceManager[License]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> License:
         """Get a license by key or name.
 
@@ -1431,7 +1431,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1486,7 +1486,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
         )
 
     def get(  # type: ignore[override]
-        self, key: int, *, fields: builtins.list[str] | None = None
+        self, key: int, *, fields: str | builtins.list[str] | None = None
     ) -> SystemDiagnostic:
         """Get a diagnostic report by key.
 
@@ -1776,7 +1776,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1818,7 +1818,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
         )
 
     def get(  # type: ignore[override]
-        self, key: int, *, fields: builtins.list[str] | None = None
+        self, key: int, *, fields: str | builtins.list[str] | None = None
     ) -> RootCertificate:
         """Get a root certificate by key.
 

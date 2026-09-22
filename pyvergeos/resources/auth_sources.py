@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -142,7 +142,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         auth_source: int | None = None,
@@ -183,7 +183,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -210,7 +210,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
         self,
         key: str | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> AuthSourceState:
         """Get a single state by key.
 
@@ -232,7 +232,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
             "filter": f"state eq '{key}'",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -473,7 +473,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         driver: str | None = None,
@@ -520,7 +520,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -545,7 +545,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_settings: bool = False,
     ) -> AuthSource:
         """Get a single auth source by key or name.

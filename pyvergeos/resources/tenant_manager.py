@@ -731,7 +731,7 @@ class TenantManager(ResourceManager[Tenant]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_snapshots: bool = False,
@@ -772,7 +772,7 @@ class TenantManager(ResourceManager[Tenant]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Tenant:
         """Get a single tenant by key or name.
 

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -267,7 +267,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -299,7 +299,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -321,7 +321,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CloudSnapshotVM:
         """Get a VM from this snapshot by key or name.
 
@@ -343,7 +343,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -390,7 +390,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -422,7 +422,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -444,7 +444,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CloudSnapshotTenant:
         """Get a tenant from this snapshot by key or name.
 
@@ -466,7 +466,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -739,7 +739,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -798,7 +798,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -840,7 +840,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_vms: bool = False,
         include_tenants: bool = False,
         include_expired: bool = True,
@@ -868,7 +868,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

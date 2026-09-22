@@ -121,7 +121,10 @@ matching is case-sensitive; use ``filter="field ct '...'"`` or
 Field Selection
 ---------------
 
-Limit returned fields for better performance:
+Limit returned fields for better performance. ``fields`` accepts a list of
+names or the API's native comma-separated string — both send the same
+request (previously the string form was joined character by character and
+silently returned empty rows, issue #101):
 
 .. code-block:: python
 

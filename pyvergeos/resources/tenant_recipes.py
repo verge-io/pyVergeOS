@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -310,7 +310,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         catalog: str | int | None = None,
@@ -384,7 +384,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -409,7 +409,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantRecipe:
         """Get a single tenant recipe by key or name.
 
@@ -438,7 +438,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
                 "filter": f"id eq '{key}'",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -640,7 +640,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         recipe: str | None = None,
@@ -681,7 +681,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -706,7 +706,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantRecipeInstance:
         """Get a single recipe instance by key or name.
 
@@ -725,7 +725,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -834,7 +834,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         tenant_recipe: str | None = None,
@@ -881,7 +881,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -908,7 +908,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantRecipeLog:
         """Get a single log entry by key.
 
@@ -928,7 +928,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

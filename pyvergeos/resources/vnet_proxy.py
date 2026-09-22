@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -107,7 +107,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -152,7 +152,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
         *,
         fqdn: str | None = None,
         tenant: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VnetProxyTenant:
         """Get a proxy tenant mapping by key, FQDN, or tenant.
 
@@ -183,7 +183,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
             # Direct key lookup - verify it belongs to this proxy
             params = {
                 "filter": f"$key eq {key} and proxy eq {self._proxy.key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if not response:
@@ -205,7 +205,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
 
         params = {
             "filter": " and ".join(filter_parts),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
         response = self._client._request("GET", self._endpoint, params=params)
         if not response:
@@ -459,7 +459,7 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VnetProxy:
         """Get the proxy configuration for this network.
 
@@ -489,13 +489,13 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             # Verify it belongs to this network
             params = {
                 "filter": f"$key eq {key} and vnet eq {self._network.key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
         else:
             # Get by network
             params = {
                 "filter": f"vnet eq {self._network.key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
 
         response = self._client._request("GET", self._endpoint, params=params)

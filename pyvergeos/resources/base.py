@@ -16,6 +16,41 @@ T = TypeVar("T", bound="ResourceObject")
 SelfT = TypeVar("SelfT", bound="ResourceObject")
 
 
+def serialize_list(value: str | builtins.list[str] | None, sep: str = ",") -> str | None:
+    """Serialize a user-supplied multi-value parameter for the API.
+
+    Accepts either the API's native delimiter-joined string or a sequence
+    of values. A bare string passes through unchanged: joining it would
+    iterate character by character (``",".join("$key,name")`` ->
+    ``'$,k,e,y,,,n,a,m,e'``), which the API accepts and silently honours,
+    corrupting the request (issue #101).
+
+    Args:
+        value: A string already in wire format, a sequence of values,
+            or None.
+        sep: Delimiter the API expects (``","`` or ``"\\n"``).
+
+    Returns:
+        The wire-format string, or None if ``value`` is None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return sep.join(value)
+
+
+def normalize_fields(fields: str | builtins.list[str] | None) -> str | None:
+    """Serialize a ``fields`` projection parameter.
+
+    Accepts a sequence of field names or the API's comma-separated string.
+    Empty values mean "no projection requested" (issue #101).
+    """
+    if not fields:
+        return None
+    return serialize_list(fields, ",")
+
+
 class ResourceObject(dict[str, Any]):
     """Dict subclass with attribute access and resource methods.
 
@@ -154,7 +189,7 @@ class ResourceManager(Generic[T]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -163,7 +198,8 @@ class ResourceManager(Generic[T]):
 
         Args:
             filter: OData filter string.
-            fields: List of fields to return.
+            fields: Fields to return - a list of names or the API's
+                comma-separated string.
             limit: Maximum number of results.
             offset: Skip this many results.
             **filter_kwargs: Shorthand filter arguments. Merged with ``filter``
@@ -186,7 +222,7 @@ class ResourceManager(Generic[T]):
 
         # Field selection
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         # Pagination
         if limit is not None:
@@ -209,14 +245,15 @@ class ResourceManager(Generic[T]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> T:
         """Get a single resource by key or name.
 
         Args:
             key: Resource $key (ID).
             name: Resource name (will search if key not provided).
-            fields: List of fields to return.
+            fields: Fields to return - a list of names or the API's
+                comma-separated string.
 
         Returns:
             Resource object.
@@ -229,7 +266,7 @@ class ResourceManager(Generic[T]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

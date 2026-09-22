@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import ValidationError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -551,7 +551,7 @@ class ClusterManager(ResourceManager[Cluster]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -614,7 +614,7 @@ class ClusterManager(ResourceManager[Cluster]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -639,7 +639,7 @@ class ClusterManager(ResourceManager[Cluster]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Cluster:
         """Get a single cluster by key or name.
 
@@ -1121,7 +1121,7 @@ class ClusterManager(ResourceManager[Cluster]):
                 "stats#wops as write_ops,stats#rbps as read_bps,stats#wbps as write_bps]"
             )
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
         if cluster_name:
             params["filter"] = f"name eq {quote_value(cluster_name)}"

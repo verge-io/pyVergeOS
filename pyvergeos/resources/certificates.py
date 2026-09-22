@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -314,7 +319,7 @@ class CertificateManager(ResourceManager[Certificate]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -363,7 +368,7 @@ class CertificateManager(ResourceManager[Certificate]):
 
         # Field selection
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             field_list = list(_DEFAULT_CERT_FIELDS)
             if include_keys:
@@ -449,7 +454,7 @@ class CertificateManager(ResourceManager[Certificate]):
         key: int | None = None,
         *,
         domain: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_keys: bool = False,
     ) -> Certificate:
         """Get a certificate by key or domain.
@@ -565,10 +570,7 @@ class CertificateManager(ResourceManager[Certificate]):
 
         # Add domain list (SANs)
         if domain_list:
-            if isinstance(domain_list, list):
-                body["domainlist"] = ",".join(domain_list)
-            else:
-                body["domainlist"] = domain_list
+            body["domainlist"] = serialize_list(domain_list)
 
         # Add optional description
         if description:
@@ -661,10 +663,7 @@ class CertificateManager(ResourceManager[Certificate]):
             body["description"] = description
 
         if domain_list is not None:
-            if isinstance(domain_list, list):
-                body["domainlist"] = ",".join(domain_list)
-            else:
-                body["domainlist"] = domain_list
+            body["domainlist"] = serialize_list(domain_list)
 
         if public_key is not None:
             body["public"] = public_key
