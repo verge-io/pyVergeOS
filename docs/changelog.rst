@@ -12,6 +12,17 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- Wildcard and list filter shorthands no longer emit operators VergeOS
+  rejects. ``build_filter()`` and ``Filter`` produced ``like`` (from
+  ``name="web*"``) and ``in`` (from ``status=[...]``), neither of which is
+  in the platform's filter grammar - every such filter failed with HTTP 422
+  "Invalid argument". Wildcards now translate to supported operators
+  (``foo*`` -> ``bw``, ``*foo`` -> ``ew``, ``*foo*`` -> ``cs``, complex
+  patterns -> anchored POSIX-ERE ``rx`` with metacharacters escaped), and
+  lists expand to a parenthesized ``or`` chain of conditions - parenthesized
+  because the platform evaluates ``and``/``or`` strictly left-to-right with
+  no precedence. Wildcard matching is case-sensitive, consistent with
+  ``eq``. (#103)
 - ``list()`` no longer returns every row when a filter cannot be applied.
   Shorthand filter kwargs were silently dropped whenever a manager supplied
   its own ``filter`` string, so ``client.vms.list(name=...)`` ignored the name
@@ -60,6 +71,17 @@ Changed
   still filter on the non-``None`` conditions. (#96)
 - Invalid snapshot profile period fields now raise at ``save()`` as well as
   ``update()``, rather than being sent raw and silently ignored. (#97)
+- An empty sequence passed as a filter value (``list(name=[])``) now raises
+  ``ValueError`` instead of sending ``in ()``, which the platform rejected
+  with an opaque 422. (#103)
+
+Added
+^^^^^
+
+- ``Filter`` gained methods for the platform's native string operators:
+  ``bw()`` (begins-with), ``ew()`` (ends-with), ``cs()`` (contains,
+  case-sensitive), ``ct()`` (contains, case-insensitive) and ``rx()``
+  (POSIX-ERE regex). (#103)
 
 [1.2.7] - 2026-09-21
 --------------------
