@@ -109,6 +109,9 @@ Fixed
   Iterating a mapping yields its keys, so ``ssh_keys={"a": 1}`` was sent as
   ``'a'``; a ``set`` was joined in arbitrary order, and order is part of the
   value - the first entry of ``dnslist`` is the primary DNS server. (#101)
+- ``WebhookManager.update(headers="")`` stored a lone blank line instead of
+  clearing the header block, which ``headers={}`` already did correctly.
+  Both forms now clear it. (#101)
 - ``CertificateManager.get()`` and ``.list()`` silently ignored
   ``include_keys`` whenever an explicit ``fields`` projection was supplied, so
   the requested key material was missing from the result. The key fields are

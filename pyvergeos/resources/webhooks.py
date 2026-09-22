@@ -65,6 +65,17 @@ _DEFAULT_HISTORY_FIELDS = [
 ]
 
 
+def _header_string(headers: str) -> str:
+    """Normalise a header block to the API's trailing-newline form.
+
+    An empty string means "no headers" and must stay empty: appending a
+    newline would store a lone blank line rather than clearing the field.
+    """
+    if not headers:
+        return ""
+    return headers if headers.endswith("\n") else f"{headers}\n"
+
+
 class Webhook(ResourceObject):
     """Webhook URL configuration resource object.
 
@@ -471,8 +482,7 @@ class WebhookManager(ResourceManager[Webhook]):
                 header_lines = [f"{k}:{v}" for k, v in headers.items()]
                 body["headers"] = "\n".join(header_lines) + "\n"
             else:
-                # String format
-                body["headers"] = headers if headers.endswith("\n") else f"{headers}\n"
+                body["headers"] = _header_string(headers)
 
         # Authorization
         api_auth_type = AUTH_TYPE_MAP.get(authorization_type, authorization_type.lower())
@@ -552,7 +562,9 @@ class WebhookManager(ResourceManager[Webhook]):
                 else:
                     body["headers"] = ""
             else:
-                body["headers"] = headers if headers.endswith("\n") else f"{headers}\n"
+                # An empty string clears the headers, like an empty dict does;
+                # appending a newline to it would store a lone blank line.
+                body["headers"] = _header_string(headers)
 
         if authorization_type is not None:
             api_auth_type = AUTH_TYPE_MAP.get(authorization_type, authorization_type.lower())
