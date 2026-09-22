@@ -34,6 +34,13 @@ from pyvergeos.resources.vm_recipes import VmRecipeInstanceManager, VmRecipeMana
         (r"C:\O'Brien\share", r"name eq 'C:\\O\'Brien\\share'"),
         ("trailing\\", r"name eq 'trailing\\'"),
         ("literal*?", "name eq 'literal*?'"),
+        # '{' is reserved by the literal grammar (issue #100): unescaped, a
+        # balanced {...} is consumed and the lookup silently resolves to a
+        # different row.
+        ("br{x}ace", r"name eq 'br\{x}ace'"),
+        ("{lead", r"name eq '\{lead'"),
+        ("trail}", "name eq 'trail}'"),
+        ("O'Brien{x}", r"name eq 'O\'Brien\{x}'"),
     ],
 )
 def test_get_by_name_quotes_literal(manager_type: Any, name: str, expected: str) -> None:

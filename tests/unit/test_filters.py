@@ -135,6 +135,15 @@ STRING_LITERALS = [
     ('a"b', "'a\"b'"),
     ("équipe's", r"'équipe\'s'"),
     ("x' or name ne 'x", r"'x\' or name ne \'x'"),
+    # '{' opens a balanced construct in the literal grammar (issue #100).
+    ("a{x}b", r"'a\{x}b'"),
+    ("{lead", r"'\{lead'"),
+    ("trail}", "'trail}'"),
+    ("{}", r"'\{}'"),
+    ("a{b{c}d}e", r"'a\{b\{c}d}e'"),
+    ("mix'{a}b", r"'mix\'\{a}b'"),
+    # backslash must be escaped before '{', or the inserted backslash doubles
+    ("\\{", r"'\\\{'"),
 ]
 
 
@@ -249,8 +258,14 @@ class TestWildcardTranslation:
         # '?' forces the rx path; every ERE metacharacter must be escaped.
         # The wire literal doubles each backslash (quote_value escaping);
         # the server unescapes it back to a single ERE escape.
+        #
+        # '{' is the exception: it is reserved by the *literal* grammar as
+        # well as by ERE, so it carries both escapes and arrives as \\\{
+        # (issue #100). Measured on a live system against a row named
+        # 'e{f}': \\{f\\} matches nothing, \\\{f\\} matches. '}' is not
+        # reserved by the literal grammar, so it keeps the single ERE escape.
         result = build_filter(name="a.b[c](d)+e{f}|g^h$i?")
-        expected = r"name rx '^a\\.b\\[c\\]\\(d\\)\\+e\\{f\\}\\|g\\^h\\$i.$'"
+        expected = r"name rx '^a\\.b\\[c\\]\\(d\\)\\+e\\\{f\\}\\|g\\^h\\$i.$'"
         assert result == expected
 
     def test_backslash_in_pattern_survives_both_escapes(self) -> None:

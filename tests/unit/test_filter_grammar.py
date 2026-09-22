@@ -20,6 +20,8 @@ import ast
 import pathlib
 import re
 
+from pyvergeos.filters import _RESERVED_IN_LITERAL, quote_value
+
 PACKAGE_DIR = pathlib.Path(__file__).resolve().parents[2] / "pyvergeos"
 
 VERIFIED_OPERATORS = {"eq", "ne", "gt", "ge", "lt", "le", "bw", "ew", "cs", "ct", "rx", "and", "or"}
@@ -90,3 +92,104 @@ def test_only_verified_filter_operators_are_emitted() -> None:
         "rejects unknown operators with HTTP 422, or worse, accepts and "
         "silently never matches (see issue #103):\n" + "\n".join(offenders)
     )
+
+
+# ---------------------------------------------------------------------------
+# Reserved characters inside a filter string literal (issue #100)
+# ---------------------------------------------------------------------------
+#
+# Measured by sweeping all 95 printable ASCII characters through
+# ``name eq '...<CHAR>...'`` against a live VergeOS 26.1.8 system, and by
+# round-tripping real rows whose names contain each character:
+#
+#   '\'  the escape character itself
+#   '''  terminates the literal
+#   '{'  opens a balanced, nesting-aware construct
+#
+# The other 92 are inert, including '}'. An unescaped '{' is the dangerous
+# one: a balanced {...} is consumed silently and the query matches whatever
+# the stripped string names, so a lookup-by-name can resolve to - and the
+# caller then modify or delete - the wrong object.
+
+RESERVED_LITERAL_CHARS = ("\\", "'", "{")
+INERT_SAMPLE = '}()[]*?%_.+|^$&#@!~`"<>=,;:/ -0aZ'
+
+
+class TestLiteralReservedCharacters:
+    """quote_value() must escape every reserved character and nothing else."""
+
+    def test_each_reserved_char_is_escaped_exactly_once(self) -> None:
+        for char in RESERVED_LITERAL_CHARS:
+            assert quote_value(char) == f"'\\{char}'", (
+                f"{char!r} is reserved inside a filter literal and must be "
+                "backslash-escaped (issue #100)"
+            )
+
+    def test_inert_characters_are_not_escaped(self) -> None:
+        # Over-escaping is a bug too: a backslash before an inert character
+        # is consumed by the platform and silently removes it from the value.
+        for char in INERT_SAMPLE:
+            assert quote_value(char) == f"'{char}'", (
+                f"{char!r} is not reserved and must be passed through unescaped"
+            )
+
+    def test_backslash_is_escaped_before_the_others(self) -> None:
+        # If '{' were replaced before '\\', the backslash inserted for the
+        # brace would itself be doubled and the brace would arrive unescaped.
+        assert quote_value("\\{") == r"'\\\{'"
+        assert quote_value("\\'") == r"'\\\''"
+
+    @staticmethod
+    def _unescaped_brace_positions(body: str) -> list[int]:
+        """Indexes of '{' not preceded by an ODD number of backslashes.
+
+        Counting matters: a single preceding backslash escapes the brace, but
+        two form an escaped backslash and leave the brace bare. Checking only
+        body[i - 1] would pass a value like '\\{' straight through.
+        """
+        out = []
+        for i, ch in enumerate(body):
+            if ch != "{":
+                continue
+            backslashes = 0
+            j = i - 1
+            while j >= 0 and body[j] == "\\":
+                backslashes += 1
+                j -= 1
+            if backslashes % 2 == 0:
+                out.append(i)
+        return out
+
+    def test_balanced_braces_cannot_reach_the_wire_unescaped(self) -> None:
+        # The silent-wrong-row case: every '{' must carry an escape.
+        for value in [
+            "a{x}b",
+            "{}",
+            "a{b{c}d}e",
+            "{{",
+            "pre{mid}post",
+            "\\{",
+            "\\\\{",
+            "a\\{b",
+            "'{",
+            "{'",
+        ]:
+            literal = quote_value(value)
+            body = literal[1:-1]
+            bare = self._unescaped_brace_positions(body)
+            assert not bare, (
+                f"quote_value({value!r}) = {literal!r} leaves an unescaped "
+                f"'{{' at {bare} on the wire (issue #100)"
+            )
+
+    def test_the_brace_detector_itself_is_sound(self) -> None:
+        # Guard the guard: the helper must call a bare brace bare.
+        assert self._unescaped_brace_positions("{") == [0]
+        assert self._unescaped_brace_positions(r"\\{") == [2]  # escaped backslash, bare brace
+        assert self._unescaped_brace_positions(r"\{") == []  # escaped brace
+        assert self._unescaped_brace_positions(r"\\\{") == []  # escaped backslash + escaped brace
+
+    def test_reserved_set_matches_the_implementation(self) -> None:
+        # Guards against the set being trimmed without re-measuring.
+        assert set(_RESERVED_IN_LITERAL) == set(RESERVED_LITERAL_CHARS)
+        assert _RESERVED_IN_LITERAL[0] == "\\", "backslash must be replaced first"
