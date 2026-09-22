@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -120,7 +120,7 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         level: str | None = None,
@@ -157,7 +157,7 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -184,7 +184,7 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateLog:
         """Get a single log entry by key.
 
@@ -204,7 +204,7 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -299,7 +299,7 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -330,7 +330,7 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -355,7 +355,7 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateBranch:
         """Get a single branch by key or name.
 
@@ -374,7 +374,7 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -496,7 +496,7 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         source: int | None = None,
@@ -537,7 +537,7 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -561,7 +561,7 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateSourceStatus:
         """Get a single status record by key.
 
@@ -581,7 +581,7 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -710,7 +710,7 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         source: int | None = None,
@@ -767,7 +767,7 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -792,7 +792,7 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateSourcePackage:
         """Get a single source package by key or name.
 
@@ -811,7 +811,7 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -961,7 +961,7 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         enabled: bool | None = None,
@@ -998,7 +998,7 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1023,7 +1023,7 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateSource:
         """Get a single source by key or name.
 
@@ -1042,7 +1042,7 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -1333,7 +1333,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         branch: int | None = None,
@@ -1370,7 +1370,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1395,7 +1395,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdatePackage:
         """Get a single package by key (name).
 
@@ -1418,7 +1418,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1629,7 +1629,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateSettings:
         """Get update settings.
 
@@ -1645,7 +1645,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         """
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1961,7 +1961,7 @@ class UpdateDashboardManager(ResourceManager["UpdateDashboard"]):
     def get(  # type: ignore[override]
         self,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> UpdateDashboard:
         """Get the update dashboard.
 
@@ -1973,7 +1973,7 @@ class UpdateDashboardManager(ResourceManager["UpdateDashboard"]):
         """
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", self._endpoint, params=params)
         if response is None:

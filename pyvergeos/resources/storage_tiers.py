@@ -191,7 +191,7 @@ class StorageTierManager(ResourceManager[StorageTier]):
     def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_stats: bool = True,
         limit: int | None = None,
         offset: int | None = None,
@@ -238,7 +238,7 @@ class StorageTierManager(ResourceManager[StorageTier]):
         key: int | None = None,
         *,
         tier: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> StorageTier:
         """Get a storage tier by key or tier number.
 

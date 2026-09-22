@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -325,7 +325,7 @@ class WebhookManager(ResourceManager[Webhook]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -366,7 +366,7 @@ class WebhookManager(ResourceManager[Webhook]):
 
         # Field selection
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(_DEFAULT_WEBHOOK_FIELDS)
 
@@ -391,7 +391,7 @@ class WebhookManager(ResourceManager[Webhook]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Webhook:
         """Get a webhook by key or name.
 
@@ -640,7 +640,7 @@ class WebhookManager(ResourceManager[Webhook]):
         pending: bool = False,
         failed: bool = False,
         limit: int = 100,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[WebhookHistory]:
         """Get webhook execution history.
 
@@ -692,7 +692,7 @@ class WebhookManager(ResourceManager[Webhook]):
 
         # Field selection
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(_DEFAULT_HISTORY_FIELDS)
 

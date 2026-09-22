@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -192,7 +192,7 @@ class MachineNICManager(ResourceManager[NIC]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **kwargs: Any,
@@ -226,7 +226,7 @@ class MachineNICManager(ResourceManager[NIC]):
         else:
             combined = filter
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         if combined:
             params["filter"] = combined
         if limit is not None:
@@ -259,7 +259,7 @@ class MachineNICManager(ResourceManager[NIC]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NIC:
         """Get a NIC by key or name.
 
@@ -279,7 +279,7 @@ class MachineNICManager(ResourceManager[NIC]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -329,7 +329,7 @@ class NICManager(ResourceManager[NIC]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **kwargs: Any,
@@ -356,7 +356,7 @@ class NICManager(ResourceManager[NIC]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+orderid",
         }
         if limit is not None:
@@ -379,7 +379,7 @@ class NICManager(ResourceManager[NIC]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NIC:
         """Get a NIC by key or name.
 
@@ -399,7 +399,7 @@ class NICManager(ResourceManager[NIC]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError

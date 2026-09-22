@@ -712,7 +712,7 @@ class VMManager(ResourceManager[VM]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_snapshots: bool = False,
@@ -753,7 +753,7 @@ class VMManager(ResourceManager[VM]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VM:
         """Get a single VM by key or name.
 

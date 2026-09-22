@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -1010,7 +1010,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1072,7 +1072,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1097,7 +1097,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
         key: int | None = None,
         *,
         driver_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NodeDriver:
         """Get a single driver by key or name.
 
@@ -1117,7 +1117,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Driver with key {key} not found")
@@ -1187,7 +1187,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1255,7 +1255,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1279,7 +1279,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
         self,
         key: int,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NodePCIDevice:
         """Get a single PCI device by key.
 
@@ -1296,7 +1296,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"PCI device with key {key} not found")
@@ -1350,7 +1350,7 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1403,7 +1403,7 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1427,7 +1427,7 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
         self,
         key: int,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NodeUSBDevice:
         """Get a single USB device by key.
 
@@ -1444,7 +1444,7 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"USB device with key {key} not found")
@@ -1509,7 +1509,7 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1567,7 +1567,7 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1591,7 +1591,7 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
         self,
         key: int,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NodeSriovNicDevice:
         """Get a single SR-IOV NIC device by key.
 
@@ -1608,7 +1608,7 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"SR-IOV NIC device with key {key} not found")
@@ -1701,7 +1701,7 @@ class NodeManager(ResourceManager[Node]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1759,7 +1759,7 @@ class NodeManager(ResourceManager[Node]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1784,7 +1784,7 @@ class NodeManager(ResourceManager[Node]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Node:
         """Get a single node by key or name.
 

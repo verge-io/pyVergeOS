@@ -44,7 +44,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -124,7 +129,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         oidc_application: int | None = None,
@@ -164,7 +169,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -187,7 +192,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OidcApplicationUser:
         """Get a single user ACL entry by key.
 
@@ -207,7 +212,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -338,7 +343,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         oidc_application: int | None = None,
@@ -378,7 +383,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -401,7 +406,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OidcApplicationGroup:
         """Get a single group ACL entry by key.
 
@@ -421,7 +426,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -551,7 +556,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         oidc_application: int | None = None,
@@ -597,7 +602,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -623,7 +628,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OidcApplicationLog:
         """Get a single log entry by key.
 
@@ -643,7 +648,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -929,7 +934,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         enabled: bool | None = None,
@@ -976,7 +981,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1001,7 +1006,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_secret: bool = False,
         include_well_known: bool = False,
     ) -> OidcApplication:
@@ -1118,10 +1123,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         # Handle redirect URIs
         if redirect_uri is not None:
-            if isinstance(redirect_uri, list):
-                body["redirect_uri"] = "\n".join(redirect_uri)
-            else:
-                body["redirect_uri"] = redirect_uri
+            body["redirect_uri"] = serialize_list(redirect_uri, "\n")
 
         if description is not None:
             body["description"] = description
@@ -1198,10 +1200,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
             body["name"] = name
 
         if redirect_uri is not None:
-            if isinstance(redirect_uri, list):
-                body["redirect_uri"] = "\n".join(redirect_uri)
-            else:
-                body["redirect_uri"] = redirect_uri
+            body["redirect_uri"] = serialize_list(redirect_uri, "\n")
 
         if description is not None:
             body["description"] = description

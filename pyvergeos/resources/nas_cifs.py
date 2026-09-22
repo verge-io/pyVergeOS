@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -173,7 +178,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         volume: str | int | None = None,
@@ -229,7 +234,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -255,7 +260,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         *,
         name: str | None = None,
         volume: str | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASCIFSShare:
         """Get a single CIFS share by key or name.
 
@@ -285,7 +290,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
                 "filter": f"id eq '{key}'",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -332,12 +337,12 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         guest_only: bool = False,
         force_user: str | None = None,
         force_group: str | None = None,
-        valid_users: builtins.list[str] | None = None,
-        valid_groups: builtins.list[str] | None = None,
-        admin_users: builtins.list[str] | None = None,
-        admin_groups: builtins.list[str] | None = None,
-        allowed_hosts: builtins.list[str] | None = None,
-        denied_hosts: builtins.list[str] | None = None,
+        valid_users: str | builtins.list[str] | None = None,
+        valid_groups: str | builtins.list[str] | None = None,
+        admin_users: str | builtins.list[str] | None = None,
+        admin_groups: str | builtins.list[str] | None = None,
+        allowed_hosts: str | builtins.list[str] | None = None,
+        denied_hosts: str | builtins.list[str] | None = None,
         shadow_copy: bool = False,
         enabled: bool = True,
     ) -> NASCIFSShare:
@@ -425,22 +430,22 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
             body["force_group"] = force_group
 
         if valid_users:
-            body["valid_users"] = "\n".join(valid_users)
+            body["valid_users"] = serialize_list(valid_users, "\n")
 
         if valid_groups:
-            body["valid_groups"] = "\n".join(valid_groups)
+            body["valid_groups"] = serialize_list(valid_groups, "\n")
 
         if admin_users:
-            body["admin_users"] = "\n".join(admin_users)
+            body["admin_users"] = serialize_list(admin_users, "\n")
 
         if admin_groups:
-            body["admin_groups"] = "\n".join(admin_groups)
+            body["admin_groups"] = serialize_list(admin_groups, "\n")
 
         if allowed_hosts:
-            body["host_allow"] = "\n".join(allowed_hosts)
+            body["host_allow"] = serialize_list(allowed_hosts, "\n")
 
         if denied_hosts:
-            body["host_deny"] = "\n".join(denied_hosts)
+            body["host_deny"] = serialize_list(denied_hosts, "\n")
 
         if shadow_copy:
             body["vfs_shadow_copy2"] = True
@@ -469,12 +474,12 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         guest_only: bool | None = None,
         force_user: str | None = None,
         force_group: str | None = None,
-        valid_users: builtins.list[str] | None = None,
-        valid_groups: builtins.list[str] | None = None,
-        admin_users: builtins.list[str] | None = None,
-        admin_groups: builtins.list[str] | None = None,
-        allowed_hosts: builtins.list[str] | None = None,
-        denied_hosts: builtins.list[str] | None = None,
+        valid_users: str | builtins.list[str] | None = None,
+        valid_groups: str | builtins.list[str] | None = None,
+        admin_users: str | builtins.list[str] | None = None,
+        admin_groups: str | builtins.list[str] | None = None,
+        allowed_hosts: str | builtins.list[str] | None = None,
+        denied_hosts: str | builtins.list[str] | None = None,
         shadow_copy: bool | None = None,
     ) -> NASCIFSShare:
         """Update a CIFS share.
@@ -541,22 +546,22 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
             body["force_group"] = force_group
 
         if valid_users is not None:
-            body["valid_users"] = "\n".join(valid_users) if valid_users else ""
+            body["valid_users"] = serialize_list(valid_users, "\n") or ""
 
         if valid_groups is not None:
-            body["valid_groups"] = "\n".join(valid_groups) if valid_groups else ""
+            body["valid_groups"] = serialize_list(valid_groups, "\n") or ""
 
         if admin_users is not None:
-            body["admin_users"] = "\n".join(admin_users) if admin_users else ""
+            body["admin_users"] = serialize_list(admin_users, "\n") or ""
 
         if admin_groups is not None:
-            body["admin_groups"] = "\n".join(admin_groups) if admin_groups else ""
+            body["admin_groups"] = serialize_list(admin_groups, "\n") or ""
 
         if allowed_hosts is not None:
-            body["host_allow"] = "\n".join(allowed_hosts) if allowed_hosts else ""
+            body["host_allow"] = serialize_list(allowed_hosts, "\n") or ""
 
         if denied_hosts is not None:
-            body["host_deny"] = "\n".join(denied_hosts) if denied_hosts else ""
+            body["host_deny"] = serialize_list(denied_hosts, "\n") or ""
 
         if shadow_copy is not None:
             body["vfs_shadow_copy2"] = shadow_copy

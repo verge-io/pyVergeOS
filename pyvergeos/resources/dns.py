@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -163,7 +163,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         host: str | None = None,
         record_type: RecordType | None = None,
         limit: int | None = None,
@@ -208,7 +208,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+orderid",
         }
         if limit is not None:
@@ -232,7 +232,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
         *,
         host: str | None = None,
         record_type: RecordType | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> DNSRecord:
         """Get a DNS record by key, host, or type.
 
@@ -253,7 +253,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS record {key} not found")
@@ -536,7 +536,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         domain: str | None = None,
         zone_type: ZoneType | None = None,
         include_records: bool = False,
@@ -616,7 +616,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         view_key: int,
         view_name: str | None,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         domain: str | None = None,
         zone_type: ZoneType | None = None,
     ) -> builtins.list[DNSZone]:
@@ -639,7 +639,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+domain",
         }
 
@@ -658,7 +658,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         key: int | None = None,
         *,
         domain: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> DNSZone:
         """Get a DNS zone by key or domain.
 
@@ -678,7 +678,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS zone {key} not found")

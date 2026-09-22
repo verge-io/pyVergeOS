@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -169,7 +169,7 @@ class NASServiceManager(ResourceManager[NASService]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         status: str | None = None,
@@ -212,7 +212,7 @@ class NASServiceManager(ResourceManager[NASService]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -260,7 +260,7 @@ class NASServiceManager(ResourceManager[NASService]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASService:
         """Get a single NAS service by key or name.
 
@@ -287,7 +287,7 @@ class NASServiceManager(ResourceManager[NASService]):
             # Fetch by key with default fields
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -688,7 +688,7 @@ class NASServiceManager(ResourceManager[NASService]):
         response = self._client._request(
             "GET",
             "vm_service_cifs",
-            params={"filter": f"service eq {key}", "fields": ",".join(fields)},
+            params={"filter": f"service eq {key}", "fields": normalize_fields(fields)},
         )
 
         if not response:
@@ -818,7 +818,7 @@ class NASServiceManager(ResourceManager[NASService]):
         response = self._client._request(
             "GET",
             "vm_service_nfs",
-            params={"filter": f"service eq {key}", "fields": ",".join(fields)},
+            params={"filter": f"service eq {key}", "fields": normalize_fields(fields)},
         )
 
         if not response:

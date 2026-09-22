@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -330,7 +330,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -363,7 +363,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         # Default fields
         if fields is None:
             fields = DEFAULT_INTERFACE_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -388,7 +388,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> WireGuardInterface:
         """Get a single WireGuard interface by key or name.
 
@@ -409,7 +409,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             fields = DEFAULT_INTERFACE_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -596,7 +596,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -628,7 +628,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         # Default fields
         if fields is None:
             fields = DEFAULT_PEER_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -653,7 +653,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> WireGuardPeer:
         """Get a single peer by key or name.
 
@@ -674,7 +674,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             fields = DEFAULT_PEER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
