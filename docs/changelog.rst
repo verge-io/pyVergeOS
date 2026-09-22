@@ -12,6 +12,16 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- The ``name`` search in ``tasks``, ``task_scripts``, ``task_schedules``
+  and ``cloudinit_files`` no longer fails open for all-wildcard patterns.
+  These managers carried a hand-rolled workaround that stripped ``*``/``?``
+  and used a ``ct`` contains match; a name of ``"*"`` (or ``"?"``) stripped
+  to an empty search term and appended no condition at all, returning every
+  row - the fail-open shape of #96 - and ``name="Backup*"`` matched as a
+  case-insensitive contains (also matching ``Nightly Backup``). All four now
+  share the wildcard translation, so prefix patterns match prefixes,
+  matching is case-sensitive, and a condition is always sent. Ported from
+  the parallel fix in PR #104. (#103)
 - Wildcard and list filter shorthands no longer emit operators VergeOS
   rejects. ``build_filter()`` and ``Filter`` produced ``like`` (from
   ``name="web*"``) and ``in`` (from ``status=[...]``), neither of which is

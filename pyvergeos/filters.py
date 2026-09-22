@@ -45,8 +45,11 @@ def _posix_escape(text: str) -> str:
     return _POSIX_ERE_SPECIALS.sub(lambda m: "\\" + m.group(0), text)
 
 
-def _wildcard_condition(field: str, pattern: str) -> str:
+def wildcard_condition(field: str, pattern: str) -> str:
     """Translate a ``*``/``?`` wildcard pattern into supported operators.
+
+    Public so resource managers with a ``name`` search parameter share one
+    translation instead of hand-rolling their own (issue #103, PR #104).
 
     VergeOS has no ``like`` operator (HTTP 422 "Invalid argument"), so
     wildcard patterns are translated (issue #103):
@@ -98,7 +101,7 @@ def _wildcard_condition(field: str, pattern: str) -> str:
 def _scalar_condition(field: str, value: Any) -> str:
     """Equality condition, with wildcard translation for string values."""
     if isinstance(value, str) and ("*" in value or "?" in value):
-        return _wildcard_condition(field, value)
+        return wildcard_condition(field, value)
     return f"{field} eq {_format_value(value)}"
 
 
@@ -165,7 +168,7 @@ class Filter:
         """Add a filter condition, translating unsupported operators."""
         if op is FilterOperator.LIKE:
             # VergeOS has no 'like' operator (issue #103).
-            self._parts.append(_wildcard_condition(field, str(value)))
+            self._parts.append(wildcard_condition(field, str(value)))
             return self
         if op is FilterOperator.IN:
             # VergeOS has no 'in' operator (issue #103).
