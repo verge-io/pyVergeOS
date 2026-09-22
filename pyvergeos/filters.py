@@ -1,9 +1,27 @@
-"""OData-style filter expression builder for VergeOS API queries."""
+"""OData-style filter expression builder for VergeOS API queries.
+
+VergeOS filtering is "similar to OData" but has its own grammar. The
+supported comparison operators are ``eq``, ``ne``, ``gt``, ``ge``, ``lt``,
+``le``, ``bw`` (begins-with), ``ew`` (ends-with), ``cs`` (contains,
+case-sensitive), ``ct`` (contains, case-insensitive) and ``rx`` (POSIX ERE
+regex). There is no ``like`` and no ``in`` -- the platform rejects both
+tokens with HTTP 422 -- so the wildcard and list shorthands below are
+translated to supported operators (issue #103).
+
+``and``/``or`` have no precedence and are evaluated strictly left-to-right,
+so every generated ``or`` chain is parenthesized.
+"""
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Any
+
+# The platform's ``rx`` dialect is POSIX ERE: PCRE shorthands such as ``\d``
+# and inline flags such as ``(?i)`` do not error -- they silently match
+# nothing -- so only backslash-escaping of metacharacters is safe.
+_POSIX_ERE_SPECIALS = re.compile(r"[.\[\]()*+?{}|^$\\]")
 
 
 def quote_value(value: str) -> str:
@@ -17,8 +35,103 @@ def quote_value(value: str) -> str:
     return f"'{escaped}'"
 
 
+def _posix_escape(text: str) -> str:
+    """Escape POSIX ERE metacharacters for the platform's ``rx`` operator.
+
+    ``re.escape()`` is deliberately not used: it targets Python's PCRE-style
+    dialect, while VergeOS evaluates POSIX ERE, where unsupported escapes
+    silently match nothing instead of raising (issue #103).
+    """
+    return _POSIX_ERE_SPECIALS.sub(lambda m: "\\" + m.group(0), text)
+
+
+def _wildcard_condition(field: str, pattern: str) -> str:
+    """Translate a ``*``/``?`` wildcard pattern into supported operators.
+
+    VergeOS has no ``like`` operator (HTTP 422 "Invalid argument"), so
+    wildcard patterns are translated (issue #103):
+
+    - ``foo*``  -> ``field bw 'foo'``   (begins-with)
+    - ``*foo``  -> ``field ew 'foo'``   (ends-with)
+    - ``*foo*`` -> ``field cs 'foo'``   (contains)
+    - ``*``     -> ``field bw ''``      (matches every row)
+    - patterns with ``?`` or an interior ``*`` -> anchored POSIX-ERE ``rx``
+      with metacharacters escaped, e.g. ``a*b`` -> ``field rx '^a.*b$'``
+
+    Matching is case-sensitive throughout, consistent with ``eq``. For a
+    case-insensitive contains, use a raw ``filter="field ct '...'"``.
+    The anchored form guarantees the ``rx`` pattern is never empty (an
+    empty ``rx`` pattern matches every row on the platform).
+    """
+    if "?" not in pattern:
+        body = pattern.strip("*")
+        if "*" not in body:
+            leading = pattern.startswith("*")
+            trailing = pattern.endswith("*")
+            if not body:
+                if leading or trailing:
+                    # Only wildcards ('*', '**', ...): match everything,
+                    # as LIKE '%' would have.
+                    return f"{field} bw ''"
+                return f"{field} eq {quote_value(pattern)}"
+            if leading and trailing:
+                return f"{field} cs {quote_value(body)}"
+            if trailing:
+                return f"{field} bw {quote_value(body)}"
+            if leading:
+                return f"{field} ew {quote_value(body)}"
+            return f"{field} eq {quote_value(pattern)}"
+
+    # Complex pattern ('?' anywhere, or '*' between literals): anchored regex.
+    out = ["^"]
+    for ch in pattern:
+        if ch == "*":
+            out.append(".*")
+        elif ch == "?":
+            out.append(".")
+        else:
+            out.append(_posix_escape(ch))
+    out.append("$")
+    return f"{field} rx {quote_value(''.join(out))}"
+
+
+def _scalar_condition(field: str, value: Any) -> str:
+    """Equality condition, with wildcard translation for string values."""
+    if isinstance(value, str) and ("*" in value or "?" in value):
+        return _wildcard_condition(field, value)
+    return f"{field} eq {_format_value(value)}"
+
+
+def _in_condition(field: str, values: Any) -> str:
+    """Expand a sequence into a parenthesized ``or`` chain of conditions.
+
+    VergeOS has no ``in`` operator (HTTP 422 "Invalid argument"). The chain
+    must be parenthesized: the platform evaluates ``and``/``or`` strictly
+    left-to-right with no precedence, so an unparenthesized chain silently
+    regroups when combined with ``and`` (issue #103). String elements get
+    the same wildcard translation as scalar values.
+
+    Raises:
+        ValueError: If the sequence is empty. An empty ``in`` would match
+            no rows, which is almost certainly a caller bug and must not
+            fail silently.
+    """
+    items = list(values)
+    if not items:
+        raise ValueError(
+            f"Cannot build a filter for {field!r} from an empty sequence; it would match no rows"
+        )
+    terms = " or ".join(_scalar_condition(field, v) for v in items)
+    return f"({terms})"
+
+
 class FilterOperator(Enum):
-    """Supported filter operators."""
+    """Filter operators.
+
+    ``LIKE`` and ``IN`` are accepted for backwards compatibility but are
+    never sent to the API: VergeOS rejects both tokens, so they are
+    translated to supported operators (issue #103).
+    """
 
     EQ = "eq"
     NE = "ne"
@@ -26,6 +139,11 @@ class FilterOperator(Enum):
     GT = "gt"
     LE = "le"
     GE = "ge"
+    BW = "bw"
+    EW = "ew"
+    CS = "cs"
+    CT = "ct"
+    RX = "rx"
     LIKE = "like"
     IN = "in"
 
@@ -37,31 +155,25 @@ class Filter:
         >>> f = Filter()
         >>> f.eq("status", "running").and_().like("name", "web*")
         >>> str(f)
-        "status eq 'running' and name like 'web%'"
+        "status eq 'running' and name bw 'web'"
     """
 
     def __init__(self) -> None:
         self._parts: list[str] = []
 
     def _add(self, field: str, op: FilterOperator, value: Any) -> Filter:
-        """Add a filter condition."""
-        formatted_value = self._format_value(value, op)
-        self._parts.append(f"{field} {op.value} {formatted_value}")
+        """Add a filter condition, translating unsupported operators."""
+        if op is FilterOperator.LIKE:
+            # VergeOS has no 'like' operator (issue #103).
+            self._parts.append(_wildcard_condition(field, str(value)))
+            return self
+        if op is FilterOperator.IN:
+            # VergeOS has no 'in' operator (issue #103).
+            seq = value if isinstance(value, (list, tuple)) else [value]
+            self._parts.append(_in_condition(field, seq))
+            return self
+        self._parts.append(f"{field} {op.value} {_format_value(value)}")
         return self
-
-    def _format_value(self, value: Any, op: FilterOperator) -> str:
-        """Format value for filter expression."""
-        if op == FilterOperator.IN:
-            if not isinstance(value, (list, tuple)):
-                value = [value]
-            formatted = ", ".join(_format_value(v) for v in value)
-            return f"({formatted})"
-
-        if op == FilterOperator.LIKE and isinstance(value, str):
-            # Convert wildcards: * -> %, ? -> _
-            value = value.replace("*", "%").replace("?", "_")
-
-        return _format_value(value)
 
     def _auto_and(self) -> None:
         """Auto-add AND if needed (implicit AND between conditions)."""
@@ -99,14 +211,59 @@ class Filter:
         return self._add(field, FilterOperator.GE, value)
 
     def like(self, field: str, pattern: str) -> Filter:
-        """Add LIKE pattern condition. Use * for wildcard."""
+        """Add a wildcard pattern condition. ``*`` = any run, ``?`` = one char.
+
+        VergeOS has no ``like`` operator, so the pattern is translated to
+        supported operators: ``foo*`` -> ``bw``, ``*foo`` -> ``ew``,
+        ``*foo*`` -> ``cs``, complex patterns -> anchored POSIX-ERE ``rx``.
+        Matching is case-sensitive, consistent with ``eq`` (issue #103).
+        """
         self._auto_and()
         return self._add(field, FilterOperator.LIKE, pattern)
 
     def in_(self, field: str, values: list[Any] | Any) -> Filter:
-        """Add IN condition."""
+        """Add a membership condition as a parenthesized ``or`` chain.
+
+        VergeOS has no ``in`` operator, so the list expands to
+        ``(field eq v1 or field eq v2 ...)``. String values follow the same
+        wildcard translation as :meth:`like` (issue #103).
+
+        Raises:
+            ValueError: If ``values`` is an empty sequence.
+        """
         self._auto_and()
         return self._add(field, FilterOperator.IN, values)
+
+    def bw(self, field: str, value: str) -> Filter:
+        """Add begins-with condition (case-sensitive)."""
+        self._auto_and()
+        return self._add(field, FilterOperator.BW, value)
+
+    def ew(self, field: str, value: str) -> Filter:
+        """Add ends-with condition (case-sensitive)."""
+        self._auto_and()
+        return self._add(field, FilterOperator.EW, value)
+
+    def cs(self, field: str, value: str) -> Filter:
+        """Add contains condition (case-sensitive)."""
+        self._auto_and()
+        return self._add(field, FilterOperator.CS, value)
+
+    def ct(self, field: str, value: str) -> Filter:
+        """Add contains condition (case-insensitive)."""
+        self._auto_and()
+        return self._add(field, FilterOperator.CT, value)
+
+    def rx(self, field: str, pattern: str) -> Filter:
+        """Add a POSIX-ERE regex condition (partial match, case-sensitive).
+
+        The platform dialect is POSIX ERE: bracket classes like ``[0-9]``
+        and ``[[:digit:]]`` work, but PCRE shorthands (``\\d``) and inline
+        flags (``(?i)``) silently match nothing, and an **empty pattern
+        matches every row**. Escape literal metacharacters with a backslash.
+        """
+        self._auto_and()
+        return self._add(field, FilterOperator.RX, pattern)
 
     def and_(self) -> Filter:
         """Add explicit AND connector (usually not needed, AND is implicit)."""
@@ -177,18 +334,23 @@ def build_filter(**kwargs: Any) -> str:
 
     Supports:
         - Simple equality: name="value"
-        - Wildcards: name="prefix*" (converted to LIKE)
-        - Lists: status=["running", "stopped"] (converted to IN)
+        - Wildcards: name="prefix*" (translated to bw/ew/cs/rx; VergeOS has
+          no LIKE operator -- see issue #103). Case-sensitive.
+        - Lists: status=["running", "stopped"] (expanded to a parenthesized
+          or-chain of equality/wildcard conditions; VergeOS has no IN
+          operator). Raises ValueError for an empty sequence.
 
     Args:
         **kwargs: Field-value pairs for filtering.
 
     Returns:
-        OData filter string.
+        OData-style filter string.
 
     Example:
         >>> build_filter(status="running", name="web*")
-        "status eq 'running' and name like 'web%'"
+        "status eq 'running' and name bw 'web'"
+        >>> build_filter(status=["running", "stopped"])
+        "(status eq 'running' or status eq 'stopped')"
     """
     parts = []
 
@@ -197,15 +359,8 @@ def build_filter(**kwargs: Any) -> str:
             continue
 
         if isinstance(value, (list, tuple)):
-            # IN query
-            formatted = ", ".join(_format_value(v) for v in value)
-            parts.append(f"{field} in ({formatted})")
-        elif isinstance(value, str) and ("*" in value or "?" in value):
-            # LIKE query - convert wildcards before quoting the literal
-            pattern = value.replace("*", "%").replace("?", "_")
-            parts.append(f"{field} like {quote_value(pattern)}")
+            parts.append(_in_condition(field, value))
         else:
-            # Equality
-            parts.append(f"{field} eq {_format_value(value)}")
+            parts.append(_scalar_condition(field, value))
 
     return " and ".join(parts)

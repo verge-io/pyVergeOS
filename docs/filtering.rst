@@ -16,8 +16,14 @@ The simplest way to filter is with keyword arguments:
    # Filter by multiple fields
    linux_vms = client.vms.list(os_family="linux", status="running")
 
-   # Wildcard matching
+   # Wildcard matching (* = any run of characters, ? = one character).
+   # VergeOS has no LIKE operator; the SDK translates wildcards to the
+   # platform's bw/ew/cs/rx operators. Matching is case-sensitive.
    web_servers = client.vms.list(name="web-*")
+
+   # Membership: expands to a parenthesized or-chain of eq conditions
+   # (VergeOS has no IN operator). Raises ValueError for an empty list.
+   vms = client.vms.list(name=["web-01", "web-02"])
 
 OData Filter Strings
 --------------------
@@ -32,19 +38,26 @@ For complex queries, use OData filter syntax:
    # Compound conditions
    vms = client.vms.list(filter="os_family eq 'linux' and ram gt 2048")
 
-   # String functions
-   vms = client.vms.list(filter="startswith(name, 'prod-')")
+   # Prefix / substring / regex
+   vms = client.vms.list(filter="name bw 'prod-'")
+   vms = client.vms.list(filter="name ct 'web'")
+   vms = client.vms.list(filter="name rx '^prod-[0-9]+$'")
 
-Supported operators:
+Supported operators (the platform grammar is "similar to OData", not OData —
+``like``, ``in`` and function calls such as ``startswith()`` are rejected
+with HTTP 422):
 
-- ``eq`` - Equal
-- ``ne`` - Not equal
-- ``gt`` - Greater than
-- ``lt`` - Less than
-- ``ge`` - Greater than or equal
-- ``le`` - Less than or equal
-- ``and`` - Logical and
-- ``or`` - Logical or
+- ``eq`` / ``ne`` - Equal / not equal
+- ``gt`` / ``ge`` / ``lt`` / ``le`` - Numeric comparisons
+- ``bw`` / ``ew`` - Begins with / ends with (case-sensitive)
+- ``cs`` / ``ct`` - Contains (``cs`` case-sensitive, ``ct`` case-insensitive)
+- ``rx`` - POSIX-ERE regex, partial match, case-sensitive. Bracket classes
+  (``[0-9]``, ``[[:digit:]]``) work; PCRE shorthands (``\d``) and inline
+  flags (``(?i)``) silently match nothing, and an empty pattern matches
+  every row.
+- ``and`` / ``or`` - Logical connectors. **There is no operator precedence**:
+  expressions evaluate strictly left-to-right, so always parenthesize
+  ``or`` groups embedded in larger filters.
 
 Filter Builder
 --------------
@@ -63,9 +76,16 @@ For programmatic filter construction, use the ``Filter`` class:
 
    vms = client.vms.list(filter=str(f))
 
-   # Method chaining
-   f = Filter().eq("status", "running").and_().startswith("name", "prod-")
+   # Method chaining (AND is implicit between conditions)
+   f = Filter().eq("status", "running").bw("name", "prod-")
    vms = client.vms.list(filter=str(f))
+
+   # Native operators: bw, ew, cs, ct, rx
+   f = Filter().ct("description", "database").rx("name", "^db-[0-9]+$")
+
+   # Wildcards and lists are translated to supported operators
+   f = Filter().like("name", "web-*")        # -> name bw 'web-'
+   f = Filter().in_("name", ["a", "b"])     # -> (name eq 'a' or name eq 'b')
 
 String Values
 -------------
@@ -90,8 +110,13 @@ literals. It includes the surrounding quotes and preserves wildcard characters:
    groups = client.groups.list(filter=f"name eq {quote_value(name)}")
 
 Raw ``filter=`` strings are sent unchanged. SQL-style doubled apostrophes are
-not valid VergeOS escaping. ``get(name=...)`` matches names exactly;
-keyword filters and ``Filter.like()`` retain their existing wildcard behavior.
+not valid VergeOS escaping. ``get(name=...)`` matches names exactly. In
+keyword filters and ``Filter.like()``, ``*`` and ``?`` are wildcards and are
+translated to supported operators (``foo*`` -> ``bw``, ``*foo`` -> ``ew``,
+``*foo*`` -> ``cs``, complex patterns -> anchored ``rx`` with metacharacters
+escaped). ``%`` and ``_`` are ordinary literal characters. All wildcard
+matching is case-sensitive; use ``filter="field ct '...'"`` or
+``Filter().ct(...)`` for case-insensitive contains.
 
 Field Selection
 ---------------
