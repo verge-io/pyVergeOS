@@ -86,6 +86,16 @@ Fixed
   re-fetching the full table. An AST-based guard test fails CI if a future
   ``list()`` override consumes ``**kwargs`` without declaring them. (#102)
 
+- Six ``get()``/``list()`` methods still corrupted a ``fields`` string after
+  the #101 sweep: ``auth_sources``, ``certificates``, ``cloudinit_files``
+  (list and get), ``oidc_applications`` and ``webhooks`` build an *augmented*
+  projection (adding ``settings``, ``client_secret`` and similar), so they
+  aliased the parameter with ``list(fields)`` before joining and bypassed
+  ``normalize_fields()``. ``list("$key,name")`` splits into characters exactly
+  as ``",".join()`` does. A new ``split_fields()`` helper returns the list
+  form, and the AST tripwire now follows locals that alias a parameter, which
+  is how the original guard missed these. (#101)
+
 Changed
 ^^^^^^^
 

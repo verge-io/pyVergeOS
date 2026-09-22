@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -407,7 +407,7 @@ class WebhookManager(ResourceManager[Webhook]):
             NotFoundError: If webhook not found.
             ValueError: If neither key nor name provided.
         """
-        field_list = fields or _DEFAULT_WEBHOOK_FIELDS
+        field_list = split_fields(fields) or list(_DEFAULT_WEBHOOK_FIELDS)
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(field_list)}

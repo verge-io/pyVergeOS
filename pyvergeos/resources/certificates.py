@@ -13,6 +13,7 @@ from pyvergeos.resources.base import (
     ResourceObject,
     normalize_fields,
     serialize_list,
+    split_fields,
 )
 
 if TYPE_CHECKING:
@@ -474,7 +475,7 @@ class CertificateManager(ResourceManager[Certificate]):
         """
         # Build field list
         if fields:
-            field_list = fields
+            field_list = split_fields(fields)
         else:
             field_list = list(_DEFAULT_CERT_FIELDS)
             if include_keys:

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -289,7 +289,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             params["filter"] = " and ".join(filters)
 
         # Field selection
-        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+        field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
         params["fields"] = ",".join(field_list)
 
         # Pagination
@@ -334,7 +334,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             NotFoundError: If file not found.
             ValueError: If neither key nor (name + vm_key) provided.
         """
-        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+        field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(field_list)}
@@ -639,7 +639,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
             NotFoundError: If file not found.
             ValueError: If neither key nor name provided.
         """
-        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+        field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
 
         if key is not None:
             # Get by key directly (no VM filtering needed)

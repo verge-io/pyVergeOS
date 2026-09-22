@@ -49,6 +49,7 @@ from pyvergeos.resources.base import (
     ResourceObject,
     normalize_fields,
     serialize_list,
+    split_fields,
 )
 
 if TYPE_CHECKING:
@@ -1038,7 +1039,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
             >>> print(app.client_secret)
         """
         # Determine which fields to request
-        request_fields = list(fields) if fields else list(self._default_fields)
+        request_fields = split_fields(fields) or list(self._default_fields)
         if include_secret and "client_secret" not in request_fields:
             request_fields.append("client_secret")
         if include_well_known and "well_known_configuration" not in request_fields:

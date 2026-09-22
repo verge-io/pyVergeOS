@@ -51,6 +51,29 @@ def normalize_fields(fields: str | builtins.list[str] | None) -> str | None:
     return serialize_list(fields, ",")
 
 
+def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
+    """Split a ``fields`` projection into individual field names.
+
+    The list counterpart of :func:`normalize_fields`, for the callers that
+    must *augment* the projection (adding ``settings``, ``client_secret``
+    and similar) before serializing it. Those callers cannot use
+    ``normalize_fields()``, and ``list("$key,name")`` would split a
+    caller-supplied string into single characters - the same silent
+    corruption as ``",".join()`` (issue #101).
+
+    Args:
+        fields: A comma-separated string, a sequence of names, or None.
+
+    Returns:
+        A list of field names; empty when no projection was requested.
+    """
+    if not fields:
+        return []
+    if isinstance(fields, str):
+        return [name.strip() for name in fields.split(",") if name.strip()]
+    return list(fields)
+
+
 class ResourceObject(dict[str, Any]):
     """Dict subclass with attribute access and resource methods.
 
