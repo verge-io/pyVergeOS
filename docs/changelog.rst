@@ -6,6 +6,61 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- ``list()`` no longer returns every row when a filter cannot be applied.
+  Shorthand filter kwargs were silently dropped whenever a manager supplied
+  its own ``filter`` string, so ``client.vms.list(name=...)`` ignored the name
+  and returned every non-snapshot VM - making the ordinary cleanup idiom
+  ``for v in client.vms.list(name=missing): client.vms.delete(...)`` a
+  destructive operation. A new ``combine_filters()`` helper merges both forms
+  as ``(filter) and (built)``, and the 33 manager ``list()`` overrides that
+  documented ``**kwargs`` as "additional filter arguments" without ever
+  reading them now merge those kwargs into the filter they send. (#96)
+- ``drive.tier = 2; drive.save()`` is no longer a silent no-op.
+  ``ResourceObject._save()`` sends locally modified fields as a raw PUT that
+  bypasses the typed ``update()``, so the ``tier`` -> ``preferred_tier``
+  translation added in #81 was skipped and VergeOS accepted the raw ``tier``
+  field with HTTP 200 and ignored it. A new
+  ``ResourceManager._prepare_write_fields()`` hook applies alias translation
+  on every write path, so attribute assignment and ``update()`` behave
+  identically: ``tier`` -> ``preferred_tier`` (drives), ``network`` ->
+  ``vnet`` (NICs), empty ``cloudinit_datasource`` -> ``"none"`` (VMs), and
+  frequency/day validation plus ``max_tier`` coercion (snapshot profile
+  periods). (#97)
+- ``ResourceObject.refresh()`` now updates the object it is called on instead
+  of returning a new one and leaving the receiver stale. The obvious wait loop
+  (``while not vm.running: vm.refresh()``) converges as soon as the state
+  changes rather than always running to its deadline. ``refresh()`` returns
+  ``self``, so ``vm = vm.refresh()`` remains correct, and the 26 subclass
+  overrides that existed only to narrow the return type were removed.
+  ``SharedObject.refresh()`` gained the same in-place semantics;
+  ``UpdateSource.refresh()``, which triggers an update check, is unchanged.
+  (#98)
+- Iterating a scoped collection no longer returns zero rows.
+  ``iter_all()``/``__iter__`` pass ``limit``/``offset`` to ``list()``, and 19
+  overrides consumed them as ``**kwargs`` filter arguments, producing filters
+  such as ``(machine eq 55) and (limit eq 100 and offset eq 0)`` that matched
+  nothing. Those overrides now declare ``limit``/``offset`` and send them as
+  request parameters, so iteration works and pages server-side instead of
+  re-fetching the full table. An AST-based guard test fails CI if a future
+  ``list()`` override consumes ``**kwargs`` without declaring them. (#102)
+
+Changed
+^^^^^^^
+
+- Filter kwargs whose values are all ``None`` (for example
+  ``client.networks.list(name=None)``) now raise ``ValueError`` instead of
+  producing an empty filter that matched every row. This matches the existing
+  behaviour of ``get(name=None)``. Filter kwargs that are only partly ``None``
+  still filter on the non-``None`` conditions. (#96)
+- Invalid snapshot profile period fields now raise at ``save()`` as well as
+  ``update()``, rather than being sent raw and silently ignored. (#97)
+
 [1.2.7] - 2026-09-21
 --------------------
 
