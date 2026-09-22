@@ -388,7 +388,7 @@ class TaskManager(ResourceManager[Task]):
         elif running is False:
             conditions.append("status eq 'idle'")
         elif status:
-            conditions.append(f"status eq '{status.lower()}'")
+            conditions.append(f"status eq {quote_value(status.lower())}")
 
         if enabled is not None:
             conditions.append(f"enabled eq {str(enabled).lower()}")
@@ -874,4 +874,4 @@ class TaskManager(ResourceManager[Task]):
         Returns:
             List of Task objects.
         """
-        return self.list(filter=f"action eq '{action}'", fields=fields, limit=limit)
+        return self.list(filter=f"action eq {quote_value(action)}", fields=fields, limit=limit)

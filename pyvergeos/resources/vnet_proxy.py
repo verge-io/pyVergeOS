@@ -6,6 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.exceptions import NotFoundError
+from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
@@ -197,7 +198,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
         # Build filter for other lookups
         filter_parts = [f"proxy eq {self._proxy.key}"]
         if fqdn is not None:
-            filter_parts.append(f"fqdn eq '{fqdn}'")
+            filter_parts.append(f"fqdn eq {quote_value(fqdn)}")
         elif tenant is not None:
             filter_parts.append(f"tenant eq {tenant}")
         else:

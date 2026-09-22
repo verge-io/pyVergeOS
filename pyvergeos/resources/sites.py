@@ -361,7 +361,7 @@ class SiteManager(ResourceManager[Site]):
             conditions.append(f"enabled eq {str(enabled).lower()}")
 
         if status is not None:
-            conditions.append(f"status eq '{status}'")
+            conditions.append(f"status eq {quote_value(status)}")
 
         if filter:
             conditions.append(f"({filter})")

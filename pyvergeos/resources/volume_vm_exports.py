@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
@@ -223,7 +223,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
 
         # Add status filter
         if status:
-            filters.append(f"status eq '{status}'")
+            filters.append(f"status eq {quote_value(status)}")
 
         # Add volume filter
         if volume is not None:

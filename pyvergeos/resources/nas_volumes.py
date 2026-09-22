@@ -331,7 +331,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
 
         # Add fs_type filter
         if fs_type:
-            filters.append(f"fs_type eq '{fs_type}'")
+            filters.append(f"fs_type eq {quote_value(fs_type)}")
 
         # Add service filter
         if service is not None:
@@ -410,7 +410,7 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         if key is not None:
             # Fetch by key using id filter (PowerShell pattern: id eq '$Key')
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)
@@ -882,7 +882,7 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
 
         if volume_key is not None:
             # Volume keys are strings (40-char hex)
-            filters.append(f"volume eq '{volume_key}'")
+            filters.append(f"volume eq {quote_value(volume_key)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

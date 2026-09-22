@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, wildcard_condition
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
 from pyvergeos.resources.base import ResourceManager, ResourceObject, split_fields
 
 if TYPE_CHECKING:
@@ -279,7 +279,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         # Filter by render type
         if render:
             api_render = RENDER_TYPE_MAP.get(render, render.lower())
-            filters.append(f"render eq '{api_render}'")
+            filters.append(f"render eq {quote_value(api_render)}")
 
         # Add filter kwargs
         if filter_kwargs:

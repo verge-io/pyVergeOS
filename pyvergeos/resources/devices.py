@@ -347,7 +347,7 @@ class DeviceManager(ResourceManager[Device]):
             filters.append(filter)
 
         if device_type is not None:
-            filters.append(f"type eq '{device_type}'")
+            filters.append(f"type eq {quote_value(device_type)}")
 
         if enabled_only:
             filters.append("enabled eq true")

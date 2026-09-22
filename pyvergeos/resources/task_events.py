@@ -48,7 +48,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
@@ -263,10 +263,10 @@ class TaskEventManager(ResourceManager[TaskEvent]):
             filters.append(f"owner eq {owner_filter}")
 
         if table is not None:
-            filters.append(f"table eq '{table}'")
+            filters.append(f"table eq {quote_value(table)}")
 
         if event is not None:
-            filters.append(f"event eq '{event}'")
+            filters.append(f"event eq {quote_value(event)}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))

@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
+from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
@@ -866,7 +866,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
             filters.append(filter)
 
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
         elif errors_only:
             filters.append("(level eq 'error' or level eq 'critical')")
         elif warnings_only:

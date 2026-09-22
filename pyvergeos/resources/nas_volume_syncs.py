@@ -377,7 +377,7 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)

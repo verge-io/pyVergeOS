@@ -150,7 +150,7 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
         # Build filter for this tenant's virtual IPs
         owner_filter = f"owner eq 'tenants/{self._tenant.key}' and type eq 'virtual'"
         if ip:
-            owner_filter = f"{owner_filter} and ip eq '{ip}'"
+            owner_filter = f"{owner_filter} and ip eq {quote_value(ip)}"
         if filter:
             owner_filter = f"{owner_filter} and ({filter})"
         # Merge shorthand kwargs instead of silently dropping them (issue #96)

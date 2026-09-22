@@ -262,7 +262,7 @@ class VmImportManager(ResourceManager["VmImport"]):
 
         # Add status filter
         if status:
-            filters.append(f"status eq '{status}'")
+            filters.append(f"status eq {quote_value(status)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -320,7 +320,7 @@ class VmImportManager(ResourceManager["VmImport"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
                 params["fields"] = normalize_fields(fields)
@@ -674,11 +674,11 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
             import_key = vm_import
 
         if import_key is not None:
-            filters.append(f"vm_import eq '{import_key}'")
+            filters.append(f"vm_import eq {quote_value(import_key)}")
 
         # Add level filter
         if level:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)

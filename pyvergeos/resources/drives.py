@@ -187,7 +187,7 @@ class DriveManager(ResourceManager[Drive]):
         # Build filter for this VM's machine
         machine_filter = f"machine eq {self.machine_key}"
         if media:
-            machine_filter = f"{machine_filter} and media eq '{media}'"
+            machine_filter = f"{machine_filter} and media eq {quote_value(media)}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
         # Merge shorthand kwargs instead of silently dropping them (issue #96)

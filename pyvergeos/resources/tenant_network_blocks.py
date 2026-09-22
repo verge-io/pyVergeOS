@@ -153,7 +153,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
         # Build filter for this tenant's blocks
         owner_filter = f"owner eq 'tenants/{self._tenant.key}'"
         if cidr:
-            owner_filter = f"{owner_filter} and cidr eq '{cidr}'"
+            owner_filter = f"{owner_filter} and cidr eq {quote_value(cidr)}"
         if filter:
             owner_filter = f"{owner_filter} and ({filter})"
         # Merge shorthand kwargs instead of silently dropping them (issue #96)

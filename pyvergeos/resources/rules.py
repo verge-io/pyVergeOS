@@ -258,13 +258,13 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
         filters: builtins.list[str] = [f"vnet eq {self.network_key}"]
 
         if direction:
-            filters.append(f"direction eq '{direction}'")
+            filters.append(f"direction eq {quote_value(direction)}")
 
         if action:
-            filters.append(f"action eq '{action}'")
+            filters.append(f"action eq {quote_value(action)}")
 
         if protocol:
-            filters.append(f"protocol eq '{protocol}'")
+            filters.append(f"protocol eq {quote_value(protocol)}")
 
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")

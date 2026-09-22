@@ -193,3 +193,89 @@ class TestLiteralReservedCharacters:
         # Guards against the set being trimmed without re-measuring.
         assert set(_RESERVED_IN_LITERAL) == set(RESERVED_LITERAL_CHARS)
         assert _RESERVED_IN_LITERAL[0] == "\\", "backslash must be replaced first"
+
+
+# ---------------------------------------------------------------------------
+# Values must reach the wire through quote_value() (issue #115)
+# ---------------------------------------------------------------------------
+#
+# quote_value() exists so a caller-supplied value cannot be parsed as filter
+# grammar, but 91 conditions interpolated the value straight into a quoted
+# literal instead. Measured on a live system, a crafted value returned the
+# entire table rather than zero rows:
+#
+#   list(key_contains="zzzz' or key ne 'zzzz")  -> all 68 rows
+#
+# and the #100 brace effect reached those sites too. This scan fails if any
+# filter condition puts a placeholder directly inside '...'.
+
+_OPERATOR_ALTERNATION = "|".join(sorted(VERIFIED_OPERATORS - {"and", "or"}))
+_CONDITION_TAIL = re.compile(rf"\b(?:{_OPERATOR_ALTERNATION})\s+'$")
+
+
+def _raw_quoted_interpolations(path: pathlib.Path) -> list[str]:
+    """Find ``OP '{expr}'`` inside f-strings - a value bypassing quote_value."""
+    offenders: list[str] = []
+    tree = ast.parse(path.read_text())
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.JoinedStr):
+            continue
+        values = node.values
+        for i, value in enumerate(values):
+            if not isinstance(value, ast.FormattedValue):
+                continue
+            prev = values[i - 1] if i else None
+            nxt = values[i + 1] if i + 1 < len(values) else None
+            before = prev.value if isinstance(prev, ast.Constant) else ""
+            after = nxt.value if isinstance(nxt, ast.Constant) else ""
+            if not (isinstance(before, str) and isinstance(after, str)):
+                continue
+            if not (before.endswith("'") and after.startswith("'")):
+                continue
+            if not _CONDITION_TAIL.search(before):
+                continue
+            try:
+                where = str(path.relative_to(PACKAGE_DIR.parent))
+            except ValueError:  # a sample outside the package (self-test)
+                where = str(path)
+            offenders.append(
+                f"{where}:{node.lineno} {before[-24:]}{{{ast.unparse(value.value)}}}{after[:2]}"
+            )
+    return offenders
+
+
+class TestValuesGoThroughQuoteValue:
+    """No filter condition may interpolate a value straight into a literal."""
+
+    def test_no_raw_quoted_interpolation_in_filters(self) -> None:
+        offenders: list[str] = []
+        for path in sorted(PACKAGE_DIR.rglob("*.py")):
+            offenders.extend(_raw_quoted_interpolations(path))
+        assert offenders == [], (
+            "Filter condition interpolating a value directly into a quoted "
+            "literal. A value containing an apostrophe breaks out of the "
+            "literal and the remainder is evaluated as filter grammar, and a "
+            "value containing '{' silently matches a different row (issues "
+            "#115, #100). Use quote_value():\n" + "\n".join(offenders)
+        )
+
+    def test_the_scan_detects_a_known_bad_shape(self) -> None:
+        """Guard the guard: the scan must flag a deliberately bad sample."""
+        import tempfile
+
+        sample = (
+            "def f(name, level):\n"
+            "    a = f\"name eq '{name}'\"\n"
+            "    b = f\"x ct '{level.lower()}'\"\n"
+            "    c = f'name eq {quote_value(name)}'\n"  # correct form, not flagged
+            "    d = f'vnet eq {name}'\\\n"  # unquoted, not a literal
+            "\n"
+            "    return a, b, c, d\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            p = pathlib.Path(tmp) / "sample.py"
+            p.write_text(sample)
+            found = _raw_quoted_interpolations(p)
+        assert len(found) == 2, f"expected 2 offenders, got {found}"
+        assert any("{name}" in f for f in found)
+        assert any("level.lower()" in f for f in found)

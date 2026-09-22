@@ -1062,7 +1062,7 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
                 "Error": "error",
             }
             if status in status_map:
-                filters.append(f"status eq '{status_map[status]}'")
+                filters.append(f"status eq {quote_value(status_map[status])}")
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -1239,7 +1239,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
                 "Storage": "01",  # Mass storage controller
             }
             if device_type in type_map:
-                filters.append(f"device_type eq '{type_map[device_type]}'")
+                filters.append(f"device_type eq {quote_value(type_map[device_type])}")
 
         if device_class is not None:
             filters.append(f"class ct {quote_value(device_class)}")
