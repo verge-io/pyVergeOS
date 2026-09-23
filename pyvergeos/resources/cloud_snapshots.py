@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import builtins
 import time
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 from pyvergeos.constants import TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, ValidationError
@@ -14,6 +15,9 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+#: A tag given as its ``$key``, its name, or a Tag/ResourceObject.
+TagRef = Union[int, str, ResourceObject]
 
 
 # Default fields for cloud snapshot list operations
@@ -918,6 +922,59 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
 
         raise ValueError("Either key or name must be provided")
 
+    def _resolve_tag_keys(self, tags: TagRef | Sequence[TagRef] | None) -> str | None:
+        """Resolve tags to the comma-separated ``$key`` string the API wants.
+
+        The ``partial_tags`` / ``quiesce_tags`` columns take tag **keys**; a
+        name sent verbatim is stored literally and silently ignored (it does
+        not resolve to a tag), so this converts names to keys instead.
+
+        Accepts a single tag or a sequence, where each tag is an ``int`` key,
+        a Tag/``ResourceObject`` (its ``$key`` is used), a numeric string, or a
+        tag name. A name is resolved via the tags endpoint and must match
+        exactly one tag -- names are only unique within a category, so an
+        ambiguous name raises rather than guessing (issue #129).
+
+        Returns:
+            The comma-separated key string, or None when ``tags`` is None.
+        """
+        if tags is None:
+            return None
+        items: list[TagRef]
+        if isinstance(tags, (str, int, ResourceObject)) or not isinstance(tags, Sequence):
+            items = [tags]  # a single tag; note str is itself a Sequence
+        else:
+            items = list(tags)
+        keys = [str(self._resolve_one_tag(t)) for t in items]
+        return ",".join(keys)
+
+    def _resolve_one_tag(self, tag: TagRef) -> int:
+        """Resolve a single tag to its ``$key`` (see _resolve_tag_keys)."""
+        if isinstance(tag, bool):  # guard: bool is an int subclass
+            raise TypeError(f"invalid tag: {tag!r}")
+        if isinstance(tag, int):
+            return tag
+        if isinstance(tag, ResourceObject):
+            key = tag.get("$key")
+            if key is None:
+                raise ValueError("tag object has no $key")
+            return int(key)
+        text = str(tag).strip()
+        if text.isdigit():
+            return int(text)
+        matches = self._client._request(
+            "GET", "tags", params={"filter": f"name eq {quote_value(text)}", "fields": "$key"}
+        )
+        rows = matches if isinstance(matches, list) else ([matches] if matches else [])
+        if not rows:
+            raise ValueError(f"no tag named {text!r}")
+        if len(rows) > 1:
+            raise ValueError(
+                f"tag name {text!r} is ambiguous ({len(rows)} matches); "
+                "pass the tag $key or a Tag object instead"
+            )
+        return int(rows[0]["$key"])
+
     def create(  # type: ignore[override]
         self,
         name: str | None = None,
@@ -928,6 +985,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         min_snapshots: int = 1,
         immutable: bool = False,
         private: bool = False,
+        include_tags: TagRef | Sequence[TagRef] | None = None,
+        exclude_tags: TagRef | Sequence[TagRef] | None = None,
+        quiesce_tags: TagRef | Sequence[TagRef] | None = None,
         wait: bool = False,
         wait_timeout: int = TASK_WAIT_TIMEOUT,
     ) -> CloudSnapshot:
@@ -941,6 +1001,16 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             min_snapshots: Minimum snapshots to retain (default: 1).
             immutable: Make snapshot immutable (locked, read-only).
             private: Hide snapshot from tenants.
+            include_tags: Capture only VMs carrying these tags -- a partial
+                (tag-scoped) snapshot, VergeOS 26.1+. Each tag is a ``$key``,
+                a name, or a Tag object. Mutually exclusive with
+                ``exclude_tags``.
+            exclude_tags: Capture everything *except* VMs carrying these tags.
+                Mutually exclusive with ``include_tags``.
+            quiesce_tags: VMs with these tags briefly freeze disk activity
+                during capture for an application-consistent snapshot. Valid
+                only for a partial snapshot (with ``include_tags`` or
+                ``exclude_tags``).
             wait: Wait for snapshot creation to complete.
             wait_timeout: Maximum seconds to wait (default: 300).
 
@@ -967,7 +1037,24 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             ...     never_expire=True,
             ...     immutable=True,
             ... )
+
+            >>> # Partial snapshot: only DB-tagged VMs, quiesced
+            >>> snapshot = client.cloud_snapshots.create(
+            ...     name="DB-Only",
+            ...     include_tags=["DB"],
+            ...     quiesce_tags=["DB"],
+            ... )
         """
+        if include_tags is not None and exclude_tags is not None:
+            raise ValueError(
+                "include_tags and exclude_tags are mutually exclusive; a partial "
+                "snapshot is either include-scoped or exclude-scoped, not both"
+            )
+        if quiesce_tags is not None and include_tags is None and exclude_tags is None:
+            raise ValueError(
+                "quiesce_tags applies only to a partial snapshot; also pass "
+                "include_tags or exclude_tags"
+            )
         # Generate default name if not provided
         if name is None:
             name = datetime.now().strftime("Snapshot_%Y%m%d_%H%M")
@@ -1000,6 +1087,27 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
 
         if private:
             body["private"] = True
+
+        # Partial (tag-scoped) snapshot, VergeOS 26.1+. The platform models
+        # this as a ``type`` toggle plus a single ``partial_tags`` set; the
+        # tables store tag $keys, so names are resolved to keys here (#129).
+        if include_tags is not None:
+            partial_keys = self._resolve_tag_keys(include_tags)
+            if not partial_keys:
+                raise ValueError("include_tags must name at least one tag")
+            body["type"] = "partial_include"
+            body["partial_tags"] = partial_keys
+        elif exclude_tags is not None:
+            partial_keys = self._resolve_tag_keys(exclude_tags)
+            if not partial_keys:
+                raise ValueError("exclude_tags must name at least one tag")
+            body["type"] = "partial_exclude"
+            body["partial_tags"] = partial_keys
+
+        if quiesce_tags is not None:
+            quiesce_keys = self._resolve_tag_keys(quiesce_tags)
+            if quiesce_keys:
+                body["quiesce_tags"] = quiesce_keys
 
         response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None:

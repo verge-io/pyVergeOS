@@ -802,3 +802,131 @@ class TestCloudSnapshotObjectMethods:
         # sample_snapshot_data has immutable=True and immutable_status=locked
         with pytest.raises(ValidationError, match="immutable.*locked"):
             snapshot.delete()
+
+
+# =============================================================================
+# Partial (tag-scoped) snapshots — issue #129
+# =============================================================================
+
+
+def _post_body(mock_session: MagicMock, name: str) -> dict[str, Any]:
+    """Return the POST body whose 'name' matches, from recorded calls."""
+    for call in mock_session.request.call_args_list:
+        body = call.kwargs.get("json", {})
+        if body and body.get("name") == name:
+            return body
+    raise AssertionError(f"no create POST found for {name!r}")
+
+
+class TestPartialSnapshotCreate:
+    """create() must express tag-scoped partial snapshots (issue #129)."""
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_include_tags_by_key(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1735689600.0
+        mock_session.request.return_value.json.return_value = {"$key": 5, "name": "inc"}
+        mock_client.cloud_snapshots.create(name="inc", include_tags=[3])
+        body = _post_body(mock_session, "inc")
+        assert body["type"] == "partial_include"
+        assert body["partial_tags"] == "3"
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_exclude_tags_multiple_keys(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1735689600.0
+        mock_session.request.return_value.json.return_value = {"$key": 6, "name": "exc"}
+        mock_client.cloud_snapshots.create(name="exc", exclude_tags=[1, 2])
+        body = _post_body(mock_session, "exc")
+        assert body["type"] == "partial_exclude"
+        assert body["partial_tags"] == "1,2"
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_single_tag_not_iterated_as_string(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """A single numeric-string tag must not be split into characters."""
+        mock_time.time.return_value = 1735689600.0
+        mock_session.request.return_value.json.return_value = {"$key": 7, "name": "one"}
+        mock_client.cloud_snapshots.create(name="one", include_tags="3")
+        assert _post_body(mock_session, "one")["partial_tags"] == "3"
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_quiesce_tags_included(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1735689600.0
+        mock_session.request.return_value.json.return_value = {"$key": 8, "name": "q"}
+        mock_client.cloud_snapshots.create(name="q", include_tags=[3], quiesce_tags=[3])
+        body = _post_body(mock_session, "q")
+        assert body["type"] == "partial_include"
+        assert body["quiesce_tags"] == "3"
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_full_snapshot_sends_no_type(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """A non-partial create is unchanged: no type/partial_tags (backward compat)."""
+        mock_time.time.return_value = 1735689600.0
+        mock_session.request.return_value.json.return_value = {"$key": 9, "name": "full"}
+        mock_client.cloud_snapshots.create(name="full")
+        body = _post_body(mock_session, "full")
+        assert "type" not in body
+        assert "partial_tags" not in body
+
+    def test_include_and_exclude_are_mutually_exclusive(self, mock_client: VergeClient) -> None:
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            mock_client.cloud_snapshots.create(name="bad", include_tags=[1], exclude_tags=[2])
+
+    def test_quiesce_requires_partial(self, mock_client: VergeClient) -> None:
+        with pytest.raises(ValueError, match="only to a partial"):
+            mock_client.cloud_snapshots.create(name="bad", quiesce_tags=[1])
+
+
+class TestTagResolution:
+    """_resolve_tag_keys converts names/objects to the key string the API wants."""
+
+    def _mgr(self) -> Any:
+        from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
+
+        client = MagicMock()
+        client._request = MagicMock()
+        return CloudSnapshotManager(client), client
+
+    def test_none_is_none(self) -> None:
+        mgr, _ = self._mgr()
+        assert mgr._resolve_tag_keys(None) is None
+
+    def test_int_keys(self) -> None:
+        mgr, _ = self._mgr()
+        assert mgr._resolve_tag_keys([1, 2, 3]) == "1,2,3"
+
+    def test_resource_object_uses_key(self) -> None:
+        mgr, _ = self._mgr()
+        tag = CloudSnapshot({"$key": 4}, MagicMock())
+        assert mgr._resolve_tag_keys([tag]) == "4"
+
+    def test_name_resolved_to_key(self) -> None:
+        mgr, client = self._mgr()
+        client._request.return_value = [{"$key": 3}]
+        assert mgr._resolve_tag_keys(["DB"]) == "3"
+        assert "name eq" in client._request.call_args.kwargs["params"]["filter"]
+
+    def test_ambiguous_name_raises(self) -> None:
+        mgr, client = self._mgr()
+        client._request.return_value = [{"$key": 3}, {"$key": 9}]
+        with pytest.raises(ValueError, match="ambiguous"):
+            mgr._resolve_tag_keys(["gold"])
+
+    def test_missing_name_raises(self) -> None:
+        mgr, client = self._mgr()
+        client._request.return_value = []
+        with pytest.raises(ValueError, match="no tag named"):
+            mgr._resolve_tag_keys(["nope"])
+
+    def test_bool_rejected(self) -> None:
+        mgr, _ = self._mgr()
+        with pytest.raises(TypeError):
+            mgr._resolve_tag_keys([True])
