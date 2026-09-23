@@ -55,7 +55,7 @@ class TaskScheduleTrigger(ResourceObject):
     @property
     def task_display(self) -> str:
         """Get the linked task display name."""
-        return str(self.get("task_display", ""))
+        return str(self.require_projected("task_display"))
 
     @property
     def schedule_key(self) -> int | None:
@@ -66,7 +66,7 @@ class TaskScheduleTrigger(ResourceObject):
     @property
     def schedule_display(self) -> str:
         """Get the linked schedule display name."""
-        return str(self.get("schedule_display", ""))
+        return str(self.require_projected("schedule_display"))
 
     @property
     def is_schedule_enabled(self) -> bool:

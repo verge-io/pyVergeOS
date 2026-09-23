@@ -335,7 +335,7 @@ class Group(ResourceObject):
     @property
     def member_count(self) -> int:
         """Get the number of members in the group."""
-        return int(self.get("member_count", 0))
+        return int(self.require_projected("member_count"))
 
     @property
     def created(self) -> int | None:

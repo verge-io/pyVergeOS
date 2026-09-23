@@ -52,7 +52,7 @@ class TenantStorage(ResourceObject):
     @property
     def tier(self) -> int:
         """Get the tier number (1-5)."""
-        return int(self.get("tier_number", 0))
+        return int(self.require_projected("tier_number"))
 
     @property
     def tier_name(self) -> str:

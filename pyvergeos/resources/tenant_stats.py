@@ -583,7 +583,7 @@ class TenantLog(ResourceObject):
     @property
     def tenant_name(self) -> str:
         """Parent tenant name."""
-        return str(self.get("tenant_name", ""))
+        return str(self.require_projected("tenant_name"))
 
     @property
     def level(self) -> str:

@@ -29,7 +29,7 @@ class VnetProxyTenant(ResourceObject):
     @property
     def tenant_name(self) -> str:
         """Get the tenant display name."""
-        return str(self.get("tenant_display", ""))
+        return str(self.require_projected("tenant_display"))
 
     @property
     def fqdn(self) -> str:
@@ -309,7 +309,7 @@ class VnetProxy(ResourceObject):
     @property
     def network_name(self) -> str:
         """Get the parent network display name."""
-        return str(self.get("vnet_display", ""))
+        return str(self.require_projected("vnet_display"))
 
     @property
     def listen_address(self) -> str:

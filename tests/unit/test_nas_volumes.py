@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.nas_volumes import (
     NASVolume,
     NASVolumeManager,
@@ -421,11 +421,22 @@ class TestNASVolume:
 
     def test_volume_size_properties_zero(self, mock_manager: NASVolumeManager) -> None:
         """Test NASVolume size properties when zero."""
-        volume = NASVolume({"$key": "abc123"}, mock_manager)
+        volume = NASVolume({"$key": "abc123", "used_bytes": 0, "allocated_bytes": 0}, mock_manager)
 
         assert volume.max_size_gb == 0
         assert volume.used_gb == 0
         assert volume.allocated_gb == 0
+
+    def test_join_backed_sizes_refuse_to_guess_when_not_projected(
+        self, mock_manager: NASVolumeManager
+    ) -> None:
+        """used/allocated bytes are joins; 0 is a real size, not "unknown" (#117)."""
+        volume = NASVolume({"$key": "abc123"}, mock_manager)
+
+        with pytest.raises(FieldNotProjectedError):
+            _ = volume.used_gb
+        with pytest.raises(FieldNotProjectedError):
+            _ = volume.allocated_gb
 
     def test_volume_is_mounted_by_status(
         self, volume_data: dict[str, Any], mock_manager: NASVolumeManager

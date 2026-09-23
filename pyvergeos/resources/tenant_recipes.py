@@ -139,7 +139,7 @@ class TenantRecipe(ResourceObject):
     @property
     def instance_count(self) -> int:
         """Get the number of deployed instances."""
-        return int(self.get("instances", 0))
+        return int(self.require_projected("instances"))
 
     @property
     def instances(self) -> TenantRecipeInstanceManager:

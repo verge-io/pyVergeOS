@@ -144,7 +144,7 @@ class Task(ResourceObject):
     @property
     def owner_display(self) -> str:
         """Get owner display name."""
-        return str(self.get("owner_display", ""))
+        return str(self.require_projected("owner_display"))
 
     @property
     def creator_key(self) -> int | None:
@@ -155,7 +155,7 @@ class Task(ResourceObject):
     @property
     def creator_display(self) -> str:
         """Get creator display name."""
-        return str(self.get("creator_display", ""))
+        return str(self.require_projected("creator_display"))
 
     @property
     def task_id(self) -> str:
@@ -190,12 +190,12 @@ class Task(ResourceObject):
     @property
     def trigger_count(self) -> int:
         """Get number of schedule triggers."""
-        return int(self.get("triggers_count", 0))
+        return int(self.require_projected("triggers_count"))
 
     @property
     def event_count(self) -> int:
         """Get number of event triggers."""
-        return int(self.get("events_count", 0))
+        return int(self.require_projected("events_count"))
 
     @property
     def triggers(self) -> TaskScheduleTriggerManager:

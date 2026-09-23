@@ -63,7 +63,7 @@ class TaskScript(ResourceObject):
     @property
     def task_count(self) -> int:
         """Get the number of tasks using this script."""
-        return int(self.get("task_count", 0))
+        return int(self.require_projected("task_count"))
 
     def run(self, **params: Any) -> dict[str, Any] | None:
         """Run this script.

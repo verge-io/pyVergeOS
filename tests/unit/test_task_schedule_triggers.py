@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.task_schedule_triggers import (
     TaskScheduleTrigger,
     TaskScheduleTriggerManager,
@@ -64,8 +64,11 @@ class TestTaskScheduleTrigger:
         data = {"$key": 1}
         trigger = TaskScheduleTrigger(data, mock_client.task_schedule_triggers)
 
-        assert trigger.task_display == ""
-        assert trigger.schedule_display == ""
+        # both are joined displays: absent means unfetched, not empty (#117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = trigger.task_display
+        with pytest.raises(FieldNotProjectedError):
+            _ = trigger.schedule_display
 
     def test_task_schedule_trigger_schedule_enabled_default(self, mock_client: VergeClient) -> None:
         """Test TaskScheduleTrigger.is_schedule_enabled defaults to False."""

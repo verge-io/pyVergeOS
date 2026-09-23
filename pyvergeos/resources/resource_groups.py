@@ -134,7 +134,7 @@ class ResourceGroup(ResourceObject):
     @property
     def resource_count(self) -> int:
         """Number of resources (devices) in this group."""
-        return int(self.get("resource_count", 0))
+        return int(self.require_projected("resource_count"))
 
     @property
     def created_at(self) -> datetime | None:
@@ -891,7 +891,7 @@ class ResourceRule(ResourceObject):
     @property
     def resource_group_name(self) -> str:
         """Parent resource group name."""
-        return str(self.get("resource_group_display", ""))
+        return str(self.require_projected("resource_group_display"))
 
     @property
     def name(self) -> str:
@@ -925,7 +925,7 @@ class ResourceRule(ResourceObject):
     @property
     def node_name(self) -> str:
         """Node name filter."""
-        return str(self.get("node_display", ""))
+        return str(self.require_projected("node_display"))
 
     @property
     def filter_expression(self) -> str:
@@ -941,7 +941,7 @@ class ResourceRule(ResourceObject):
     @property
     def resource_count(self) -> int:
         """Number of devices matched by this rule."""
-        return int(self.get("resource_count", 0))
+        return int(self.require_projected("resource_count"))
 
     @property
     def is_system_created(self) -> bool:

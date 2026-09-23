@@ -12,6 +12,28 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- Accessors no longer invent a value for a field they never fetched.
+  ``is_running``, ``is_online``, ``status``, ``state``, ``member_count`` and
+  a hundred others read their backing field with ``self.get(name, False)``,
+  which cannot tell "the field says false" from "the field was not
+  projected" - so any narrowed ``fields`` argument turned every one of them
+  into a confident wrong answer, and ``False`` is precisely the direction
+  that disarms the guard a caller puts in front of a destructive operation.
+  All 103 accessors backed by a computed field - 86 traversals and 17
+  aggregates - now use ``require_projected()`` and raise the new
+  ``FieldNotProjectedError`` instead. The distinction is exact rather than
+  heuristic: the API returns a key for every field it was asked for, using
+  a null value when there is nothing to report, so an absent key means only
+  that the projection omitted it. ``FieldNotProjectedError`` is deliberately
+  not an ``AttributeError``, or ``ResourceObject.__getattr__`` would swallow
+  it and ``hasattr()`` would answer ``False`` for a field that exists but
+  was not fetched. An AST tripwire fails CI if an accessor reads a computed
+  field with a fallback.
+
+  This is a behaviour change for callers that narrow ``fields`` and then
+  read one of these accessors: they previously received a silently wrong
+  answer and now receive an exception. (#117)
+
 - ``fields=["all"]`` is no longer a silently lossy projection. ``all``
   resolves server-side to a resource's *own columns*, so nothing a manager
   has the server compute came back with it - neither aliased traversals

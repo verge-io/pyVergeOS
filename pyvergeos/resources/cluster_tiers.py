@@ -153,7 +153,7 @@ class ClusterTierStatsHistoryLong(ResourceObject):
     @property
     def capacity_bytes(self) -> int:
         """Capacity in bytes at this point."""
-        return int(self.get("capacity", 0))
+        return int(self.require_projected("capacity"))
 
     @property
     def capacity_gb(self) -> float:
@@ -163,7 +163,7 @@ class ClusterTierStatsHistoryLong(ResourceObject):
     @property
     def used_bytes(self) -> int:
         """Used space in bytes at this point."""
-        return int(self.get("used", 0))
+        return int(self.require_projected("used"))
 
     @property
     def used_gb(self) -> float:
@@ -217,22 +217,22 @@ class ClusterTierStatsHistoryShort(ResourceObject):
     @property
     def read_ops(self) -> int:
         """Read operations per second."""
-        return int(self.get("rops", 0))
+        return int(self.require_projected("rops"))
 
     @property
     def write_ops(self) -> int:
         """Write operations per second."""
-        return int(self.get("wops", 0))
+        return int(self.require_projected("wops"))
 
     @property
     def read_bps(self) -> int:
         """Read bytes per second."""
-        return int(self.get("rbps", 0))
+        return int(self.require_projected("rbps"))
 
     @property
     def write_bps(self) -> int:
         """Write bytes per second."""
-        return int(self.get("wbps", 0))
+        return int(self.require_projected("wbps"))
 
     @property
     def total_reads(self) -> int:
@@ -257,7 +257,7 @@ class ClusterTierStatsHistoryShort(ResourceObject):
     @property
     def capacity_bytes(self) -> int:
         """Capacity in bytes at this point."""
-        return int(self.get("capacity", 0))
+        return int(self.require_projected("capacity"))
 
     @property
     def capacity_gb(self) -> float:
@@ -267,7 +267,7 @@ class ClusterTierStatsHistoryShort(ResourceObject):
     @property
     def used_bytes(self) -> int:
         """Used space in bytes at this point."""
-        return int(self.get("used", 0))
+        return int(self.require_projected("used"))
 
     @property
     def used_gb(self) -> float:
@@ -305,22 +305,22 @@ class ClusterTierStats(ResourceObject):
     @property
     def read_ops(self) -> int:
         """Current read operations per second."""
-        return int(self.get("rops", 0))
+        return int(self.require_projected("rops"))
 
     @property
     def write_ops(self) -> int:
         """Current write operations per second."""
-        return int(self.get("wops", 0))
+        return int(self.require_projected("wops"))
 
     @property
     def read_bps(self) -> int:
         """Current read bytes per second."""
-        return int(self.get("rbps", 0))
+        return int(self.require_projected("rbps"))
 
     @property
     def write_bps(self) -> int:
         """Current write bytes per second."""
-        return int(self.get("wbps", 0))
+        return int(self.require_projected("wbps"))
 
     @property
     def read_mbps(self) -> float:
@@ -425,7 +425,7 @@ class ClusterTierStatus(ResourceObject):
     @property
     def capacity_bytes(self) -> int:
         """Total capacity in bytes."""
-        return int(self.get("capacity", 0))
+        return int(self.require_projected("capacity"))
 
     @property
     def capacity_gb(self) -> float:
@@ -440,7 +440,7 @@ class ClusterTierStatus(ResourceObject):
     @property
     def used_bytes(self) -> int:
         """Used space in bytes."""
-        return int(self.get("used", 0))
+        return int(self.require_projected("used"))
 
     @property
     def used_gb(self) -> float:
@@ -475,17 +475,17 @@ class ClusterTierStatus(ResourceObject):
     @property
     def is_redundant(self) -> bool:
         """Check if tier has redundancy."""
-        return bool(self.get("redundant", False))
+        return bool(self.require_projected("redundant"))
 
     @property
     def is_encrypted(self) -> bool:
         """Check if tier is encrypted."""
-        return bool(self.get("encrypted", False))
+        return bool(self.require_projected("encrypted"))
 
     @property
     def is_working(self) -> bool:
         """Check if tier is actively working."""
-        return bool(self.get("working", False))
+        return bool(self.require_projected("working"))
 
     @property
     def last_walk_time_ms(self) -> int:

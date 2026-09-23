@@ -112,7 +112,7 @@ class TaskEvent(ResourceObject):
     @property
     def task_display(self) -> str:
         """Get the linked task display name."""
-        return str(self.get("task_display", ""))
+        return str(self.require_projected("task_display"))
 
     @property
     def event_filters(self) -> dict[str, Any] | None:

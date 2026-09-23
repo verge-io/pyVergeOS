@@ -1,5 +1,5 @@
-"""``fields="all"`` is not a superset of a manager's default projection
-(issue #117).
+"""Projection semantics: ``all`` is not a superset, and accessors must not
+guess (issue #117).
 
 The API resolves ``fields=all`` to the resource's *own columns*. Anything a
 manager has the server compute is therefore absent from it: aliased
@@ -30,14 +30,20 @@ import re
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from pyvergeos import VergeClient
+from pyvergeos.exceptions import FieldNotProjectedError
 from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
     expand_projection,
     is_computed_projection,
     projection_alias,
 )
-from pyvergeos.resources.networks import DEFAULT_NETWORK_FIELDS, NetworkManager
-from pyvergeos.resources.vms import VM_DEFAULT_FIELDS
+from pyvergeos.resources.networks import DEFAULT_NETWORK_FIELDS, Network, NetworkManager
+from pyvergeos.resources.nodes import Node
+from pyvergeos.resources.vms import VM, VM_DEFAULT_FIELDS
 
 PACKAGE_DIR = pathlib.Path(__file__).resolve().parents[2] / "pyvergeos"
 RESOURCES_DIR = PACKAGE_DIR / "resources"
@@ -270,4 +276,134 @@ class TestNoManagerBypassesProjectionExpansion:
         assert not offenders, (
             "caller-supplied projections serialized without expanding 'all' "
             f"(issue #117): {offenders}"
+        )
+
+
+class TestRequireProjected:
+    """The absence test is exact, not heuristic.
+
+    The API returns a key for every field it was asked for, using a null
+    value when there is nothing to report. Verified against every aliased
+    field of the networks, vms, nodes, clusters, tenants and users
+    projections on a live system: zero absences, several nulls. So an absent
+    key means "not projected" and nothing else -- without that property this
+    would raise on legitimately-null joins.
+    """
+
+    def _manager(self) -> ResourceManager[Any]:
+        return MagicMock(spec=ResourceManager)
+
+    def test_present_value_is_returned(self) -> None:
+        obj = ResourceObject({"running": True}, self._manager())
+        assert obj.require_projected("running") is True
+
+    def test_a_genuine_false_still_reads_as_false(self) -> None:
+        obj = ResourceObject({"running": False}, self._manager())
+        assert obj.require_projected("running") is False
+
+    def test_null_is_a_value_not_an_absence(self) -> None:
+        obj = ResourceObject({"node_name": None}, self._manager())
+        assert obj.require_projected("node_name") is None
+
+    def test_absent_field_raises(self) -> None:
+        obj = ResourceObject({"$key": 1, "name": "n"}, self._manager())
+        with pytest.raises(FieldNotProjectedError) as excinfo:
+            obj.require_projected("running")
+        assert excinfo.value.field == "running"
+
+    def test_error_names_the_field(self) -> None:
+        obj = ResourceObject({}, self._manager())
+        with pytest.raises(FieldNotProjectedError, match="running"):
+            obj.require_projected("running")
+
+    def test_error_is_not_swallowed_by_the_dict_attribute_fallback(self) -> None:
+        """Regression guard on the fix itself.
+
+        ``ResourceObject.__getattr__`` exists to expose row keys as
+        attributes, and Python invokes it whenever normal lookup raises
+        ``AttributeError``. An ``AttributeError`` subclass raised inside a
+        property is therefore caught by that fallback and re-raised as a
+        bare "'VM' has no attribute 'is_running'", destroying the
+        diagnostic -- and ``hasattr()`` would quietly answer ``False`` for a
+        field that exists but was not fetched.
+        """
+        assert not issubclass(FieldNotProjectedError, AttributeError)
+        vm = VM({"$key": 1, "name": "vm"}, self._manager())
+        with pytest.raises(FieldNotProjectedError, match="not included in the projection"):
+            _ = vm.is_running
+
+
+class TestAccessorsRefuseToGuess:
+    """The reported symptom: a running resource reported as stopped."""
+
+    def _manager(self) -> ResourceManager[Any]:
+        return MagicMock(spec=ResourceManager)
+
+    def test_vm_is_running_raises_instead_of_answering_false(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-a"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = vm.is_running
+
+    def test_vm_status_raises_instead_of_answering_unknown(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-a"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = vm.status
+
+    def test_network_is_running_raises(self) -> None:
+        net = Network({"$key": 1, "name": "External"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = net.is_running
+
+    def test_node_is_online_raises(self) -> None:
+        node = Node({"$key": 1, "name": "node1"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.is_online
+
+    def test_properly_projected_objects_are_unaffected(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-a", "running": True, "status": "running"}, self._manager())
+        assert vm.is_running is True
+        assert vm.status == "running"
+
+    def test_a_stopped_vm_still_reads_as_stopped(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-b", "running": False, "status": "stopped"}, self._manager())
+        assert vm.is_running is False
+        assert vm.status == "stopped"
+
+
+class TestNoAccessorInventsAComputedValue:
+    """AST tripwire: an accessor backed by a computed field must not default.
+
+    ``self.get("running", False)`` cannot distinguish a stopped VM from a VM
+    whose ``running`` field was never fetched. Any field the manager obtains
+    through a traversal or an aggregate is absent whenever the caller
+    narrows ``fields``, so reading one with a fallback re-introduces #117.
+    """
+
+    def test_no_computed_accessor_uses_a_silent_default(self) -> None:
+        offenders: list[str] = []
+        for path in sorted(RESOURCES_DIR.glob("*.py")):
+            source = path.read_text()
+            aliases = {m.group(2) for m in COMPUTED_ALIAS.finditer(source)}
+            if not aliases:
+                continue
+            tree = ast.parse(source)
+            for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+                if not any("ResourceObject" in ast.unparse(b) for b in cls.bases):
+                    continue
+                for node in ast.walk(cls):
+                    if (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "get"
+                        and ast.unparse(node.func.value) == "self"
+                        and len(node.args) == 2
+                        and isinstance(node.args[0], ast.Constant)
+                        and node.args[0].value in aliases
+                    ):
+                        offenders.append(
+                            f"{path.name}:{node.lineno} {cls.name}."
+                            f"get({node.args[0].value!r}, ...) — use require_projected()"
+                        )
+        assert not offenders, (
+            f"accessors that would answer for a field they never fetched (issue #117): {offenders}"
         )

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.nas_services import (
     CIFSSettings,
     NASService,
@@ -474,8 +474,9 @@ class TestNASService:
 
         assert service.vm_key is None
 
-    def test_service_volume_count_default(self, mock_manager: NASServiceManager) -> None:
-        """Test volume_count default value."""
+    def test_service_volume_count_refuses_to_guess(self, mock_manager: NASServiceManager) -> None:
+        """'volume_count' is count(volumes), an aggregate (issue #117)."""
         service = NASService({"$key": 1, "name": "NAS01"}, mock_manager)
 
-        assert service.volume_count == 0
+        with pytest.raises(FieldNotProjectedError):
+            _ = service.volume_count

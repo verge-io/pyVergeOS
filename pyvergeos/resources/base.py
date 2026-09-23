@@ -7,7 +7,7 @@ import re
 from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
 
 if TYPE_CHECKING:
@@ -259,6 +259,29 @@ class ResourceObject(dict[str, Any]):
             super().__setattr__(name, value)
         else:
             self[name] = value
+
+    def require_projected(self, name: str) -> Any:
+        """Return field ``name``, refusing to guess when it was not projected.
+
+        Accessors built on this cannot conflate "the field says false" with
+        "the field was never fetched". The distinction is exact: the API
+        always returns a key for every field it was asked for, using a null
+        value when there is nothing to report, so an absent key means only
+        that the projection omitted it.
+
+        Args:
+            name: Field to read.
+
+        Returns:
+            The stored value, which may be None.
+
+        Raises:
+            FieldNotProjectedError: If the field is absent from this row.
+        """
+        try:
+            return self[name]
+        except KeyError:
+            raise FieldNotProjectedError(name, type(self).__name__) from None
 
     @property
     def key(self) -> int:

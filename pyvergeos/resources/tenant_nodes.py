@@ -82,12 +82,12 @@ class TenantNode(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if the node is currently running."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running"))
 
     @property
     def status(self) -> str:
         """Get the node status."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status"))
 
     @property
     def host_node(self) -> str | None:
@@ -119,7 +119,7 @@ class TenantNode(ResourceObject):
     @property
     def on_power_loss(self) -> str:
         """Get power loss behavior (power_on, last_state, leave_off)."""
-        return str(self.get("on_power_loss", "last_state"))
+        return str(self.require_projected("on_power_loss"))
 
     @property
     def machine_key(self) -> int | None:
