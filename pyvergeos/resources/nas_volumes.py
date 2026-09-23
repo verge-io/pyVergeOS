@@ -105,19 +105,19 @@ class NASVolume(ResourceObject):
     @property
     def used_gb(self) -> float:
         """Get the used space in GB."""
-        used = self.get("used_bytes", 0)
+        used = self.require_projected("used_bytes", 0)
         return round(used / 1073741824, 2) if used else 0
 
     @property
     def allocated_gb(self) -> float:
         """Get the allocated space in GB."""
-        allocated = self.get("allocated_bytes", 0)
+        allocated = self.require_projected("allocated_bytes", 0)
         return round(allocated / 1073741824, 2) if allocated else 0
 
     @property
     def is_mounted(self) -> bool:
         """Check if the volume is mounted."""
-        return self.get("mounted", False) or self.get("mount_status") == "mounted"
+        return self.require_projected("mounted", False) or self.get("mount_status") == "mounted"
 
     @property
     def service_key(self) -> int | None:

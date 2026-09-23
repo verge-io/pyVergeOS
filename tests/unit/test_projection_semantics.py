@@ -1,5 +1,5 @@
-"""``fields="all"`` is not a superset of a manager's default projection
-(issue #117).
+"""Projection semantics: ``all`` is not a superset, and accessors must not
+guess (issue #117).
 
 The API resolves ``fields=all`` to the resource's *own columns*. Anything a
 manager has the server compute is therefore absent from it: aliased
@@ -34,14 +34,20 @@ import textwrap
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from pyvergeos import VergeClient
+from pyvergeos.exceptions import FieldNotProjectedError
 from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
     expand_projection,
     is_computed_projection,
     projection_alias,
 )
-from pyvergeos.resources.networks import DEFAULT_NETWORK_FIELDS, NetworkManager
-from pyvergeos.resources.vms import VM_DEFAULT_FIELDS
+from pyvergeos.resources.networks import DEFAULT_NETWORK_FIELDS, Network, NetworkManager
+from pyvergeos.resources.nodes import Node
+from pyvergeos.resources.vms import VM, VM_DEFAULT_FIELDS
 
 PACKAGE_DIR = pathlib.Path(__file__).resolve().parents[2] / "pyvergeos"
 RESOURCES_DIR = PACKAGE_DIR / "resources"
@@ -377,3 +383,360 @@ class TestEveryFieldsParameterComesFromTheProjectionHelper:
         labels = {label for label, _cls, _tree in manager_classes()}
         assert "cloudinit_files.VMCloudInitFileManager" in labels
         assert "queries.VNetQueryManager" in labels
+
+
+class TestRequireProjected:
+    """The test is what the request asked for, not whether the key came back.
+
+    Most computed fields come back null when there is nothing to report, so
+    absence looks like a usable signal -- and a first cut of this fix used
+    it. A fleet sweep of 421 rows then found 8 fields across 6 managers that
+    go missing outright: a traversal through a *polymorphic* reference
+    (``creator#$display`` on tasks, where ``creator`` holds a ``table/key``
+    string) is omitted when that reference is null. Keying on absence alone
+    raised ``FieldNotProjectedError`` for ``task.creator_display`` on a task
+    fetched with the manager's own default projection.
+
+    So the manager records the alias names it asked for, each object
+    captures them at construction, and only a field that was never requested
+    raises.
+    """
+
+    def _manager(self) -> ResourceManager[Any]:
+        return MagicMock(spec=ResourceManager)
+
+    def test_present_value_is_returned(self) -> None:
+        obj = ResourceObject({"running": True}, self._manager())
+        assert obj.require_projected("running") is True
+
+    def test_a_genuine_false_still_reads_as_false(self) -> None:
+        obj = ResourceObject({"running": False}, self._manager())
+        assert obj.require_projected("running") is False
+
+    def test_null_is_a_value_not_an_absence(self) -> None:
+        obj = ResourceObject({"node_name": None}, self._manager())
+        assert obj.require_projected("node_name") is None
+
+    def test_absent_field_raises(self) -> None:
+        obj = ResourceObject({"$key": 1, "name": "n"}, self._manager())
+        with pytest.raises(FieldNotProjectedError) as excinfo:
+            obj.require_projected("running")
+        assert excinfo.value.field == "running"
+
+    def test_error_names_the_field(self) -> None:
+        obj = ResourceObject({}, self._manager())
+        with pytest.raises(FieldNotProjectedError, match="running"):
+            obj.require_projected("running")
+
+    def test_error_is_not_swallowed_by_the_dict_attribute_fallback(self) -> None:
+        """Regression guard on the fix itself.
+
+        ``ResourceObject.__getattr__`` exists to expose row keys as
+        attributes, and Python invokes it whenever normal lookup raises
+        ``AttributeError``. An ``AttributeError`` subclass raised inside a
+        property is therefore caught by that fallback and re-raised as a
+        bare "'VM' has no attribute 'is_running'", destroying the
+        diagnostic -- and ``hasattr()`` would quietly answer ``False`` for a
+        field that exists but was not fetched.
+        """
+        assert not issubclass(FieldNotProjectedError, AttributeError)
+        vm = VM({"$key": 1, "name": "vm"}, self._manager())
+        with pytest.raises(FieldNotProjectedError, match="not included in the projection"):
+            _ = vm.is_running
+
+
+class TestAccessorsRefuseToGuess:
+    """The reported symptom: a running resource reported as stopped."""
+
+    def _manager(self) -> ResourceManager[Any]:
+        return MagicMock(spec=ResourceManager)
+
+    def test_vm_is_running_raises_instead_of_answering_false(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-a"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = vm.is_running
+
+    def test_vm_status_raises_instead_of_answering_unknown(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-a"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = vm.status
+
+    def test_network_is_running_raises(self) -> None:
+        net = Network({"$key": 1, "name": "External"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = net.is_running
+
+    def test_node_is_online_raises(self) -> None:
+        node = Node({"$key": 1, "name": "node1"}, self._manager())
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.is_online
+
+    def test_properly_projected_objects_are_unaffected(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-a", "running": True, "status": "running"}, self._manager())
+        assert vm.is_running is True
+        assert vm.status == "running"
+
+    def test_a_stopped_vm_still_reads_as_stopped(self) -> None:
+        vm = VM({"$key": 1, "name": "vm-b", "running": False, "status": "stopped"}, self._manager())
+        assert vm.is_running is False
+        assert vm.status == "stopped"
+
+
+class TestNoAccessorInventsAComputedValue:
+    """AST tripwire: an accessor backed by a computed field must not default.
+
+    ``self.get("running", False)`` cannot distinguish a stopped VM from a VM
+    whose ``running`` field was never fetched. Any field the manager obtains
+    through a traversal or an aggregate is absent whenever the caller
+    narrows ``fields``, so reading one with a fallback re-introduces #117.
+    """
+
+    def test_no_computed_accessor_uses_a_silent_default(self) -> None:
+        offenders: list[str] = []
+        for path in sorted(RESOURCES_DIR.glob("*.py")):
+            source = path.read_text()
+            aliases = {m.group(2) for m in COMPUTED_ALIAS.finditer(source)}
+            if not aliases:
+                continue
+            tree = ast.parse(source)
+            for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+                if not any("ResourceObject" in ast.unparse(b) for b in cls.bases):
+                    continue
+                for node in ast.walk(cls):
+                    if (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "get"
+                        and ast.unparse(node.func.value) == "self"
+                        and len(node.args) == 2
+                        and isinstance(node.args[0], ast.Constant)
+                        and node.args[0].value in aliases
+                    ):
+                        offenders.append(
+                            f"{path.name}:{node.lineno} {cls.name}."
+                            f"get({node.args[0].value!r}, ...) — use require_projected()"
+                        )
+        assert not offenders, (
+            f"accessors that would answer for a field they never fetched (issue #117): {offenders}"
+        )
+
+
+class TestPolymorphicAbsenceIsNotMisreported:
+    """Regression guard for the false positive found in the lab.
+
+    ``tasks`` asks for ``creator#$display as creator_display``. When a task
+    has no creator, the API omits the key rather than returning null. That
+    row was correctly projected and must not raise.
+    """
+
+    def _manager(self, requested: frozenset[str] | None) -> ResourceManager[Any]:
+        mgr = MagicMock(spec=ResourceManager)
+        mgr._requested_aliases = requested
+        return mgr
+
+    def test_requested_but_omitted_returns_the_default(self) -> None:
+        mgr = self._manager(frozenset({"$key", "name", "creator_display"}))
+        obj = ResourceObject({"$key": 1, "name": "t"}, mgr)
+        assert obj.require_projected("creator_display", "") == ""
+
+    def test_requested_but_omitted_defaults_to_none_when_unspecified(self) -> None:
+        mgr = self._manager(frozenset({"$key", "creator_display"}))
+        obj = ResourceObject({"$key": 1}, mgr)
+        assert obj.require_projected("creator_display") is None
+
+    def test_never_requested_still_raises(self) -> None:
+        mgr = self._manager(frozenset({"$key", "name"}))
+        obj = ResourceObject({"$key": 1, "name": "t"}, mgr)
+        with pytest.raises(FieldNotProjectedError):
+            obj.require_projected("creator_display", "")
+
+    def test_unknown_projection_stays_strict(self) -> None:
+        obj = ResourceObject({"$key": 1}, self._manager(None))
+        with pytest.raises(FieldNotProjectedError):
+            obj.require_projected("running", False)
+
+    def test_a_non_frozenset_is_treated_as_unknown(self) -> None:
+        """A mocked or hand-built manager must not read as a real projection."""
+        mgr = MagicMock(spec=ResourceManager)  # _requested_aliases is a Mock
+        obj = ResourceObject({"$key": 1}, mgr)
+        assert obj._requested is None
+        with pytest.raises(FieldNotProjectedError):
+            obj.require_projected("running", False)
+
+    def test_present_value_wins_over_everything(self) -> None:
+        mgr = self._manager(frozenset({"running"}))
+        obj = ResourceObject({"running": False}, mgr)
+        assert obj.require_projected("running", True) is False
+
+    def test_manager_records_what_it_asked_for(self) -> None:
+        client = _client_returning([])
+        mgr = NetworkManager(client)
+        mgr.list(fields=["$key", "name"])
+        assert mgr._requested_aliases == frozenset({"$key", "name"})
+        mgr.list(fields=["all"])
+        assert mgr._requested_aliases is not None
+        assert {"all", "running", "status", "$key"} <= mgr._requested_aliases
+
+    def test_default_projection_is_recorded_too(self) -> None:
+        client = _client_returning([])
+        mgr = NetworkManager(client)
+        mgr.list()
+        assert mgr._requested_aliases is not None
+        assert "running" in mgr._requested_aliases
+
+
+class TestWriteResponsesDoNotInheritAProjection:
+    """A write response is not a query result (issue #117).
+
+    ``POST`` answers with a receipt -- measured on VergeOS 26.1.8, the keys
+    are ``$key``, ``$row``, ``dbpath``, ``location``, ``response`` -- and
+    ``PUT`` answers with ``{}``. Nothing there was asked for by a
+    projection.
+
+    Before this, the object built from such a response inherited whatever
+    alias set the manager last fetched with, so
+    ``networks.list(); networks.update(...)`` produced an object that
+    answered ``is_running`` as ``False`` from a row that never contained
+    ``running`` -- the original defect arriving by a side door, and worse,
+    an answer that depended on unrelated earlier calls.
+    """
+
+    def test_unprojected_build_clears_the_record(self) -> None:
+        client = _client_returning([])
+        mgr = NetworkManager(client)
+        mgr.list()  # records the default projection
+        assert mgr._requested_aliases is not None
+        obj = mgr._to_model_unprojected({"$key": 1, "name": "n"})
+        assert mgr._requested_aliases is None
+        assert obj._requested is None
+
+    def test_write_object_reports_unfetched_rather_than_false(self) -> None:
+        client = _client_returning([])
+        mgr = NetworkManager(client)
+        mgr.list()
+        obj = mgr._to_model_unprojected({"$key": 1, "name": "n"})
+        with pytest.raises(FieldNotProjectedError):
+            _ = obj.is_running
+
+    def test_answer_does_not_depend_on_unrelated_history(self) -> None:
+        payload = {"$key": 1, "name": "n"}
+        outcomes = set()
+        for prime in (
+            None,
+            lambda m: m.list(),
+            lambda m: m.list(fields=["$key", "name"]),
+            lambda m: m.list(fields=["all"]),
+        ):
+            mgr = NetworkManager(_client_returning([]))
+            if prime:
+                prime(mgr)
+            obj = mgr._to_model_unprojected(dict(payload))
+            try:
+                outcomes.add(repr(obj.is_running))
+            except FieldNotProjectedError:
+                outcomes.add("raised")
+        assert outcomes == {"raised"}, outcomes
+
+    def test_a_field_the_write_response_did_return_is_still_readable(self) -> None:
+        mgr = NetworkManager(_client_returning([]))
+        obj = mgr._to_model_unprojected({"$key": 1, "running": True, "status": "running"})
+        assert obj.is_running is True
+        assert obj.status == "running"
+
+
+class TestNoWritePathInheritsAProjection:
+    """AST tripwire: write paths must build models with the unprojected helper.
+
+    ``base.create()``/``update()`` were the obvious cases, but 34 managers
+    hand-roll a write and fall back to ``self._to_model(response)`` when they
+    cannot re-fetch. Each of those inherited the manager's last projection.
+    """
+
+    def test_write_methods_use_to_model_unprojected(self) -> None:
+        offenders: list[str] = []
+        for path in sorted(RESOURCES_DIR.glob("*.py")):
+            if path.name == "base.py":
+                continue
+            tree = ast.parse(path.read_text())
+            for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+                if not any("ResourceManager" in ast.unparse(b) for b in cls.bases):
+                    continue
+                for fn in cls.body:
+                    if not isinstance(fn, ast.FunctionDef):
+                        continue
+                    calls = [
+                        ast.unparse(n.func)
+                        for n in ast.walk(fn)
+                        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    ]
+                    if "self._to_model" not in calls or "self._projection" in calls:
+                        continue
+                    writes = any(
+                        isinstance(n, ast.Call)
+                        and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "_request"
+                        and n.args
+                        and isinstance(n.args[0], ast.Constant)
+                        and n.args[0].value in ("POST", "PUT", "PATCH")
+                        for n in ast.walk(fn)
+                    )
+                    if writes:
+                        offenders.append(
+                            f"{path.name}:{cls.name}.{fn.name}() — use self._to_model_unprojected()"
+                        )
+        assert not offenders, (
+            "models built from a write response while inheriting the manager's "
+            f"last projection (issue #117): {offenders}"
+        )
+
+
+class TestRefreshAdoptsTheRefetchProjection:
+    """``refresh()`` replaces the row, so it must replace the record too.
+
+    A task fetched with ``fields=["$key","name"]`` and then refreshed holds
+    the full default row, yet kept the narrow record -- so it still raised
+    for ``creator_display``, which the server omits, while an identically
+    fetched task returned ``""``. Same data, two answers.
+    """
+
+    def test_refresh_replaces_the_requested_set(self) -> None:
+        client = MagicMock(spec=VergeClient)
+        client._request.return_value = [{"$key": 1, "name": "n"}]
+        mgr = NetworkManager(client)
+
+        narrow = mgr.list(fields=["$key", "name"])[0]
+        assert narrow._requested == frozenset({"$key", "name"})
+
+        client._request.return_value = {
+            "$key": 1,
+            "name": "n",
+            "running": True,
+            "status": "running",
+        }
+        narrow.refresh()
+
+        assert narrow._requested is not None
+        assert "running" in narrow._requested
+        assert narrow.is_running is True
+
+    def test_refreshed_object_agrees_with_a_fresh_one(self) -> None:
+        """The row the server omits must read the same either way."""
+        client = MagicMock(spec=VergeClient)
+        full = {"$key": 1, "name": "n"}  # 'running' requested but omitted
+
+        client._request.return_value = [full]
+        fresh = NetworkManager(client).list()[0]
+
+        mgr = NetworkManager(client)
+        client._request.return_value = [{"$key": 1, "name": "n"}]
+        narrow = mgr.list(fields=["$key", "name"])[0]
+        client._request.return_value = dict(full)
+        narrow.refresh()
+
+        def read(obj: Any) -> Any:
+            try:
+                return obj.is_running
+            except FieldNotProjectedError:
+                return "raised"
+
+        assert read(narrow) == read(fresh)

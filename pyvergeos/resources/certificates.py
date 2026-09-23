@@ -615,7 +615,7 @@ class CertificateManager(ResourceManager[Certificate]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,
@@ -704,7 +704,7 @@ class CertificateManager(ResourceManager[Certificate]):
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
         if response is None or not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a certificate.

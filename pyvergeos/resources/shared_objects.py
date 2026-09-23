@@ -112,6 +112,9 @@ class SharedObject(dict[str, Any]):
         result = self._manager.get(self.key)
         dict.clear(self)
         dict.update(self, result)
+        # Adopt the refetch's projection, as ResourceObject.refresh() does,
+        # so this object agrees with an identically fetched one (issue #117).
+        self._requested = getattr(result, "_requested", None)
         return self
 
     def import_object(self) -> dict[str, Any] | None:

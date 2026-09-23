@@ -600,7 +600,7 @@ class SiteManager(ResourceManager[Site]):
         if site_key:
             return self.get(int(site_key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

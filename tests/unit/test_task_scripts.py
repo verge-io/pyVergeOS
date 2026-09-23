@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.task_scripts import TaskScript
 
 # =============================================================================
@@ -58,12 +58,13 @@ class TestTaskScript:
 
         assert script.settings is None
 
-    def test_task_script_task_count_default(self, mock_client: VergeClient) -> None:
-        """Test TaskScript.task_count returns 0 when not set."""
+    def test_task_script_task_count_refuses_to_guess(self, mock_client: VergeClient) -> None:
+        """'task_count' is count(tasks), an aggregate (issue #117)."""
         data = {"$key": 1}
         script = TaskScript(data, mock_client.task_scripts)
 
-        assert script.task_count == 0
+        with pytest.raises(FieldNotProjectedError):
+            _ = script.task_count
 
 
 # =============================================================================

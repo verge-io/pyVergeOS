@@ -80,7 +80,7 @@ class Device(ResourceObject):
     @property
     def machine_name(self) -> str:
         """Parent machine (VM) name."""
-        return str(self.get("machine_name", ""))
+        return str(self.require_projected("machine_name", ""))
 
     @property
     def machine_type(self) -> str:
@@ -137,23 +137,23 @@ class Device(ResourceObject):
     @property
     def resource_group_name(self) -> str:
         """Associated resource group name."""
-        return str(self.get("resource_group_name", ""))
+        return str(self.require_projected("resource_group_name", ""))
 
     @property
     def status(self) -> str:
         """Device status (human-readable)."""
-        raw = str(self.get("device_status", ""))
+        raw = str(self.require_projected("device_status", ""))
         return DEVICE_STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw device status value."""
-        return str(self.get("device_status", ""))
+        return str(self.require_projected("device_status", ""))
 
     @property
     def status_info(self) -> str:
         """Additional status information."""
-        return str(self.get("status_info", ""))
+        return str(self.require_projected("status_info", ""))
 
     @property
     def created_at(self) -> datetime | None:
@@ -488,7 +488,7 @@ class DeviceManager(ResourceManager[Device]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
 
-        device = self._to_model(response)
+        device = self._to_model_unprojected(response)
         return self.get(device.key)
 
     def create_vgpu(
@@ -797,7 +797,7 @@ class DeviceManager(ResourceManager[Device]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a device.

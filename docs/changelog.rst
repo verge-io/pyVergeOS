@@ -12,6 +12,42 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- Accessors no longer invent a value for a field they never fetched.
+  ``is_running``, ``is_online``, ``status``, ``state``, ``member_count`` and
+  a hundred others read their backing field with ``self.get(name, False)``,
+  which cannot tell "the field says false" from "the field was not
+  projected" - so any narrowed ``fields`` argument turned every one of them
+  into a confident wrong answer, and ``False`` is precisely the direction
+  that disarms the guard a caller puts in front of a destructive operation.
+  All 103 accessors backed by a computed field - 86 traversals and 17
+  aggregates - now use ``require_projected()`` and raise the new
+  ``FieldNotProjectedError`` instead. The test is what the request asked
+  for, not merely whether the key came back: most computed fields return
+  null when there is nothing to report, but a traversal through a
+  *polymorphic* reference (``creator#$display`` on tasks, where ``creator``
+  holds a ``table/key`` string) is omitted outright when that reference is
+  null - 8 such fields across 6 managers on a live system - so keying on
+  absence alone would raise for a correctly projected row. Each manager
+  records the alias names it sent and every object captures them at
+  construction, so only a field that was never requested raises; a field
+  that was requested and omitted yields the same default the previous
+  ``self.get(name, default)`` produced. Write responses are excluded from
+  that record - ``POST`` answers with a receipt and ``PUT`` with ``{}`` -
+  so an updated object reports a field as unfetched rather than inheriting
+  the alias set of whatever the manager last queried, which had made the
+  answer depend on unrelated earlier calls. ``refresh()`` adopts the
+  refetch's projection, so a refreshed object agrees with an identically
+  fetched one. ``FieldNotProjectedError`` is deliberately not an
+  ``AttributeError``, or ``ResourceObject.__getattr__`` would swallow it and
+  ``hasattr()`` would answer ``False`` for a field that exists but was not
+  fetched. AST tripwires fail CI if an accessor reads a computed field with
+  a fallback, or if a write path builds a model while inheriting a
+  projection.
+
+  This is a behaviour change for callers that narrow ``fields`` and then
+  read one of these accessors: they previously received a silently wrong
+  answer and now receive an exception. (#117)
+
 - ``fields=["all"]`` is no longer a silently lossy projection. ``all``
   resolves server-side to a resource's *own columns*, so nothing a manager
   has the server compute came back with it - neither aliased traversals

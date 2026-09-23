@@ -191,13 +191,13 @@ class Cluster(ResourceObject):
     @property
     def status(self) -> str:
         """Cluster status (Online, Offline, etc.)."""
-        raw = str(self.get("status_state", ""))
+        raw = str(self.require_projected("status_state", ""))
         return STATE_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("status_state", ""))
+        return str(self.require_projected("status_state", ""))
 
     @property
     def total_nodes(self) -> int:
@@ -331,35 +331,35 @@ class VSANStatus(ResourceObject):
     @property
     def status(self) -> str:
         """Cluster status (Online, Offline, etc.)."""
-        raw = str(self.get("status", ""))
+        raw = str(self.require_projected("status", ""))
         return STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("status", ""))
+        return str(self.require_projected("status", ""))
 
     @property
     def state(self) -> str:
         """Cluster state (Online, Warning, Error, Offline)."""
-        raw = str(self.get("state", ""))
+        raw = str(self.require_projected("state", ""))
         return STATE_DISPLAY.get(raw, raw)
 
     @property
     def state_raw(self) -> str:
         """Raw state value."""
-        return str(self.get("state", ""))
+        return str(self.require_projected("state", ""))
 
     @property
     def health_status(self) -> str:
         """Health status (Healthy, Degraded, Critical, Offline)."""
-        raw = self.get("state", "")
+        raw = self.require_projected("state", "")
         return HEALTH_STATUS.get(raw, "Unknown")
 
     @property
     def status_info(self) -> str:
         """Status information message."""
-        return str(self.get("status_info", ""))
+        return str(self.require_projected("status_info", ""))
 
     @property
     def total_nodes(self) -> int:
@@ -829,7 +829,7 @@ class ClusterManager(ResourceManager[Cluster]):
         if cluster_key:
             return self.get(int(cluster_key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

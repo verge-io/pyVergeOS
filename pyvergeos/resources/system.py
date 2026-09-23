@@ -600,7 +600,7 @@ class LicenseManager(ResourceManager[License]):
             key = response.get("$key")
             if key is not None:
                 return self.get(int(key))
-            return self._to_model(response)
+            return self._to_model_unprojected(response)
 
         from pyvergeos.exceptions import APIError
 
@@ -1567,7 +1567,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
             key = response.get("$key")
             if key is not None:
                 return self.get(int(key))
-            return self._to_model(response)
+            return self._to_model_unprojected(response)
 
         from pyvergeos.exceptions import APIError
 
@@ -1922,7 +1922,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
             key = response.get("$key")
             if key is not None:
                 return self.get(int(key))
-            return self._to_model(response)
+            return self._to_model_unprojected(response)
 
         from pyvergeos.exceptions import APIError
 

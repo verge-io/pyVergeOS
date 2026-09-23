@@ -488,7 +488,7 @@ class NICManager(ResourceManager[NIC]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
         # Fetch the full NIC data with all fields
-        nic = self._to_model(response)
+        nic = self._to_model_unprojected(response)
         return self.get(nic.key)
 
     def delete(self, key: int) -> None:
@@ -518,7 +518,7 @@ class NICManager(ResourceManager[NIC]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
         """Translate the ``network`` alias to the API's ``vnet`` field.
