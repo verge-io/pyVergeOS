@@ -8,8 +8,8 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Union
 
-from pyvergeos.constants import TASK_WAIT_TIMEOUT
-from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
+from pyvergeos.exceptions import NotFoundError, ValidationError, VergeTimeoutError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -1116,21 +1116,49 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             raise ValueError("Create operation returned invalid response")
 
         snapshot_key = response.get("$key")
-        task_key = response.get("task")
 
-        if wait and task_key:
-            # Wait for task to complete
-            from pyvergeos.resources.tasks import TaskManager
+        if snapshot_key is None:
+            # No key to fetch or wait on; hand back what the POST returned.
+            return self._to_model_unprojected(response)
 
-            task_manager = TaskManager(self._client)
-            task = task_manager.wait(int(task_key), timeout=wait_timeout)
-            if task.has_error:
-                raise ValidationError(f"Snapshot creation failed: {task.status_info}")
+        snapshot_key = int(snapshot_key)
 
-        if snapshot_key:
-            return self.get(int(snapshot_key))
+        # Cloud snapshot creation is not backed by a task row: the POST
+        # response carries no ``task`` key and the row's ``task`` field stays
+        # null. The real completion signal is the row's ``status``, which
+        # progresses ``building`` -> ``normal`` (issue #133). Waiting on a task
+        # here was a silent no-op, so poll the row instead.
+        if wait:
+            return self._wait_until_built(snapshot_key, wait_timeout)
 
-        return self._to_model_unprojected(response)
+        return self.get(snapshot_key)
+
+    def _wait_until_built(self, key: int, timeout: int) -> CloudSnapshot:
+        """Poll a snapshot until it leaves the ``building`` state (issue #133).
+
+        Args:
+            key: Snapshot ``$key`` to poll.
+            timeout: Maximum seconds to wait (``0`` = wait indefinitely).
+
+        Returns:
+            The snapshot once its status is no longer ``building``, fetched
+            fresh so ``status`` reflects reality rather than the stale value
+            the POST response would have implied.
+
+        Raises:
+            VergeTimeoutError: If the snapshot is still building after
+                ``timeout`` seconds.
+        """
+        start = time.time()
+        while True:
+            snapshot = self.get(key)
+            if snapshot.status != "building":
+                return snapshot
+            if timeout > 0 and (time.time() - start) > timeout:
+                raise VergeTimeoutError(
+                    f"Cloud snapshot {key} still building after {timeout} seconds"
+                )
+            time.sleep(POLL_INTERVAL)
 
     def delete(self, key: int) -> None:
         """Delete a cloud snapshot.
