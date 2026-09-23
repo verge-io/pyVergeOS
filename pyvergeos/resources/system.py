@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -126,7 +126,9 @@ class SettingsManager(ResourceManager[SystemSetting]):
             >>> # List UI-related settings
             >>> ui_settings = client.settings.list(key_contains="ui_")
         """
-        # Use "all" to get all available fields by default
+        # "all" resolves server-side to the resource's own columns, not to
+        # every field a projection could name: computed entries are left
+        # out (issue #117). Safe here only because settings has no joins.
         if fields is None:
             fields = ["all"]
 
@@ -168,14 +170,16 @@ class SettingsManager(ResourceManager[SystemSetting]):
         if key is None:
             raise ValueError("Setting key must be provided")
 
-        # Use "all" to get all available fields by default
+        # "all" resolves server-side to the resource's own columns, not to
+        # every field a projection could name: computed entries are left
+        # out (issue #117). Safe here only because settings has no joins.
         if fields is None:
             fields = ["all"]
 
         # Settings uses 'key' as the keyfield, not $key
         params: dict[str, Any] = {
             "filter": f"key eq {quote_value(key)}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -224,7 +228,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         # Settings uses 'key' as the keyfield, so we filter by it
         params: dict[str, Any] = {
             "filter": f"key eq {quote_value(key)}",
-            "fields": "all",
+            "fields": self._projection("all"),
         }
 
         response = self._client._request("GET", self._endpoint, params=params)

@@ -47,7 +47,6 @@ from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
-    normalize_fields,
     serialize_list,
     split_fields,
 )
@@ -170,9 +169,9 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -213,9 +212,9 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -384,9 +383,9 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -427,9 +426,9 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -603,9 +602,9 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -649,9 +648,9 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -982,9 +981,9 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -1047,7 +1046,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         if key is not None:
             params: dict[str, Any] = {
-                "fields": ",".join(request_fields),
+                "fields": self._projection(request_fields),
             }
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -317,9 +317,9 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -360,7 +360,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import re
 from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
@@ -126,6 +127,131 @@ def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
         if stripped:
             names.append(stripped)
     return names
+
+
+PROJECTION_ALL = "all"
+
+_ALIAS_RE = re.compile(r"\s+as\s+(\S+)\s*$")
+
+
+def projection_alias(field: str) -> str:
+    """Return the name a projection entry lands under in the response row.
+
+    ``"machine#status#running as running"`` lands under ``"running"``;
+    a plain column lands under itself.
+    """
+    match = _ALIAS_RE.search(field)
+    return match.group(1) if match else field.strip()
+
+
+def is_computed_projection(field: str) -> bool:
+    """Is this projection entry something the server computes, not a column?
+
+    ``fields=all`` returns columns. A traversal (``machine#status#running``),
+    an aggregate (``count(members)``) or a sub-selection
+    (``stats[reads,writes]``) is derived, so it is never part of ``all`` and
+    has to be asked for by name -- ``all`` answers a sub-selected column with
+    the bare foreign key instead, which is why ``storage_tier.read_ops``
+    raised ``AttributeError`` under ``all``. Detected structurally rather
+    than from a list of known names, so a new kind of computed entry is
+    covered the day it is written.
+    """
+    stripped = field.strip()
+    return (
+        "#" in stripped  # traversal: machine#status#running
+        or "(" in stripped  # aggregate: count(members)
+        or "[" in stripped  # sub-selection: stats[reads,writes,rops]
+        or projection_alias(stripped) != stripped  # anything explicitly aliased
+    )
+
+
+def expand_projection(
+    fields: str | builtins.list[str] | None,
+    defaults: builtins.list[str] | None,
+) -> str | builtins.list[str] | None:
+    """Make ``all`` an actual superset of a manager's default projection.
+
+    ``all`` is resolved server-side to the resource's *own columns*. Anything
+    a manager has the server compute rather than select is therefore absent
+    from it -- aliased traversals (``machine#status#running as running``) and
+    aggregates (``count(members) as member_count``) alike -- so a request for
+    ``all`` silently comes back without ``running``, ``status`` and friends,
+    and on ``nodes`` without even ``$key``. A caller who asked for *more*
+    data got a *wrong* answer (issue #117).
+
+    When ``all`` appears in the projection, the manager's computed entries and
+    ``$key`` are appended to it, which the API accepts and which measurably
+    restores the missing values. Entries the caller already named are left
+    alone, so an explicit override still wins.
+
+    Independently of ``all``, a caller who names one of the manager's alias
+    names gets the manager's entry for it. ``fields=["$key","name","running"]``
+    would otherwise select the ``vms`` table's own ``running`` column, which
+    is null on every row, and the accessor would answer ``False`` for a
+    running VM - the same defect reached without ``all``. Narrowing itself is
+    still honoured: the projection stays exactly as wide as asked for.
+
+    Args:
+        fields: The caller's projection.
+        defaults: The manager's default projection, or None.
+
+    Returns:
+        The projection to send, expanded only when ``all`` was requested.
+    """
+    if not fields:
+        return fields
+
+    names = split_fields(fields)
+    computed_by_alias = {
+        projection_alias(field): field for field in defaults or () if is_computed_projection(field)
+    }
+
+    # A caller who names an alias means the manager's field of that name, not
+    # whatever bare column happens to share it. Asking vms for "running"
+    # returns a real column that is null on every row, and vnets drops the
+    # name entirely - either way the accessor answered False for a running
+    # resource, which is issue #117 reached through a narrowed projection
+    # rather than through 'all'. Send what the manager means by the name.
+    resolved: builtins.list[str] = []
+    translated = False
+    for name in names:
+        entry = computed_by_alias.get(name)
+        if entry is not None and entry != name:
+            resolved.append(entry)
+            translated = True
+        else:
+            resolved.append(name)
+    names = resolved
+
+    if PROJECTION_ALL not in names:
+        return names if translated else fields
+
+    seen = {projection_alias(name) for name in names}
+    extra: builtins.list[str] = []
+
+    # $key is the resource's identity and ResourceObject.key depends on it,
+    # yet several endpoints leave it out of 'all' - nodes and storage_tiers
+    # among them, where .key then raised "Resource has no $key" for a plainly
+    # persisted row. Ask for it unconditionally: endpoints that already carry
+    # it tolerate the duplicate, and settings, which is keyed on 'key', simply
+    # answers with both.
+    if "$key" not in seen:
+        seen.add("$key")
+        extra.append("$key")
+
+    for field in defaults or ():
+        # 'all' already covers plain own-columns, so re-listing them only
+        # bloats the URL. It covers nothing the server has to compute, and
+        # it drops $key on at least the nodes endpoint.
+        if not is_computed_projection(field):
+            continue
+        alias = projection_alias(field)
+        if alias in seen:
+            continue
+        seen.add(alias)
+        extra.append(field)
+
+    return names + extra if extra else fields
 
 
 class ResourceObject(dict[str, Any]):
@@ -286,8 +412,31 @@ class ResourceManager(Generic[T]):
 
     _endpoint: str = ""
 
+    #: The manager's default projection, when it has one. Declared here so
+    #: that list()/get() can make a caller's ``all`` a true superset of it
+    #: (issue #117). Subclasses that keep their defaults in a module constant
+    #: should point this at that constant.
+    _default_fields: builtins.list[str] | None = None
+
     def __init__(self, client: VergeClient) -> None:
         self._client = client
+
+    def _projection(self, fields: str | builtins.list[str] | None) -> str | None:
+        """Serialize a caller-supplied ``fields`` argument for the wire.
+
+        The single place a projection becomes a request parameter, so that
+        ``all`` is expanded into a true superset of this manager's default
+        projection (issue #117) no matter which method built the request.
+        Managers that assemble ``params`` themselves must use this rather
+        than calling ``normalize_fields()`` directly; a tripwire enforces it.
+
+        Args:
+            fields: The caller's projection.
+
+        Returns:
+            The wire-format ``fields`` value, or None.
+        """
+        return normalize_fields(expand_projection(fields, self._default_fields))
 
     def list(
         self,
@@ -323,9 +472,10 @@ class ResourceManager(Generic[T]):
         if combined_filter:
             params["filter"] = combined_filter
 
-        # Field selection
+        # Field selection. 'all' is expanded to include the manager's
+        # computed entries, which the API would otherwise omit (issue #117).
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         # Pagination
         if limit is not None:
@@ -369,7 +519,7 @@ class ResourceManager(Generic[T]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

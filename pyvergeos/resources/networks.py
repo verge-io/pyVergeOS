@@ -815,6 +815,10 @@ class NetworkManager(ResourceManager[Network]):
             net.power_off()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_NETWORK_FIELDS
+
     _endpoint = "vnets"
 
     def __init__(self, client: VergeClient) -> None:
@@ -1174,7 +1178,7 @@ class NetworkManager(ResourceManager[Network]):
         # Query stats fields
         stats_params = {
             "filter": f"$key eq {key}",
-            "fields": ",".join(STATISTICS_FIELDS),
+            "fields": self._projection(STATISTICS_FIELDS),
         }
         stats_response = self._client._request("GET", "vnets", params=stats_params)
 
