@@ -1024,7 +1024,7 @@ class TestCreateWait:
         mock_session.request.reset_mock()
         mock_session.request.side_effect = [post, building]
 
-        with pytest.raises(VergeTimeoutError, match="still building after 10 seconds"):
+        with pytest.raises(VergeTimeoutError, match="did not finish building within 10 seconds"):
             mock_client.cloud_snapshots.create(
                 name="stuck", never_expire=True, wait=True, wait_timeout=10
             )
@@ -1061,3 +1061,57 @@ class TestCreateWait:
         assert snapshot.get("name") == "keyless"
         assert mock_session.request.call_count == 1
         mock_time.sleep.assert_not_called()
+
+
+class TestCreateWaitPreBuildingRace:
+    """Guard the pre-``building`` window (issue #133 skeptical retest).
+
+    Right after the POST the snapshot row's ``status`` can be absent or null
+    before it flips to ``building``. The ``status`` accessor masks a missing
+    field as ``"normal"``, so a naive ``!= "building"`` check on the accessor
+    would treat that first poll as settled and return immediately -- exactly
+    the no-op the fix removes. The wait must poll the raw field and keep
+    waiting while the status is missing/blank.
+    """
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_wait_keeps_polling_through_absent_then_null_status(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1000.0
+        post = _resp({"$key": 5, "location": "/v4/cloud_snapshots/5"})
+        # Timeline: field absent -> null -> building -> normal.
+        absent = _resp({"$key": 5, "name": "race"})
+        null_status = _resp({"$key": 5, "name": "race", "status": None})
+        building = _resp({"$key": 5, "name": "race", "status": "building"})
+        normal = _resp({"$key": 5, "name": "race", "status": "normal"})
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [post, absent, null_status, building, normal]
+
+        snapshot = mock_client.cloud_snapshots.create(name="race", wait=True)
+
+        assert snapshot.status == "normal"
+        # POST + four polls: it did not shortcut on the absent/null/building rows.
+        assert mock_session.request.call_count == 5
+        assert mock_time.sleep.call_count == 3
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_absent_status_accessor_would_have_shortcut_but_raw_check_does_not(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        # Regression pin: a single absent-status poll then normal. The accessor
+        # would read the absent row as "normal" and stop after one poll; the raw
+        # check must wait for the real terminal row instead.
+        mock_time.time.return_value = 1000.0
+        post = _resp({"$key": 6, "location": "/v4/cloud_snapshots/6"})
+        absent = _resp({"$key": 6, "name": "pin"})
+        normal = _resp({"$key": 6, "name": "pin", "status": "normal"})
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [post, absent, normal]
+
+        snapshot = mock_client.cloud_snapshots.create(name="pin", wait=True)
+
+        assert snapshot.status == "normal"
+        assert snapshot.get("status") == "normal"  # the real terminal row
+        assert mock_session.request.call_count == 3  # POST + absent + normal
+        assert mock_time.sleep.call_count == 1

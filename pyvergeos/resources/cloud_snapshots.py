@@ -1141,22 +1141,30 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             timeout: Maximum seconds to wait (``0`` = wait indefinitely).
 
         Returns:
-            The snapshot once its status is no longer ``building``, fetched
-            fresh so ``status`` reflects reality rather than the stale value
-            the POST response would have implied.
+            The snapshot once it reports a settled status, fetched fresh so
+            ``status`` reflects reality rather than the stale value the POST
+            response would have implied.
 
         Raises:
-            VergeTimeoutError: If the snapshot is still building after
+            VergeTimeoutError: If the snapshot has not settled after
                 ``timeout`` seconds.
         """
         start = time.time()
         while True:
             snapshot = self.get(key)
-            if snapshot.status != "building":
+            # Read the raw field, not the ``status`` accessor: the accessor
+            # defaults a missing status to ``"normal"``, which right after the
+            # POST -- before the field flips to ``building`` -- would look
+            # settled and return immediately, reintroducing the no-op this
+            # fixes. Treat a missing/blank status as "not settled yet" and keep
+            # waiting; only a concrete, non-``building`` status is done (#133).
+            raw_status = snapshot.get("status")
+            if raw_status and raw_status != "building":
                 return snapshot
             if timeout > 0 and (time.time() - start) > timeout:
                 raise VergeTimeoutError(
-                    f"Cloud snapshot {key} still building after {timeout} seconds"
+                    f"Cloud snapshot {key} did not finish building within "
+                    f"{timeout} seconds (last status: {raw_status!r})"
                 )
             time.sleep(POLL_INTERVAL)
 
