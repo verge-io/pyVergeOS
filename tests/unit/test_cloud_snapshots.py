@@ -930,3 +930,35 @@ class TestTagResolution:
         mgr, _ = self._mgr()
         with pytest.raises(TypeError):
             mgr._resolve_tag_keys([True])
+
+
+class TestPartialSnapshotEdgeCases:
+    """Cover the new error branches added for #129."""
+
+    def test_tag_object_without_key_raises(self) -> None:
+        from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
+
+        mgr = CloudSnapshotManager(MagicMock())
+        keyless = CloudSnapshot({}, MagicMock())  # a ResourceObject with no $key
+        with pytest.raises(ValueError, match="no \\$key"):
+            mgr._resolve_tag_keys([keyless])
+
+    def test_empty_include_tags_raises(self, mock_client: VergeClient) -> None:
+        with pytest.raises(ValueError, match="include_tags must name at least one"):
+            mock_client.cloud_snapshots.create(name="x", include_tags=[])
+
+    def test_empty_exclude_tags_raises(self, mock_client: VergeClient) -> None:
+        with pytest.raises(ValueError, match="exclude_tags must name at least one"):
+            mock_client.cloud_snapshots.create(name="x", exclude_tags=[])
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_empty_quiesce_tags_is_a_noop_not_an_error(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """quiesce_tags=[] alongside a valid partial adds no quiesce, does not raise."""
+        mock_time.time.return_value = 1735689600.0
+        mock_session.request.return_value.json.return_value = {"$key": 10, "name": "nq"}
+        mock_client.cloud_snapshots.create(name="nq", include_tags=[3], quiesce_tags=[])
+        body = _post_body(mock_session, "nq")
+        assert body["type"] == "partial_include"
+        assert "quiesce_tags" not in body
