@@ -6,6 +6,63 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.4.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``Projected``, a descriptor that declares an accessor and the projection
+  entry that feeds it in one place, plus ``ResourceObject.projected_entries()``
+  so a manager derives its default projection from those declarations instead
+  of restating them. Adding an accessor now adds its field to every query that
+  reads it. See :doc:`contributing`. (#125)
+
+- ``display_map()`` and ``epoch_utc()`` transforms, and
+  ``split_reference()`` / ``reference_key()`` / ``reference_table()`` for
+  reading ``"table/key"`` references. (#125, #126)
+
+- ``Task.owner_table`` was already present; ``TaskEvent.owner_key`` now
+  reports the key it previously discarded. (#126)
+
+Fixed
+^^^^^
+
+- Four accessors declared ``-> int`` coerced with ``int()`` on columns that
+  hold a polymorphic reference (``"vms/39"``), a name-keyed reference
+  (``"vm_recipes/winbind-v1"``) or a plain non-numeric value
+  (``"deprecated"``, ``""``). Reading them raised ``ValueError`` on ordinary
+  rows, so iterating alarms or tasks crashed on the first one::
+
+      for alarm in client.alarms.list():
+          print(alarm.owner_key)      # ValueError before this release
+
+  ``alarms.owner_key``, ``alarms.alarm_type_key``, ``alarms.sub_owner``,
+  ``tasks.owner_key``, ``tasks.creator_key`` and
+  ``task_schedules.creator_key`` now report the key part of the reference.
+  ``task_events.owner_key`` returned ``None`` for these rather than raising,
+  discarding the key; it now reports it. (#126)
+
+Changed
+^^^^^^^
+
+- **Type change.** The accessors above widen from ``int | None`` to
+  ``str | int | None``, because a VergeOS key is not always numeric. Numeric
+  references are unaffected -- ``39`` and ``"27"`` still read as ``int`` --
+  and an absent column still reads as ``None``. Only values that previously
+  raised behave differently. (#126)
+
+- Every accessor for a computed field is now declared with ``Projected``
+  rather than written by hand. This is a refactor: behaviour is unchanged,
+  verified by comparing each accessor against the implementation it replaced
+  across present, null, empty, falsy, absent-but-requested and
+  never-requested values, and by checking that every manager's projection is
+  unchanged in content. (#125)
+
+  Contributors adding an accessor should read the new section in
+  :doc:`contributing`; a test enforces that no ``@property`` calls
+  ``require_projected``.
+
 [1.3.0] - 2026-09-23
 --------------------
 

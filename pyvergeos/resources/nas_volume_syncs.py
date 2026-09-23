@@ -8,13 +8,26 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
+    Projected,
     ResourceManager,
     ResourceObject,
+    display_map,
     serialize_list,
 )
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+
+#: Raw sync status -> human-readable label.
+SYNC_STATUS_DISPLAY = {
+    "complete": "Complete",
+    "offline": "Offline",
+    "syncing": "Syncing",
+    "aborted": "Aborted",
+    "error": "Error",
+    "warning": "Warning",
+}
 
 
 class NASVolumeSync(ResourceObject):
@@ -107,10 +120,12 @@ class NASVolumeSync(ResourceObject):
         manager = cast("NASVolumeSyncManager", self._manager)
         manager.stop(self.key)
 
-    @property
-    def is_syncing(self) -> bool:
-        """Check if the sync is currently running."""
-        return bool(self.require_projected("syncing", False))
+    is_syncing = Projected[bool](
+        "progress#syncing as syncing",
+        bool,
+        default=False,
+        doc="Check if the sync is currently running.",
+    )
 
     @property
     def service_key(self) -> int | None:
@@ -154,19 +169,13 @@ class NASVolumeSync(ResourceObject):
         }
         return mode_map.get(mode, mode)
 
-    @property
-    def status_display(self) -> str:
-        """Get human-readable status."""
-        status = str(self.require_projected("status", ""))
-        status_map = {
-            "complete": "Complete",
-            "offline": "Offline",
-            "syncing": "Syncing",
-            "aborted": "Aborted",
-            "error": "Error",
-            "warning": "Warning",
-        }
-        return status_map.get(status, status)
+    status_display = Projected[str](
+        "progress#status as status",
+        str,
+        default="",
+        transform=display_map(SYNC_STATUS_DISPLAY),
+        doc="Get human-readable status.",
+    )
 
 
 class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
@@ -231,14 +240,13 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         "preserve_xattrs",
         "copy_symlinks",
         "fsfreeze",
-        "progress#status as status",
-        "progress#syncing as syncing",
         "progress#files_transferred as files_transferred",
         "progress#bytes_transferred as bytes_transferred",
         "progress#transfer_rate as transfer_rate",
         "progress#sync_errors as sync_errors",
         "progress#start_time as start_time",
         "progress#stop_time as stop_time",
+        *NASVolumeSync.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

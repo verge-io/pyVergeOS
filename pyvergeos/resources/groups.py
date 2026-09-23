@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -332,10 +332,12 @@ class Group(ResourceObject):
         """Check if this is a system group."""
         return bool(self.get("system_group", False))
 
-    @property
-    def member_count(self) -> int:
-        """Get the number of members in the group."""
-        return int(self.require_projected("member_count", 0))
+    member_count = Projected[int](
+        "count(members) as member_count",
+        int,
+        default=0,
+        doc="Get the number of members in the group.",
+    )
 
     @property
     def created(self) -> int | None:
@@ -433,7 +435,7 @@ class GroupManager(ResourceManager[Group]):
         "identity",
         "system_group",
         "creator",
-        "count(members) as member_count",
+        *Group.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

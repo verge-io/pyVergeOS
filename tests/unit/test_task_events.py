@@ -59,11 +59,15 @@ class TestTaskEvent:
         assert event.owner_key is None
 
     def test_task_event_owner_key_path_value(self, mock_client: VergeClient) -> None:
-        """Test TaskEvent.owner_key returns None for path-like values."""
+        """TaskEvent.owner_key reports the key of a 'table/key' reference.
+
+        It used to return None here, discarding the one piece of information
+        the caller asked for: the row is update_settings 1 (issue #126).
+        """
         data = {"$key": 1, "owner": "update_settings/1"}
         event = TaskEvent(data, mock_client.task_events)
 
-        assert event.owner_key is None
+        assert event.owner_key == 1
 
     def test_task_event_task_key_none(self, mock_client: VergeClient) -> None:
         """Test TaskEvent.task_key returns None when not set."""

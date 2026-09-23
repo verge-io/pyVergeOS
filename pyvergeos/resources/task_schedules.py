@@ -56,7 +56,11 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    reference_key,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -132,10 +136,14 @@ class TaskSchedule(ResourceObject):
         return bool(self.get("system_created", False))
 
     @property
-    def creator_key(self) -> int | None:
-        """Get creator user key."""
-        creator = self.get("creator")
-        return int(creator) if creator is not None else None
+    def creator_key(self) -> str | int | None:
+        """Creator row key. 'creator' is a 'table/key' reference.
+
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
+        """
+        return reference_key(self.get("creator"))
 
     @property
     def runs_on_monday(self) -> bool:
@@ -308,6 +316,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
         "system_created",
         "creator",
         "creator#$display as creator_display",
+        *TaskSchedule.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

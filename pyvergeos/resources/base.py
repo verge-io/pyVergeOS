@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import builtins
 import re
-from collections.abc import Iterator, Mapping
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
 from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 T = TypeVar("T", bound="ResourceObject")
+PT = TypeVar("PT")
 SelfT = TypeVar("SelfT", bound="ResourceObject")
 
 
@@ -254,6 +255,224 @@ def expand_projection(
     return names + extra if extra else fields
 
 
+#: Sentinel for "nothing supplied here", distinct from a legitimate ``None``.
+_NO_VALUE: Any = object()
+
+
+def display_map(mapping: Mapping[Any, Any], default: Any = _NO_VALUE) -> Callable[[Any], Any]:
+    """Build a ``transform`` that renders a raw value through ``mapping``.
+
+    Args:
+        mapping: Raw value -> display value.
+        default: Returned for an unmapped value. Omit to pass the raw value
+            through unchanged, which is what the hand-written accessors did.
+
+    Returns:
+        A callable suitable for ``Projected(transform=...)``.
+    """
+
+    def _render(value: Any) -> Any:
+        if default is _NO_VALUE:
+            return mapping.get(value, value)
+        return mapping.get(value, default)
+
+    return _render
+
+
+def split_reference(value: Any) -> tuple[str | None, str | int | None]:
+    """Split a VergeOS reference into ``(table, key)``.
+
+    Several columns hold a *polymorphic* reference -- a ``"table/key"``
+    string such as ``"vms/39"`` naming both the table and the row, which is
+    how ``tasks.create(owner=..., table=...)`` composes them. Others hold a
+    plain key. A key is not always numeric either: recipes are keyed by name,
+    so ``owner`` can be ``"vm_recipes/yottabyte-services-nas-winbind"``.
+
+    Coercing any of those with ``int()`` raises ValueError, which is issue
+    #126. This reports what is actually there instead:
+
+    >>> split_reference("vms/39")
+    ('vms', 39)
+    >>> split_reference("vm_recipes/winbind-v1")
+    ('vm_recipes', 'winbind-v1')
+    >>> split_reference("deprecated")
+    (None, 'deprecated')
+    >>> split_reference("")
+    (None, None)
+
+    Args:
+        value: The raw column value.
+
+    Returns:
+        ``(table, key)``. ``table`` is None when the value carries no table
+        part; ``key`` is an int when it looks like one, and None when there
+        is no value at all.
+    """
+    if value is None:
+        return (None, None)
+    if isinstance(value, bool):
+        return (None, int(value))
+    if isinstance(value, int):
+        return (None, value)
+    text = str(value).strip()
+    if not text:
+        return (None, None)
+    table: str | None = None
+    if "/" in text:
+        table, _, text = text.partition("/")
+        table = table or None
+        if not text:
+            return (table, None)
+    try:
+        return (table, int(text))
+    except ValueError:
+        return (table, text)
+
+
+def reference_key(value: Any) -> str | int | None:
+    """The key part of a reference: 39 from ``"vms/39"``. See split_reference."""
+    return split_reference(value)[1]
+
+
+def reference_table(value: Any) -> str | None:
+    """The table part of a reference: ``"vms"`` from ``"vms/39"``, else None."""
+    return split_reference(value)[0]
+
+
+def epoch_utc(value: Any) -> Any:
+    """Render a Unix timestamp as a timezone-aware UTC datetime.
+
+    A ``transform`` for the several accessors that turn an epoch column into
+    a ``datetime``. Pair it with ``falsy=None, null=None`` so that a missing
+    or zero timestamp stays None rather than becoming 1970.
+    """
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(int(value), tz=timezone.utc)
+
+
+class Projected(Generic[PT]):
+    """Declare an accessor and the projection entry behind it, together.
+
+    Issue #117 was not that accessors guessed. It was that the fact
+    *"``is_running`` comes from ``machine#status#running``"* was written down
+    twice -- once in the manager's field list, once in the accessor's
+    ``self.get("running", False)`` -- with nothing tying the two. Each fix was
+    another sweep for copies of a hand-written pattern: ``all`` not carrying
+    the traversal, a caller naming the alias and getting a bare column, an
+    accessor with a two-argument read, then one with a one-argument read.
+
+    Stating it once removes the class of defect rather than its instances::
+
+        class Network(ResourceObject):
+            is_running = Projected("machine#status#running as running", bool,
+                                   default=False)
+
+    The manager then derives its projection from the declarations instead of
+    restating them, so the two cannot drift, and adding an accessor adds its
+    field to every query that reads it.
+
+    The read is performed in a fixed order, which is what lets the various
+    hand-written bodies this replaces be reproduced exactly:
+
+    1. ``require_projected(alias, default)``, or ``require_projected_any``
+       when several aliases are given.
+    2. If ``fallback`` is set and the value is falsy, re-read it from that
+       plain field -- the ``x or self.get("y", 0)`` idiom.
+    3. If ``falsy`` is set and the value is falsy, substitute it -- the
+       ``x or 0`` idiom.
+    4. If the value is None and ``null`` was given, return ``null``.
+    5. Apply ``coerce``, then ``transform``.
+
+    Note that ``coerce`` is applied to a null value unless ``null`` is given.
+    That is deliberate: it is what the accessors being replaced did, and
+    changing it here would alter behaviour silently rather than visibly.
+
+    Args:
+        entry: The projection entry -- ``"machine#status#running as running"``
+            -- or a plain column name. A sequence of entries reads whichever
+            was projected, for fields spelled differently by different
+            endpoints.
+        coerce: Applied to the value, typically ``str``, ``int`` or ``bool``.
+        default: Returned when the field was requested but the server omitted
+            it, as a traversal through a null polymorphic reference is.
+        null: Returned uncoerced when the value is None. Omit to pass None
+            to ``coerce``, which is what the accessors replaced here did.
+        falsy: Substituted for any falsy value, reproducing ``x or 0``.
+        fallback: Plain field read via ``get()`` when the value is falsy, for
+            rows that carry the same fact under an embedded name.
+        fallback_default: Default for that fallback read.
+        transform: Applied last, for display maps and unit conversions.
+        doc: Docstring for the generated attribute.
+    """
+
+    def __init__(
+        self,
+        entry: str | Sequence[str],
+        coerce: Callable[[Any], Any] | None = None,
+        *,
+        default: Any = None,
+        null: Any = _NO_VALUE,
+        falsy: Any = _NO_VALUE,
+        fallback: str | None = None,
+        fallback_default: Any = None,
+        transform: Callable[[Any], Any] | None = None,
+        doc: str | None = None,
+    ) -> None:
+        entries = [entry] if isinstance(entry, str) else list(entry)
+        if not entries:
+            raise ValueError("Projected requires at least one projection entry")
+        self.entries: builtins.list[str] = entries
+        self.aliases: builtins.list[str] = [projection_alias(e) for e in entries]
+        self.coerce = coerce
+        self.default = default
+        self.null = null
+        self.falsy = falsy
+        self.fallback = fallback
+        self.fallback_default = fallback_default
+        self.transform = transform
+        self.name = self.aliases[0]
+        self.__doc__ = doc
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.name = name
+
+    @overload
+    def __get__(self, obj: None, objtype: type | None = None) -> Projected[PT]: ...
+
+    @overload
+    def __get__(self, obj: Any, objtype: type | None = None) -> PT: ...
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        if obj is None:
+            return self
+        if len(self.aliases) == 1:
+            value = obj.require_projected(self.aliases[0], self.default)
+        else:
+            value = obj.require_projected_any(*self.aliases, default=self.default)
+        if self.fallback is not None and not value:
+            value = obj.get(self.fallback, self.fallback_default)
+        if self.falsy is not _NO_VALUE and not value:
+            value = self.falsy
+        if value is None and self.null is not _NO_VALUE:
+            return self.null
+        if self.coerce is not None:
+            value = self.coerce(value)
+        if self.transform is not None:
+            value = self.transform(value)
+        return value
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        """Write through to the backing mapping.
+
+        Defined so this is a *data* descriptor and therefore always wins over
+        the instance dictionary, matching the ``property`` it replaces. The
+        value lands in the mapping, which is where ``ResourceObject``'s own
+        ``__setattr__`` would have put it.
+        """
+        obj[self.name] = value
+
+
 class ResourceObject(dict[str, Any]):
     """Dict subclass with attribute access and resource methods.
 
@@ -313,6 +532,23 @@ class ResourceObject(dict[str, Any]):
             super().__setattr__(name, value)
         else:
             self[name] = value
+
+    @classmethod
+    def projected_entries(cls) -> builtins.list[str]:
+        """Projection entries declared by this model's ``Projected`` fields.
+
+        Lets a manager build its default projection from the declarations
+        rather than restating them, so an accessor and the field list that
+        feeds it cannot disagree (issue #125). Base classes first, in
+        declaration order, de-duplicated.
+        """
+        seen: dict[str, None] = {}
+        for klass in reversed(cls.__mro__):
+            for value in vars(klass).values():
+                if isinstance(value, Projected):
+                    for entry in value.entries:
+                        seen.setdefault(entry, None)
+        return list(seen)
 
     def require_projected(self, name: str, default: Any = None) -> Any:
         """Return field ``name``, refusing to guess when it was not projected.

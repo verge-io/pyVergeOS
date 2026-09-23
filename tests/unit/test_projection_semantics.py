@@ -39,8 +39,11 @@ import pytest
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import FieldNotProjectedError
 from pyvergeos.resources.base import (
+    Projected,
     ResourceManager,
     ResourceObject,
+    display_map,
+    epoch_utc,
     expand_projection,
     is_computed_projection,
     projection_alias,
@@ -766,3 +769,204 @@ class TestRefreshAdoptsTheRefetchProjection:
                 return "raised"
 
         assert read(narrow) == read(fresh)
+
+
+class _FakeManager:
+    """Minimal stand-in that only has to answer ``_requested_aliases``."""
+
+    def __init__(self, requested: frozenset[str] | None = None) -> None:
+        self._requested_aliases = requested
+
+
+def _row(data: dict[str, Any], requested: frozenset[str] | None = None) -> ResourceObject:
+    return ResourceObject(data, _FakeManager(requested))  # type: ignore[arg-type]
+
+
+class TestProjectedDescriptor:
+    """The declarative form must behave exactly as the accessors it replaced.
+
+    Issue #125. The read order is fixed -- require_projected, then fallback,
+    then falsy, then null, then coerce, then transform -- because the bodies
+    being replaced were not equivalent to one another: ``int(rp(a, 0))``
+    raises TypeError on a null while ``int(rp(a) or 0)`` returns 0, and both
+    shapes existed in the codebase.
+    """
+
+    def test_present_value_is_coerced(self) -> None:
+        class M(ResourceObject):
+            x = Projected[int]("a#b as x", int)
+
+        assert M({"x": "7"}, _FakeManager()).x == 7  # type: ignore[arg-type]
+
+    def test_never_requested_raises_rather_than_guessing(self) -> None:
+        class M(ResourceObject):
+            x = Projected[bool]("a#b as x", bool, default=False)
+
+        with pytest.raises(FieldNotProjectedError):
+            _ = M({}, _FakeManager()).x  # type: ignore[arg-type]
+
+    def test_requested_but_omitted_uses_the_default(self) -> None:
+        """A traversal through a null polymorphic reference is omitted."""
+
+        class M(ResourceObject):
+            x = Projected[bool]("a#b as x", bool, default=False)
+
+        obj = M({}, _FakeManager(frozenset({"x"})))  # type: ignore[arg-type]
+        assert obj.x is False
+
+    def test_a_genuine_false_is_still_false(self) -> None:
+        class M(ResourceObject):
+            x = Projected[bool]("a#b as x", bool, default=False)
+
+        assert M({"x": False}, _FakeManager()).x is False  # type: ignore[arg-type]
+
+    def test_null_is_coerced_by_default(self) -> None:
+        """Deliberate: ``str(require_projected(f, ""))`` yielded 'None'."""
+
+        class M(ResourceObject):
+            x = Projected[str]("a#b as x", str, default="")
+
+        assert M({"x": None}, _FakeManager()).x == "None"  # type: ignore[arg-type]
+
+    def test_null_returns_the_declared_value_when_given(self) -> None:
+        class M(ResourceObject):
+            x = Projected["str | None"]("a#b as x", str, null=None)
+
+        assert M({"x": None}, _FakeManager()).x is None  # type: ignore[arg-type]
+
+    def test_falsy_substitution_reproduces_the_or_idiom(self) -> None:
+        class M(ResourceObject):
+            x = Projected[int]("count(y) as x", int, falsy=0)
+
+        assert M({"x": None}, _FakeManager()).x == 0  # type: ignore[arg-type]
+        assert M({"x": ""}, _FakeManager()).x == 0  # type: ignore[arg-type]
+        assert M({"x": 5}, _FakeManager()).x == 5  # type: ignore[arg-type]
+
+    def test_fallback_reads_the_embedded_field(self) -> None:
+        class M(ResourceObject):
+            x = Projected[int]("a#b as x", int, fallback="raw", fallback_default=0)
+
+        assert M({"x": None, "raw": 9}, _FakeManager()).x == 9  # type: ignore[arg-type]
+        assert M({"x": 3, "raw": 9}, _FakeManager()).x == 3  # type: ignore[arg-type]
+
+    def test_transform_runs_after_coercion(self) -> None:
+        class M(ResourceObject):
+            x = Projected[str]("a#b as x", str, default="", transform=display_map({"a": "A"}))
+
+        assert M({"x": "a"}, _FakeManager()).x == "A"  # type: ignore[arg-type]
+        assert M({"x": "z"}, _FakeManager()).x == "z"  # type: ignore[arg-type]
+
+    def test_epoch_transform_leaves_a_missing_timestamp_as_none(self) -> None:
+        class M(ResourceObject):
+            x = Projected["datetime | None"](
+                "machine#status#started as started",
+                falsy=None,
+                null=None,
+                transform=epoch_utc,
+            )
+
+        assert M({"started": 0}, _FakeManager()).x is None  # type: ignore[arg-type]
+        assert M({"started": 1700000000}, _FakeManager()).x is not None  # type: ignore[arg-type]
+
+    def test_several_aliases_read_whichever_was_projected(self) -> None:
+        class M(ResourceObject):
+            x = Projected["str | None"](("v#name as a", "v#$display as b"), str, null=None)
+
+        assert M({"b": "second"}, _FakeManager()).x == "second"  # type: ignore[arg-type]
+
+    def test_entry_and_alias_are_derived_from_one_declaration(self) -> None:
+        field = Projected[bool]("machine#status#running as running", bool, default=False)
+        assert field.entries == ["machine#status#running as running"]
+        assert field.aliases == ["running"]
+
+    def test_projected_entries_collects_declarations(self) -> None:
+        class Base(ResourceObject):
+            a = Projected[str]("x#y as a", str)
+
+        class Child(Base):
+            b = Projected[str]("p#q as b", str)
+
+        assert Child.projected_entries() == ["x#y as a", "p#q as b"]
+
+    def test_projected_entries_does_not_repeat_an_entry(self) -> None:
+        class M(ResourceObject):
+            a = Projected[str]("x#y as a", str)
+            b = Projected[str]("x#y as a", str)
+
+        assert M.projected_entries() == ["x#y as a"]
+
+    def test_class_access_returns_the_declaration(self) -> None:
+        class M(ResourceObject):
+            x = Projected[str]("a#b as x", str)
+
+        assert isinstance(M.x, Projected)
+
+    def test_it_is_a_data_descriptor_like_the_property_it_replaced(self) -> None:
+        """So it keeps winning over the instance, whatever the model grows."""
+        assert hasattr(Projected, "__set__")
+
+
+class TestDeclarationsReachTheProjection:
+    """Anti-drift: whatever a model declares, its manager must request.
+
+    This is the invariant #117 kept violating. It now holds by construction,
+    because every manager splats ``Model.projected_entries()`` -- this pins
+    that, so a hand-edited ``_default_fields`` cannot quietly drop an entry
+    an accessor depends on.
+    """
+
+    def test_every_declared_entry_is_in_its_managers_projection(self) -> None:
+        missing: list[str] = []
+        for _name, manager, _tree in manager_classes():
+            defaults = manager.__dict__.get("_default_fields")
+            if not defaults:
+                continue
+            model = getattr(manager, "_model_for_test", None)
+            for base in getattr(manager, "__orig_bases__", ()):
+                for arg in getattr(base, "__args__", ()):
+                    if isinstance(arg, type) and issubclass(arg, ResourceObject):
+                        model = arg
+            if model is None:
+                continue
+            for entry in model.projected_entries():
+                if entry not in defaults:
+                    missing.append(f"{manager.__name__} does not request {entry!r}")
+        assert not missing, (
+            "a model declares a Projected field its manager never asks the "
+            f"server for, so the accessor would refuse on a default fetch (issue #125): {missing}"
+        )
+
+
+class TestComputedAccessorsAreDeclarative:
+    """AST tripwire: computed fields are read one way only.
+
+    Before #125 an accessor read its alias by hand, and each round of #117
+    was another sweep for copies of that pattern at a shape the previous
+    tripwire had not anticipated. There is now exactly one way to bind an
+    accessor to a projection entry, so this is a single rule with no
+    per-shape exemptions: properties do not call ``require_projected``.
+    """
+
+    def test_no_property_calls_require_projected(self) -> None:
+        offenders: list[str] = []
+        for path in sorted(RESOURCES_DIR.glob("*.py")):
+            tree = ast.parse(path.read_text())
+            for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+                for fn in cls.body:
+                    if not isinstance(fn, ast.FunctionDef):
+                        continue
+                    if not any(
+                        isinstance(d, ast.Name) and d.id == "property" for d in fn.decorator_list
+                    ):
+                        continue
+                    for node in ast.walk(fn):
+                        if (
+                            isinstance(node, ast.Call)
+                            and isinstance(node.func, ast.Attribute)
+                            and node.func.attr.startswith("require_projected")
+                        ):
+                            offenders.append(f"{path.name}:{node.lineno} {cls.name}.{fn.name}")
+        assert not offenders, (
+            "hand-written accessors for computed fields; declare them with "
+            f"Projected(...) so the entry and the accessor stay together (issue #125): {offenders}"
+        )

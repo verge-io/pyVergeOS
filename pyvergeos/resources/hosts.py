@@ -7,17 +7,18 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.networks import Network
 
-# Default fields for host data
-HOST_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_HOST_COLUMNS = [
     "$key",
     "vnet",
-    "vnet#name as vnet_name",
     "type",
     "host",
     "ip",
@@ -41,11 +42,12 @@ class NetworkHost(ResourceObject):
             raise ValueError("Host has no network (vnet) key")
         return int(vnet)
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the network name this host belongs to."""
-        value = self.require_projected("vnet_name")
-        return str(value) if value is not None else None
+    network_name = Projected["str | None"](
+        "vnet#name as vnet_name",
+        str,
+        null=None,
+        doc="Get the network name this host belongs to.",
+    )
 
     @property
     def hostname(self) -> str:
@@ -77,6 +79,14 @@ class NetworkHost(ResourceObject):
     def is_host(self) -> bool:
         """Check if this is a host override."""
         return self.host_type == "host"
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+HOST_DEFAULT_FIELDS = [
+    *_HOST_COLUMNS,
+    *NetworkHost.projected_entries(),
+]
 
 
 class NetworkHostManager(ResourceManager[NetworkHost]):

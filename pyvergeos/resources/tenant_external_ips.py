@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -15,11 +15,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields for tenant external IPs
-TENANT_EXTERNAL_IP_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_EXTERNAL_IP_COLUMNS = [
     "$key",
     "vnet",
-    "vnet#name as network_name",
     "ip",
     "type",
     "hostname",
@@ -56,11 +57,12 @@ class TenantExternalIP(ResourceObject):
         """Get the network key this IP belongs to."""
         return int(self.get("vnet", 0))
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the network name."""
-        value = self.require_projected("network_name")
-        return str(value) if value is not None else None
+    network_name = Projected["str | None"](
+        "vnet#name as network_name",
+        str,
+        null=None,
+        doc="Get the network name.",
+    )
 
     @property
     def ip_address(self) -> str:
@@ -94,6 +96,14 @@ class TenantExternalIP(ResourceObject):
         if hostname:
             return f"<TenantExternalIP {self.ip_address} ({hostname}) on {self.network_name}>"
         return f"<TenantExternalIP {self.ip_address} on {self.network_name}>"
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_EXTERNAL_IP_DEFAULT_FIELDS = [
+    *_TENANT_EXTERNAL_IP_COLUMNS,
+    *TenantExternalIP.projected_entries(),
+]
 
 
 class TenantExternalIPManager(ResourceManager[TenantExternalIP]):

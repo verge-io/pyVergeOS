@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -60,10 +60,12 @@ class TaskScript(ResourceObject):
             return settings
         return None
 
-    @property
-    def task_count(self) -> int:
-        """Get the number of tasks using this script."""
-        return int(self.require_projected("task_count", 0))
+    task_count = Projected[int](
+        "count(tasks) as task_count",
+        int,
+        default=0,
+        doc="Get the number of tasks using this script.",
+    )
 
     def run(self, **params: Any) -> dict[str, Any] | None:
         """Run this script.
@@ -118,7 +120,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         "description",
         "script",
         "task_settings",
-        "count(tasks) as task_count",
+        *TaskScript.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

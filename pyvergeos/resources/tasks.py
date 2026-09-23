@@ -54,7 +54,12 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    reference_key,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -62,8 +67,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
 
 
-# Default fields to request for task list operations
-_DEFAULT_LIST_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_LIST_COLUMNS = [
     "$key",
     "name",
     "description",
@@ -73,15 +80,11 @@ _DEFAULT_LIST_FIELDS = [
     "action_display",
     "table",
     "owner",
-    "owner#$display as owner_display",
     "creator",
-    "creator#$display as creator_display",
     "last_run",
     "delete_after_run",
     "system_created",
     "id",
-    "count(triggers) as triggers_count",
-    "count(events) as events_count",
 ]
 
 
@@ -136,26 +139,38 @@ class Task(ResourceObject):
         return int(self.get("progress", 0))
 
     @property
-    def owner_key(self) -> int | None:
-        """Get owner object key."""
-        owner = self.get("owner")
-        return int(owner) if owner is not None else None
+    def owner_key(self) -> str | int | None:
+        """Owner row key, the '39' of 'vms/39'. May be a name for recipes.
+
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
+        """
+        return reference_key(self.get("owner"))
+
+    owner_display = Projected[str](
+        "owner#$display as owner_display",
+        str,
+        default="",
+        doc="Get owner display name.",
+    )
 
     @property
-    def owner_display(self) -> str:
-        """Get owner display name."""
-        return str(self.require_projected("owner_display", ""))
+    def creator_key(self) -> str | int | None:
+        """Creator row key. 'creator' is a 'table/key' reference.
 
-    @property
-    def creator_key(self) -> int | None:
-        """Get creator user key."""
-        creator = self.get("creator")
-        return int(creator) if creator is not None else None
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
+        """
+        return reference_key(self.get("creator"))
 
-    @property
-    def creator_display(self) -> str:
-        """Get creator display name."""
-        return str(self.require_projected("creator_display", ""))
+    creator_display = Projected[str](
+        "creator#$display as creator_display",
+        str,
+        default="",
+        doc="Get creator display name.",
+    )
 
     @property
     def task_id(self) -> str:
@@ -187,15 +202,19 @@ class Task(ResourceObject):
         """Check if task was created by system."""
         return bool(self.get("system_created", False))
 
-    @property
-    def trigger_count(self) -> int:
-        """Get number of schedule triggers."""
-        return int(self.require_projected("triggers_count", 0))
+    trigger_count = Projected[int](
+        "count(triggers) as triggers_count",
+        int,
+        default=0,
+        doc="Get number of schedule triggers.",
+    )
 
-    @property
-    def event_count(self) -> int:
-        """Get number of event triggers."""
-        return int(self.require_projected("events_count", 0))
+    event_count = Projected[int](
+        "count(events) as events_count",
+        int,
+        default=0,
+        doc="Get number of event triggers.",
+    )
 
     @property
     def triggers(self) -> TaskScheduleTriggerManager:
@@ -298,6 +317,14 @@ class Task(ResourceObject):
             poll_interval=poll_interval,
             raise_on_error=raise_on_error,
         )
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+_DEFAULT_LIST_FIELDS = [
+    *_LIST_COLUMNS,
+    *Task.projected_entries(),
+]
 
 
 class TaskManager(ResourceManager[Task]):
