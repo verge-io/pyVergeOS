@@ -143,3 +143,54 @@ class TestClusterScopedAccessor:
 
         assert isinstance(getattr(VergeClient, "cluster_status", None), property)
         assert isinstance(getattr(VergeClient, "machine_drive_stats", None), property)
+
+
+class TestClusterStatusCoverage:
+    """Exercise the remaining accessors and get() branches."""
+
+    def test_all_accessors_on_populated_row(self, sample_status: dict[str, Any]) -> None:
+        s = ClusterStatus(sample_status, MagicMock())
+        assert s.status == "online"
+        assert s.state == "online"
+        assert s.total_nodes == 2
+        assert s.total_ram == 137472
+        assert s.total_cores == 64
+        assert s.running_machines == 3
+
+    def test_get_by_key_none_response_raises(self, mock_client: MagicMock) -> None:
+        mock_client._request.return_value = None
+        with pytest.raises(NotFoundError, match="not found"):
+            ClusterStatusManager(mock_client).get(key=1)
+
+    def test_get_by_key_non_dict_response_raises(self, mock_client: MagicMock) -> None:
+        mock_client._request.return_value = ["unexpected"]
+        with pytest.raises(NotFoundError, match="invalid response"):
+            ClusterStatusManager(mock_client).get(key=1)
+
+    def test_scoped_none_response_raises(self, mock_client: MagicMock) -> None:
+        mock_client._request.return_value = None
+        with pytest.raises(NotFoundError):
+            ClusterStatusManager(mock_client, cluster_key=1).get()
+
+    def test_scoped_single_dict_response_is_accepted(
+        self, mock_client: MagicMock, sample_status: dict[str, Any]
+    ) -> None:
+        # some endpoints answer a filtered query with a bare object, not a list
+        mock_client._request.return_value = sample_status
+        s = ClusterStatusManager(mock_client, cluster_key=1).get()
+        assert s.online_nodes == 2
+
+    def test_list_with_explicit_fields_is_passed_through(
+        self, mock_client: MagicMock, sample_status: dict[str, Any]
+    ) -> None:
+        mock_client._request.return_value = [sample_status]
+        ClusterStatusManager(mock_client).list(fields=["$key", "cluster"])
+        assert "cluster" in mock_client._request.call_args.kwargs["params"]["fields"]
+
+
+def test_cluster_status_get_by_key_with_explicit_fields(
+    mock_client: MagicMock, sample_status: dict[str, Any]
+) -> None:
+    mock_client._request.return_value = sample_status
+    ClusterStatusManager(mock_client).get(key=1, fields=["$key", "cluster"])
+    assert "cluster" in mock_client._request.call_args.kwargs["params"]["fields"]

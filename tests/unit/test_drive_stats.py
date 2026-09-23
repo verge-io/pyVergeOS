@@ -146,3 +146,55 @@ class TestDriveScopedAccessor:
         scoped = drive.drive_stats
         assert isinstance(scoped, MachineDriveStatsManager)
         assert scoped._drive_key == 16
+
+
+class TestMachineDriveStatsCoverage:
+    """Exercise the remaining accessors and get() branches."""
+
+    def test_all_accessors_on_populated_row(self, sample_stats: dict[str, Any]) -> None:
+        s = MachineDriveStats(sample_stats, MagicMock())
+        assert s.read_bytes == 400000
+        assert s.read_ops_per_sec == 0
+        assert s.read_bps == 0
+        assert s.write_bps == 500000
+        assert s.used_bytes == 1000000
+        assert s.max_bytes == 8000000
+        assert s.service_time == pytest.approx(1.2)
+        assert s.utilization == pytest.approx(0.15)
+
+    def test_get_by_key_none_response_raises(self, mock_client: MagicMock) -> None:
+        mock_client._request.return_value = None
+        with pytest.raises(NotFoundError, match="not found"):
+            MachineDriveStatsManager(mock_client).get(key=1)
+
+    def test_get_by_key_non_dict_response_raises(self, mock_client: MagicMock) -> None:
+        mock_client._request.return_value = ["unexpected"]
+        with pytest.raises(NotFoundError, match="invalid response"):
+            MachineDriveStatsManager(mock_client).get(key=1)
+
+    def test_scoped_none_response_raises(self, mock_client: MagicMock) -> None:
+        mock_client._request.return_value = None
+        with pytest.raises(NotFoundError):
+            MachineDriveStatsManager(mock_client, drive_key=1).get()
+
+    def test_scoped_single_dict_response_is_accepted(
+        self, mock_client: MagicMock, sample_stats: dict[str, Any]
+    ) -> None:
+        mock_client._request.return_value = sample_stats
+        s = MachineDriveStatsManager(mock_client, drive_key=39).get()
+        assert s.drive_key == 39
+
+    def test_list_with_explicit_fields_is_passed_through(
+        self, mock_client: MagicMock, sample_stats: dict[str, Any]
+    ) -> None:
+        mock_client._request.return_value = [sample_stats]
+        MachineDriveStatsManager(mock_client).list(fields=["$key", "parent_drive"])
+        assert "parent_drive" in mock_client._request.call_args.kwargs["params"]["fields"]
+
+
+def test_drive_stats_get_by_key_with_explicit_fields(
+    mock_client: MagicMock, sample_stats: dict[str, Any]
+) -> None:
+    mock_client._request.return_value = sample_stats
+    MachineDriveStatsManager(mock_client).get(key=1, fields=["$key", "parent_drive"])
+    assert "parent_drive" in mock_client._request.call_args.kwargs["params"]["fields"]
