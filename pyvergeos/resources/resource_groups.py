@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -1078,7 +1078,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
 
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1122,7 +1122,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Resource rule with key {key} not found")

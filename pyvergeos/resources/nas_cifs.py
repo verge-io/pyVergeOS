@@ -10,7 +10,6 @@ from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
-    normalize_fields,
     serialize_list,
 )
 
@@ -234,7 +233,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -290,7 +289,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
                 "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

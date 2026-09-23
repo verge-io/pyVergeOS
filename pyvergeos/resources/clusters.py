@@ -614,7 +614,7 @@ class ClusterManager(ResourceManager[Cluster]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -162,7 +162,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -207,7 +207,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             # Query by key with tenant filter to ensure it belongs to this tenant
             params: dict[str, Any] = {
                 "filter": f"$key eq {key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if response is None:

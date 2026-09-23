@@ -815,6 +815,10 @@ class NetworkManager(ResourceManager[Network]):
             net.power_off()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_NETWORK_FIELDS
+
     _endpoint = "vnets"
 
     def __init__(self, client: VergeClient) -> None:

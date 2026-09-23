@@ -47,7 +47,6 @@ from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
-    normalize_fields,
     serialize_list,
     split_fields,
 )
@@ -170,7 +169,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -213,7 +212,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -384,7 +383,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -427,7 +426,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -603,7 +602,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -649,7 +648,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -982,7 +981,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

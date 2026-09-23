@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import re
 from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
@@ -126,6 +127,85 @@ def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
         if stripped:
             names.append(stripped)
     return names
+
+
+PROJECTION_ALL = "all"
+
+_ALIAS_RE = re.compile(r"\s+as\s+(\S+)\s*$")
+
+
+def projection_alias(field: str) -> str:
+    """Return the name a projection entry lands under in the response row.
+
+    ``"machine#status#running as running"`` lands under ``"running"``;
+    a plain column lands under itself.
+    """
+    match = _ALIAS_RE.search(field)
+    return match.group(1) if match else field.strip()
+
+
+def is_computed_projection(field: str) -> bool:
+    """Is this projection entry something the server computes, not a column?
+
+    ``fields=all`` returns columns. A traversal (``machine#status#running``)
+    or an aggregate (``count(members)``) is derived, so it is never part of
+    ``all`` and has to be asked for by name. Detected structurally rather
+    than from a list of known names, so a new kind of computed entry is
+    covered the day it is written.
+    """
+    stripped = field.strip()
+    return "#" in stripped or "(" in stripped or projection_alias(stripped) != stripped
+
+
+def expand_projection(
+    fields: str | builtins.list[str] | None,
+    defaults: builtins.list[str] | None,
+) -> str | builtins.list[str] | None:
+    """Make ``all`` an actual superset of a manager's default projection.
+
+    ``all`` is resolved server-side to the resource's *own columns*. Anything
+    a manager has the server compute rather than select is therefore absent
+    from it -- aliased traversals (``machine#status#running as running``) and
+    aggregates (``count(members) as member_count``) alike -- so a request for
+    ``all`` silently comes back without ``running``, ``status`` and friends,
+    and on ``nodes`` without even ``$key``. A caller who asked for *more*
+    data got a *wrong* answer (issue #117).
+
+    When ``all`` appears in the projection, the manager's computed entries and
+    ``$key`` are appended to it, which the API accepts and which measurably
+    restores the missing values. Entries the caller already named are left
+    alone, so an explicit override still wins. Projections without ``all``
+    pass through untouched: narrowing is a legitimate request.
+
+    Args:
+        fields: The caller's projection.
+        defaults: The manager's default projection, or None.
+
+    Returns:
+        The projection to send, expanded only when ``all`` was requested.
+    """
+    if not fields or not defaults:
+        return fields
+
+    names = split_fields(fields)
+    if PROJECTION_ALL not in names:
+        return fields
+
+    seen = {projection_alias(name) for name in names}
+    extra: builtins.list[str] = []
+    for field in defaults:
+        # 'all' already covers plain own-columns, so re-listing them only
+        # bloats the URL. It covers nothing the server has to compute, and
+        # it drops $key on at least the nodes endpoint.
+        if not is_computed_projection(field) and field != "$key":
+            continue
+        alias = projection_alias(field)
+        if alias in seen:
+            continue
+        seen.add(alias)
+        extra.append(field)
+
+    return names + extra if extra else fields
 
 
 class ResourceObject(dict[str, Any]):
@@ -286,8 +366,31 @@ class ResourceManager(Generic[T]):
 
     _endpoint: str = ""
 
+    #: The manager's default projection, when it has one. Declared here so
+    #: that list()/get() can make a caller's ``all`` a true superset of it
+    #: (issue #117). Subclasses that keep their defaults in a module constant
+    #: should point this at that constant.
+    _default_fields: builtins.list[str] | None = None
+
     def __init__(self, client: VergeClient) -> None:
         self._client = client
+
+    def _projection(self, fields: str | builtins.list[str] | None) -> str | None:
+        """Serialize a caller-supplied ``fields`` argument for the wire.
+
+        The single place a projection becomes a request parameter, so that
+        ``all`` is expanded into a true superset of this manager's default
+        projection (issue #117) no matter which method built the request.
+        Managers that assemble ``params`` themselves must use this rather
+        than calling ``normalize_fields()`` directly; a tripwire enforces it.
+
+        Args:
+            fields: The caller's projection.
+
+        Returns:
+            The wire-format ``fields`` value, or None.
+        """
+        return normalize_fields(expand_projection(fields, self._default_fields))
 
     def list(
         self,
@@ -323,9 +426,10 @@ class ResourceManager(Generic[T]):
         if combined_filter:
             params["filter"] = combined_filter
 
-        # Field selection
+        # Field selection. 'all' is expanded to include the manager's
+        # computed entries, which the API would otherwise omit (issue #117).
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         # Pagination
         if limit is not None:
@@ -369,7 +473,7 @@ class ResourceManager(Generic[T]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

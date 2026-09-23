@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -240,7 +240,7 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -284,7 +284,7 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"vGPU profile with key {key} not found")
@@ -557,7 +557,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -601,7 +601,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"GPU with key {key} not found")
@@ -841,7 +841,7 @@ class NodeGpuStatsManager(ResourceManager[NodeGpuStats]):
 
         params: dict[str, Any] = {
             "filter": f"node_gpu eq {self._gpu_key}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "limit": 1,
         }
 
@@ -940,7 +940,7 @@ class NodeGpuStatsManager(ResourceManager[NodeGpuStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -1145,7 +1145,7 @@ class NodeGpuInstanceManager(ResourceManager[NodeGpuInstance]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
 
         if limit is not None:
@@ -1371,7 +1371,7 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1411,7 +1411,7 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"vGPU device with key {key} not found")
@@ -1623,7 +1623,7 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1663,7 +1663,7 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"Host GPU device with key {key} not found")
@@ -1834,7 +1834,7 @@ class NodeVgpuProfileManager(ResourceManager[NodeVgpuProfile]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1878,7 +1878,7 @@ class NodeVgpuProfileManager(ResourceManager[NodeVgpuProfile]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"vGPU profile with key {key} not found")
