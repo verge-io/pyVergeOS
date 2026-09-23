@@ -6,6 +6,22 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.6.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``cloud_snapshots.create()`` can now take ``include_tags``, ``exclude_tags``
+  and ``quiesce_tags`` to create a **partial (tag-scoped) system snapshot** --
+  capture only, or all-but, the VMs carrying the given tags, a VergeOS 26.1
+  feature that was previously unreachable from the SDK. Tags may be given as a
+  ``$key``, a name, or a Tag object; names are resolved to keys (an ambiguous
+  name raises rather than guessing, since names are unique only within a
+  category). ``include_tags`` and ``exclude_tags`` are mutually exclusive, and
+  ``quiesce_tags`` requires one of them. A create with none of these is a full
+  snapshot exactly as before. (#129)
+
 [1.5.0] - 2026-09-23
 --------------------
 
@@ -35,6 +51,7 @@ Notes
   ``machine_drive_stats`` was missing. Both scoped stats managers now default
   ``list()`` to their projection, so a bare ``list()`` returns populated rows
   rather than only ``$key``.
+
 
 [1.4.0] - 2026-09-23
 --------------------
