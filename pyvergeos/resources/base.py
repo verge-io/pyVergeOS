@@ -842,14 +842,23 @@ class ResourceManager(Generic[T]):
     ) -> T:
         """Get a single resource by key or name.
 
+        When looking up by ``name`` this returns the **first** match
+        (``limit=1``). VergeOS does not enforce unique names on every table, so
+        if two resources share a name only one is returned and the other is not
+        reported -- the duplicate is invisible to this call, not an error. When
+        names may not be unique, look up by ``key``, or use
+        ``list(filter="name eq ...")`` and decide how to handle more than one
+        row yourself.
+
         Args:
             key: Resource $key (ID).
-            name: Resource name (will search if key not provided).
+            name: Resource name (searched if ``key`` is not provided). Returns
+                the first match if the name is not unique; see above.
             fields: Fields to return - a list of names or the API's
                 comma-separated string.
 
         Returns:
-            Resource object.
+            Resource object (the first match when searching by ``name``).
 
         Raises:
             NotFoundError: If resource not found.
