@@ -9,84 +9,84 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 [Unreleased]
 ------------
 
+Added
+^^^^^
+
+- ``FieldNotProjectedError``, raised when an accessor is asked for a field
+  the request never fetched. Exported from ``pyvergeos`` and documented in
+  :doc:`error_handling`. It is deliberately **not** an ``AttributeError``,
+  so ``getattr(vm, "is_running", None)`` and ``hasattr(vm, "is_running")``
+  propagate it rather than quietly answering ``None``/``False``; an
+  ``AttributeError`` subclass would be swallowed by ``ResourceObject``'s
+  dict attribute fallback. Use ``"running" in vm`` for a non-raising check.
+  (#117)
+
+Changed
+^^^^^^^
+
+- **Behaviour change.** An accessor whose backing field was not fetched now
+  raises ``FieldNotProjectedError`` instead of returning ``False``, ``""``,
+  ``0`` or ``"unknown"``. This affects callers that narrow ``fields`` and
+  then read ``is_running``, ``status``, ``member_count`` and similar: they
+  previously received a silently wrong answer.
+
+  A wrong answer in this direction is the dangerous one - ``is_running`` is
+  exactly the guard placed in front of a destructive operation, and a
+  storage tier reported as ``"Offline"`` with zero capacity invites action
+  on a healthy tier.
+
+  No signatures changed, and the default projection is unaffected. To get a
+  usable answer, use the manager's default fields, pass ``fields=["all"]``,
+  or name the field - all three now agree::
+
+      vm = client.vms.get(name="web-01")
+      vm = client.vms.get(name="web-01", fields=["all"])
+      vm = client.vms.get(name="web-01", fields=["$key", "running"])
+
+  Accessors that can still answer from another fetched field keep their
+  tolerant behaviour - ``device_type_display`` falls back to the
+  ``device_type`` column, ``size_gb`` to ``disksize``. (#117)
+
+- Accessors declared ``-> str | None`` now return a ``str``. Several
+  returned whatever the API sent, so ``permission.identity_name`` answered
+  the integer ``1`` where its own annotation promised text. Affects 32
+  accessors; compare against ``"1"`` rather than ``1``. (#117)
+
 Fixed
 ^^^^^
 
-- Accessors no longer invent a value for a field they never fetched.
-  ``is_running``, ``is_online``, ``status``, ``state``, ``member_count`` and
-  a hundred others read their backing field with ``self.get(name, False)``,
-  which cannot tell "the field says false" from "the field was not
-  projected" - so any narrowed ``fields`` argument turned every one of them
-  into a confident wrong answer, and ``False`` is precisely the direction
-  that disarms the guard a caller puts in front of a destructive operation.
-  All 187 accessors backed by a computed field now use
-  ``require_projected()`` and raise the new
-  ``FieldNotProjectedError`` instead. The test is what the request asked
-  for, not merely whether the key came back: most computed fields return
-  null when there is nothing to report, but a traversal through a
-  *polymorphic* reference (``creator#$display`` on tasks, where ``creator``
-  holds a ``table/key`` string) is omitted outright when that reference is
-  null - 8 such fields across 6 managers on a live system - so keying on
-  absence alone would raise for a correctly projected row. Each manager
-  records the alias names it sent and every object captures them at
-  construction, so only a field that was never requested raises; a field
-  that was requested and omitted yields the same default the previous
-  ``self.get(name, default)`` produced. Write responses are excluded from
-  that record - ``POST`` answers with a receipt and ``PUT`` with ``{}`` -
-  so an updated object reports a field as unfetched rather than inheriting
-  the alias set of whatever the manager last queried, which had made the
-  answer depend on unrelated earlier calls. ``refresh()`` adopts the
-  refetch's projection, so a refreshed object agrees with an identically
-  fetched one. ``FieldNotProjectedError`` is deliberately not an
-  ``AttributeError``, or ``ResourceObject.__getattr__`` would swallow it and
-  ``hasattr()`` would answer ``False`` for a field that exists but was not
-  fetched. AST tripwires fail CI if an accessor reads a computed field with
-  a fallback - at any arity, since ``bool(self.get(alias))`` fabricates
-  ``False`` exactly as confidently as an explicit default did - or if a
-  write path builds a model while inheriting a projection. Accessors
-  that can still answer from another projected field, such as
-  ``device_type_display`` falling back to the ``device_type`` column,
-  keep the tolerant read and are listed as explicit exemptions.
-
-  This is a behaviour change for callers that narrow ``fields`` and then
-  read one of these accessors: they previously received a silently wrong
-  answer and now receive an exception. (#117)
-
 - ``fields=["all"]`` is no longer a silently lossy projection. ``all``
-  resolves server-side to a resource's *own columns*, so nothing a manager
-  has the server compute came back with it - neither aliased traversals
-  (``machine#status#running as running``) nor aggregates
-  (``count(members) as member_count``) - and on ``nodes`` not even ``$key``.
-  Asking for *more* data therefore returned a *wrong* answer: a running VM
-  read back under ``all`` reported ``is_running is False`` and
-  ``status == "unknown"``, and ``node.key`` raised "Resource has no $key -
-  may not be persisted" for a node that was plainly persisted. Measured on a
-  live system, ``all`` dropped 2 fields on ``networks``, 6 on ``vms``, 9 on
-  ``nodes``, 9 on ``tenants`` and 10 on ``clusters``. A caller's ``all`` is
-  now expanded with the manager's computed entries and ``$key``, which the
-  API accepts and which restores every missing value. Reaching those
-  defaults took two steps: the 34 managers that kept them in a module
-  constant now declare ``_default_fields``, and the 254 manager methods that
-  built the ``fields`` parameter themselves - ``nodes`` among them, which is
-  why it kept losing ``$key`` after the base class was fixed - now go
-  through a single ``ResourceManager._projection()`` - every projection in
-  the package, 357 sites in all, found by discovering managers with
-  ``issubclass`` rather than by matching base-class names, which had hidden
-  five indirectly-derived managers. ``$key`` is now requested whenever
-  ``all`` is, rather than only when a manager declares it: 18 managers
-  declare no default projection at all, and ``storage_tiers`` was still
-  losing ``$key`` (and answering ``read_ops`` with ``AttributeError``)
-  under ``all``. Sub-selections such as ``stats[reads,writes]`` count as
-  computed alongside traversals and aggregates, since ``all`` answers those
-  with the bare foreign key. A caller who names one of the manager's alias
-  names now gets the manager's entry for it: ``fields=["$key","name","running"]``
-  selected the ``vms`` table's own ``running`` column, which is null on every
-  row, so ``is_running`` answered ``False`` for a running VM - the same defect
-  reached through a narrowed projection rather than through ``all``. Narrowing
-  is still honoured and is never widened. AST tripwires fail CI
-  if a manager serialises ``fields`` without expanding ``all``, or if a
-  manager's default projection becomes unreachable from the base class.
-  (#117)
+  resolves server-side to a resource's *own columns*, so nothing the server
+  computes came back with it: aliased traversals
+  (``machine#status#running as running``), aggregates
+  (``count(members) as member_count``) and sub-selections
+  (``stats[reads,writes]``) alike, and on ``nodes`` and ``storage_tiers`` not
+  even ``$key``. A running VM read back under ``all`` reported
+  ``is_running is False``, and ``node.key`` raised "Resource has no $key" for
+  a plainly persisted node. ``all`` is now expanded with the manager's
+  computed entries and ``$key``. (#117)
+
+- Naming a field no longer selects the wrong one.
+  ``fields=["$key", "name", "running"]`` selected the ``vms`` table's own
+  ``running`` column, which is null on every row, so ``is_running`` answered
+  ``False`` for a running VM. A projection entry matching one of the
+  manager's alias names now resolves to the manager's entry for it.
+  Narrowing is still honoured and is never widened. (#117)
+
+- An object built from a write response no longer inherits the projection of
+  whatever the manager last queried. ``POST`` answers with a receipt and
+  ``PUT`` with ``{}``, so ``networks.list()`` followed by
+  ``networks.update(...)`` produced an object that answered ``is_running`` as
+  ``False`` from a row that never contained ``running`` - an answer that
+  depended on unrelated earlier calls. (#117)
+
+- ``refresh()`` adopts the refetched projection, so a refreshed object no
+  longer disagrees with an identically fetched one. (#117)
+
+- A field the server omits because a *polymorphic* reference is null - such
+  as ``creator#$display`` on a task with no creator - is reported as its
+  default rather than as unfetched. Absence alone is not proof that a field
+  was not requested. (#117)
 
 [1.2.8] - 2026-09-22
 --------------------
