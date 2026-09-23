@@ -52,7 +52,7 @@ class TenantStorage(ResourceObject):
     @property
     def tier(self) -> int:
         """Get the tier number (1-5)."""
-        return int(self.get("tier_number", 0))
+        return int(self.require_projected("tier_number", 0))
 
     @property
     def tier_name(self) -> str:
@@ -62,7 +62,8 @@ class TenantStorage(ResourceObject):
     @property
     def tier_description(self) -> str | None:
         """Get the tier description."""
-        return self.get("tier_description")
+        value = self.require_projected("tier_description")
+        return str(value) if value is not None else None
 
     @property
     def provisioned_bytes(self) -> int:

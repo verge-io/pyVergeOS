@@ -593,7 +593,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         created_key = response.get("$key")
         if created_key:
             return self.get(int(created_key))
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(self, key: int, **kwargs: Any) -> SnapshotProfilePeriod:
         """Update a period.
@@ -886,7 +886,7 @@ class SnapshotProfileManager(ResourceManager[SnapshotProfile]):
         created_key = response.get("$key")
         if created_key:
             return self.get(int(created_key))
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(self, key: int, **kwargs: Any) -> SnapshotProfile:
         """Update a snapshot profile.

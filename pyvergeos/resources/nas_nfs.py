@@ -86,7 +86,8 @@ class NASNFSShare(ResourceObject):
     @property
     def volume_name(self) -> str | None:
         """Get the parent volume name."""
-        return self.get("volume_name") or self.get("volume_display")
+        value = self.require_projected_any("volume_name", "volume_display")
+        return str(value) if value is not None else None
 
     @property
     def is_enabled(self) -> bool:

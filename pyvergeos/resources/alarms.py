@@ -115,7 +115,7 @@ class Alarm(ResourceObject):
     @property
     def alarm_type(self) -> str:
         """Get alarm type name."""
-        return str(self.get("alarm_type_name", ""))
+        return str(self.require_projected("alarm_type_name", ""))
 
     @property
     def alarm_type_key(self) -> int | None:
@@ -126,7 +126,7 @@ class Alarm(ResourceObject):
     @property
     def description(self) -> str:
         """Get alarm type description."""
-        return str(self.get("alarm_type_description", ""))
+        return str(self.require_projected("alarm_type_description", ""))
 
     @property
     def alarm_id(self) -> str:
@@ -136,7 +136,7 @@ class Alarm(ResourceObject):
     @property
     def owner_name(self) -> str:
         """Get owner object name."""
-        return str(self.get("owner_name", ""))
+        return str(self.require_projected("owner_name", ""))
 
     @property
     def owner_key(self) -> int | None:

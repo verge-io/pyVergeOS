@@ -337,7 +337,7 @@ class NodeGpu(ResourceObject):
     @property
     def pci_device_name(self) -> str:
         """PCI device name/description."""
-        return str(self.get("pci_device_name", ""))
+        return str(self.require_projected("pci_device_name", ""))
 
     @property
     def node_key(self) -> int | None:
@@ -348,12 +348,12 @@ class NodeGpu(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def mode(self) -> str:
         """GPU operating mode (none, gpu, nvidia_vgpu)."""
-        return str(self.get("mode", "none"))
+        return str(self.require_projected("mode", "none"))
 
     @property
     def mode_display(self) -> str:
@@ -369,7 +369,7 @@ class NodeGpu(ResourceObject):
     @property
     def nvidia_vgpu_profile_display(self) -> str:
         """Display name of assigned vGPU profile."""
-        return str(self.get("nvidia_vgpu_profile_disp", ""))
+        return str(self.require_projected("nvidia_vgpu_profile_disp", ""))
 
     @property
     def max_instances(self) -> int:
@@ -379,7 +379,7 @@ class NodeGpu(ResourceObject):
     @property
     def instances_count(self) -> int:
         """Current number of assigned instances."""
-        return int(self.get("instances_count", 0))
+        return int(self.require_projected("instances_count", 0))
 
     @property
     def modified_at(self) -> datetime | None:
@@ -650,7 +650,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
 
 # =============================================================================
@@ -974,81 +974,81 @@ class NodeGpuInstance(ResourceObject):
     @property
     def gpu_key(self) -> int:
         """Parent GPU key."""
-        return int(self.get("gpu_key", 0))
+        return int(self.require_projected("gpu_key", 0))
 
     @property
     def gpu_name(self) -> str:
         """Parent GPU name."""
-        return str(self.get("gpu_name", ""))
+        return str(self.require_projected("gpu_name", ""))
 
     @property
     def node_key(self) -> int | None:
         """Node key."""
-        node = self.get("node_key")
+        node = self.require_projected("node_key")
         return int(node) if node else None
 
     @property
     def node_name(self) -> str:
         """Node name."""
-        return str(self.get("node_display", ""))
+        return str(self.require_projected("node_display", ""))
 
     @property
     def machine_key(self) -> int | None:
         """Machine (VM) key."""
-        machine = self.get("machine_key")
+        machine = self.require_projected("machine_key")
         return int(machine) if machine else None
 
     @property
     def machine_name(self) -> str:
         """Machine (VM) name."""
-        return str(self.get("machine_name", ""))
+        return str(self.require_projected("machine_name", ""))
 
     @property
     def machine_type(self) -> str:
         """Machine type (e.g., 'vm')."""
-        return str(self.get("machine_type", ""))
+        return str(self.require_projected("machine_type", ""))
 
     @property
     def machine_type_display(self) -> str:
         """Machine type display name."""
-        return str(self.get("machine_type_display", ""))
+        return str(self.require_projected("machine_type_display", ""))
 
     @property
     def machine_device_key(self) -> int | None:
         """Machine device key."""
-        device = self.get("machine_device_key")
+        device = self.require_projected("machine_device_key")
         return int(device) if device else None
 
     @property
     def machine_device_name(self) -> str:
         """Machine device name."""
-        return str(self.get("machine_device_name", ""))
+        return str(self.require_projected("machine_device_name", ""))
 
     @property
     def machine_device_status(self) -> str:
         """Machine device status."""
-        return str(self.get("machine_device_status", ""))
+        return str(self.require_projected("machine_device_status", ""))
 
     @property
     def pci_device_key(self) -> int | None:
         """PCI device key."""
-        pci = self.get("pci_device_key")
+        pci = self.require_projected("pci_device_key")
         return int(pci) if pci else None
 
     @property
     def pci_device_name(self) -> str:
         """PCI device name."""
-        return str(self.get("pci_device_name", ""))
+        return str(self.require_projected("pci_device_name", ""))
 
     @property
     def mode(self) -> str:
         """GPU mode (gpu, nvidia_vgpu)."""
-        return str(self.get("mode", ""))
+        return str(self.require_projected("mode", ""))
 
     @property
     def mode_display(self) -> str:
         """GPU mode display name."""
-        return str(self.get("mode_display", ""))
+        return str(self.require_projected("mode_display", ""))
 
     @property
     def description(self) -> str:
@@ -1185,7 +1185,7 @@ class NodeVgpuDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def pci_device_key(self) -> int | None:
@@ -1441,7 +1441,7 @@ class NodeHostGpuDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def pci_device_key(self) -> int | None:

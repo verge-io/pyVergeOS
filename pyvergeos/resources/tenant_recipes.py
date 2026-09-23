@@ -122,7 +122,8 @@ class TenantRecipe(ResourceObject):
     @property
     def status_info(self) -> str | None:
         """Get the recipe status string."""
-        return self.get("status") or self.get("rstatus")
+        value = self.require_projected_any("status", "rstatus")
+        return str(value) if value is not None else None
 
     @property
     def catalog_key(self) -> str | None:
@@ -139,7 +140,7 @@ class TenantRecipe(ResourceObject):
     @property
     def instance_count(self) -> int:
         """Get the number of deployed instances."""
-        return int(self.get("instances", 0))
+        return int(self.require_projected("instances", 0))
 
     @property
     def instances(self) -> TenantRecipeInstanceManager:

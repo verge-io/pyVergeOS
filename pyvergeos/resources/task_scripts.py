@@ -63,7 +63,7 @@ class TaskScript(ResourceObject):
     @property
     def task_count(self) -> int:
         """Get the number of tasks using this script."""
-        return int(self.get("task_count", 0))
+        return int(self.require_projected("task_count", 0))
 
     def run(self, **params: Any) -> dict[str, Any] | None:
         """Run this script.
@@ -292,7 +292,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

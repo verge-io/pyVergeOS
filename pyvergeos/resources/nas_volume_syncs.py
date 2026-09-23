@@ -110,7 +110,7 @@ class NASVolumeSync(ResourceObject):
     @property
     def is_syncing(self) -> bool:
         """Check if the sync is currently running."""
-        return bool(self.get("syncing", False))
+        return bool(self.require_projected("syncing", False))
 
     @property
     def service_key(self) -> int | None:
@@ -157,7 +157,7 @@ class NASVolumeSync(ResourceObject):
     @property
     def status_display(self) -> str:
         """Get human-readable status."""
-        status = str(self.get("status", ""))
+        status = str(self.require_projected("status", ""))
         status_map = {
             "complete": "Complete",
             "offline": "Offline",

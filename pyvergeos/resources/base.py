@@ -7,7 +7,7 @@ import re
 from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
 
 if TYPE_CHECKING:
@@ -269,6 +269,14 @@ class ResourceObject(dict[str, Any]):
         super().__init__(data)
         self._manager = manager
         self._dirty: set[str] = set()
+        # What the request that produced this row asked the server for.
+        # None when unknown, in which case require_projected() stays strict.
+        # Type-checked rather than taken on trust, so a hand-built or mocked
+        # manager degrades to "unknown" instead of to a truthy non-set.
+        requested = getattr(manager, "_requested_aliases", None)
+        self._requested: frozenset[str] | None = (
+            requested if isinstance(requested, frozenset) else None
+        )
 
     def __setitem__(self, key: str, value: Any) -> None:
         self.__dict__.setdefault("_dirty", set()).add(key)
@@ -306,6 +314,82 @@ class ResourceObject(dict[str, Any]):
         else:
             self[name] = value
 
+    def require_projected(self, name: str, default: Any = None) -> Any:
+        """Return field ``name``, refusing to guess when it was not projected.
+
+        Accessors built on this cannot conflate "the field says false" with
+        "the field was never fetched".
+
+        The test is what the request asked for, not merely whether the key
+        came back. Most computed fields do come back null when there is
+        nothing to report, but a traversal through a polymorphic reference
+        is omitted outright when that reference is null, so absence alone
+        would raise on a correctly projected row.
+
+        Args:
+            name: Field to read.
+            default: Returned when the field was requested but the server
+                omitted it, which a null polymorphic reference causes. This
+                is the same value the ``self.get(name, default)`` call this
+                replaced would have produced, so behaviour is unchanged for
+                every case except the one being fixed.
+
+        Returns:
+            The stored value, which may be None.
+
+        Raises:
+            FieldNotProjectedError: If the field was never requested.
+        """
+        try:
+            return self[name]
+        except KeyError:
+            pass
+        # Absence is not on its own proof that the field was not requested.
+        # A traversal through a *polymorphic* reference - ``creator#$display``
+        # on tasks, where ``creator`` holds a ``table/key`` string - is
+        # omitted entirely when that reference is null, rather than coming
+        # back null. Measured on a live system: 8 such fields across 6
+        # managers. So the row is only "not projected" if the request did not
+        # ask for it; if it did, ``default`` is the answer, exactly as the
+        # ``self.get(name, default)`` this replaced would have given.
+        if self._requested is not None and name in self._requested:
+            return default
+        raise FieldNotProjectedError(name, type(self).__name__) from None
+
+    def require_projected_any(self, *names: str, default: Any = None) -> Any:
+        """Read the first of ``names`` that was projected.
+
+        For accessors whose field is spelled differently depending on which
+        projection produced the row -- ``volume_name`` or ``volume_display``,
+        ``status`` or ``rstatus``. Requiring the first name alone would raise
+        for a row that legitimately carries the second.
+
+        Preserves the ``a or b`` chain these replaced: the first *truthy*
+        present value wins, falling back to the first present value, so a
+        genuine ``0`` or ``""`` is still reported.
+
+        Args:
+            *names: Candidate field names, in preference order.
+            default: Returned when a name was requested but the server
+                omitted it.
+
+        Returns:
+            The stored value, which may be None.
+
+        Raises:
+            FieldNotProjectedError: If none of ``names`` was requested.
+        """
+        present = [name for name in names if name in self]
+        for name in present:
+            value = self[name]
+            if value:
+                return value
+        if present:
+            return self[present[0]]
+        if self._requested is not None and any(name in self._requested for name in names):
+            return default
+        raise FieldNotProjectedError(names[0], type(self).__name__)
+
     @property
     def key(self) -> int:
         """Resource primary key ($key).
@@ -336,6 +420,12 @@ class ResourceObject(dict[str, Any]):
         # (dict methods bypass the tracking __setitem__).
         dict.clear(self)
         dict.update(self, result)
+        # Adopt the refetch's projection too. The rows are now whatever
+        # get() asked for, so keeping the old record would have this object
+        # disagree with an identical freshly-fetched one: a task refreshed
+        # from a narrow projection carried the full default row yet still
+        # raised for creator_display, which the server omits (issue #117).
+        self._requested = getattr(result, "_requested", None)
         self.__dict__.setdefault("_dirty", set()).clear()
         return self
 
@@ -418,6 +508,11 @@ class ResourceManager(Generic[T]):
     #: should point this at that constant.
     _default_fields: builtins.list[str] | None = None
 
+    #: Alias names sent to the server by the most recent ``_projection()``
+    #: call. Captured by each ``ResourceObject`` at construction, which
+    #: happens during the same request, so it is never read stale.
+    _requested_aliases: frozenset[str] | None = None
+
     def __init__(self, client: VergeClient) -> None:
         self._client = client
 
@@ -436,7 +531,16 @@ class ResourceManager(Generic[T]):
         Returns:
             The wire-format ``fields`` value, or None.
         """
-        return normalize_fields(expand_projection(fields, self._default_fields))
+        resolved = expand_projection(fields, self._default_fields)
+        # Record the names this request asks the server for, so that objects
+        # built from the response can tell "you never asked for this" from
+        # "you asked, and the server had nothing to say" (issue #117).
+        self._requested_aliases = (
+            frozenset(projection_alias(name) for name in split_fields(resolved))
+            if resolved
+            else None
+        )
+        return normalize_fields(resolved)
 
     def list(
         self,
@@ -537,6 +641,25 @@ class ResourceManager(Generic[T]):
 
         raise ValueError("Either key or name must be provided")
 
+    def _to_model_unprojected(self, data: dict[str, Any]) -> T:
+        """Build a model from a response that carried no projection.
+
+        Write responses are not query results. ``POST`` answers with a
+        receipt -- ``$key``, ``$row``, ``dbpath``, ``location``, ``response``
+        -- and ``PUT`` answers with ``{}``. Nothing in either was requested
+        by a projection, so the object must not inherit the alias set left
+        behind by whatever this manager fetched last: otherwise
+        ``networks.list()`` followed by ``networks.update(...)`` would make
+        the updated object answer ``is_running`` as ``False`` from a row that
+        never contained it, which is issue #117 arriving by a side door.
+
+        Clearing the record first makes such an object report the field as
+        unfetched, the same answer it gives with no prior call, so the result
+        does not depend on unrelated history.
+        """
+        self._requested_aliases = None
+        return self._to_model(data)
+
     def create(self, **kwargs: Any) -> T:
         """Create a new resource.
 
@@ -551,7 +674,7 @@ class ResourceManager(Generic[T]):
             raise ValueError("No response from create operation")
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(self, key: int, **kwargs: Any) -> T:
         """Update an existing resource.
@@ -569,7 +692,7 @@ class ResourceManager(Generic[T]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a resource.

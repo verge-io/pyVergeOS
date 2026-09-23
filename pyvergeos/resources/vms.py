@@ -674,7 +674,7 @@ class VM(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if VM is powered on."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running", False))
 
     @property
     def is_snapshot(self) -> bool:
@@ -684,17 +684,19 @@ class VM(ResourceObject):
     @property
     def status(self) -> str:
         """Get VM status (running, stopped, etc.)."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status", "unknown"))
 
     @property
     def node_name(self) -> str | None:
         """Get the name of the node this VM is running on."""
-        return self.get("node_name")
+        value = self.require_projected("node_name")
+        return str(value) if value is not None else None
 
     @property
     def cluster_name(self) -> str | None:
         """Get the name of the cluster this VM belongs to."""
-        return self.get("cluster_name")
+        value = self.require_projected("cluster_name")
+        return str(value) if value is not None else None
 
 
 class VMManager(ResourceManager[VM]):

@@ -11,6 +11,8 @@ Exception Hierarchy
    VergeError (base exception)
    ├── VergeConnectionError - Connection failures
    ├── VergeTimeoutError - Request timeouts
+   ├── NotConnectedError - Operation without an active connection
+   ├── FieldNotProjectedError - Field read but never requested
    └── APIError - API-level errors
        ├── AuthenticationError - 401/403 errors
        ├── NotFoundError - 404 errors
@@ -41,6 +43,48 @@ Basic Error Handling
        vm = client.vms.get(name="nonexistent")
    except NotFoundError:
        print("VM not found")
+
+Unprojected Fields
+------------------
+
+Accessors such as ``is_running``, ``status`` and ``member_count`` read a field
+the manager asked the API for. Narrow ``fields`` and the field is not in the
+row, so the accessor raises ``FieldNotProjectedError`` rather than answering
+``False`` or ``""`` -- a wrong answer indistinguishable from a real one, and
+the wrong direction for a guard in front of a destructive operation.
+
+.. code-block:: python
+
+   from pyvergeos.exceptions import FieldNotProjectedError
+
+   vm = client.vms.get(name="web-01", fields=["$key", "name"])
+   try:
+       if vm.is_running:
+           ...
+   except FieldNotProjectedError as exc:
+       print(f"{exc.field} was not fetched; re-read with the default fields")
+
+Any of these give a usable answer:
+
+.. code-block:: python
+
+   vm = client.vms.get(name="web-01")                              # default fields
+   vm = client.vms.get(name="web-01", fields=["all"])              # expanded for you
+   vm = client.vms.get(name="web-01", fields=["$key", "running"])  # name the field
+
+Naming the field is safe even though the API has a ``running`` column of its
+own that is null on every row: the SDK sends the manager's definition of that
+name, not the bare column.
+
+.. note::
+
+   ``FieldNotProjectedError`` is deliberately **not** an ``AttributeError``,
+   so ``getattr(vm, "is_running", None)`` and ``hasattr(vm, "is_running")``
+   propagate it instead of quietly answering ``None``/``False``. Were it an
+   ``AttributeError``, the dict attribute fallback would swallow it and
+   ``hasattr()`` would report ``False`` for a field that exists but was not
+   fetched -- the same silent wrong answer in a new place. Catch the
+   exception, or test membership with ``"running" in vm``.
 
 Connection Errors
 -----------------

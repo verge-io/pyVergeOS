@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.nodes import (
     DEVICE_TYPE_CODES,
     DRIVER_STATUS_DISPLAY,
@@ -81,10 +81,15 @@ class TestNode:
         node = Node(data, MagicMock())
         assert node.is_online is False
 
-    def test_is_online_default(self) -> None:
-        """Test is_online property defaults to False."""
+    def test_is_online_refuses_to_guess_when_not_projected(self) -> None:
+        """'running' is a join, so it is absent from any narrowed projection.
+
+        Answering False there is indistinguishable from a genuinely offline
+        node, and False is the dangerous direction (issue #117).
+        """
         node = Node({"$key": 1}, MagicMock())
-        assert node.is_online is False
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.is_online
 
     def test_is_maintenance_true(self) -> None:
         """Test is_maintenance property when true."""
@@ -318,7 +323,9 @@ class TestNode:
     def test_started_at_none(self) -> None:
         """Test started_at property when not set."""
         node = Node({"$key": 1}, MagicMock())
-        assert node.started_at is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.started_at
 
     def test_repr(self) -> None:
         """Test __repr__ method."""

@@ -203,12 +203,12 @@ class Network(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if network is powered on."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running", False))
 
     @property
     def status(self) -> str:
         """Get the network status (running, stopped, etc.)."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status", "unknown"))
 
     @property
     def needs_restart(self) -> bool:

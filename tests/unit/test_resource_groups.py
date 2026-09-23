@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.resource_groups import (
     DEVICE_CLASS_MAP,
     DEVICE_TYPE_MAP,
@@ -444,7 +444,10 @@ class TestResourceGroup:
         assert rg.device_type == ""
         assert rg.device_class == ""
         assert rg.is_enabled is False
-        assert rg.resource_count == 0
+        # 'resource_count' is count(resources): an aggregate, absent from a
+        # narrowed projection, and 0 is a real count (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = rg.resource_count
         assert rg.created_at is None
         assert rg.modified_at is None
 

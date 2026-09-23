@@ -87,7 +87,8 @@ class OidcApplicationUser(ResourceObject):
     @property
     def user_display(self) -> str | None:
         """Get the user display name."""
-        return self.get("user_display")
+        value = self.require_projected("user_display")
+        return str(value) if value is not None else None
 
     def delete(self) -> None:
         """Remove this user from allowed users."""
@@ -301,7 +302,8 @@ class OidcApplicationGroup(ResourceObject):
     @property
     def group_display(self) -> str | None:
         """Get the group display name."""
-        return self.get("group_display")
+        value = self.require_projected("group_display")
+        return str(value) if value is not None else None
 
     def delete(self) -> None:
         """Remove this group from allowed groups."""

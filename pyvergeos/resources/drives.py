@@ -352,7 +352,7 @@ class DriveManager(ResourceManager[Drive]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
         # Fetch the full drive data with all fields
-        drive = self._to_model(response)
+        drive = self._to_model_unprojected(response)
         return self.get(drive.key)
 
     def delete(self, key: int) -> None:
@@ -386,7 +386,7 @@ class DriveManager(ResourceManager[Drive]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
         """Translate the ``tier`` alias to the API's ``preferred_tier`` field.
@@ -534,5 +534,5 @@ class DriveManager(ResourceManager[Drive]):
             raise ValueError("Import operation returned invalid response")
 
         # Fetch the full drive data with all fields
-        drive = self._to_model(response)
+        drive = self._to_model_unprojected(response)
         return self.get(drive.key)

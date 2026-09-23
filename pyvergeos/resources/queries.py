@@ -338,7 +338,7 @@ class QueryManager(ResourceManager[QueryResult]):
         key = response.get("$key")
         if key is not None:
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def wait(
         self,

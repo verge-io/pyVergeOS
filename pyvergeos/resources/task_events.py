@@ -112,7 +112,7 @@ class TaskEvent(ResourceObject):
     @property
     def task_display(self) -> str:
         """Get the linked task display name."""
-        return str(self.get("task_display", ""))
+        return str(self.require_projected("task_display", ""))
 
     @property
     def event_filters(self) -> dict[str, Any] | None:
@@ -399,7 +399,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

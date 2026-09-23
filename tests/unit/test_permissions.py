@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.permissions import Permission, PermissionManager
 
 
@@ -45,7 +45,9 @@ class TestPermission:
     def test_identity_name_none(self) -> None:
         """Test identity_name property when not set."""
         perm = Permission({"$key": 1}, MagicMock())
-        assert perm.identity_name is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = perm.identity_name
 
     def test_table_property(self) -> None:
         """Test table property."""

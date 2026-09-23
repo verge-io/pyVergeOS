@@ -113,7 +113,7 @@ class Node(ResourceObject):
     @property
     def is_online(self) -> bool:
         """Check if node is online/running."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running", False))
 
     @property
     def is_maintenance(self) -> bool:
@@ -128,13 +128,13 @@ class Node(ResourceObject):
     @property
     def status(self) -> str:
         """Node status (Running, Stopped, Online, Offline, etc.)."""
-        raw = str(self.get("status", ""))
+        raw = str(self.require_projected("status", ""))
         return STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("status", ""))
+        return str(self.require_projected("status", ""))
 
     @property
     def ram_mb(self) -> int:
@@ -169,22 +169,22 @@ class Node(ResourceObject):
     @property
     def ram_used_mb(self) -> int:
         """Used physical RAM in MB."""
-        return int(self.get("ram_used") or 0)
+        return int(self.require_projected("ram_used") or 0)
 
     @property
     def vram_used_mb(self) -> int:
         """Used virtual RAM in MB."""
-        return int(self.get("vram_used") or 0)
+        return int(self.require_projected("vram_used") or 0)
 
     @property
     def cpu_usage(self) -> float:
         """CPU usage percentage."""
-        return float(self.get("cpu_usage") or 0.0)
+        return float(self.require_projected("cpu_usage") or 0.0)
 
     @property
     def core_temp(self) -> float | None:
         """Core temperature in Celsius."""
-        temp = self.get("core_temp")
+        temp = self.require_projected("core_temp")
         if temp is not None:
             return float(temp)
         return None
@@ -230,7 +230,7 @@ class Node(ResourceObject):
     @property
     def cluster_name(self) -> str:
         """Parent cluster name."""
-        return str(self.get("cluster_name", ""))
+        return str(self.require_projected("cluster_name", ""))
 
     @property
     def machine_key(self) -> int | None:
@@ -288,7 +288,7 @@ class Node(ResourceObject):
     @property
     def started_at(self) -> datetime | None:
         """Timestamp when node was started."""
-        ts = self.get("started")
+        ts = self.require_projected("started")
         if ts:
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None
@@ -571,7 +571,7 @@ class NodeDriver(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def driver_name(self) -> str:
@@ -594,7 +594,7 @@ class NodeDriver(ResourceObject):
     @property
     def driver_file_name(self) -> str:
         """Driver file name."""
-        return str(self.get("driver_file_name", ""))
+        return str(self.require_projected("driver_file_name", ""))
 
     @property
     def description(self) -> str:
@@ -604,13 +604,13 @@ class NodeDriver(ResourceObject):
     @property
     def status(self) -> str:
         """Driver status (Installed, Verifying, Error)."""
-        raw = str(self.get("status", ""))
+        raw = str(self.require_projected("status", ""))
         return DRIVER_STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("status", ""))
+        return str(self.require_projected("status", ""))
 
     @property
     def status_info(self) -> str:
@@ -659,7 +659,7 @@ class NodePCIDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def name(self) -> str:
@@ -788,7 +788,7 @@ class NodeUSBDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def bus(self) -> str:
@@ -875,7 +875,7 @@ class NodeSriovNicDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def pci_device_key(self) -> int | None:

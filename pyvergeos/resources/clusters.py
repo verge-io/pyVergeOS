@@ -191,28 +191,28 @@ class Cluster(ResourceObject):
     @property
     def status(self) -> str:
         """Cluster status (Online, Offline, etc.)."""
-        raw = str(self.get("status_state", ""))
+        raw = str(self.require_projected("status_state", ""))
         return STATE_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("status_state", ""))
+        return str(self.require_projected("status_state", ""))
 
     @property
     def total_nodes(self) -> int:
         """Total number of nodes in cluster."""
-        return int(self.get("total_nodes") or 0)
+        return int(self.require_projected("total_nodes") or 0)
 
     @property
     def online_nodes(self) -> int:
         """Number of online nodes."""
-        return int(self.get("online_nodes") or 0)
+        return int(self.require_projected("online_nodes") or 0)
 
     @property
     def total_ram_mb(self) -> int:
         """Total RAM in MB."""
-        return int(self.get("total_ram") or 0)
+        return int(self.require_projected("total_ram") or 0)
 
     @property
     def total_ram_gb(self) -> float:
@@ -222,7 +222,7 @@ class Cluster(ResourceObject):
     @property
     def online_ram_mb(self) -> int:
         """Online RAM in MB."""
-        return int(self.get("online_ram") or 0)
+        return int(self.require_projected("online_ram") or 0)
 
     @property
     def online_ram_gb(self) -> float:
@@ -232,7 +232,7 @@ class Cluster(ResourceObject):
     @property
     def used_ram_mb(self) -> int:
         """Used RAM in MB."""
-        return int(self.get("used_ram") or 0)
+        return int(self.require_projected("used_ram") or 0)
 
     @property
     def used_ram_gb(self) -> float:
@@ -249,17 +249,17 @@ class Cluster(ResourceObject):
     @property
     def total_cores(self) -> int:
         """Total CPU cores."""
-        return int(self.get("total_cores") or 0)
+        return int(self.require_projected("total_cores") or 0)
 
     @property
     def online_cores(self) -> int:
         """Online CPU cores."""
-        return int(self.get("online_cores") or 0)
+        return int(self.require_projected("online_cores") or 0)
 
     @property
     def used_cores(self) -> int:
         """Used CPU cores."""
-        return int(self.get("used_cores") or 0)
+        return int(self.require_projected("used_cores") or 0)
 
     @property
     def cores_used_percent(self) -> float:
@@ -271,7 +271,7 @@ class Cluster(ResourceObject):
     @property
     def running_machines(self) -> int:
         """Number of running VMs."""
-        return int(self.get("running_machines") or 0)
+        return int(self.require_projected("running_machines") or 0)
 
     @property
     def tiers(self) -> ClusterTierManager:
@@ -331,55 +331,55 @@ class VSANStatus(ResourceObject):
     @property
     def status(self) -> str:
         """Cluster status (Online, Offline, etc.)."""
-        raw = str(self.get("status", ""))
+        raw = str(self.require_projected("status", ""))
         return STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("status", ""))
+        return str(self.require_projected("status", ""))
 
     @property
     def state(self) -> str:
         """Cluster state (Online, Warning, Error, Offline)."""
-        raw = str(self.get("state", ""))
+        raw = str(self.require_projected("state", ""))
         return STATE_DISPLAY.get(raw, raw)
 
     @property
     def state_raw(self) -> str:
         """Raw state value."""
-        return str(self.get("state", ""))
+        return str(self.require_projected("state", ""))
 
     @property
     def health_status(self) -> str:
         """Health status (Healthy, Degraded, Critical, Offline)."""
-        raw = self.get("state", "")
+        raw = self.require_projected("state", "")
         return HEALTH_STATUS.get(raw, "Unknown")
 
     @property
     def status_info(self) -> str:
         """Status information message."""
-        return str(self.get("status_info", ""))
+        return str(self.require_projected("status_info", ""))
 
     @property
     def total_nodes(self) -> int:
         """Total number of nodes in cluster."""
-        return int(self.get("total_nodes") or 0)
+        return int(self.require_projected("total_nodes") or 0)
 
     @property
     def online_nodes(self) -> int:
         """Number of online nodes."""
-        return int(self.get("online_nodes") or 0)
+        return int(self.require_projected("online_nodes") or 0)
 
     @property
     def running_machines(self) -> int:
         """Number of running VMs."""
-        return int(self.get("running_machines") or 0)
+        return int(self.require_projected("running_machines") or 0)
 
     @property
     def total_ram_mb(self) -> int:
         """Total RAM in MB."""
-        return int(self.get("total_ram") or 0)
+        return int(self.require_projected("total_ram") or 0)
 
     @property
     def total_ram_gb(self) -> float:
@@ -389,7 +389,7 @@ class VSANStatus(ResourceObject):
     @property
     def online_ram_mb(self) -> int:
         """Online RAM in MB."""
-        return int(self.get("online_ram") or 0)
+        return int(self.require_projected("online_ram") or 0)
 
     @property
     def online_ram_gb(self) -> float:
@@ -399,7 +399,7 @@ class VSANStatus(ResourceObject):
     @property
     def used_ram_mb(self) -> int:
         """Used RAM in MB."""
-        return int(self.get("used_ram") or 0)
+        return int(self.require_projected("used_ram") or 0)
 
     @property
     def used_ram_gb(self) -> float:
@@ -416,17 +416,17 @@ class VSANStatus(ResourceObject):
     @property
     def total_cores(self) -> int:
         """Total CPU cores."""
-        return int(self.get("total_cores") or 0)
+        return int(self.require_projected("total_cores") or 0)
 
     @property
     def online_cores(self) -> int:
         """Online CPU cores."""
-        return int(self.get("online_cores") or 0)
+        return int(self.require_projected("online_cores") or 0)
 
     @property
     def used_cores(self) -> int:
         """Used CPU cores."""
-        return int(self.get("used_cores") or 0)
+        return int(self.require_projected("used_cores") or 0)
 
     @property
     def core_used_percent(self) -> float:
@@ -438,7 +438,7 @@ class VSANStatus(ResourceObject):
     @property
     def last_update(self) -> datetime | None:
         """Last status update timestamp."""
-        ts = self.get("last_update")
+        ts = self.require_projected("last_update")
         if ts:
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None
@@ -829,7 +829,7 @@ class ClusterManager(ResourceManager[Cluster]):
         if cluster_key:
             return self.get(int(cluster_key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

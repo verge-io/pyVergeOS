@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.groups import (
     Group,
     GroupManager,
@@ -269,9 +269,16 @@ class TestGroup:
         group = Group(data, MagicMock())
         assert group.member_count == 5
 
-    def test_member_count_default(self) -> None:
-        """Test member_count property defaults to 0."""
+    def test_member_count_refuses_to_guess_when_not_projected(self) -> None:
+        """'member_count' is count(members): an aggregate, not a column, so it
+        is absent from any narrowed projection, and 0 is a real member count
+        (issue #117)."""
         group = Group({"$key": 1}, MagicMock())
+        with pytest.raises(FieldNotProjectedError):
+            _ = group.member_count
+
+    def test_member_count_reports_a_genuine_zero(self) -> None:
+        group = Group({"$key": 1, "member_count": 0}, MagicMock())
         assert group.member_count == 0
 
     def test_created_property(self) -> None:

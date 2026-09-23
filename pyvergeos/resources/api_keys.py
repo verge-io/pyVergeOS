@@ -85,7 +85,8 @@ class APIKey(ResourceObject):
     @property
     def user_name(self) -> str | None:
         """Get the username this key belongs to."""
-        return self.get("user_name")
+        value = self.require_projected("user_name")
+        return str(value) if value is not None else None
 
     @property
     def created(self) -> int | None:

@@ -1914,7 +1914,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         if schedule_key:
             return self.get(int(schedule_key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a site sync schedule.

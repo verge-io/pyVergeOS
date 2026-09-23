@@ -44,7 +44,8 @@ class Permission(ResourceObject):
     @property
     def identity_name(self) -> str | None:
         """Get the identity display name (user/group name)."""
-        return self.get("identity_display")
+        value = self.require_projected("identity_display")
+        return str(value) if value is not None else None
 
     @property
     def table(self) -> str:

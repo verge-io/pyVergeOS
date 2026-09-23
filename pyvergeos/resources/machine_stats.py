@@ -559,7 +559,7 @@ class MachineStatus(ResourceObject):
     @property
     def node_name(self) -> str:
         """Name of node where machine is running."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name", ""))
 
     @property
     def migrated_node_key(self) -> int | None:
@@ -731,7 +731,7 @@ class MachineLog(ResourceObject):
     @property
     def machine_name(self) -> str:
         """Parent machine name."""
-        return str(self.get("machine_name", ""))
+        return str(self.require_projected("machine_name", ""))
 
     @property
     def level(self) -> str:

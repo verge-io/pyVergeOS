@@ -179,22 +179,22 @@ class Tenant(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if tenant is powered on."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running", False))
 
     @property
     def is_starting(self) -> bool:
         """Check if tenant is starting."""
-        return bool(self.get("starting", False))
+        return bool(self.require_projected("starting", False))
 
     @property
     def is_stopping(self) -> bool:
         """Check if tenant is stopping."""
-        return bool(self.get("stopping", False))
+        return bool(self.require_projected("stopping", False))
 
     @property
     def is_migrating(self) -> bool:
         """Check if tenant is migrating."""
-        return bool(self.get("migrating", False))
+        return bool(self.require_projected("migrating", False))
 
     @property
     def is_snapshot(self) -> bool:
@@ -209,22 +209,24 @@ class Tenant(ResourceObject):
     @property
     def status(self) -> str:
         """Get tenant status (online, offline, starting, etc.)."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status", "unknown"))
 
     @property
     def state(self) -> str:
         """Get tenant state (online, offline, warning, error)."""
-        return str(self.get("state", "unknown"))
+        return str(self.require_projected("state", "unknown"))
 
     @property
     def network_name(self) -> str | None:
         """Get the name of the tenant's network."""
-        return self.get("network_name")
+        value = self.require_projected("network_name")
+        return str(value) if value is not None else None
 
     @property
     def ui_address_ip(self) -> str | None:
         """Get the UI access IP address."""
-        return self.get("ui_address_ip")
+        value = self.require_projected("ui_address_ip")
+        return str(value) if value is not None else None
 
     @property
     def snapshots(self) -> TenantSnapshotManager:

@@ -82,44 +82,47 @@ class TenantNode(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if the node is currently running."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running", False))
 
     @property
     def status(self) -> str:
         """Get the node status."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status", "unknown"))
 
     @property
     def host_node(self) -> str | None:
         """Get the physical host node name."""
-        return self.get("host_node")
+        value = self.require_projected("host_node")
+        return str(value) if value is not None else None
 
     @property
     def cluster_key(self) -> int | None:
         """Get the cluster key."""
-        cluster = self.get("cluster")
+        cluster = self.require_projected("cluster")
         return int(cluster) if cluster else None
 
     @property
     def cluster_name(self) -> str | None:
         """Get the cluster name."""
-        return self.get("cluster_name")
+        value = self.require_projected("cluster_name")
+        return str(value) if value is not None else None
 
     @property
     def preferred_node_key(self) -> int | None:
         """Get the preferred node key."""
-        node = self.get("preferred_node")
+        node = self.require_projected("preferred_node")
         return int(node) if node else None
 
     @property
     def preferred_node_name(self) -> str | None:
         """Get the preferred node name."""
-        return self.get("preferred_node_name")
+        value = self.require_projected("preferred_node_name")
+        return str(value) if value is not None else None
 
     @property
     def on_power_loss(self) -> str:
         """Get power loss behavior (power_on, last_state, leave_off)."""
-        return str(self.get("on_power_loss", "last_state"))
+        return str(self.require_projected("on_power_loss", "last_state"))
 
     @property
     def machine_key(self) -> int | None:
