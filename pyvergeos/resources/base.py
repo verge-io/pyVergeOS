@@ -254,6 +254,83 @@ def expand_projection(
     return names + extra if extra else fields
 
 
+_UNSET = object()
+
+
+class Projected:
+    """Declare a property and the projection entry that backs it, together.
+
+    The bug class behind issue #117 was not that accessors guessed; it was
+    that the fact "``is_running`` comes from ``machine#status#running``" lived
+    in two hand-maintained places -- the manager's field list and the
+    accessor's ``self.get("running", ...)`` -- with nothing tying them. Every
+    fix so far has been finding more copies of a hand-written pattern:
+    ``all`` not carrying the traversal, a caller naming the alias and getting
+    a bare column, an accessor with a two-argument read, then one with a
+    one-argument read.
+
+    Declaring it once removes the class rather than the instances::
+
+        class Network(ResourceObject):
+            is_running = Projected("machine#status#running as running", bool,
+                                   default=False)
+
+    The projection entry, the alias it lands under, the type, and what to do
+    when it was never requested are all in one place, implemented once. The
+    manager's default projection is derived from the declarations instead of
+    restated, so the two cannot drift. There is no ``self.get`` for a new
+    accessor to misuse.
+
+    Args:
+        entry: The projection entry, e.g. ``"machine#status#running as
+            running"``. A plain column may be given as just its name.
+        type: Coercion applied to a present value.
+        default: Returned when the field was requested but the server omitted
+            it. Omit to raise for absence instead.
+        optional: Return None rather than coercing when the value is null.
+        transform: Applied after coercion, for display maps and timestamps.
+    """
+
+    __slots__ = ("entry", "alias", "type", "default", "optional", "transform", "name")
+
+    def __init__(
+        self,
+        entry: str,
+        type: Any = None,  # noqa: A002
+        *,
+        default: Any = _UNSET,
+        optional: bool = False,
+        transform: Any = None,
+    ) -> None:
+        self.entry = entry
+        self.alias = projection_alias(entry)
+        self.type = type
+        self.default = default
+        self.optional = optional
+        self.transform = transform
+        self.name = self.alias
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.name = name
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        if obj is None:
+            return self
+        if self.default is _UNSET:
+            value = obj.require_projected(self.alias)
+        else:
+            value = obj.require_projected(self.alias, self.default)
+        if value is None and self.optional:
+            return None
+        if value is None and self.default is not _UNSET:
+            value = self.default
+        if self.type is not None and value is not None:
+            value = self.type(value)
+        if self.transform is not None:
+            value = self.transform(value)
+        return value
+
+
 class ResourceObject(dict[str, Any]):
     """Dict subclass with attribute access and resource methods.
 
@@ -313,6 +390,21 @@ class ResourceObject(dict[str, Any]):
             super().__setattr__(name, value)
         else:
             self[name] = value
+
+    @classmethod
+    def projected_entries(cls) -> builtins.list[str]:
+        """Projection entries declared by this model's ``Projected`` fields.
+
+        Lets a manager build its default projection from the declarations
+        rather than restating them, so the accessor and the field list cannot
+        disagree.
+        """
+        seen: dict[str, None] = {}
+        for klass in reversed(cls.__mro__):
+            for value in vars(klass).values():
+                if isinstance(value, Projected):
+                    seen.setdefault(value.entry, None)
+        return list(seen)
 
     def require_projected(self, name: str, default: Any = None) -> Any:
         """Return field ``name``, refusing to guess when it was not projected.

@@ -45,7 +45,10 @@ from pyvergeos.resources.base import (
     is_computed_projection,
     projection_alias,
 )
-from pyvergeos.resources.networks import DEFAULT_NETWORK_FIELDS, Network, NetworkManager
+from pyvergeos.resources.networks import (
+    DEFAULT_NETWORK_FIELDS as PLAIN_NETWORK_FIELDS,
+)
+from pyvergeos.resources.networks import Network, NetworkManager
 from pyvergeos.resources.nodes import Node
 from pyvergeos.resources.vms import VM, VM_DEFAULT_FIELDS
 
@@ -118,7 +121,7 @@ class TestIsComputedProjection:
 
 class TestExpandProjection:
     def test_all_gains_the_managers_joins_and_key(self) -> None:
-        result = expand_projection(["all"], DEFAULT_NETWORK_FIELDS)
+        result = expand_projection(["all"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()])
         assert result[0] == "all"
         assert "$key" in result
         assert "machine#status#running as running" in result
@@ -138,20 +141,22 @@ class TestExpandProjection:
 
     def test_plain_columns_are_not_appended(self) -> None:
         # 'all' already covers own columns; re-listing them only bloats the URL
-        result = expand_projection(["all"], DEFAULT_NETWORK_FIELDS)
+        result = expand_projection(["all"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()])
         assert "name" not in result
         assert "mtu" not in result
 
     def test_narrowed_projection_passes_through_untouched(self) -> None:
-        assert expand_projection(["$key", "name"], DEFAULT_NETWORK_FIELDS) == ["$key", "name"]
+        assert expand_projection(
+            ["$key", "name"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]
+        ) == ["$key", "name"]
 
     def test_caller_override_wins(self) -> None:
         explicit = ["all", "machine#status#running as running"]
-        result = expand_projection(explicit, DEFAULT_NETWORK_FIELDS)
+        result = expand_projection(explicit, [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()])
         assert result.count("machine#status#running as running") == 1
 
     def test_string_form_is_accepted(self) -> None:
-        result = expand_projection("all", DEFAULT_NETWORK_FIELDS)
+        result = expand_projection("all", [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()])
         assert "machine#status#running as running" in result
 
     def test_key_is_ensured_even_with_no_declared_defaults(self) -> None:
@@ -168,10 +173,14 @@ class TestExpandProjection:
         assert is_computed_projection("stats[reads,writes,rops]")
 
     def test_empty_projection_is_a_no_op(self) -> None:
-        assert expand_projection(None, DEFAULT_NETWORK_FIELDS) is None
+        assert (
+            expand_projection(None, [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]) is None
+        )
 
     def test_field_merely_containing_all_is_not_the_token(self) -> None:
-        assert expand_projection(["allocated_bytes"], DEFAULT_NETWORK_FIELDS) == ["allocated_bytes"]
+        assert expand_projection(
+            ["allocated_bytes"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]
+        ) == ["allocated_bytes"]
 
     def test_caller_named_alias_is_translated_to_the_managers_entry(self) -> None:
         """Naming an alias must mean the manager's field of that name.
@@ -182,30 +191,43 @@ class TestExpandProjection:
         ``False`` for a running resource -- issue #117 reached through a
         narrowed projection rather than through ``all``.
         """
-        result = expand_projection(["$key", "name", "running"], DEFAULT_NETWORK_FIELDS)
+        result = expand_projection(
+            ["$key", "name", "running"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]
+        )
         assert "machine#status#running as running" in result
         assert "running" not in result
 
     def test_translation_does_not_widen_the_projection(self) -> None:
-        result = expand_projection(["$key", "running"], DEFAULT_NETWORK_FIELDS)
+        result = expand_projection(
+            ["$key", "running"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]
+        )
         assert len(result) == 2
 
     def test_unknown_names_are_left_alone(self) -> None:
-        assert expand_projection(["$key", "mtu"], DEFAULT_NETWORK_FIELDS) == ["$key", "mtu"]
+        assert expand_projection(
+            ["$key", "mtu"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]
+        ) == ["$key", "mtu"]
 
     def test_a_fully_written_entry_is_not_double_translated(self) -> None:
         explicit = ["$key", "machine#status#running as running"]
-        assert expand_projection(explicit, DEFAULT_NETWORK_FIELDS) == explicit
+        assert (
+            expand_projection(explicit, [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()])
+            == explicit
+        )
 
     def test_translation_applies_under_all_too(self) -> None:
-        result = expand_projection(["all", "running"], DEFAULT_NETWORK_FIELDS)
+        result = expand_projection(
+            ["all", "running"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]
+        )
         assert "machine#status#running as running" in result
         assert result.count("machine#status#running as running") == 1
         assert "running" not in result
 
     def test_expansion_is_idempotent(self) -> None:
-        once = expand_projection(["all"], DEFAULT_NETWORK_FIELDS)
-        assert expand_projection(once, DEFAULT_NETWORK_FIELDS) == once
+        once = expand_projection(["all"], [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()])
+        assert (
+            expand_projection(once, [*PLAIN_NETWORK_FIELDS, *Network.projected_entries()]) == once
+        )
 
 
 def _client_returning(payload: Any) -> VergeClient:

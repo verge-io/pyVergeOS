@@ -6,7 +6,7 @@ import builtins
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
-from pyvergeos.resources.base import ResourceManager, ResourceObject, serialize_list
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject, serialize_list
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -51,8 +51,6 @@ DEFAULT_NETWORK_FIELDS = [
     "on_power_loss",
     "interface_vnet",
     "proxy_enabled",
-    "machine#status#running as running",
-    "machine#status#status as status",
 ]
 
 # Type aliases for diagnostics
@@ -200,15 +198,12 @@ class Network(ResourceObject):
         self._manager._client._request("PUT", f"vnets/{self.key}/applydns")
         return self
 
-    @property
-    def is_running(self) -> bool:
-        """Check if network is powered on."""
-        return bool(self.require_projected("running", False))
+    #: Whether the network is powered on. Declared with the projection entry
+    #: that backs it, so the field list and the accessor cannot disagree.
+    is_running = Projected("machine#status#running as running", bool, default=False)
 
-    @property
-    def status(self) -> str:
-        """Get the network status (running, stopped, etc.)."""
-        return str(self.require_projected("status", "unknown"))
+    #: Network status (running, stopped, ...).
+    status = Projected("machine#status#status as status", str, default="unknown")
 
     @property
     def needs_restart(self) -> bool:
@@ -817,7 +812,14 @@ class NetworkManager(ResourceManager[Network]):
 
     #: Default projection, so that a caller's 'all' can be expanded
     #: into a true superset of it (issue #117).
-    _default_fields = DEFAULT_NETWORK_FIELDS
+    @property
+    def _default_fields(self) -> builtins.list[str]:  # type: ignore[override]
+        """Plain columns, plus whatever Network declares it needs.
+
+        Adding a ``Projected`` accessor adds its field to every query that
+        reads it; the two cannot drift apart (issue #117).
+        """
+        return [*DEFAULT_NETWORK_FIELDS, *Network.projected_entries()]
 
     _endpoint = "vnets"
 
@@ -873,7 +875,7 @@ class NetworkManager(ResourceManager[Network]):
         """
         # Use default fields if none specified
         if fields is None:
-            fields = DEFAULT_NETWORK_FIELDS.copy()
+            fields = list(self._default_fields)
         return super().list(
             filter=filter,
             fields=fields,
@@ -903,7 +905,7 @@ class NetworkManager(ResourceManager[Network]):
             NotFoundError: If network not found.
         """
         if fields is None:
-            fields = DEFAULT_NETWORK_FIELDS.copy()
+            fields = list(self._default_fields)
         return super().get(key, name=name, fields=fields)
 
     def list_internal(self) -> builtins.list[Network]:
