@@ -182,8 +182,14 @@ def expand_projection(
     When ``all`` appears in the projection, the manager's computed entries and
     ``$key`` are appended to it, which the API accepts and which measurably
     restores the missing values. Entries the caller already named are left
-    alone, so an explicit override still wins. Projections without ``all``
-    pass through untouched: narrowing is a legitimate request.
+    alone, so an explicit override still wins.
+
+    Independently of ``all``, a caller who names one of the manager's alias
+    names gets the manager's entry for it. ``fields=["$key","name","running"]``
+    would otherwise select the ``vms`` table's own ``running`` column, which
+    is null on every row, and the accessor would answer ``False`` for a
+    running VM - the same defect reached without ``all``. Narrowing itself is
+    still honoured: the projection stays exactly as wide as asked for.
 
     Args:
         fields: The caller's projection.
@@ -196,8 +202,29 @@ def expand_projection(
         return fields
 
     names = split_fields(fields)
+    computed_by_alias = {
+        projection_alias(field): field for field in defaults or () if is_computed_projection(field)
+    }
+
+    # A caller who names an alias means the manager's field of that name, not
+    # whatever bare column happens to share it. Asking vms for "running"
+    # returns a real column that is null on every row, and vnets drops the
+    # name entirely - either way the accessor answered False for a running
+    # resource, which is issue #117 reached through a narrowed projection
+    # rather than through 'all'. Send what the manager means by the name.
+    resolved: builtins.list[str] = []
+    translated = False
+    for name in names:
+        entry = computed_by_alias.get(name)
+        if entry is not None and entry != name:
+            resolved.append(entry)
+            translated = True
+        else:
+            resolved.append(name)
+    names = resolved
+
     if PROJECTION_ALL not in names:
-        return fields
+        return names if translated else fields
 
     seen = {projection_alias(name) for name in names}
     extra: builtins.list[str] = []

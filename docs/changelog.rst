@@ -38,8 +38,12 @@ Fixed
   losing ``$key`` (and answering ``read_ops`` with ``AttributeError``)
   under ``all``. Sub-selections such as ``stats[reads,writes]`` count as
   computed alongside traversals and aggregates, since ``all`` answers those
-  with the bare foreign key. Narrowing a projection
-  deliberately is still honoured and is never widened. AST tripwires fail CI
+  with the bare foreign key. A caller who names one of the manager's alias
+  names now gets the manager's entry for it: ``fields=["$key","name","running"]``
+  selected the ``vms`` table's own ``running`` column, which is null on every
+  row, so ``is_running`` answered ``False`` for a running VM - the same defect
+  reached through a narrowed projection rather than through ``all``. Narrowing
+  is still honoured and is never widened. AST tripwires fail CI
   if a manager serialises ``fields`` without expanding ``all``, or if a
   manager's default projection becomes unreachable from the base class.
   (#117)

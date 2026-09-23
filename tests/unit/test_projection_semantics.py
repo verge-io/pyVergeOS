@@ -167,6 +167,36 @@ class TestExpandProjection:
     def test_field_merely_containing_all_is_not_the_token(self) -> None:
         assert expand_projection(["allocated_bytes"], DEFAULT_NETWORK_FIELDS) == ["allocated_bytes"]
 
+    def test_caller_named_alias_is_translated_to_the_managers_entry(self) -> None:
+        """Naming an alias must mean the manager's field of that name.
+
+        ``vms`` has a real ``running`` column that is null on every row, and
+        ``vnets`` drops the name entirely; either way
+        ``fields=["$key","name","running"]`` made ``is_running`` answer
+        ``False`` for a running resource -- issue #117 reached through a
+        narrowed projection rather than through ``all``.
+        """
+        result = expand_projection(["$key", "name", "running"], DEFAULT_NETWORK_FIELDS)
+        assert "machine#status#running as running" in result
+        assert "running" not in result
+
+    def test_translation_does_not_widen_the_projection(self) -> None:
+        result = expand_projection(["$key", "running"], DEFAULT_NETWORK_FIELDS)
+        assert len(result) == 2
+
+    def test_unknown_names_are_left_alone(self) -> None:
+        assert expand_projection(["$key", "mtu"], DEFAULT_NETWORK_FIELDS) == ["$key", "mtu"]
+
+    def test_a_fully_written_entry_is_not_double_translated(self) -> None:
+        explicit = ["$key", "machine#status#running as running"]
+        assert expand_projection(explicit, DEFAULT_NETWORK_FIELDS) == explicit
+
+    def test_translation_applies_under_all_too(self) -> None:
+        result = expand_projection(["all", "running"], DEFAULT_NETWORK_FIELDS)
+        assert "machine#status#running as running" in result
+        assert result.count("machine#status#running as running") == 1
+        assert "running" not in result
+
     def test_expansion_is_idempotent(self) -> None:
         once = expand_projection(["all"], DEFAULT_NETWORK_FIELDS)
         assert expand_projection(once, DEFAULT_NETWORK_FIELDS) == once
