@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from pyvergeos.exceptions import APIError, NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -410,7 +410,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -464,7 +464,7 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                 "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -705,7 +705,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -749,7 +749,7 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -1081,7 +1081,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1128,7 +1128,7 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

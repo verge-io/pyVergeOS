@@ -719,6 +719,10 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         ... )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_OUTGOING_SYNC_FIELDS
+
     _endpoint = "site_syncs_outgoing"
 
     def __init__(self, client: VergeClient) -> None:
@@ -792,7 +796,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -886,7 +890,7 @@ class SiteSyncOutgoingManager(ResourceManager[SiteSyncOutgoing]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1331,6 +1335,10 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         >>> client.site_syncs_incoming.delete(sync.key)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_INCOMING_SYNC_FIELDS
+
     _endpoint = "site_syncs_incoming"
 
     def __init__(self, client: VergeClient) -> None:
@@ -1404,7 +1412,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1470,7 +1478,7 @@ class SiteSyncIncomingManager(ResourceManager[SiteSyncIncoming]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1702,6 +1710,10 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         >>> client.site_sync_schedules.delete(schedule.key)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_SCHEDULE_FIELDS
+
     _endpoint = "site_syncs_outgoing_profile_periods"
 
     def __init__(self, client: VergeClient) -> None:
@@ -1767,7 +1779,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1825,7 +1837,7 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -2229,6 +2241,10 @@ class SiteSyncStatsManager:
         ...     print(f"{entry.snapshot_name}: {entry.sent_bytes} bytes")
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_STATS_FIELDS
+
     def __init__(self, client: VergeClient, sync_key: int) -> None:
         self._client = client
         self._sync_key = sync_key
@@ -2520,6 +2536,10 @@ class SiteSyncQueueManager:
         >>> # Get items with errors
         >>> errors = sync.queue.list_errors()
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_QUEUE_FIELDS
 
     def __init__(self, client: VergeClient, sync_key: int) -> None:
         self._client = client
@@ -2844,6 +2864,10 @@ class SiteSyncRemoteSnapManager:
         >>> snap.request_sync_back()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_REMOTE_SNAP_FIELDS
+
     def __init__(self, client: VergeClient, sync_key: int) -> None:
         self._client = client
         self._sync_key = sync_key
@@ -3104,6 +3128,10 @@ class SiteSyncIncomingVerifiedManager:
         >>> verified.request_snapshot("cloud-snap-2024-01-01", retention=604800)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_VERIFIED_FIELDS
+
     def __init__(self, client: VergeClient, incoming_sync_key: int) -> None:
         self._client = client
         self._incoming_sync_key = incoming_sync_key
@@ -3322,6 +3350,10 @@ class SiteSyncOutgoingLogManager:
         >>> errors = sync.logs.list_errors()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_LOG_FIELDS
+
     def __init__(self, client: VergeClient, sync_key: int) -> None:
         self._client = client
         self._sync_key = sync_key
@@ -3438,6 +3470,10 @@ class SiteSyncIncomingLogManager:
         >>> # Get only errors
         >>> errors = incoming.logs.list_errors()
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_LOG_FIELDS
 
     def __init__(self, client: VergeClient, sync_key: int) -> None:
         self._client = client

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -404,7 +404,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -457,7 +457,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -775,7 +775,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -896,7 +896,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -987,7 +987,7 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1084,7 +1084,7 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1213,7 +1213,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

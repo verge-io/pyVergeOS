@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -258,6 +258,10 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_ROUTER_COMMAND_FIELDS
+
     _endpoint = "vnet_bgp_router_commands"
 
     def __init__(self, client: VergeClient, router: BGPRouter) -> None:
@@ -302,7 +306,7 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTER_COMMAND_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "orderid"
 
@@ -344,7 +348,7 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
         if fields is None:
             fields = DEFAULT_BGP_ROUTER_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP router command with key {key} not found")
@@ -514,6 +518,10 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_ROUTER_FIELDS
+
     _endpoint = "vnet_bgp_routers"
 
     def __init__(self, client: VergeClient, routing_manager: NetworkRoutingManager) -> None:
@@ -561,7 +569,7 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTER_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "asn"
 
@@ -603,7 +611,7 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
             fields = DEFAULT_BGP_ROUTER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"BGP router with key {key} not found")
@@ -728,6 +736,10 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_INTERFACE_COMMAND_FIELDS
+
     _endpoint = "vnet_bgp_interface_commands"
 
     def __init__(self, client: VergeClient, interface: BGPInterface) -> None:
@@ -771,7 +783,7 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
 
         if fields is None:
             fields = DEFAULT_BGP_INTERFACE_COMMAND_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "orderid"
 
@@ -813,7 +825,7 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
         if fields is None:
             fields = DEFAULT_BGP_INTERFACE_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP interface command with key {key} not found")
@@ -982,6 +994,10 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_INTERFACE_FIELDS
+
     _endpoint = "vnet_bgp_interfaces"
 
     def __init__(self, client: VergeClient, routing_manager: NetworkRoutingManager) -> None:
@@ -1029,7 +1045,7 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
 
         if fields is None:
             fields = DEFAULT_BGP_INTERFACE_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "name"
 
@@ -1071,7 +1087,7 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
             fields = DEFAULT_BGP_INTERFACE_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"BGP interface with key {key} not found")
@@ -1246,6 +1262,10 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_ROUTEMAP_COMMAND_FIELDS
+
     _endpoint = "vnet_bgp_routemap_commands"
 
     def __init__(self, client: VergeClient, routemap: BGPRouteMap) -> None:
@@ -1289,7 +1309,7 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTEMAP_COMMAND_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "orderid"
 
@@ -1331,7 +1351,7 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
         if fields is None:
             fields = DEFAULT_BGP_ROUTEMAP_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP route map command with key {key} not found")
@@ -1493,6 +1513,10 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
             routemap.commands.create(command="set", params="local-preference 200")
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_ROUTEMAP_FIELDS
+
     _endpoint = "vnet_bgp_routemaps"
 
     def __init__(self, client: VergeClient, routing_manager: NetworkRoutingManager) -> None:
@@ -1540,7 +1564,7 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTEMAP_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "tag,sequence"
 
@@ -1584,7 +1608,7 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
             fields = DEFAULT_BGP_ROUTEMAP_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"BGP route map with key {key} not found")
@@ -1748,6 +1772,10 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_BGP_IP_FIELDS
+
     _endpoint = "vnet_bgp_ip"
 
     def __init__(self, client: VergeClient, routing_manager: NetworkRoutingManager) -> None:
@@ -1795,7 +1823,7 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
 
         if fields is None:
             fields = DEFAULT_BGP_IP_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "orderid"
 
@@ -1837,7 +1865,7 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
         if fields is None:
             fields = DEFAULT_BGP_IP_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP IP command with key {key} not found")
@@ -1992,6 +2020,10 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_OSPF_COMMAND_FIELDS
+
     _endpoint = "vnet_ospf_commands"
 
     def __init__(self, client: VergeClient, routing_manager: NetworkRoutingManager) -> None:
@@ -2039,7 +2071,7 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
 
         if fields is None:
             fields = DEFAULT_OSPF_COMMAND_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "orderid"
 
@@ -2081,7 +2113,7 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
         if fields is None:
             fields = DEFAULT_OSPF_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"OSPF command with key {key} not found")
@@ -2249,6 +2281,10 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_EIGRP_ROUTER_COMMAND_FIELDS
+
     _endpoint = "vnet_eigrp_router_commands"
 
     def __init__(self, client: VergeClient, router: EIGRPRouter) -> None:
@@ -2292,7 +2328,7 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
 
         if fields is None:
             fields = DEFAULT_EIGRP_ROUTER_COMMAND_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "orderid"
 
@@ -2334,7 +2370,7 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
         if fields is None:
             fields = DEFAULT_EIGRP_ROUTER_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"EIGRP router command with key {key} not found")
@@ -2505,6 +2541,10 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
             )
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_EIGRP_ROUTER_FIELDS
+
     _endpoint = "vnet_eigrp_routers"
 
     def __init__(self, client: VergeClient, routing_manager: NetworkRoutingManager) -> None:
@@ -2552,7 +2592,7 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
 
         if fields is None:
             fields = DEFAULT_EIGRP_ROUTER_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         params["sort"] = "asn"
 
@@ -2594,7 +2634,7 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
             fields = DEFAULT_EIGRP_ROUTER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"EIGRP router with key {key} not found")

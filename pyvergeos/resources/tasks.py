@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -327,6 +327,10 @@ class TaskManager(ResourceManager[Task]):
         >>> task = client.tasks.execute(task_key)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_LIST_FIELDS
+
     _endpoint = "tasks"
 
     def __init__(self, client: VergeClient) -> None:
@@ -412,7 +416,7 @@ class TaskManager(ResourceManager[Task]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -518,7 +522,7 @@ class TaskManager(ResourceManager[Task]):
             if fields is None:
                 fields = _DEFAULT_LIST_FIELDS
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

@@ -6,6 +6,35 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- ``fields=["all"]`` is no longer a silently lossy projection. ``all``
+  resolves server-side to a resource's *own columns*, so nothing a manager
+  has the server compute came back with it - neither aliased traversals
+  (``machine#status#running as running``) nor aggregates
+  (``count(members) as member_count``) - and on ``nodes`` not even ``$key``.
+  Asking for *more* data therefore returned a *wrong* answer: a running VM
+  read back under ``all`` reported ``is_running is False`` and
+  ``status == "unknown"``, and ``node.key`` raised "Resource has no $key -
+  may not be persisted" for a node that was plainly persisted. Measured on a
+  live system, ``all`` dropped 2 fields on ``networks``, 6 on ``vms``, 9 on
+  ``nodes``, 9 on ``tenants`` and 10 on ``clusters``. A caller's ``all`` is
+  now expanded with the manager's computed entries and ``$key``, which the
+  API accepts and which restores every missing value. Reaching those
+  defaults took two steps: the 34 managers that kept them in a module
+  constant now declare ``_default_fields``, and the 254 manager methods that
+  built the ``fields`` parameter themselves - ``nodes`` among them, which is
+  why it kept losing ``$key`` after the base class was fixed - now go
+  through a single ``ResourceManager._projection()``. Narrowing a projection
+  deliberately is still honoured and is never widened. AST tripwires fail CI
+  if a manager serialises ``fields`` without expanding ``all``, or if a
+  manager's default projection becomes unreachable from the base class.
+  (#117)
+
 [1.2.8] - 2026-09-22
 --------------------
 
