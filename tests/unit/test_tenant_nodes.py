@@ -189,7 +189,9 @@ class TestTenantNode:
         manager = MagicMock()
         node = TenantNode({"$key": 1}, manager)
 
-        assert node.host_node is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.host_node
 
     def test_node_cluster_properties(self, sample_node_data: dict[str, Any]) -> None:
         """Test cluster properties."""
@@ -204,8 +206,11 @@ class TestTenantNode:
         manager = MagicMock()
         node = TenantNode({"$key": 1}, manager)
 
-        assert node.cluster_key is None
-        assert node.cluster_name is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.cluster_key
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.cluster_name
 
     def test_node_preferred_node_properties(self, sample_node_data: dict[str, Any]) -> None:
         """Test preferred node properties."""
@@ -220,8 +225,11 @@ class TestTenantNode:
         manager = MagicMock()
         node = TenantNode({"$key": 1}, manager)
 
-        assert node.preferred_node_key is None
-        assert node.preferred_node_name is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.preferred_node_key
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.preferred_node_name
 
     def test_node_on_power_loss(self, sample_node_data: dict[str, Any]) -> None:
         """Test on_power_loss property."""

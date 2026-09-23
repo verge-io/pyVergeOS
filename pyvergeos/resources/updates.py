@@ -1478,7 +1478,8 @@ class UpdateSettings(ResourceObject):
         source = self.get("source")
         if isinstance(source, dict):
             return source.get("name")
-        return self.get("source_display")
+        value = self.get("source_display")
+        return str(value) if value is not None else None
 
     @property
     def branch_key(self) -> int | None:
@@ -1492,7 +1493,8 @@ class UpdateSettings(ResourceObject):
         branch = self.get("branch")
         if isinstance(branch, dict):
             return branch.get("name")
-        return self.get("branch_display")
+        value = self.get("branch_display")
+        return str(value) if value is not None else None
 
     @property
     def is_auto_refresh(self) -> bool:

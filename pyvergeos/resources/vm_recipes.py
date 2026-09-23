@@ -139,7 +139,8 @@ class VmRecipe(ResourceObject):
     @property
     def status_info(self) -> str | None:
         """Get the recipe status string."""
-        return self.get("status") or self.get("rstatus")
+        value = self.require_projected_any("status", "rstatus")
+        return str(value) if value is not None else None
 
     @property
     def catalog_key(self) -> str | None:

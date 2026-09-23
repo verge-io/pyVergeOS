@@ -101,7 +101,8 @@ class NASUser(ResourceObject):
     @property
     def service_name(self) -> str | None:
         """Get the parent NAS service name."""
-        return self.get("service_name") or self.get("service_display")
+        value = self.require_projected_any("service_name", "service_display")
+        return str(value) if value is not None else None
 
     @property
     def home_share_key(self) -> int | None:
@@ -112,7 +113,8 @@ class NASUser(ResourceObject):
     @property
     def home_share_name(self) -> str | None:
         """Get the home share name."""
-        return self.get("home_share_display")
+        value = self.require_projected("home_share_display")
+        return str(value) if value is not None else None
 
     @property
     def home_drive(self) -> str | None:
@@ -148,23 +150,25 @@ class NASUser(ResourceObject):
     @property
     def user_sid(self) -> str | None:
         """Get the Windows SID."""
-        return self.get("user_sid")
+        value = self.require_projected("user_sid")
+        return str(value) if value is not None else None
 
     @property
     def group_sid(self) -> str | None:
         """Get the group SID."""
-        return self.get("group_sid")
+        value = self.require_projected("group_sid")
+        return str(value) if value is not None else None
 
     @property
     def user_id(self) -> int | None:
         """Get the Unix UID."""
-        uid = self.get("user_id")
+        uid = self.require_projected("user_id")
         return int(uid) if uid is not None else None
 
     @property
     def group_id(self) -> int | None:
         """Get the Unix GID."""
-        gid = self.get("group_id")
+        gid = self.require_projected("group_id")
         return int(gid) if gid is not None else None
 
 

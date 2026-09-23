@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.api_keys import APIKey, APIKeyCreated, APIKeyManager
 
 
@@ -96,7 +96,9 @@ class TestAPIKey:
     def test_user_name_none(self) -> None:
         """Test user_name property when not set."""
         api_key = APIKey({"$key": 1}, MagicMock())
-        assert api_key.user_name is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = api_key.user_name
 
     def test_created_property(self) -> None:
         """Test created property."""

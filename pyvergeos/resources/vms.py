@@ -689,12 +689,14 @@ class VM(ResourceObject):
     @property
     def node_name(self) -> str | None:
         """Get the name of the node this VM is running on."""
-        return self.get("node_name")
+        value = self.require_projected("node_name")
+        return str(value) if value is not None else None
 
     @property
     def cluster_name(self) -> str | None:
         """Get the name of the cluster this VM belongs to."""
-        return self.get("cluster_name")
+        value = self.require_projected("cluster_name")
+        return str(value) if value is not None else None
 
 
 class VMManager(ResourceManager[VM]):

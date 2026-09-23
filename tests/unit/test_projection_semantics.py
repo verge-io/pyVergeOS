@@ -482,6 +482,22 @@ class TestAccessorsRefuseToGuess:
         assert vm.status == "stopped"
 
 
+#: Accessors that read a computed alias but can still answer from another
+#: *projected* field when it is absent -- ``device_type_display`` falls back
+#: to the ``device_type`` column, ``size_gb`` to ``disksize``, ``used_percent``
+#: to capacity/used. Refusing there would discard a correct answer.
+ALIAS_READ_EXEMPTIONS: dict[str, tuple[str, ...]] = {
+    "ResourceGroup": ("type_display", "class_display"),
+    "ResourceRule": ("type_display",),
+    "Drive": ("allocated_bytes",),
+    "NASUser": ("status_value",),
+    "UpdateSettings": ("source_display", "branch_display"),
+    "User": ("auth_source_name",),
+    "ClusterTier": ("used_pct",),
+    "ClusterTierStatus": ("used_pct",),
+}
+
+
 class TestNoAccessorInventsAComputedValue:
     """AST tripwire: an accessor backed by a computed field must not default.
 
@@ -489,6 +505,12 @@ class TestNoAccessorInventsAComputedValue:
     whose ``running`` field was never fetched. Any field the manager obtains
     through a traversal or an aggregate is absent whenever the caller
     narrows ``fields``, so reading one with a fallback re-introduces #117.
+
+    An earlier version matched only the two-argument form. ``self.get(alias)``
+    is just as dangerous once the accessor coerces: ``bool(None)`` is
+    ``False`` and ``int(None or 0)`` is ``0``. That hole left ``ClusterTier``
+    reporting a live 2 TB tier as ``"Offline"`` with zero capacity, and a
+    64-core cluster as having 0 cores.
     """
 
     def test_no_computed_accessor_uses_a_silent_default(self) -> None:
@@ -508,9 +530,13 @@ class TestNoAccessorInventsAComputedValue:
                         and isinstance(node.func, ast.Attribute)
                         and node.func.attr == "get"
                         and ast.unparse(node.func.value) == "self"
-                        and len(node.args) == 2
+                        # any arity: self.get(alias) yields None, which
+                        # bool()/int()/str() turn into False/0/"" just as
+                        # confidently as an explicit default did
+                        and node.args
                         and isinstance(node.args[0], ast.Constant)
                         and node.args[0].value in aliases
+                        and node.args[0].value not in ALIAS_READ_EXEMPTIONS.get(cls.name, ())
                     ):
                         offenders.append(
                             f"{path.name}:{node.lineno} {cls.name}."

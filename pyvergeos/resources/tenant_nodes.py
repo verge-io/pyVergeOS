@@ -92,29 +92,32 @@ class TenantNode(ResourceObject):
     @property
     def host_node(self) -> str | None:
         """Get the physical host node name."""
-        return self.get("host_node")
+        value = self.require_projected("host_node")
+        return str(value) if value is not None else None
 
     @property
     def cluster_key(self) -> int | None:
         """Get the cluster key."""
-        cluster = self.get("cluster")
+        cluster = self.require_projected("cluster")
         return int(cluster) if cluster else None
 
     @property
     def cluster_name(self) -> str | None:
         """Get the cluster name."""
-        return self.get("cluster_name")
+        value = self.require_projected("cluster_name")
+        return str(value) if value is not None else None
 
     @property
     def preferred_node_key(self) -> int | None:
         """Get the preferred node key."""
-        node = self.get("preferred_node")
+        node = self.require_projected("preferred_node")
         return int(node) if node else None
 
     @property
     def preferred_node_name(self) -> str | None:
         """Get the preferred node name."""
-        return self.get("preferred_node_name")
+        value = self.require_projected("preferred_node_name")
+        return str(value) if value is not None else None
 
     @property
     def on_power_loss(self) -> str:

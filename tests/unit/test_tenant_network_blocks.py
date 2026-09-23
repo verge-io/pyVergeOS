@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.tenant_network_blocks import (
     TenantNetworkBlock,
     TenantNetworkBlockManager,
@@ -179,7 +179,9 @@ class TestTenantNetworkBlock:
         manager = MagicMock()
         block = TenantNetworkBlock({"$key": 1, "cidr": "10.0.0.0/24"}, manager)
 
-        assert block.network_name is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = block.network_name
 
     def test_block_delete(self, sample_network_block_data: dict[str, Any]) -> None:
         """Test delete method calls manager."""

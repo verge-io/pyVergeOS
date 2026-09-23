@@ -117,7 +117,10 @@ class NASVolume(ResourceObject):
     @property
     def is_mounted(self) -> bool:
         """Check if the volume is mounted."""
-        return self.require_projected("mounted", False) or self.get("mount_status") == "mounted"
+        return bool(
+            self.require_projected("mounted", False)
+            or self.require_projected("mount_status") == "mounted"
+        )
 
     @property
     def service_key(self) -> int | None:

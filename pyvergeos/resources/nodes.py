@@ -169,22 +169,22 @@ class Node(ResourceObject):
     @property
     def ram_used_mb(self) -> int:
         """Used physical RAM in MB."""
-        return int(self.get("ram_used") or 0)
+        return int(self.require_projected("ram_used") or 0)
 
     @property
     def vram_used_mb(self) -> int:
         """Used virtual RAM in MB."""
-        return int(self.get("vram_used") or 0)
+        return int(self.require_projected("vram_used") or 0)
 
     @property
     def cpu_usage(self) -> float:
         """CPU usage percentage."""
-        return float(self.get("cpu_usage") or 0.0)
+        return float(self.require_projected("cpu_usage") or 0.0)
 
     @property
     def core_temp(self) -> float | None:
         """Core temperature in Celsius."""
-        temp = self.get("core_temp")
+        temp = self.require_projected("core_temp")
         if temp is not None:
             return float(temp)
         return None
@@ -288,7 +288,7 @@ class Node(ResourceObject):
     @property
     def started_at(self) -> datetime | None:
         """Timestamp when node was started."""
-        ts = self.get("started")
+        ts = self.require_projected("started")
         if ts:
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None

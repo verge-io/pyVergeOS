@@ -43,7 +43,8 @@ class NetworkAlias(ResourceObject):
     @property
     def network_name(self) -> str | None:
         """Get the network name this alias belongs to."""
-        return self.get("vnet_name")
+        value = self.require_projected("vnet_name")
+        return str(value) if value is not None else None
 
     @property
     def ip(self) -> str:

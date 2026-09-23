@@ -209,7 +209,9 @@ class TestTenantStorage:
         manager = MagicMock()
         storage = TenantStorage({"$key": 1, "tenant": 123}, manager)
 
-        assert storage.tier_description is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = storage.tier_description
 
     def test_storage_default_values(self) -> None:
         """Test default values for missing fields."""

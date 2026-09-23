@@ -43,7 +43,8 @@ class TenantLayer2Network(ResourceObject):
     @property
     def tenant_name(self) -> str | None:
         """Get the tenant name."""
-        return self.get("tenant_name")
+        value = self.require_projected("tenant_name")
+        return str(value) if value is not None else None
 
     @property
     def network_key(self) -> int:
@@ -53,12 +54,14 @@ class TenantLayer2Network(ResourceObject):
     @property
     def network_name(self) -> str | None:
         """Get the network name."""
-        return self.get("network_name")
+        value = self.require_projected("network_name")
+        return str(value) if value is not None else None
 
     @property
     def network_type(self) -> str | None:
         """Get the network type (internal, external, bgp, vpn, etc.)."""
-        return self.get("network_type")
+        value = self.require_projected("network_type")
+        return str(value) if value is not None else None
 
     @property
     def is_enabled(self) -> bool:

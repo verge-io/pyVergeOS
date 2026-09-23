@@ -984,7 +984,7 @@ class NodeGpuInstance(ResourceObject):
     @property
     def node_key(self) -> int | None:
         """Node key."""
-        node = self.get("node_key")
+        node = self.require_projected("node_key")
         return int(node) if node else None
 
     @property
@@ -995,7 +995,7 @@ class NodeGpuInstance(ResourceObject):
     @property
     def machine_key(self) -> int | None:
         """Machine (VM) key."""
-        machine = self.get("machine_key")
+        machine = self.require_projected("machine_key")
         return int(machine) if machine else None
 
     @property
@@ -1016,7 +1016,7 @@ class NodeGpuInstance(ResourceObject):
     @property
     def machine_device_key(self) -> int | None:
         """Machine device key."""
-        device = self.get("machine_device_key")
+        device = self.require_projected("machine_device_key")
         return int(device) if device else None
 
     @property
@@ -1032,7 +1032,7 @@ class NodeGpuInstance(ResourceObject):
     @property
     def pci_device_key(self) -> int | None:
         """PCI device key."""
-        pci = self.get("pci_device_key")
+        pci = self.require_projected("pci_device_key")
         return int(pci) if pci else None
 
     @property

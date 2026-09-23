@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.tags import (
     RESOURCE_TYPE_DISPLAY,
     TAGGABLE_RESOURCE_TYPES,
@@ -183,7 +183,9 @@ class TestTag:
     def test_category_name_none(self) -> None:
         """Test category_name property when not set."""
         tag = Tag({"$key": 1}, MagicMock())
-        assert tag.category_name is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = tag.category_name
 
     def test_created_property(self) -> None:
         """Test created property."""

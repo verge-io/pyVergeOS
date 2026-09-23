@@ -19,8 +19,8 @@ Fixed
   projected" - so any narrowed ``fields`` argument turned every one of them
   into a confident wrong answer, and ``False`` is precisely the direction
   that disarms the guard a caller puts in front of a destructive operation.
-  All 103 accessors backed by a computed field - 86 traversals and 17
-  aggregates - now use ``require_projected()`` and raise the new
+  All 187 accessors backed by a computed field now use
+  ``require_projected()`` and raise the new
   ``FieldNotProjectedError`` instead. The test is what the request asked
   for, not merely whether the key came back: most computed fields return
   null when there is nothing to report, but a traversal through a
@@ -41,8 +41,12 @@ Fixed
   ``AttributeError``, or ``ResourceObject.__getattr__`` would swallow it and
   ``hasattr()`` would answer ``False`` for a field that exists but was not
   fetched. AST tripwires fail CI if an accessor reads a computed field with
-  a fallback, or if a write path builds a model while inheriting a
-  projection.
+  a fallback - at any arity, since ``bool(self.get(alias))`` fabricates
+  ``False`` exactly as confidently as an explicit default did - or if a
+  write path builds a model while inheriting a projection. Accessors
+  that can still answer from another projected field, such as
+  ``device_type_display`` falling back to the ``device_type`` column,
+  keep the tolerant read and are listed as explicit exemptions.
 
   This is a behaviour change for callers that narrow ``fields`` and then
   read one of these accessors: they previously received a silently wrong

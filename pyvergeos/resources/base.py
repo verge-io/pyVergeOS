@@ -356,6 +356,40 @@ class ResourceObject(dict[str, Any]):
             return default
         raise FieldNotProjectedError(name, type(self).__name__) from None
 
+    def require_projected_any(self, *names: str, default: Any = None) -> Any:
+        """Read the first of ``names`` that was projected.
+
+        For accessors whose field is spelled differently depending on which
+        projection produced the row -- ``volume_name`` or ``volume_display``,
+        ``status`` or ``rstatus``. Requiring the first name alone would raise
+        for a row that legitimately carries the second.
+
+        Preserves the ``a or b`` chain these replaced: the first *truthy*
+        present value wins, falling back to the first present value, so a
+        genuine ``0`` or ``""`` is still reported.
+
+        Args:
+            *names: Candidate field names, in preference order.
+            default: Returned when a name was requested but the server
+                omitted it.
+
+        Returns:
+            The stored value, which may be None.
+
+        Raises:
+            FieldNotProjectedError: If none of ``names`` was requested.
+        """
+        present = [name for name in names if name in self]
+        for name in present:
+            value = self[name]
+            if value:
+                return value
+        if present:
+            return self[present[0]]
+        if self._requested is not None and any(name in self._requested for name in names):
+            return default
+        raise FieldNotProjectedError(names[0], type(self).__name__)
+
     @property
     def key(self) -> int:
         """Resource primary key ($key).

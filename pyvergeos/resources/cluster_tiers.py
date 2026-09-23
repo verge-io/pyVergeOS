@@ -605,18 +605,18 @@ class ClusterTier(ResourceObject):
     @property
     def status(self) -> str:
         """Status from embedded status field."""
-        raw = str(self.get("display_status") or self.get("status_status", "offline"))
+        raw = str(self.require_projected("display_status") or self.get("status_status", "offline"))
         return TIER_STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw status value."""
-        return str(self.get("display_status") or self.get("status_status", "offline"))
+        return str(self.require_projected("display_status") or self.get("status_status", "offline"))
 
     @property
     def capacity_bytes(self) -> int:
         """Total capacity in bytes."""
-        return int(self.get("capacity") or self.get("status_capacity", 0))
+        return int(self.require_projected("capacity") or self.get("status_capacity", 0))
 
     @property
     def capacity_gb(self) -> float:
@@ -631,7 +631,7 @@ class ClusterTier(ResourceObject):
     @property
     def used_bytes(self) -> int:
         """Used space in bytes."""
-        return int(self.get("used") or self.get("status_used", 0))
+        return int(self.require_projected("used") or self.get("status_used", 0))
 
     @property
     def used_gb(self) -> float:
@@ -666,38 +666,38 @@ class ClusterTier(ResourceObject):
     @property
     def is_redundant(self) -> bool:
         """Check if tier has redundancy."""
-        return bool(self.get("redundant") or self.get("status_redundant", False))
+        return bool(self.require_projected("redundant") or self.get("status_redundant", False))
 
     @property
     def is_working(self) -> bool:
         """Check if tier is actively working."""
-        return bool(self.get("working") or self.get("status_working", False))
+        return bool(self.require_projected("working") or self.get("status_working", False))
 
     @property
     def is_encrypted(self) -> bool:
         """Check if tier is encrypted."""
-        return bool(self.get("encrypted") or self.get("status_encrypted", False))
+        return bool(self.require_projected("encrypted") or self.get("status_encrypted", False))
 
     # Embedded stats properties (from list view)
     @property
     def read_ops(self) -> int:
         """Current read operations per second."""
-        return int(self.get("rops") or self.get("stats_rops", 0))
+        return int(self.require_projected("rops") or self.get("stats_rops", 0))
 
     @property
     def write_ops(self) -> int:
         """Current write operations per second."""
-        return int(self.get("wops") or self.get("stats_wops", 0))
+        return int(self.require_projected("wops") or self.get("stats_wops", 0))
 
     @property
     def read_bps(self) -> int:
         """Current read bytes per second."""
-        return int(self.get("rbps") or self.get("stats_rbps", 0))
+        return int(self.require_projected("rbps") or self.get("stats_rbps", 0))
 
     @property
     def write_bps(self) -> int:
         """Current write bytes per second."""
-        return int(self.get("wbps") or self.get("stats_wbps", 0))
+        return int(self.require_projected("wbps") or self.get("stats_wbps", 0))
 
     def get_status(self) -> ClusterTierStatus:
         """Get detailed tier status.

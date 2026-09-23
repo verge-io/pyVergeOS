@@ -219,12 +219,14 @@ class Tenant(ResourceObject):
     @property
     def network_name(self) -> str | None:
         """Get the name of the tenant's network."""
-        return self.get("network_name")
+        value = self.require_projected("network_name")
+        return str(value) if value is not None else None
 
     @property
     def ui_address_ip(self) -> str | None:
         """Get the UI access IP address."""
-        return self.get("ui_address_ip")
+        value = self.require_projected("ui_address_ip")
+        return str(value) if value is not None else None
 
     @property
     def snapshots(self) -> TenantSnapshotManager:

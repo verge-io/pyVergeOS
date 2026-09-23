@@ -323,7 +323,9 @@ class TestNode:
     def test_started_at_none(self) -> None:
         """Test started_at property when not set."""
         node = Node({"$key": 1}, MagicMock())
-        assert node.started_at is None
+        # a join: absent means unfetched, not empty (issue #117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.started_at
 
     def test_repr(self) -> None:
         """Test __repr__ method."""

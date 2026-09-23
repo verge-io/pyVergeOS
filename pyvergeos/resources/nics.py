@@ -84,18 +84,19 @@ class NIC(ResourceObject):
     @property
     def network_name(self) -> str | None:
         """Get connected network name."""
-        return self.get("vnet_name")
+        value = self.require_projected("vnet_name")
+        return str(value) if value is not None else None
 
     @property
     def network_key(self) -> int | None:
         """Get connected network key."""
-        key = self.get("vnet_key")
+        key = self.require_projected("vnet_key")
         return int(key) if key is not None else None
 
     @property
     def speed_display(self) -> str | None:
         """Get formatted speed string."""
-        speed = self.get("speed")
+        speed = self.require_projected("speed")
         if not speed:
             return None
         if speed >= 1000:
@@ -105,12 +106,12 @@ class NIC(ResourceObject):
     @property
     def rx_bytes(self) -> int:
         """Get received bytes."""
-        return int(self.get("rx_bytes") or 0)
+        return int(self.require_projected("rx_bytes") or 0)
 
     @property
     def tx_bytes(self) -> int:
         """Get transmitted bytes."""
-        return int(self.get("tx_bytes") or 0)
+        return int(self.require_projected("tx_bytes") or 0)
 
     @property
     def nic_stats(self) -> MachineNicStatsManager:

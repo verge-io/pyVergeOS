@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.cluster_tiers import (
     ClusterTier,
     ClusterTierManager,
@@ -727,6 +727,18 @@ class TestEdgeCases:
 
         assert tier.description == ""
         assert tier.cost_per_gb == 0.0
+        # 'redundant' and 'rops' are joins: absent means unfetched, and a tier
+        # that is merely unprojected must not read as non-redundant or idle
+        # (issue #117) - it reported "Offline" with 0 bytes on a live 2 TB tier
+        with pytest.raises(FieldNotProjectedError):
+            _ = tier.is_redundant
+        with pytest.raises(FieldNotProjectedError):
+            _ = tier.read_ops
+
+    def test_missing_optional_fields_report_genuine_values(
+        self, tier_manager: ClusterTierManager
+    ) -> None:
+        tier = ClusterTier({"$key": 1, "tier": 1, "redundant": False, "rops": 0}, tier_manager)
         assert tier.is_redundant is False
         assert tier.read_ops == 0
 

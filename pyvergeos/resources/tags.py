@@ -471,7 +471,8 @@ class Tag(ResourceObject):
     @property
     def category_name(self) -> str | None:
         """Get the parent category name (if fetched)."""
-        return self.get("category_name")
+        value = self.require_projected("category_name")
+        return str(value) if value is not None else None
 
     @property
     def created(self) -> int | None:

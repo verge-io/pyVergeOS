@@ -59,7 +59,8 @@ class TenantExternalIP(ResourceObject):
     @property
     def network_name(self) -> str | None:
         """Get the network name."""
-        return self.get("network_name")
+        value = self.require_projected("network_name")
+        return str(value) if value is not None else None
 
     @property
     def ip_address(self) -> str:
