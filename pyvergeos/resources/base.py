@@ -279,6 +279,66 @@ def display_map(mapping: Mapping[Any, Any], default: Any = _NO_VALUE) -> Callabl
     return _render
 
 
+def split_reference(value: Any) -> tuple[str | None, str | int | None]:
+    """Split a VergeOS reference into ``(table, key)``.
+
+    Several columns hold a *polymorphic* reference -- a ``"table/key"``
+    string such as ``"vms/39"`` naming both the table and the row, which is
+    how ``tasks.create(owner=..., table=...)`` composes them. Others hold a
+    plain key. A key is not always numeric either: recipes are keyed by name,
+    so ``owner`` can be ``"vm_recipes/yottabyte-services-nas-winbind"``.
+
+    Coercing any of those with ``int()`` raises ValueError, which is issue
+    #126. This reports what is actually there instead:
+
+    >>> split_reference("vms/39")
+    ('vms', 39)
+    >>> split_reference("vm_recipes/winbind-v1")
+    ('vm_recipes', 'winbind-v1')
+    >>> split_reference("deprecated")
+    (None, 'deprecated')
+    >>> split_reference("")
+    (None, None)
+
+    Args:
+        value: The raw column value.
+
+    Returns:
+        ``(table, key)``. ``table`` is None when the value carries no table
+        part; ``key`` is an int when it looks like one, and None when there
+        is no value at all.
+    """
+    if value is None:
+        return (None, None)
+    if isinstance(value, bool):
+        return (None, int(value))
+    if isinstance(value, int):
+        return (None, value)
+    text = str(value).strip()
+    if not text:
+        return (None, None)
+    table: str | None = None
+    if "/" in text:
+        table, _, text = text.partition("/")
+        table = table or None
+        if not text:
+            return (table, None)
+    try:
+        return (table, int(text))
+    except ValueError:
+        return (table, text)
+
+
+def reference_key(value: Any) -> str | int | None:
+    """The key part of a reference: 39 from ``"vms/39"``. See split_reference."""
+    return split_reference(value)[1]
+
+
+def reference_table(value: Any) -> str | None:
+    """The table part of a reference: ``"vms"`` from ``"vms/39"``, else None."""
+    return split_reference(value)[0]
+
+
 def epoch_utc(value: Any) -> Any:
     """Render a Unix timestamp as a timezone-aware UTC datetime.
 

@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    reference_key,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -119,10 +124,14 @@ class Alarm(ResourceObject):
     )
 
     @property
-    def alarm_type_key(self) -> int | None:
-        """Get alarm type $key."""
-        val = self.get("alarm_type")
-        return int(val) if val is not None else None
+    def alarm_type_key(self) -> str | int | None:
+        """Alarm type key. A string for types keyed by name, e.g. 'deprecated'.
+
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
+        """
+        return reference_key(self.get("alarm_type"))
 
     description = Projected[str](
         "alarm_type#description as alarm_type_description",
@@ -144,10 +153,14 @@ class Alarm(ResourceObject):
     )
 
     @property
-    def owner_key(self) -> int | None:
-        """Get owner object key."""
-        val = self.get("owner")
-        return int(val) if val is not None else None
+    def owner_key(self) -> str | int | None:
+        """Owner row key. 'owner' is a 'table/key' reference; see owner_type.
+
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
+        """
+        return reference_key(self.get("owner"))
 
     @property
     def owner_type(self) -> str:
@@ -160,10 +173,14 @@ class Alarm(ResourceObject):
         return OWNER_TYPE_DISPLAY.get(self.owner_type, self.owner_type)
 
     @property
-    def sub_owner(self) -> int | None:
-        """Get sub-owner key if applicable."""
-        val = self.get("sub_owner")
-        return int(val) if val is not None else None
+    def sub_owner(self) -> str | int | None:
+        """Sub-owner key, or None when the alarm has none.
+
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
+        """
+        return reference_key(self.get("sub_owner"))
 
     @property
     def is_resolvable(self) -> bool:

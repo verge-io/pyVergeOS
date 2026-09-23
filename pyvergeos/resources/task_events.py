@@ -49,7 +49,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    reference_key,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -73,20 +78,14 @@ class TaskEvent(ResourceObject):
     """
 
     @property
-    def owner_key(self) -> int | None:
-        """Get the owner resource key.
+    def owner_key(self) -> str | int | None:
+        """Owner row key, the '1' of 'update_settings/1'.
 
-        Note: Some events have non-integer owner values (e.g., 'update_settings/1').
-        In those cases, this property returns None.
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
         """
-        owner = self.get("owner")
-        if owner is None or owner == "":
-            return None
-        # Owner can be an integer or a path like 'update_settings/1'
-        try:
-            return int(owner)
-        except (ValueError, TypeError):
-            return None
+        return reference_key(self.get("owner"))
 
     @property
     def owner_table(self) -> str | None:
