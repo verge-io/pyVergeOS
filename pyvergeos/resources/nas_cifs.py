@@ -235,7 +235,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -291,7 +291,7 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", self._endpoint, params=params)
 

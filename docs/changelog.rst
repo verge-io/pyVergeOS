@@ -29,7 +29,16 @@ Fixed
   constant now declare ``_default_fields``, and the 254 manager methods that
   built the ``fields`` parameter themselves - ``nodes`` among them, which is
   why it kept losing ``$key`` after the base class was fixed - now go
-  through a single ``ResourceManager._projection()``. Narrowing a projection
+  through a single ``ResourceManager._projection()`` - every projection in
+  the package, 357 sites in all, found by discovering managers with
+  ``issubclass`` rather than by matching base-class names, which had hidden
+  five indirectly-derived managers. ``$key`` is now requested whenever
+  ``all`` is, rather than only when a manager declares it: 18 managers
+  declare no default projection at all, and ``storage_tiers`` was still
+  losing ``$key`` (and answering ``read_ops`` with ``AttributeError``)
+  under ``all``. Sub-selections such as ``stats[reads,writes]`` count as
+  computed alongside traversals and aggregates, since ``all`` answers those
+  with the bare foreign key. Narrowing a projection
   deliberately is still honoured and is never widened. AST tripwires fail CI
   if a manager serialises ``fields`` without expanding ``all``, or if a
   manager's default projection becomes unreachable from the base class.

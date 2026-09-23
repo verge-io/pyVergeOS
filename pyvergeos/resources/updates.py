@@ -159,7 +159,7 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -206,7 +206,7 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -332,7 +332,7 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -376,7 +376,7 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -539,7 +539,7 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -583,7 +583,7 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -769,7 +769,7 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -813,7 +813,7 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1000,7 +1000,7 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -1044,7 +1044,7 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1372,7 +1372,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -1420,7 +1420,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{pkg_name}", params=params)
         if response is None:
@@ -1647,7 +1647,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/1", params=params)
         if response is None:

@@ -228,7 +228,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         # Settings uses 'key' as the keyfield, so we filter by it
         params: dict[str, Any] = {
             "filter": f"key eq {quote_value(key)}",
-            "fields": "all",
+            "fields": self._projection("all"),
         }
 
         response = self._client._request("GET", self._endpoint, params=params)

@@ -379,7 +379,7 @@ class WebhookManager(ResourceManager[Webhook]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(_DEFAULT_WEBHOOK_FIELDS)
+            params["fields"] = self._projection(_DEFAULT_WEBHOOK_FIELDS)
 
         # Pagination
         if limit is not None:
@@ -421,7 +421,7 @@ class WebhookManager(ResourceManager[Webhook]):
         field_list = split_fields(fields) or list(_DEFAULT_WEBHOOK_FIELDS)
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(field_list)}
+            params: dict[str, Any] = {"fields": self._projection(field_list)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Webhook with key {key} not found")
@@ -706,7 +706,7 @@ class WebhookManager(ResourceManager[Webhook]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(_DEFAULT_HISTORY_FIELDS)
+            params["fields"] = self._projection(_DEFAULT_HISTORY_FIELDS)
 
         # Sort by created descending (newest first)
         params["sort"] = "-created"

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -214,7 +214,7 @@ class NASServiceManager(ResourceManager[NASService]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -289,7 +289,7 @@ class NASServiceManager(ResourceManager[NASService]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -688,7 +688,7 @@ class NASServiceManager(ResourceManager[NASService]):
         response = self._client._request(
             "GET",
             "vm_service_cifs",
-            params={"filter": f"service eq {key}", "fields": normalize_fields(fields)},
+            params={"filter": f"service eq {key}", "fields": self._projection(fields)},
         )
 
         if not response:
@@ -818,7 +818,7 @@ class NASServiceManager(ResourceManager[NASService]):
         response = self._client._request(
             "GET",
             "vm_service_nfs",
-            params={"filter": f"service eq {key}", "fields": normalize_fields(fields)},
+            params={"filter": f"service eq {key}", "fields": self._projection(fields)},
         )
 
         if not response:

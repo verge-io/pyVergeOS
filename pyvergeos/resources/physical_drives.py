@@ -319,7 +319,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit

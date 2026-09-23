@@ -25,8 +25,12 @@ object, so asking for them by name is the only way to get them.
 from __future__ import annotations
 
 import ast
+import importlib
+import inspect
 import pathlib
+import pkgutil
 import re
+import textwrap
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -46,6 +50,35 @@ RESOURCES_DIR = PACKAGE_DIR / "resources"
 # (machine#status#running as running) or an aggregate (count(members) as
 # member_count). Neither is a column, so neither is ever part of ``all``.
 COMPUTED_ALIAS = re.compile(r'["\']([^"\']*(?:#|\()[^"\']*)\s+as\s+(\w+)["\']')
+
+
+def manager_classes() -> list[tuple[str, type, ast.Module]]:
+    """Every ResourceManager subclass, discovered at runtime.
+
+    Deliberately not an AST scan of base-class *names*: five managers
+    subclass ResourceManager only indirectly (``VMCloudInitFileManager``,
+    the four ``queries`` managers), and a name-matching tripwire skipped
+    them -- which is how a projection bypass survived in
+    ``VMCloudInitFileManager.get()`` (issue #117). ``issubclass`` cannot
+    miss them.
+    """
+    import pyvergeos.resources as resources_pkg
+    from pyvergeos.resources.base import ResourceManager as RM
+
+    out: list[tuple[str, type, ast.Module]] = []
+    for info in pkgutil.iter_modules(resources_pkg.__path__):
+        module = importlib.import_module(f"pyvergeos.resources.{info.name}")
+        for name, cls in vars(module).items():
+            if not inspect.isclass(cls) or not issubclass(cls, RM):
+                continue
+            if cls is RM or cls.__module__ != module.__name__:
+                continue
+            try:
+                source = textwrap.dedent(inspect.getsource(cls))
+            except OSError:  # pragma: no cover
+                continue
+            out.append((f"{info.name}.{name}", cls, ast.parse(source)))
+    return out
 
 
 class TestProjectionAlias:
@@ -115,8 +148,18 @@ class TestExpandProjection:
         result = expand_projection("all", DEFAULT_NETWORK_FIELDS)
         assert "machine#status#running as running" in result
 
-    def test_no_defaults_is_a_no_op(self) -> None:
-        assert expand_projection(["all"], None) == ["all"]
+    def test_key_is_ensured_even_with_no_declared_defaults(self) -> None:
+        """18 managers declare no default projection, and several endpoints
+        leave ``$key`` out of ``all`` -- ``storage_tiers`` among them, where
+        ``.key`` then raised for a plainly persisted row."""
+        assert expand_projection(["all"], None) == ["all", "$key"]
+
+    def test_key_is_not_duplicated(self) -> None:
+        assert expand_projection(["all", "$key"], None) == ["all", "$key"]
+
+    def test_sub_selection_is_computed(self) -> None:
+        # 'all' answers a sub-selected column with the bare foreign key
+        assert is_computed_projection("stats[reads,writes,rops]")
 
     def test_empty_projection_is_a_no_op(self) -> None:
         assert expand_projection(None, DEFAULT_NETWORK_FIELDS) is None
@@ -228,46 +271,79 @@ class TestEveryManagerDeclaresItsDefaultProjection:
         )
 
 
-class TestNoManagerBypassesProjectionExpansion:
-    """AST tripwire: managers must not serialize ``fields`` themselves.
+class TestEveryFieldsParameterComesFromTheProjectionHelper:
+    """AST tripwire, over runtime-discovered managers.
 
-    Many managers assemble ``params`` and call ``_request`` directly instead
-    of delegating to ``ResourceManager.list()``. Each such site that called
-    ``normalize_fields(fields)`` was a hole in the expansion: ``nodes`` was
-    one, which is why ``fields=["all"]`` kept losing ``$key`` there long
-    after the base class had been fixed. ``self._projection(fields)`` is the
-    single serialization point.
+    ``self._projection()`` is the one place a projection becomes a request
+    parameter, so it is also the one place ``all`` gets expanded and the one
+    place the requested alias set is recorded. Any other construction of the
+    ``fields`` parameter is a hole in both.
+
+    Hand-rolled shapes that slipped past earlier, narrower versions of this
+    check: ``",".join(field_list)`` where ``field_list`` is a local built
+    from the caller's ``fields`` (certificates, webhooks, cloud-init),
+    ``",".join(request_fields)`` (auth sources, OIDC applications), and
+    ``normalize_fields(fields)`` in managers reached only by indirect
+    inheritance.
     """
 
-    def test_manager_methods_use_the_projection_helper(self) -> None:
+    def test_fields_params_use_the_helper(self) -> None:
         offenders: list[str] = []
-        for path in sorted(RESOURCES_DIR.glob("*.py")):
-            if path.name == "base.py":
-                continue
-            tree = ast.parse(path.read_text())
-            for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
-                if not any("ResourceManager" in ast.unparse(b) for b in cls.bases):
-                    continue
-                for fn in ast.walk(cls):
-                    if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        for label, _cls, tree in manager_classes():
+            for node in ast.walk(tree):
+                values: list[ast.expr] = []
+                # params["fields"] = ...  (the query-parameter dict; a
+                # body["fields"] is a payload attribute, not a projection)
+                if (
+                    isinstance(node, ast.Assign)
+                    and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Subscript)
+                    and isinstance(node.targets[0].value, ast.Name)
+                    and node.targets[0].value.id == "params"
+                    and isinstance(node.targets[0].slice, ast.Constant)
+                    and node.targets[0].slice.value == "fields"
+                ):
+                    values.append(node.value)
+                # ... params={"fields": ...} passed straight to a request
+                elif isinstance(node, ast.Call):
+                    for kw in node.keywords:
+                        if kw.arg != "params" or not isinstance(kw.value, ast.Dict):
+                            continue
+                        for k, v in zip(kw.value.keys, kw.value.values):
+                            if isinstance(k, ast.Constant) and k.value == "fields":
+                                values.append(v)
+                # params: dict[str, Any] = {"fields": ...}
+                elif (
+                    isinstance(node, ast.AnnAssign)
+                    and isinstance(node.target, ast.Name)
+                    and node.target.id == "params"
+                    and isinstance(node.value, ast.Dict)
+                ):
+                    for k, v in zip(node.value.keys, node.value.values):
+                        if isinstance(k, ast.Constant) and k.value == "fields":
+                            values.append(v)
+                for value in values:
+                    # A fixed literal projection is fine, unless it names
+                    # 'all' - that is precisely what needs expanding, and
+                    # SettingsManager.update() hid one here.
+                    if (
+                        isinstance(value, ast.Constant)
+                        and isinstance(value.value, str)
+                        and "all" not in [n.strip() for n in value.value.split(",")]
+                    ):
                         continue
-                    names = {a.arg for a in fn.args.args} | {a.arg for a in fn.args.kwonlyargs}
-                    if "fields" not in names:
+                    text = ast.unparse(value)
+                    if text.startswith("self._projection("):
                         continue
-                    for node in ast.walk(fn):
-                        if (
-                            isinstance(node, ast.Call)
-                            and isinstance(node.func, ast.Name)
-                            and node.func.id == "normalize_fields"
-                            and len(node.args) == 1
-                            and isinstance(node.args[0], ast.Name)
-                            and node.args[0].id == "fields"
-                        ):
-                            offenders.append(
-                                f"{path.name}:{node.lineno} {cls.name}.{fn.name}() — "
-                                "use self._projection(fields)"
-                            )
+                    offenders.append(f"{label}: fields = {text[:70]}")
         assert not offenders, (
-            "caller-supplied projections serialized without expanding 'all' "
-            f"(issue #117): {offenders}"
+            "fields parameters built without self._projection(), so 'all' is "
+            "not expanded and the request is not recorded (issue #117): "
+            f"{sorted(set(offenders))}"
         )
+
+    def test_discovery_sees_indirect_subclasses(self) -> None:
+        """Guard the guard: the blind spot that let the bypass through."""
+        labels = {label for label, _cls, _tree in manager_classes()}
+        assert "cloudinit_files.VMCloudInitFileManager" in labels
+        assert "queries.VNetQueryManager" in labels

@@ -278,7 +278,7 @@ class NASUserManager(ResourceManager["NASUser"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -334,7 +334,7 @@ class NASUserManager(ResourceManager["NASUser"]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", self._endpoint, params=params)
 

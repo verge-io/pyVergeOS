@@ -860,7 +860,10 @@ class TestSettingsManagerExtended:
         assert lookup.kwargs["method"] == "GET"
         assert lookup.kwargs["params"] == {
             "filter": "key eq 'max_connections'",
-            "fields": "all",
+            # 'all' is expanded to carry $key, which this lookup then uses to
+            # address the PUT; the settings endpoint omits it otherwise
+            # (issue #117)
+            "fields": "all,$key",
         }
         assert update.kwargs["method"] == "PUT"
         assert update.kwargs["url"] == (

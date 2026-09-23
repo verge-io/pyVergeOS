@@ -163,6 +163,20 @@ class StorageTier(ResourceObject):
         )
 
 
+_DEFAULT_STORAGE_TIER_FIELDS = [
+    "$key",
+    "tier",
+    "description",
+    "capacity",
+    "used",
+    "allocated",
+    "used_inflated",
+    "dedupe_ratio",
+    "modified",
+    "stats[reads,writes,read_bytes,write_bytes,rops,wops,rbps,wbps]",
+]
+
+
 class StorageTierManager(ResourceManager[StorageTier]):
     """Manages storage tier information in VergeOS.
 
@@ -182,6 +196,10 @@ class StorageTierManager(ResourceManager[StorageTier]):
         >>> # Check tiers with high usage
         >>> high_usage = [t for t in client.storage_tiers.list() if t.used_percent > 80]
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded into a
+    #: true superset of it (issue #117).
+    _default_fields = _DEFAULT_STORAGE_TIER_FIELDS
 
     _endpoint = "storage_tiers"
 
@@ -215,19 +233,7 @@ class StorageTierManager(ResourceManager[StorageTier]):
             ...           f"{tier.read_ops} IOPS read, {tier.write_ops} IOPS write")
         """
         if fields is None and include_stats:
-            # Default fields including stats
-            fields = [
-                "$key",
-                "tier",
-                "description",
-                "capacity",
-                "used",
-                "allocated",
-                "used_inflated",
-                "dedupe_ratio",
-                "modified",
-                "stats[reads,writes,read_bytes,write_bytes,rops,wops,rbps,wbps]",
-            ]
+            fields = list(_DEFAULT_STORAGE_TIER_FIELDS)
 
         return super().list(
             filter=filter, fields=fields, limit=limit, offset=offset, **filter_kwargs

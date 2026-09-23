@@ -147,14 +147,22 @@ def projection_alias(field: str) -> str:
 def is_computed_projection(field: str) -> bool:
     """Is this projection entry something the server computes, not a column?
 
-    ``fields=all`` returns columns. A traversal (``machine#status#running``)
-    or an aggregate (``count(members)``) is derived, so it is never part of
-    ``all`` and has to be asked for by name. Detected structurally rather
+    ``fields=all`` returns columns. A traversal (``machine#status#running``),
+    an aggregate (``count(members)``) or a sub-selection
+    (``stats[reads,writes]``) is derived, so it is never part of ``all`` and
+    has to be asked for by name -- ``all`` answers a sub-selected column with
+    the bare foreign key instead, which is why ``storage_tier.read_ops``
+    raised ``AttributeError`` under ``all``. Detected structurally rather
     than from a list of known names, so a new kind of computed entry is
     covered the day it is written.
     """
     stripped = field.strip()
-    return "#" in stripped or "(" in stripped or projection_alias(stripped) != stripped
+    return (
+        "#" in stripped  # traversal: machine#status#running
+        or "(" in stripped  # aggregate: count(members)
+        or "[" in stripped  # sub-selection: stats[reads,writes,rops]
+        or projection_alias(stripped) != stripped  # anything explicitly aliased
+    )
 
 
 def expand_projection(
@@ -184,7 +192,7 @@ def expand_projection(
     Returns:
         The projection to send, expanded only when ``all`` was requested.
     """
-    if not fields or not defaults:
+    if not fields:
         return fields
 
     names = split_fields(fields)
@@ -193,11 +201,22 @@ def expand_projection(
 
     seen = {projection_alias(name) for name in names}
     extra: builtins.list[str] = []
-    for field in defaults:
+
+    # $key is the resource's identity and ResourceObject.key depends on it,
+    # yet several endpoints leave it out of 'all' - nodes and storage_tiers
+    # among them, where .key then raised "Resource has no $key" for a plainly
+    # persisted row. Ask for it unconditionally: endpoints that already carry
+    # it tolerate the duplicate, and settings, which is keyed on 'key', simply
+    # answers with both.
+    if "$key" not in seen:
+        seen.add("$key")
+        extra.append("$key")
+
+    for field in defaults or ():
         # 'all' already covers plain own-columns, so re-listing them only
         # bloats the URL. It covers nothing the server has to compute, and
         # it drops $key on at least the nodes endpoint.
-        if not is_computed_projection(field) and field != "$key":
+        if not is_computed_projection(field):
             continue
         alias = projection_alias(field)
         if alias in seen:

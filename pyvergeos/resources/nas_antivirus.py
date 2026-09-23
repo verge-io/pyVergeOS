@@ -406,7 +406,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -459,7 +459,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             if fields:
                 params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -720,7 +720,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
             >>> status = av.get_status()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(self._default_fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume antivirus status with key {key} not found")
@@ -777,7 +777,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -841,7 +841,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
             >>> stats = av.get_stats()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(self._default_fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume antivirus stats with key {key} not found")
@@ -898,7 +898,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -989,7 +989,7 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -1086,7 +1086,7 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -1160,7 +1160,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             >>> svc_av = nas.antivirus.get()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(self._default_fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NAS service antivirus config with key {key} not found")
@@ -1215,7 +1215,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit

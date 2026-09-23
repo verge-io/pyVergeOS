@@ -1119,7 +1119,7 @@ class WireGuardPeerStatusManager(ResourceManager[WireGuardPeerStatus]):
         """
         params: dict[str, Any] = {
             "filter": f"peer eq {peer_key}",
-            "fields": ",".join(self._default_fields),
+            "fields": self._projection(self._default_fields),
             "limit": 1,
         }
 

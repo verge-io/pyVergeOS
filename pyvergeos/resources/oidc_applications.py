@@ -171,7 +171,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -214,7 +214,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -385,7 +385,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -428,7 +428,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -604,7 +604,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         if limit is not None:
             params["limit"] = limit
@@ -650,7 +650,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -983,7 +983,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         if fields:
             params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -1046,7 +1046,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         if key is not None:
             params: dict[str, Any] = {
-                "fields": ",".join(request_fields),
+                "fields": self._projection(request_fields),
             }
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
