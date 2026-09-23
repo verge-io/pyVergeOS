@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.tenant_storage import (
     TenantStorage,
     TenantStorageManager,
@@ -214,7 +214,7 @@ class TestTenantStorage:
     def test_storage_default_values(self) -> None:
         """Test default values for missing fields."""
         manager = MagicMock()
-        storage = TenantStorage({"$key": 1}, manager)
+        storage = TenantStorage({"$key": 1, "tier_number": 0}, manager)
 
         assert storage.tenant_key == 0
         assert storage.tier_key == 0
@@ -223,6 +223,13 @@ class TestTenantStorage:
         assert storage.used_bytes == 0
         assert storage.allocated_bytes == 0
         assert storage.used_percent == 0
+
+    def test_tier_refuses_to_guess_when_not_projected(self) -> None:
+        """'tier_number' is a join, and tier 0 is a plausible-looking lie (#117)."""
+        storage = TenantStorage({"$key": 1}, MagicMock())
+
+        with pytest.raises(FieldNotProjectedError):
+            _ = storage.tier
 
     def test_storage_save(self, sample_storage_data: dict[str, Any]) -> None:
         """Test save method calls manager update."""

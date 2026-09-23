@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -240,7 +240,7 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -284,7 +284,7 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"vGPU profile with key {key} not found")
@@ -337,7 +337,7 @@ class NodeGpu(ResourceObject):
     @property
     def pci_device_name(self) -> str:
         """PCI device name/description."""
-        return str(self.get("pci_device_name", ""))
+        return str(self.require_projected("pci_device_name"))
 
     @property
     def node_key(self) -> int | None:
@@ -348,12 +348,12 @@ class NodeGpu(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name"))
 
     @property
     def mode(self) -> str:
         """GPU operating mode (none, gpu, nvidia_vgpu)."""
-        return str(self.get("mode", "none"))
+        return str(self.require_projected("mode"))
 
     @property
     def mode_display(self) -> str:
@@ -369,7 +369,7 @@ class NodeGpu(ResourceObject):
     @property
     def nvidia_vgpu_profile_display(self) -> str:
         """Display name of assigned vGPU profile."""
-        return str(self.get("nvidia_vgpu_profile_disp", ""))
+        return str(self.require_projected("nvidia_vgpu_profile_disp"))
 
     @property
     def max_instances(self) -> int:
@@ -379,7 +379,7 @@ class NodeGpu(ResourceObject):
     @property
     def instances_count(self) -> int:
         """Current number of assigned instances."""
-        return int(self.get("instances_count", 0))
+        return int(self.require_projected("instances_count"))
 
     @property
     def modified_at(self) -> datetime | None:
@@ -557,7 +557,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -601,7 +601,7 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"GPU with key {key} not found")
@@ -841,7 +841,7 @@ class NodeGpuStatsManager(ResourceManager[NodeGpuStats]):
 
         params: dict[str, Any] = {
             "filter": f"node_gpu eq {self._gpu_key}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "limit": 1,
         }
 
@@ -940,7 +940,7 @@ class NodeGpuStatsManager(ResourceManager[NodeGpuStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -974,12 +974,12 @@ class NodeGpuInstance(ResourceObject):
     @property
     def gpu_key(self) -> int:
         """Parent GPU key."""
-        return int(self.get("gpu_key", 0))
+        return int(self.require_projected("gpu_key"))
 
     @property
     def gpu_name(self) -> str:
         """Parent GPU name."""
-        return str(self.get("gpu_name", ""))
+        return str(self.require_projected("gpu_name"))
 
     @property
     def node_key(self) -> int | None:
@@ -990,7 +990,7 @@ class NodeGpuInstance(ResourceObject):
     @property
     def node_name(self) -> str:
         """Node name."""
-        return str(self.get("node_display", ""))
+        return str(self.require_projected("node_display"))
 
     @property
     def machine_key(self) -> int | None:
@@ -1001,17 +1001,17 @@ class NodeGpuInstance(ResourceObject):
     @property
     def machine_name(self) -> str:
         """Machine (VM) name."""
-        return str(self.get("machine_name", ""))
+        return str(self.require_projected("machine_name"))
 
     @property
     def machine_type(self) -> str:
         """Machine type (e.g., 'vm')."""
-        return str(self.get("machine_type", ""))
+        return str(self.require_projected("machine_type"))
 
     @property
     def machine_type_display(self) -> str:
         """Machine type display name."""
-        return str(self.get("machine_type_display", ""))
+        return str(self.require_projected("machine_type_display"))
 
     @property
     def machine_device_key(self) -> int | None:
@@ -1022,12 +1022,12 @@ class NodeGpuInstance(ResourceObject):
     @property
     def machine_device_name(self) -> str:
         """Machine device name."""
-        return str(self.get("machine_device_name", ""))
+        return str(self.require_projected("machine_device_name"))
 
     @property
     def machine_device_status(self) -> str:
         """Machine device status."""
-        return str(self.get("machine_device_status", ""))
+        return str(self.require_projected("machine_device_status"))
 
     @property
     def pci_device_key(self) -> int | None:
@@ -1038,17 +1038,17 @@ class NodeGpuInstance(ResourceObject):
     @property
     def pci_device_name(self) -> str:
         """PCI device name."""
-        return str(self.get("pci_device_name", ""))
+        return str(self.require_projected("pci_device_name"))
 
     @property
     def mode(self) -> str:
         """GPU mode (gpu, nvidia_vgpu)."""
-        return str(self.get("mode", ""))
+        return str(self.require_projected("mode"))
 
     @property
     def mode_display(self) -> str:
         """GPU mode display name."""
-        return str(self.get("mode_display", ""))
+        return str(self.require_projected("mode_display"))
 
     @property
     def description(self) -> str:
@@ -1145,7 +1145,7 @@ class NodeGpuInstanceManager(ResourceManager[NodeGpuInstance]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
 
         if limit is not None:
@@ -1185,7 +1185,7 @@ class NodeVgpuDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name"))
 
     @property
     def pci_device_key(self) -> int | None:
@@ -1371,7 +1371,7 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1411,7 +1411,7 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"vGPU device with key {key} not found")
@@ -1441,7 +1441,7 @@ class NodeHostGpuDevice(ResourceObject):
     @property
     def node_name(self) -> str:
         """Parent node name."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name"))
 
     @property
     def pci_device_key(self) -> int | None:
@@ -1623,7 +1623,7 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1663,7 +1663,7 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"Host GPU device with key {key} not found")
@@ -1834,7 +1834,7 @@ class NodeVgpuProfileManager(ResourceManager[NodeVgpuProfile]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1878,7 +1878,7 @@ class NodeVgpuProfileManager(ResourceManager[NodeVgpuProfile]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"vGPU profile with key {key} not found")

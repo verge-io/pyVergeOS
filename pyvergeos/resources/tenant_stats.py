@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -447,7 +447,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
 
         params: dict[str, Any] = {
             "filter": f"tenant eq {self._tenant_key}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "limit": 1,
         }
 
@@ -547,7 +547,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -583,7 +583,7 @@ class TenantLog(ResourceObject):
     @property
     def tenant_name(self) -> str:
         """Parent tenant name."""
-        return str(self.get("tenant_name", ""))
+        return str(self.require_projected("tenant_name"))
 
     @property
     def level(self) -> str:
@@ -745,7 +745,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -789,7 +789,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:

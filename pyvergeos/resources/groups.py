@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -148,7 +148,7 @@ class GroupMemberManager(ResourceManager[GroupMember]):
 
         # Default fields
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = "$key,parent_group,member,member#$display as member_display,creator"
 
@@ -335,7 +335,7 @@ class Group(ResourceObject):
     @property
     def member_count(self) -> int:
         """Get the number of members in the group."""
-        return int(self.get("member_count", 0))
+        return int(self.require_projected("member_count"))
 
     @property
     def created(self) -> int | None:
@@ -503,7 +503,7 @@ class GroupManager(ResourceManager[Group]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -571,7 +571,7 @@ class GroupManager(ResourceManager[Group]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

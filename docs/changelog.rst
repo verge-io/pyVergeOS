@@ -12,6 +12,43 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``fields=["all"]`` is no longer a silently lossy projection. ``all``
+  resolves server-side to a resource's *own columns*, so nothing a manager
+  has the server compute came back with it - neither aliased traversals
+  (``machine#status#running as running``) nor aggregates
+  (``count(members) as member_count``) - and on ``nodes`` not even ``$key``.
+  Asking for *more* data therefore returned a *wrong* answer: a running VM
+  read back under ``all`` reported ``is_running is False`` and
+  ``status == "unknown"``, and ``node.key`` raised "Resource has no $key -
+  may not be persisted" for a node that was plainly persisted. Measured on a
+  live system, ``all`` dropped 2 fields on ``networks``, 6 on ``vms``, 9 on
+  ``nodes``, 9 on ``tenants`` and 10 on ``clusters``. A caller's ``all`` is
+  now expanded with the manager's computed entries and ``$key``, which the
+  API accepts and which restores every missing value; the 34 managers that
+  kept their defaults in a module constant now expose them so the expansion
+  can reach them, and all 254 manager methods that built the ``fields``
+  parameter themselves - ``nodes`` among them - go through a single
+  ``_projection()`` serialisation point. (#117)
+- Accessors no longer invent a value for a field they never fetched.
+  ``is_running``, ``is_online``, ``status``, ``state``, ``member_count`` and
+  a hundred others read their backing field with ``self.get(name, False)``,
+  which cannot tell "the field says false" from "the field was not
+  projected" - so a narrowed ``fields`` argument turned every one of them
+  into a confident wrong answer, and ``False`` is precisely the direction
+  that disarms the guard a caller puts in front of a destructive operation.
+  All 103 accessors backed by a computed field now use
+  ``require_projected()`` and raise the new ``FieldNotProjectedError``
+  instead. The distinction is exact rather than heuristic: the API returns a
+  key for every field it was asked for, using a null value when there is
+  nothing to report, so an absent key means only that the projection omitted
+  it. ``FieldNotProjectedError`` is deliberately not an ``AttributeError``,
+  or ``ResourceObject.__getattr__`` would swallow it and ``hasattr()`` would
+  answer ``False`` for a field that exists but was not fetched. AST tripwire
+  tests fail CI if a manager serialises ``fields`` without expanding
+  ``all``, if a manager's default projection becomes unreachable from the
+  base class, or if an accessor reads a computed field with a fallback.
+  (#117)
+
 - ``fields="$key,name"`` no longer silently destroys the projection.
   ``fields`` was typed as a list but every call site serialised it with
   ``",".join(fields)``; a caller-supplied string - the API's own native

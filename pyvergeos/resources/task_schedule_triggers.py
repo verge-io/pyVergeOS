@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -55,7 +55,7 @@ class TaskScheduleTrigger(ResourceObject):
     @property
     def task_display(self) -> str:
         """Get the linked task display name."""
-        return str(self.get("task_display", ""))
+        return str(self.require_projected("task_display"))
 
     @property
     def schedule_key(self) -> int | None:
@@ -66,7 +66,7 @@ class TaskScheduleTrigger(ResourceObject):
     @property
     def schedule_display(self) -> str:
         """Get the linked schedule display name."""
-        return str(self.get("schedule_display", ""))
+        return str(self.require_projected("schedule_display"))
 
     @property
     def is_schedule_enabled(self) -> bool:
@@ -215,7 +215,7 @@ class TaskScheduleTriggerManager(ResourceManager[TaskScheduleTrigger]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -259,7 +259,7 @@ class TaskScheduleTriggerManager(ResourceManager[TaskScheduleTrigger]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

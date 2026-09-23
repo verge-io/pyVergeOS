@@ -34,7 +34,7 @@ class NASService(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if the NAS service VM is running."""
-        return self.get("vm_running", False) or self.get("vm_status") == "running"
+        return self.require_projected("vm_running") or self.get("vm_status") == "running"
 
     @property
     def vm_key(self) -> int | None:
@@ -45,7 +45,7 @@ class NASService(ResourceObject):
     @property
     def volume_count(self) -> int:
         """Get the number of volumes managed by this service."""
-        count = self.get("volume_count", 0)
+        count = self.require_projected("volume_count")
         return int(count) if count is not None else 0
 
     @property
@@ -212,7 +212,7 @@ class NASServiceManager(ResourceManager[NASService]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -287,7 +287,7 @@ class NASServiceManager(ResourceManager[NASService]):
             # Fetch by key with default fields
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

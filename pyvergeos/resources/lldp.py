@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -159,7 +159,7 @@ class NodeLLDPNeighborManager(ResourceManager[NodeLLDPNeighbor]):
             filters.append(extra)
 
         params: dict[str, Any] = {
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if filters:
             params["filter"] = " and ".join(filters)

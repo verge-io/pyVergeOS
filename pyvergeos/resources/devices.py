@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -80,7 +80,7 @@ class Device(ResourceObject):
     @property
     def machine_name(self) -> str:
         """Parent machine (VM) name."""
-        return str(self.get("machine_name", ""))
+        return str(self.require_projected("machine_name"))
 
     @property
     def machine_type(self) -> str:
@@ -137,23 +137,23 @@ class Device(ResourceObject):
     @property
     def resource_group_name(self) -> str:
         """Associated resource group name."""
-        return str(self.get("resource_group_name", ""))
+        return str(self.require_projected("resource_group_name"))
 
     @property
     def status(self) -> str:
         """Device status (human-readable)."""
-        raw = str(self.get("device_status", ""))
+        raw = str(self.require_projected("device_status"))
         return DEVICE_STATUS_DISPLAY.get(raw, raw)
 
     @property
     def status_raw(self) -> str:
         """Raw device status value."""
-        return str(self.get("device_status", ""))
+        return str(self.require_projected("device_status"))
 
     @property
     def status_info(self) -> str:
         """Additional status information."""
-        return str(self.get("status_info", ""))
+        return str(self.require_projected("status_info"))
 
     @property
     def created_at(self) -> datetime | None:
@@ -357,7 +357,7 @@ class DeviceManager(ResourceManager[Device]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "+orderid",
         }
 
@@ -401,7 +401,7 @@ class DeviceManager(ResourceManager[Device]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
             if response is None:

@@ -193,11 +193,21 @@ class TestFieldsParameter:
         assert self._params(mock_session)["fields"] == "$key,name"
 
     def test_fields_all_string(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """``all`` survives as a token and is not split character by character.
+
+        It no longer travels alone: the manager's aliased joins are appended
+        so that ``all`` is a true superset of the default projection, because
+        the API resolves ``all`` to own columns only (issue #117). The point
+        this test guards is the #101 one — that the string form is not
+        exploded into ``a,l,l``.
+        """
         mock_session.request.return_value.json.return_value = []
 
         mock_client.networks.list(fields="all")
 
-        assert self._params(mock_session)["fields"] == "all"
+        sent = self._params(mock_session)["fields"].split(",")
+        assert sent[0] == "all"
+        assert "machine#status#running as running" in sent
 
 
 class TestWritePathSerialization:

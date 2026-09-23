@@ -203,12 +203,12 @@ class Network(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if network is powered on."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running"))
 
     @property
     def status(self) -> str:
         """Get the network status (running, stopped, etc.)."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status"))
 
     @property
     def needs_restart(self) -> bool:
@@ -814,6 +814,10 @@ class NetworkManager(ResourceManager[Network]):
             net.restart()
             net.power_off()
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_NETWORK_FIELDS
 
     _endpoint = "vnets"
 

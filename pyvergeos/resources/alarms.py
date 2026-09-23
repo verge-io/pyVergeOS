@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -115,7 +115,7 @@ class Alarm(ResourceObject):
     @property
     def alarm_type(self) -> str:
         """Get alarm type name."""
-        return str(self.get("alarm_type_name", ""))
+        return str(self.require_projected("alarm_type_name"))
 
     @property
     def alarm_type_key(self) -> int | None:
@@ -126,7 +126,7 @@ class Alarm(ResourceObject):
     @property
     def description(self) -> str:
         """Get alarm type description."""
-        return str(self.get("alarm_type_description", ""))
+        return str(self.require_projected("alarm_type_description"))
 
     @property
     def alarm_id(self) -> str:
@@ -136,7 +136,7 @@ class Alarm(ResourceObject):
     @property
     def owner_name(self) -> str:
         """Get owner object name."""
-        return str(self.get("owner_name", ""))
+        return str(self.require_projected("owner_name"))
 
     @property
     def owner_key(self) -> int | None:
@@ -370,6 +370,10 @@ class AlarmManager(ResourceManager[Alarm]):
         >>> history = client.alarms.list_history()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_ALARM_FIELDS
+
     _endpoint = "alarms"
 
     def __init__(self, client: VergeClient) -> None:
@@ -469,7 +473,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -586,7 +590,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if fields is None:
             fields = _DEFAULT_ALARM_FIELDS
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -759,7 +763,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -800,7 +804,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if fields is None:
             fields = _DEFAULT_HISTORY_FIELDS
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         response = self._client._request("GET", f"alarm_history/{key}", params=params)
         if response is None:

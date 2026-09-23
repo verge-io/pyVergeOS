@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.networks import Network
 from pyvergeos.resources.vnet_proxy import (
     VnetProxy,
@@ -724,8 +724,11 @@ class TestEdgeCases:
             {"$key": 1, "proxy": 1, "tenant": 10, "fqdn": "test.example.com"},
             manager,
         )
-        assert tenant.tenant_name == ""  # Missing tenant_display
         assert tenant.fqdn == "test.example.com"
+        # 'tenant_display' is a join: absent means unfetched, and answering ""
+        # was indistinguishable from a tenant with no display name (#117)
+        with pytest.raises(FieldNotProjectedError):
+            _ = tenant.tenant_name
 
     def test_create_with_none_response(
         self,

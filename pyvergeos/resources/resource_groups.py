@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -134,7 +134,7 @@ class ResourceGroup(ResourceObject):
     @property
     def resource_count(self) -> int:
         """Number of resources (devices) in this group."""
-        return int(self.get("resource_count", 0))
+        return int(self.require_projected("resource_count"))
 
     @property
     def created_at(self) -> datetime | None:
@@ -891,7 +891,7 @@ class ResourceRule(ResourceObject):
     @property
     def resource_group_name(self) -> str:
         """Parent resource group name."""
-        return str(self.get("resource_group_display", ""))
+        return str(self.require_projected("resource_group_display"))
 
     @property
     def name(self) -> str:
@@ -925,7 +925,7 @@ class ResourceRule(ResourceObject):
     @property
     def node_name(self) -> str:
         """Node name filter."""
-        return str(self.get("node_display", ""))
+        return str(self.require_projected("node_display"))
 
     @property
     def filter_expression(self) -> str:
@@ -941,7 +941,7 @@ class ResourceRule(ResourceObject):
     @property
     def resource_count(self) -> int:
         """Number of devices matched by this rule."""
-        return int(self.get("resource_count", 0))
+        return int(self.require_projected("resource_count"))
 
     @property
     def is_system_created(self) -> bool:
@@ -1078,7 +1078,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
 
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1122,7 +1122,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Resource rule with key {key} not found")

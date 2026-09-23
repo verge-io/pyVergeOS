@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -563,7 +563,7 @@ class BillingManager(ResourceManager[BillingRecord]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -604,7 +604,7 @@ class BillingManager(ResourceManager[BillingRecord]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:

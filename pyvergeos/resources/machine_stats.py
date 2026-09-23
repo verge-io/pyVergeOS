@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -372,7 +372,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
 
         params: dict[str, Any] = {
             "filter": f"machine eq {self._machine_key}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "limit": 1,
         }
 
@@ -472,7 +472,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -559,7 +559,7 @@ class MachineStatus(ResourceObject):
     @property
     def node_name(self) -> str:
         """Name of node where machine is running."""
-        return str(self.get("node_name", ""))
+        return str(self.require_projected("node_name"))
 
     @property
     def migrated_node_key(self) -> int | None:
@@ -698,7 +698,7 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
 
         params: dict[str, Any] = {
             "filter": f"machine eq {self._machine_key}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "limit": 1,
         }
 
@@ -731,7 +731,7 @@ class MachineLog(ResourceObject):
     @property
     def machine_name(self) -> str:
         """Parent machine name."""
-        return str(self.get("machine_name", ""))
+        return str(self.require_projected("machine_name"))
 
     @property
     def level(self) -> str:
@@ -892,7 +892,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -936,7 +936,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:

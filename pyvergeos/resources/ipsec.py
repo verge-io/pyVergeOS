@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -283,6 +283,10 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             policies = conn.policies.list()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_CONNECTION_FIELDS
+
     _endpoint = "vnet_ipsec_phase1s"
 
     def __init__(self, client: VergeClient, network: Network) -> None:
@@ -413,7 +417,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         # Default fields
         if fields is None:
             fields = DEFAULT_CONNECTION_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -459,7 +463,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             fields = DEFAULT_CONNECTION_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -713,6 +717,10 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             connection.policies.delete(policy.key)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_POLICY_FIELDS
+
     _endpoint = "vnet_ipsec_phase2s"
 
     def __init__(self, client: VergeClient, connection: IPSecConnection) -> None:
@@ -760,7 +768,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         # Default fields
         if fields is None:
             fields = DEFAULT_POLICY_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -806,7 +814,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             fields = DEFAULT_POLICY_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

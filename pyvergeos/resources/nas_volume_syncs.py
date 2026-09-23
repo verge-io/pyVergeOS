@@ -10,7 +10,6 @@ from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
-    normalize_fields,
     serialize_list,
 )
 
@@ -111,7 +110,7 @@ class NASVolumeSync(ResourceObject):
     @property
     def is_syncing(self) -> bool:
         """Check if the sync is currently running."""
-        return bool(self.get("syncing", False))
+        return bool(self.require_projected("syncing"))
 
     @property
     def service_key(self) -> int | None:
@@ -158,7 +157,7 @@ class NASVolumeSync(ResourceObject):
     @property
     def status_display(self) -> str:
         """Get human-readable status."""
-        status = str(self.get("status", ""))
+        status = str(self.require_projected("status"))
         status_map = {
             "complete": "Complete",
             "offline": "Offline",
@@ -321,7 +320,7 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -380,7 +379,7 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
                 "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

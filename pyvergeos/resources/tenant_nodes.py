@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -82,12 +82,12 @@ class TenantNode(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if the node is currently running."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running"))
 
     @property
     def status(self) -> str:
         """Get the node status."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status"))
 
     @property
     def host_node(self) -> str | None:
@@ -119,7 +119,7 @@ class TenantNode(ResourceObject):
     @property
     def on_power_loss(self) -> str:
         """Get power loss behavior (power_on, last_state, leave_off)."""
-        return str(self.get("on_power_loss", "last_state"))
+        return str(self.require_projected("on_power_loss"))
 
     @property
     def machine_key(self) -> int | None:
@@ -216,7 +216,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -260,7 +260,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Tenant node {key} not found")

@@ -6,7 +6,7 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -354,7 +354,7 @@ class MachineNicStatsManager(ResourceManager[MachineNicStats]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NIC stats {key} not found")
@@ -365,7 +365,7 @@ class MachineNicStatsManager(ResourceManager[MachineNicStats]):
         if self._nic_key is not None:
             params = {
                 "filter": f"parent_nic eq {self._nic_key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
                 "limit": 1,
             }
             response = self._client._request("GET", self._endpoint, params=params)
@@ -424,7 +424,7 @@ class MachineNicStatusManager(ResourceManager[MachineNicStatus]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NIC status {key} not found")
@@ -435,7 +435,7 @@ class MachineNicStatusManager(ResourceManager[MachineNicStatus]):
         if self._nic_key is not None:
             params = {
                 "filter": f"parent_nic eq {self._nic_key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
                 "limit": 1,
             }
             response = self._client._request("GET", self._endpoint, params=params)
@@ -497,7 +497,7 @@ class MachineNicFabricStatusManager(ResourceManager[MachineNicFabricStatus]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NIC fabric status {key} not found")
@@ -508,7 +508,7 @@ class MachineNicFabricStatusManager(ResourceManager[MachineNicFabricStatus]):
         if self._nic_key is not None:
             params = {
                 "filter": f"parent_nic eq {self._nic_key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
                 "limit": 1,
             }
             response = self._client._request("GET", self._endpoint, params=params)

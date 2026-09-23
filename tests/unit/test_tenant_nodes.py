@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyvergeos.exceptions import APIError, NotFoundError
+from pyvergeos.exceptions import APIError, FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.tenant_nodes import (
     TenantNode,
     TenantNodeManager,
@@ -154,12 +154,13 @@ class TestTenantNode:
         stopped_node = TenantNode({"$key": 1, "running": False}, manager)
         assert stopped_node.is_running is False
 
-    def test_node_running_default(self) -> None:
-        """Test is_running default when not set."""
+    def test_node_running_refuses_to_guess_when_not_projected(self) -> None:
+        """'running' is a join; absent means unfetched, not stopped (#117)."""
         manager = MagicMock()
         node = TenantNode({"$key": 1}, manager)
 
-        assert node.is_running is False
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.is_running
 
     def test_node_status(self, sample_node_data: dict[str, Any]) -> None:
         """Test status property."""
@@ -168,12 +169,13 @@ class TestTenantNode:
 
         assert node.status == "running"
 
-    def test_node_status_default(self) -> None:
-        """Test status default when not set."""
+    def test_node_status_refuses_to_guess_when_not_projected(self) -> None:
+        """'status' is a join; "unknown" was a fabricated answer (#117)."""
         manager = MagicMock()
         node = TenantNode({"$key": 1}, manager)
 
-        assert node.status == "unknown"
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.status
 
     def test_node_host_node(self, sample_node_data: dict[str, Any]) -> None:
         """Test host_node property."""
@@ -228,12 +230,13 @@ class TestTenantNode:
 
         assert node.on_power_loss == "last_state"
 
-    def test_node_on_power_loss_default(self) -> None:
-        """Test on_power_loss default when not set."""
+    def test_node_on_power_loss_refuses_to_guess_when_not_projected(self) -> None:
+        """'on_power_loss' is a join; "last_state" was a guess (#117)."""
         manager = MagicMock()
         node = TenantNode({"$key": 1}, manager)
 
-        assert node.on_power_loss == "last_state"
+        with pytest.raises(FieldNotProjectedError):
+            _ = node.on_power_loss
 
     def test_node_machine_key(self, sample_node_data: dict[str, Any]) -> None:
         """Test machine_key property."""

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -255,6 +255,10 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         ...     print(f"{vm.name}: {vm.cpu_cores} cores, {vm.ram_mb} MB RAM")
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_VM_FIELDS
+
     _endpoint = "cloud_snapshot_vms"
 
     def __init__(self, client: VergeClient, snapshot_key: int) -> None:
@@ -299,7 +303,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -343,7 +347,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -377,6 +381,10 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
         >>> for tenant in tenants:
         ...     print(f"{tenant.name}: {tenant.nodes} nodes")
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_TENANT_FIELDS
 
     _endpoint = "cloud_snapshot_tenants"
 
@@ -422,7 +430,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -466,7 +474,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -693,6 +701,10 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         >>> client.cloud_snapshots.delete(snapshot.key)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_SNAPSHOT_FIELDS
+
     _endpoint = "cloud_snapshots"
 
     def __init__(self, client: VergeClient) -> None:
@@ -798,7 +810,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -868,7 +880,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

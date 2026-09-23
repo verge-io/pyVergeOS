@@ -179,22 +179,22 @@ class Tenant(ResourceObject):
     @property
     def is_running(self) -> bool:
         """Check if tenant is powered on."""
-        return bool(self.get("running", False))
+        return bool(self.require_projected("running"))
 
     @property
     def is_starting(self) -> bool:
         """Check if tenant is starting."""
-        return bool(self.get("starting", False))
+        return bool(self.require_projected("starting"))
 
     @property
     def is_stopping(self) -> bool:
         """Check if tenant is stopping."""
-        return bool(self.get("stopping", False))
+        return bool(self.require_projected("stopping"))
 
     @property
     def is_migrating(self) -> bool:
         """Check if tenant is migrating."""
-        return bool(self.get("migrating", False))
+        return bool(self.require_projected("migrating"))
 
     @property
     def is_snapshot(self) -> bool:
@@ -209,12 +209,12 @@ class Tenant(ResourceObject):
     @property
     def status(self) -> str:
         """Get tenant status (online, offline, starting, etc.)."""
-        return str(self.get("status", "unknown"))
+        return str(self.require_projected("status"))
 
     @property
     def state(self) -> str:
         """Get tenant state (online, offline, warning, error)."""
-        return str(self.get("state", "unknown"))
+        return str(self.require_projected("state"))
 
     @property
     def network_name(self) -> str | None:
