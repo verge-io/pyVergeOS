@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -16,13 +16,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields for tenant storage allocations
-TENANT_STORAGE_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_STORAGE_COLUMNS = [
     "$key",
     "tenant",
     "tier",
-    "tier#tier as tier_number",
-    "tier#description as tier_description",
     "provisioned",
     "used",
     "allocated",
@@ -49,21 +49,24 @@ class TenantStorage(ResourceObject):
         """Get the storage tier key."""
         return int(self.get("tier", 0))
 
-    @property
-    def tier(self) -> int:
-        """Get the tier number (1-5)."""
-        return int(self.require_projected("tier_number", 0))
+    tier = Projected[int](
+        "tier#tier as tier_number",
+        int,
+        default=0,
+        doc="Get the tier number (1-5).",
+    )
 
     @property
     def tier_name(self) -> str:
         """Get the formatted tier name (e.g., 'Tier 1')."""
         return f"Tier {self.tier}"
 
-    @property
-    def tier_description(self) -> str | None:
-        """Get the tier description."""
-        value = self.require_projected("tier_description")
-        return str(value) if value is not None else None
+    tier_description = Projected["str | None"](
+        "tier#description as tier_description",
+        str,
+        null=None,
+        doc="Get the tier description.",
+    )
 
     @property
     def provisioned_bytes(self) -> int:
@@ -146,6 +149,14 @@ class TenantStorage(ResourceObject):
             f"<TenantStorage {self.tier_name}: "
             f"{self.used_gb:.1f}/{self.provisioned_gb:.1f} GB ({self.used_percent}%)>"
         )
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_STORAGE_DEFAULT_FIELDS = [
+    *_TENANT_STORAGE_COLUMNS,
+    *TenantStorage.projected_entries(),
+]
 
 
 class TenantStorageManager(ResourceManager[TenantStorage]):

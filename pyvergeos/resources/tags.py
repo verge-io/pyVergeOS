@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -468,11 +468,12 @@ class Tag(ResourceObject):
         """Get the parent category key."""
         return int(self.get("category", 0))
 
-    @property
-    def category_name(self) -> str | None:
-        """Get the parent category name (if fetched)."""
-        value = self.require_projected("category_name")
-        return str(value) if value is not None else None
+    category_name = Projected["str | None"](
+        "category#name as category_name",
+        str,
+        null=None,
+        doc="Get the parent category name (if fetched).",
+    )
 
     @property
     def created(self) -> int | None:
@@ -559,9 +560,9 @@ class TagManager(ResourceManager[Tag]):
         "name",
         "description",
         "category",
-        "category#name as category_name",
         "created",
         "modified",
+        *Tag.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

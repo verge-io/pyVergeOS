@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    display_map,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -110,10 +115,12 @@ class Node(ResourceObject):
         """CPU speed."""
         return str(self.get("cpu_speed", ""))
 
-    @property
-    def is_online(self) -> bool:
-        """Check if node is online/running."""
-        return bool(self.require_projected("running", False))
+    is_online = Projected[bool](
+        "machine#status#running as running",
+        bool,
+        default=False,
+        doc="Check if node is online/running.",
+    )
 
     @property
     def is_maintenance(self) -> bool:
@@ -125,16 +132,20 @@ class Node(ResourceObject):
         """Check if this is a physical node."""
         return bool(self.get("physical", False))
 
-    @property
-    def status(self) -> str:
-        """Node status (Running, Stopped, Online, Offline, etc.)."""
-        raw = str(self.require_projected("status", ""))
-        return STATUS_DISPLAY.get(raw, raw)
+    status = Projected[str](
+        "machine#status#status as status",
+        str,
+        default="",
+        transform=display_map(STATUS_DISPLAY),
+        doc="Node status (Running, Stopped, Online, Offline, etc.).",
+    )
 
-    @property
-    def status_raw(self) -> str:
-        """Raw status value."""
-        return str(self.require_projected("status", ""))
+    status_raw = Projected[str](
+        "machine#status#status as status",
+        str,
+        default="",
+        doc="Raw status value.",
+    )
 
     @property
     def ram_mb(self) -> int:
@@ -166,20 +177,26 @@ class Node(ResourceObject):
         """Number of CPU cores."""
         return int(self.get("cores") or 0)
 
-    @property
-    def ram_used_mb(self) -> int:
-        """Used physical RAM in MB."""
-        return int(self.require_projected("ram_used") or 0)
+    ram_used_mb = Projected[int](
+        "machine#stats#ram_used as ram_used",
+        int,
+        falsy=0,
+        doc="Used physical RAM in MB.",
+    )
 
-    @property
-    def vram_used_mb(self) -> int:
-        """Used virtual RAM in MB."""
-        return int(self.require_projected("vram_used") or 0)
+    vram_used_mb = Projected[int](
+        "machine#stats#vram_used as vram_used",
+        int,
+        falsy=0,
+        doc="Used virtual RAM in MB.",
+    )
 
-    @property
-    def cpu_usage(self) -> float:
-        """CPU usage percentage."""
-        return float(self.require_projected("cpu_usage") or 0.0)
+    cpu_usage = Projected[float](
+        "machine#stats#total_cpu as cpu_usage",
+        float,
+        falsy=0.0,
+        doc="CPU usage percentage.",
+    )
 
     @property
     def core_temp(self) -> float | None:
@@ -227,10 +244,12 @@ class Node(ResourceObject):
             return int(cluster)
         return None
 
-    @property
-    def cluster_name(self) -> str:
-        """Parent cluster name."""
-        return str(self.require_projected("cluster_name", ""))
+    cluster_name = Projected[str](
+        "cluster#name as cluster_name",
+        str,
+        default="",
+        doc="Parent cluster name.",
+    )
 
     @property
     def machine_key(self) -> int | None:
@@ -568,10 +587,12 @@ class NodeDriver(ResourceObject):
             return int(node)
         return None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
     @property
     def driver_name(self) -> str:
@@ -591,26 +612,32 @@ class NodeDriver(ResourceObject):
             return int(df)
         return None
 
-    @property
-    def driver_file_name(self) -> str:
-        """Driver file name."""
-        return str(self.require_projected("driver_file_name", ""))
+    driver_file_name = Projected[str](
+        "driver_file#name as driver_file_name",
+        str,
+        default="",
+        doc="Driver file name.",
+    )
 
     @property
     def description(self) -> str:
         """Driver description."""
         return str(self.get("description", ""))
 
-    @property
-    def status(self) -> str:
-        """Driver status (Installed, Verifying, Error)."""
-        raw = str(self.require_projected("status", ""))
-        return DRIVER_STATUS_DISPLAY.get(raw, raw)
+    status = Projected[str](
+        "status",
+        str,
+        default="",
+        transform=display_map(DRIVER_STATUS_DISPLAY),
+        doc="Driver status (Installed, Verifying, Error).",
+    )
 
-    @property
-    def status_raw(self) -> str:
-        """Raw status value."""
-        return str(self.require_projected("status", ""))
+    status_raw = Projected[str](
+        "status",
+        str,
+        default="",
+        doc="Raw status value.",
+    )
 
     @property
     def status_info(self) -> str:
@@ -656,10 +683,12 @@ class NodePCIDevice(ResourceObject):
             return int(node)
         return None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
     @property
     def name(self) -> str:
@@ -785,10 +814,12 @@ class NodeUSBDevice(ResourceObject):
             return int(node)
         return None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
     @property
     def bus(self) -> str:
@@ -872,10 +903,12 @@ class NodeSriovNicDevice(ResourceObject):
             return int(node)
         return None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
     @property
     def pci_device_key(self) -> int | None:
@@ -987,17 +1020,15 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
     _default_fields = [
         "$key",
         "node",
-        "node#name as node_name",
         "driver_file",
-        "driver_file#name as driver_file_name",
         "driver_key",
         "driver_name",
         "description",
-        "status",
         "status_info",
         "class_filter",
         "vendor_filter",
         "modified",
+        *NodeDriver.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
@@ -1157,7 +1188,6 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
     _default_fields = [
         "$key",
         "node",
-        "node#name as node_name",
         "name",
         "slot",
         "class",
@@ -1175,6 +1205,7 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
         "iommu_group",
         "sriov_totalvfs",
         "sriov_numvfs",
+        *NodePCIDevice.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
@@ -1325,7 +1356,6 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
     _default_fields = [
         "$key",
         "node",
-        "node#name as node_name",
         "bus",
         "device",
         "path",
@@ -1338,6 +1368,7 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
         "usb_version",
         "speed",
         "interface_drivers",
+        *NodeUSBDevice.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
@@ -1481,7 +1512,6 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
     _default_fields = [
         "$key",
         "node",
-        "node#name as node_name",
         "pci_device",
         "name",
         "slot",
@@ -1497,6 +1527,7 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
         "module",
         "numa",
         "iommu_group",
+        *NodeSriovNicDevice.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
@@ -1674,15 +1705,10 @@ class NodeManager(ResourceManager[Node]):
         "vsan_version",
         "qemu_version",
         "cluster",
-        "cluster#name as cluster_name",
         "machine",
-        "machine#status#status as status",
-        "machine#status#running as running",
         "machine#status#started as started",
-        "machine#stats#total_cpu as cpu_usage",
-        "machine#stats#ram_used as ram_used",
-        "machine#stats#vram_used as vram_used",
         "machine#stats#core_temp as core_temp",
+        *Node.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -45,11 +45,13 @@ class NASService(ResourceObject):
         vm = self.get("vm")
         return int(vm) if vm is not None else None
 
-    @property
-    def volume_count(self) -> int:
-        """Get the number of volumes managed by this service."""
-        count = self.require_projected("volume_count", 0)
-        return int(count) if count is not None else 0
+    volume_count = Projected[int](
+        "count(volumes) as volume_count",
+        int,
+        default=0,
+        null=0,
+        doc="Get the number of volumes managed by this service.",
+    )
 
     @property
     def antivirus(self) -> NasServiceAntivirusManager:
@@ -163,7 +165,7 @@ class NASServiceManager(ResourceManager[NASService]):
         "read_ahead_kb_default",
         "cifs",
         "nfs",
-        "count(volumes) as volume_count",
+        *NASService.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

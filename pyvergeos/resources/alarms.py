@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -33,16 +33,15 @@ OWNER_TYPE_MAP = {
 OWNER_TYPE_DISPLAY = {v: k for k, v in OWNER_TYPE_MAP.items()}
 
 
-# Default fields for alarm list operations
-_DEFAULT_ALARM_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_ALARM_COLUMNS = [
     "$key",
     "owner",
-    "owner#name as owner_name",
     "owner_type",
     "sub_owner",
     "alarm_type",
-    "alarm_type#name as alarm_type_name",
-    "alarm_type#description as alarm_type_description",
     "level",
     "status",
     "alarm_id",
@@ -112,10 +111,12 @@ class Alarm(ResourceObject):
         """Get alarm status message."""
         return str(self.get("status", ""))
 
-    @property
-    def alarm_type(self) -> str:
-        """Get alarm type name."""
-        return str(self.require_projected("alarm_type_name", ""))
+    alarm_type = Projected[str](
+        "alarm_type#name as alarm_type_name",
+        str,
+        default="",
+        doc="Get alarm type name.",
+    )
 
     @property
     def alarm_type_key(self) -> int | None:
@@ -123,20 +124,24 @@ class Alarm(ResourceObject):
         val = self.get("alarm_type")
         return int(val) if val is not None else None
 
-    @property
-    def description(self) -> str:
-        """Get alarm type description."""
-        return str(self.require_projected("alarm_type_description", ""))
+    description = Projected[str](
+        "alarm_type#description as alarm_type_description",
+        str,
+        default="",
+        doc="Get alarm type description.",
+    )
 
     @property
     def alarm_id(self) -> str:
         """Get unique alarm identifier (8-char string)."""
         return str(self.get("alarm_id", ""))
 
-    @property
-    def owner_name(self) -> str:
-        """Get owner object name."""
-        return str(self.require_projected("owner_name", ""))
+    owner_name = Projected[str](
+        "owner#name as owner_name",
+        str,
+        default="",
+        doc="Get owner object name.",
+    )
 
     @property
     def owner_key(self) -> int | None:
@@ -264,6 +269,14 @@ class Alarm(ResourceObject):
         level = self.level_display
         status = self.status[:30] + "..." if len(self.status) > 30 else self.status
         return f"<Alarm key={key} level={level!r} status={status!r}>"
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+_DEFAULT_ALARM_FIELDS = [
+    *_ALARM_COLUMNS,
+    *Alarm.projected_entries(),
+]
 
 
 class AlarmHistory(ResourceObject):

@@ -7,17 +7,18 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.networks import Network
 
-# Default fields for alias data
-ALIAS_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_ALIAS_COLUMNS = [
     "$key",
     "vnet",
-    "vnet#name as vnet_name",
     "ip",
     "hostname",
     "description",
@@ -40,11 +41,12 @@ class NetworkAlias(ResourceObject):
             raise ValueError("Alias has no network (vnet) key")
         return int(vnet)
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the network name this alias belongs to."""
-        value = self.require_projected("vnet_name")
-        return str(value) if value is not None else None
+    network_name = Projected["str | None"](
+        "vnet#name as vnet_name",
+        str,
+        null=None,
+        doc="Get the network name this alias belongs to.",
+    )
 
     @property
     def ip(self) -> str:
@@ -74,6 +76,14 @@ class NetworkAlias(ResourceObject):
     def mac(self) -> str | None:
         """Get the MAC address associated with this alias."""
         return self.get("mac")
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+ALIAS_DEFAULT_FIELDS = [
+    *_ALIAS_COLUMNS,
+    *NetworkAlias.projected_entries(),
+]
 
 
 class NetworkAliasManager(ResourceManager[NetworkAlias]):

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
+    Projected,
     ResourceManager,
     ResourceObject,
     serialize_list,
@@ -91,11 +92,15 @@ class NASCIFSShare(ResourceObject):
         vol = self.get("volume")
         return str(vol) if vol is not None else None
 
-    @property
-    def volume_name(self) -> str | None:
-        """Get the parent volume name."""
-        value = self.require_projected_any("volume_name", "volume_display")
-        return str(value) if value is not None else None
+    volume_name = Projected["str | None"](
+        (
+            "volume#name as volume_name",
+            "volume#$display as volume_display",
+        ),
+        str,
+        null=None,
+        doc="Get the parent volume name.",
+    )
 
     @property
     def is_enabled(self) -> bool:
@@ -166,10 +171,9 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         "host_deny",
         "vfs_shadow_copy2",
         "volume",
-        "volume#$display as volume_display",
-        "volume#name as volume_name",
         "status#status as status",
         "status#state as state",
+        *NASCIFSShare.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

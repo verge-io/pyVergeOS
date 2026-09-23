@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -580,10 +580,12 @@ class TenantLog(ResourceObject):
         """Parent tenant key."""
         return int(self.get("tenant", 0))
 
-    @property
-    def tenant_name(self) -> str:
-        """Parent tenant name."""
-        return str(self.require_projected("tenant_name", ""))
+    tenant_name = Projected[str](
+        "tenant#name as tenant_name",
+        str,
+        default="",
+        doc="Parent tenant name.",
+    )
 
     @property
     def level(self) -> str:
@@ -663,11 +665,11 @@ class TenantLogManager(ResourceManager[TenantLog]):
     _default_fields = [
         "$key",
         "tenant",
-        "tenant#name as tenant_name",
         "level",
         "text",
         "user",
         "timestamp",
+        *TenantLog.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, tenant: Tenant) -> None:

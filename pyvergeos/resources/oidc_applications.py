@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
+    Projected,
     ResourceManager,
     ResourceObject,
     serialize_list,
@@ -84,11 +85,12 @@ class OidcApplicationUser(ResourceObject):
         user = self.get("user")
         return int(user) if user is not None else None
 
-    @property
-    def user_display(self) -> str | None:
-        """Get the user display name."""
-        value = self.require_projected("user_display")
-        return str(value) if value is not None else None
+    user_display = Projected["str | None"](
+        "display(user) as user_display",
+        str,
+        null=None,
+        doc="Get the user display name.",
+    )
 
     def delete(self) -> None:
         """Remove this user from allowed users."""
@@ -120,7 +122,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         "oidc_application",
         "display(oidc_application) as oidc_application_display",
         "user",
-        "display(user) as user_display",
+        *OidcApplicationUser.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, *, application_key: int | None = None) -> None:
@@ -299,11 +301,12 @@ class OidcApplicationGroup(ResourceObject):
         group = self.get("group")
         return int(group) if group is not None else None
 
-    @property
-    def group_display(self) -> str | None:
-        """Get the group display name."""
-        value = self.require_projected("group_display")
-        return str(value) if value is not None else None
+    group_display = Projected["str | None"](
+        "display(group) as group_display",
+        str,
+        null=None,
+        doc="Get the group display name.",
+    )
 
     def delete(self) -> None:
         """Remove this group from allowed groups."""
@@ -335,7 +338,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         "oidc_application",
         "display(oidc_application) as oidc_application_display",
         "group",
-        "display(group) as group_display",
+        *OidcApplicationGroup.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, *, application_key: int | None = None) -> None:

@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -109,10 +109,12 @@ class TaskEvent(ResourceObject):
         task = self.get("task")
         return int(task) if task is not None else None
 
-    @property
-    def task_display(self) -> str:
-        """Get the linked task display name."""
-        return str(self.require_projected("task_display", ""))
+    task_display = Projected[str](
+        "task#$display as task_display",
+        str,
+        default="",
+        doc="Get the linked task display name.",
+    )
 
     @property
     def event_filters(self) -> dict[str, Any] | None:
@@ -175,11 +177,11 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         "event",
         "event_name",
         "task",
-        "task#$display as task_display",
         "task#name as task_name",
         "table_event_filters",
         "trigger",
         "context",
+        *TaskEvent.projected_entries(),
     ]
 
     def __init__(

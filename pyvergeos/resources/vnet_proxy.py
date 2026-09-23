@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -26,10 +26,12 @@ class VnetProxyTenant(ResourceObject):
         """Get the tenant key."""
         return int(self.get("tenant", 0))
 
-    @property
-    def tenant_name(self) -> str:
-        """Get the tenant display name."""
-        return str(self.require_projected("tenant_display", ""))
+    tenant_name = Projected[str](
+        "tenant_display",
+        str,
+        default="",
+        doc="Get the tenant display name.",
+    )
 
     @property
     def fqdn(self) -> str:
@@ -306,10 +308,12 @@ class VnetProxy(ResourceObject):
         """Get the parent network key."""
         return int(self.get("vnet", 0))
 
-    @property
-    def network_name(self) -> str:
-        """Get the parent network display name."""
-        return str(self.require_projected("vnet_display", ""))
+    network_name = Projected[str](
+        "vnet_display",
+        str,
+        default="",
+        doc="Get the parent network display name.",
+    )
 
     @property
     def listen_address(self) -> str:

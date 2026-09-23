@@ -259,9 +259,7 @@ def expand_projection(
 _NO_VALUE: Any = object()
 
 
-def display_map(
-    mapping: Mapping[Any, Any], default: Any = _NO_VALUE
-) -> Callable[[Any], Any]:
+def display_map(mapping: Mapping[Any, Any], default: Any = _NO_VALUE) -> Callable[[Any], Any]:
     """Build a ``transform`` that renders a raw value through ``mapping``.
 
     Args:

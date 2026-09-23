@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -556,10 +556,12 @@ class MachineStatus(ResourceObject):
         node = self.get("node")
         return int(node) if node else None
 
-    @property
-    def node_name(self) -> str:
-        """Name of node where machine is running."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Name of node where machine is running.",
+    )
 
     @property
     def migrated_node_key(self) -> int | None:
@@ -661,7 +663,6 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
         "state",
         "powerstate",
         "node",
-        "node#name as node_name",
         "migrated_node",
         "migration_destination",
         "started",
@@ -672,6 +673,7 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
         "agent_version",
         "agent_features",
         "agent_guest_info",
+        *MachineStatus.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, machine_key: int) -> None:
@@ -728,10 +730,12 @@ class MachineLog(ResourceObject):
         """Parent machine key."""
         return int(self.get("machine", 0))
 
-    @property
-    def machine_name(self) -> str:
-        """Parent machine name."""
-        return str(self.require_projected("machine_name", ""))
+    machine_name = Projected[str](
+        "machine#name as machine_name",
+        str,
+        default="",
+        doc="Parent machine name.",
+    )
 
     @property
     def level(self) -> str:
@@ -811,11 +815,11 @@ class MachineLogManager(ResourceManager[MachineLog]):
     _default_fields = [
         "$key",
         "machine",
-        "machine#name as machine_name",
         "level",
         "text",
         "user",
         "timestamp",
+        *MachineLog.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, machine_key: int) -> None:

@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -15,8 +15,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields for tenant nodes
-TENANT_NODE_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_NODE_COLUMNS = [
     "$key",
     "tenant",
     "name",
@@ -26,14 +28,6 @@ TENANT_NODE_DEFAULT_FIELDS = [
     "enabled",
     "description",
     "machine",
-    "machine#status#running as running",
-    "machine#status#status as status",
-    "machine#status#node#$display as host_node",
-    "machine#cluster as cluster",
-    "machine#cluster#$display as cluster_name",
-    "machine#preferred_node as preferred_node",
-    "machine#preferred_node#$display as preferred_node_name",
-    "machine#on_power_loss as on_power_loss",
 ]
 
 
@@ -79,50 +73,63 @@ class TenantNode(ResourceObject):
         """Check if the node is enabled."""
         return bool(self.get("enabled", True))
 
-    @property
-    def is_running(self) -> bool:
-        """Check if the node is currently running."""
-        return bool(self.require_projected("running", False))
+    is_running = Projected[bool](
+        "machine#status#running as running",
+        bool,
+        default=False,
+        doc="Check if the node is currently running.",
+    )
 
-    @property
-    def status(self) -> str:
-        """Get the node status."""
-        return str(self.require_projected("status", "unknown"))
+    status = Projected[str](
+        "machine#status#status as status",
+        str,
+        default="unknown",
+        doc="Get the node status.",
+    )
 
-    @property
-    def host_node(self) -> str | None:
-        """Get the physical host node name."""
-        value = self.require_projected("host_node")
-        return str(value) if value is not None else None
+    host_node = Projected["str | None"](
+        "machine#status#node#$display as host_node",
+        str,
+        null=None,
+        doc="Get the physical host node name.",
+    )
 
-    @property
-    def cluster_key(self) -> int | None:
-        """Get the cluster key."""
-        cluster = self.require_projected("cluster")
-        return int(cluster) if cluster else None
+    cluster_key = Projected["int | None"](
+        "machine#cluster as cluster",
+        int,
+        null=None,
+        falsy=None,
+        doc="Get the cluster key.",
+    )
 
-    @property
-    def cluster_name(self) -> str | None:
-        """Get the cluster name."""
-        value = self.require_projected("cluster_name")
-        return str(value) if value is not None else None
+    cluster_name = Projected["str | None"](
+        "machine#cluster#$display as cluster_name",
+        str,
+        null=None,
+        doc="Get the cluster name.",
+    )
 
-    @property
-    def preferred_node_key(self) -> int | None:
-        """Get the preferred node key."""
-        node = self.require_projected("preferred_node")
-        return int(node) if node else None
+    preferred_node_key = Projected["int | None"](
+        "machine#preferred_node as preferred_node",
+        int,
+        null=None,
+        falsy=None,
+        doc="Get the preferred node key.",
+    )
 
-    @property
-    def preferred_node_name(self) -> str | None:
-        """Get the preferred node name."""
-        value = self.require_projected("preferred_node_name")
-        return str(value) if value is not None else None
+    preferred_node_name = Projected["str | None"](
+        "machine#preferred_node#$display as preferred_node_name",
+        str,
+        null=None,
+        doc="Get the preferred node name.",
+    )
 
-    @property
-    def on_power_loss(self) -> str:
-        """Get power loss behavior (power_on, last_state, leave_off)."""
-        return str(self.require_projected("on_power_loss", "last_state"))
+    on_power_loss = Projected[str](
+        "machine#on_power_loss as on_power_loss",
+        str,
+        default="last_state",
+        doc="Get power loss behavior (power_on, last_state, leave_off).",
+    )
 
     @property
     def machine_key(self) -> int | None:
@@ -159,6 +166,14 @@ class TenantNode(ResourceObject):
         return (
             f"<TenantNode {self.name}: {self.cpu_cores} cores, {self.ram_gb:.1f} GB RAM ({status})>"
         )
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_NODE_DEFAULT_FIELDS = [
+    *_TENANT_NODE_COLUMNS,
+    *TenantNode.projected_entries(),
+]
 
 
 class TenantNodeManager(ResourceManager[TenantNode]):

@@ -31,9 +31,9 @@ if TYPE_CHECKING:
     from pyvergeos.resources.wireguard import WireGuardManager
 
 
-# Plain own-columns. The computed entries are declared on Network itself and
-# appended below, so an accessor and the projection feeding it cannot drift
-# apart (issue #125).
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
 _NETWORK_COLUMNS = [
     "$key",
     "name",
@@ -792,10 +792,21 @@ class Network(ResourceObject):
         )
 
 
-# Default fields to request for comprehensive network data: the plain columns
-# above, plus whatever Network declares it needs. Declaring an accessor adds
-# its field to every query that reads it.
-DEFAULT_NETWORK_FIELDS = [*_NETWORK_COLUMNS, *Network.projected_entries()]
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+DEFAULT_NETWORK_FIELDS = [
+    *_NETWORK_COLUMNS,
+    *Network.projected_entries(),
+]
+
+
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_NETWORK_COLUMNS = [
+    "Name(id='_NETWORK_COLUMNS', ctx=Load())",
+    "Call(func=Attribute(value=Name(id='Network', ctx=Load(...)), attr='projected_entries', ctx=Load()), args=[], keywords=[])",
+]
 
 
 class NetworkManager(ResourceManager[Network]):

@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -334,10 +334,12 @@ class NodeGpu(ResourceObject):
         pci = self.get("pci_device")
         return int(pci) if pci else None
 
-    @property
-    def pci_device_name(self) -> str:
-        """PCI device name/description."""
-        return str(self.require_projected("pci_device_name", ""))
+    pci_device_name = Projected[str](
+        "pci_device#name as pci_device_name",
+        str,
+        default="",
+        doc="PCI device name/description.",
+    )
 
     @property
     def node_key(self) -> int | None:
@@ -345,15 +347,19 @@ class NodeGpu(ResourceObject):
         node = self.get("node")
         return int(node) if node else None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
-    @property
-    def mode(self) -> str:
-        """GPU operating mode (none, gpu, nvidia_vgpu)."""
-        return str(self.require_projected("mode", "none"))
+    mode = Projected[str](
+        "mode",
+        str,
+        default="none",
+        doc="GPU operating mode (none, gpu, nvidia_vgpu).",
+    )
 
     @property
     def mode_display(self) -> str:
@@ -366,20 +372,24 @@ class NodeGpu(ResourceObject):
         profile = self.get("nvidia_vgpu_profile")
         return int(profile) if profile else None
 
-    @property
-    def nvidia_vgpu_profile_display(self) -> str:
-        """Display name of assigned vGPU profile."""
-        return str(self.require_projected("nvidia_vgpu_profile_disp", ""))
+    nvidia_vgpu_profile_display = Projected[str](
+        "display(nvidia_vgpu_profile) as nvidia_vgpu_profile_disp",
+        str,
+        default="",
+        doc="Display name of assigned vGPU profile.",
+    )
 
     @property
     def max_instances(self) -> int:
         """Maximum GPU/vGPU instances this GPU can provide."""
         return int(self.get("max_instances", 0))
 
-    @property
-    def instances_count(self) -> int:
-        """Current number of assigned instances."""
-        return int(self.require_projected("instances_count", 0))
+    instances_count = Projected[int](
+        "count(instances) as instances_count",
+        int,
+        default=0,
+        doc="Current number of assigned instances.",
+    )
 
     @property
     def modified_at(self) -> datetime | None:
@@ -485,15 +495,11 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
         "name",
         "description",
         "pci_device",
-        "pci_device#name as pci_device_name",
         "node",
-        "node#name as node_name",
-        "mode",
         "nvidia_vgpu_profile",
-        "display(nvidia_vgpu_profile) as nvidia_vgpu_profile_disp",
         "max_instances",
-        "count(instances) as instances_count",
         "modified",
+        *NodeGpu.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
@@ -971,84 +977,114 @@ class NodeGpuInstance(ResourceObject):
     Represents a GPU or vGPU instance assigned to a VM.
     """
 
-    @property
-    def gpu_key(self) -> int:
-        """Parent GPU key."""
-        return int(self.require_projected("gpu_key", 0))
+    gpu_key = Projected[int](
+        "gpu#$key as gpu_key",
+        int,
+        default=0,
+        doc="Parent GPU key.",
+    )
 
-    @property
-    def gpu_name(self) -> str:
-        """Parent GPU name."""
-        return str(self.require_projected("gpu_name", ""))
+    gpu_name = Projected[str](
+        "gpu#name as gpu_name",
+        str,
+        default="",
+        doc="Parent GPU name.",
+    )
 
-    @property
-    def node_key(self) -> int | None:
-        """Node key."""
-        node = self.require_projected("node_key")
-        return int(node) if node else None
+    node_key = Projected["int | None"](
+        "gpu#node#$key as node_key",
+        int,
+        null=None,
+        falsy=None,
+        doc="Node key.",
+    )
 
-    @property
-    def node_name(self) -> str:
-        """Node name."""
-        return str(self.require_projected("node_display", ""))
+    node_name = Projected[str](
+        "gpu#node#$display as node_display",
+        str,
+        default="",
+        doc="Node name.",
+    )
 
-    @property
-    def machine_key(self) -> int | None:
-        """Machine (VM) key."""
-        machine = self.require_projected("machine_key")
-        return int(machine) if machine else None
+    machine_key = Projected["int | None"](
+        "machine_device#machine#$key as machine_key",
+        int,
+        null=None,
+        falsy=None,
+        doc="Machine (VM) key.",
+    )
 
-    @property
-    def machine_name(self) -> str:
-        """Machine (VM) name."""
-        return str(self.require_projected("machine_name", ""))
+    machine_name = Projected[str](
+        "machine_device#machine#name as machine_name",
+        str,
+        default="",
+        doc="Machine (VM) name.",
+    )
 
-    @property
-    def machine_type(self) -> str:
-        """Machine type (e.g., 'vm')."""
-        return str(self.require_projected("machine_type", ""))
+    machine_type = Projected[str](
+        "machine_device#machine#type as machine_type",
+        str,
+        default="",
+        doc="Machine type (e.g., 'vm').",
+    )
 
-    @property
-    def machine_type_display(self) -> str:
-        """Machine type display name."""
-        return str(self.require_projected("machine_type_display", ""))
+    machine_type_display = Projected[str](
+        "machine_device#machine#display(type) as machine_type_display",
+        str,
+        default="",
+        doc="Machine type display name.",
+    )
 
-    @property
-    def machine_device_key(self) -> int | None:
-        """Machine device key."""
-        device = self.require_projected("machine_device_key")
-        return int(device) if device else None
+    machine_device_key = Projected["int | None"](
+        "machine_device#$key as machine_device_key",
+        int,
+        null=None,
+        falsy=None,
+        doc="Machine device key.",
+    )
 
-    @property
-    def machine_device_name(self) -> str:
-        """Machine device name."""
-        return str(self.require_projected("machine_device_name", ""))
+    machine_device_name = Projected[str](
+        "machine_device#name as machine_device_name",
+        str,
+        default="",
+        doc="Machine device name.",
+    )
 
-    @property
-    def machine_device_status(self) -> str:
-        """Machine device status."""
-        return str(self.require_projected("machine_device_status", ""))
+    machine_device_status = Projected[str](
+        "machine_device#status#status as machine_device_status",
+        str,
+        default="",
+        doc="Machine device status.",
+    )
 
-    @property
-    def pci_device_key(self) -> int | None:
-        """PCI device key."""
-        pci = self.require_projected("pci_device_key")
-        return int(pci) if pci else None
+    pci_device_key = Projected["int | None"](
+        "gpu#pci_device#$key as pci_device_key",
+        int,
+        null=None,
+        falsy=None,
+        doc="PCI device key.",
+    )
 
-    @property
-    def pci_device_name(self) -> str:
-        """PCI device name."""
-        return str(self.require_projected("pci_device_name", ""))
+    pci_device_name = Projected[str](
+        "gpu#pci_device#name as pci_device_name",
+        str,
+        default="",
+        doc="PCI device name.",
+    )
 
-    @property
-    def mode(self) -> str:
-        """GPU mode (gpu, nvidia_vgpu)."""
-        return str(self.require_projected("mode", ""))
+    mode = Projected[str](
+        "gpu#mode as mode",
+        str,
+        default="",
+        doc="GPU mode (gpu, nvidia_vgpu).",
+    )
 
-    @property
-    def mode_display(self) -> str:
-        """GPU mode display name."""
-        return str(self.require_projected("mode_display", ""))
+    mode_display = Projected[str](
+        "gpu#display(mode) as mode_display",
+        str,
+        default="",
+        doc="GPU mode display name.",
+    )
 
     @property
     def description(self) -> str:
@@ -1086,23 +1122,9 @@ class NodeGpuInstanceManager(ResourceManager[NodeGpuInstance]):
 
     _default_fields = [
         "$key",
-        "gpu#$key as gpu_key",
-        "gpu#name as gpu_name",
-        "gpu#node#$key as node_key",
-        "gpu#node#$display as node_display",
-        "gpu#mode as mode",
-        "gpu#display(mode) as mode_display",
-        "gpu#pci_device#$key as pci_device_key",
-        "gpu#pci_device#name as pci_device_name",
-        "machine_device#$key as machine_device_key",
-        "machine_device#name as machine_device_name",
-        "machine_device#machine#$key as machine_key",
-        "machine_device#machine#name as machine_name",
-        "machine_device#machine#type as machine_type",
-        "machine_device#machine#display(type) as machine_type_display",
-        "machine_device#status#status as machine_device_status",
         "description",
         "modified",
+        *NodeGpuInstance.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, gpu_key: int) -> None:
@@ -1182,10 +1204,12 @@ class NodeVgpuDevice(ResourceObject):
         node = self.get("node")
         return int(node) if node else None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
     @property
     def pci_device_key(self) -> int | None:
@@ -1304,7 +1328,6 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
     _default_fields = [
         "$key",
         "node",
-        "node#name as node_name",
         "pci_device",
         "name",
         "slot",
@@ -1322,6 +1345,7 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
         "fingerprint",
         "created",
         "modified",
+        *NodeVgpuDevice.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
@@ -1438,10 +1462,12 @@ class NodeHostGpuDevice(ResourceObject):
         node = self.get("node")
         return int(node) if node else None
 
-    @property
-    def node_name(self) -> str:
-        """Parent node name."""
-        return str(self.require_projected("node_name", ""))
+    node_name = Projected[str](
+        "node#name as node_name",
+        str,
+        default="",
+        doc="Parent node name.",
+    )
 
     @property
     def pci_device_key(self) -> int | None:
@@ -1557,7 +1583,6 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
     _default_fields = [
         "$key",
         "node",
-        "node#name as node_name",
         "pci_device",
         "name",
         "slot",
@@ -1574,6 +1599,7 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
         "fingerprint",
         "created",
         "modified",
+        *NodeHostGpuDevice.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, node_key: int | None = None) -> None:
