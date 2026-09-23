@@ -6,6 +6,24 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.6.1] - 2026-09-23
+--------------------
+
+Fixed
+^^^^^
+
+- ``cloud_snapshots.create(wait=True)`` now actually waits. Snapshot creation
+  is not backed by a task row -- the POST response carries no ``task`` key and
+  the row's ``task`` field stays null -- so the old code, which waited only
+  when a task key was present, never waited at all: ``wait=True`` returned
+  immediately with a snapshot still ``building`` and a stale ``status``. It now
+  polls the snapshot row until it reports a settled status -- reading the raw
+  field so a not-yet-populated status right after the POST is treated as still
+  in progress rather than defaulting to ``normal`` and returning early --
+  honouring ``wait_timeout`` (raising ``VergeTimeoutError`` on expiry) and
+  returning the snapshot fetched fresh, so its ``status`` reflects reality.
+  ``wait=False`` behaviour is unchanged. (#133)
+
 [1.6.0] - 2026-09-23
 --------------------
 
