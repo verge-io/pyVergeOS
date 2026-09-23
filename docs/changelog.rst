@@ -6,6 +6,36 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.5.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``cluster_status`` manager (``client.cluster_status`` and, scoped,
+  ``cluster.cluster_status``) exposing the ``cluster_status`` table -- the
+  live per-cluster node/RAM/core capacity figures behind an N-1 capacity
+  pre-check. Previously reachable only through a private ``client._request()``.
+  ``ClusterStatus.can_lose_one_node()`` provides a conservative even-spread
+  check. (#127)
+
+- ``machine_drive_stats`` manager (``client.machine_drive_stats`` and, scoped,
+  ``drive.drive_stats``) exposing per-drive IO counters. It addresses rows by a
+  filter on ``parent_drive``; path-key access (``machine_drive_stats/<n>``)
+  returns the row whose own ``$key`` is ``n``, which belongs to a different
+  drive, and previously reported another drive's counters -- e.g. writes on a
+  VM that had never booted. ``MachineDriveStats.has_booted`` reports whether the
+  guest has issued disk writes, the reliable signal that it actually booted
+  rather than merely powering on. (#128)
+
+Notes
+^^^^^
+
+- The ``machine_nic_stats`` manager referenced in #128 already existed; only
+  ``machine_drive_stats`` was missing. Both scoped stats managers now default
+  ``list()`` to their projection, so a bare ``list()`` returns populated rows
+  rather than only ``$key``.
+
 [1.4.0] - 2026-09-23
 --------------------
 

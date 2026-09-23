@@ -54,8 +54,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.certificates import CertificateManager
     from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
     from pyvergeos.resources.cloudinit_files import CloudInitFileManager
+    from pyvergeos.resources.cluster_status import ClusterStatusManager
     from pyvergeos.resources.clusters import ClusterManager
     from pyvergeos.resources.diagnostics import SystemDiagnosticManager
+    from pyvergeos.resources.drive_stats import MachineDriveStatsManager
     from pyvergeos.resources.files import FileManager
     from pyvergeos.resources.gpu import NvidiaVgpuProfileManager
     from pyvergeos.resources.groups import GroupManager
@@ -319,9 +321,11 @@ class VergeClient:
         self._node_lldp_neighbors: NodeLLDPNeighborManager | None = None
         self._machine_nics: MachineNICManager | None = None
         self._machine_nic_stats: MachineNicStatsManager | None = None
+        self._machine_drive_stats: MachineDriveStatsManager | None = None
         self._machine_nic_status: MachineNicStatusManager | None = None
         self._machine_nic_fabric_status: MachineNicFabricStatusManager | None = None
         self._physical_drives: PhysicalDriveManager | None = None
+        self._cluster_status: ClusterStatusManager | None = None
         self._node_memory: NodeMemoryManager | None = None
         self._vsan_queries: VsanQueryManager | None = None
 
@@ -843,6 +847,34 @@ class VergeClient:
 
             self._clusters = ClusterManager(self)
         return self._clusters
+
+    @property
+    def cluster_status(self) -> ClusterStatusManager:
+        """Access live per-cluster capacity/status for N-1 checks (issue #127).
+
+        Example:
+            >>> client.cluster_status.list(filter="cluster eq 1")
+        """
+        if self._cluster_status is None:
+            from pyvergeos.resources.cluster_status import ClusterStatusManager
+
+            self._cluster_status = ClusterStatusManager(self)
+        return self._cluster_status
+
+    @property
+    def machine_drive_stats(self) -> MachineDriveStatsManager:
+        """Access per-drive IO statistics globally (issue #128).
+
+        Address stats by a ``parent_drive`` filter, not by path key.
+
+        Example:
+            >>> client.machine_drive_stats.list(filter="parent_drive eq 39")
+        """
+        if self._machine_drive_stats is None:
+            from pyvergeos.resources.drive_stats import MachineDriveStatsManager
+
+            self._machine_drive_stats = MachineDriveStatsManager(self)
+        return self._machine_drive_stats
 
     @property
     def nodes(self) -> NodeManager:

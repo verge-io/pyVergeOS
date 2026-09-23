@@ -19,6 +19,7 @@ from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshotVMManager,
 )
 from pyvergeos.resources.cloudinit_files import CloudInitFile, CloudInitFileManager
+from pyvergeos.resources.cluster_status import ClusterStatus, ClusterStatusManager
 from pyvergeos.resources.cluster_tiers import (
     ClusterTier,
     ClusterTierManager,
@@ -29,6 +30,7 @@ from pyvergeos.resources.cluster_tiers import (
 )
 from pyvergeos.resources.devices import Device, DeviceManager
 from pyvergeos.resources.diagnostics import SystemDiagnostic, SystemDiagnosticManager
+from pyvergeos.resources.drive_stats import MachineDriveStats, MachineDriveStatsManager
 from pyvergeos.resources.gpu import (
     NodeGpu,
     NodeGpuInstance,
@@ -257,6 +259,8 @@ __all__ = [
     "Certificate",
     "CertificateManager",
     "CIFSSettings",
+    "ClusterStatus",
+    "ClusterStatusManager",
     "ClusterTier",
     "ClusterTierManager",
     "ClusterTierStats",
@@ -289,6 +293,8 @@ __all__ = [
     "NICManager",
     "MachineNicFabricStatus",
     "MachineNicFabricStatusManager",
+    "MachineDriveStats",
+    "MachineDriveStatsManager",
     "MachineNicStats",
     "MachineNicStatsManager",
     "MachineNicStatus",

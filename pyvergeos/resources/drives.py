@@ -11,6 +11,7 @@ from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.drive_stats import MachineDriveStatsManager
     from pyvergeos.resources.vms import VM
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,24 @@ class Drive(ResourceObject):
     def ms_2023_kek_applied(self) -> bool:
         """Check if the Microsoft 2023 Secure Boot keys have been applied."""
         return bool(self.get("ms_2023_kek_applied", False))
+
+    @property
+    def drive_stats(self) -> MachineDriveStatsManager:
+        """Per-drive IO statistics, scoped to this drive (issue #128).
+
+        Addresses the stats by a filter on ``parent_drive``, avoiding the
+        path-key aliasing that reports another drive's counters.
+
+        Returns:
+            MachineDriveStatsManager scoped to this drive.
+
+        Example:
+            >>> stats = drive.drive_stats.get()
+            >>> print("booted" if stats.has_booted else "not booted")
+        """
+        from pyvergeos.resources.drive_stats import MachineDriveStatsManager
+
+        return MachineDriveStatsManager(self._manager._client, self.key)
 
     def apply_universal_vars(self) -> dict[str, Any] | None:
         """Apply the Microsoft 2023 Secure Boot keys to this EFI disk.

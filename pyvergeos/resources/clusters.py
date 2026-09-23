@@ -18,6 +18,7 @@ from pyvergeos.resources.base import (
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.cluster_status import ClusterStatusManager
     from pyvergeos.resources.cluster_tiers import ClusterTierManager
 
 
@@ -316,6 +317,24 @@ class Cluster(ResourceObject):
         from pyvergeos.resources.cluster_tiers import ClusterTierManager
 
         return ClusterTierManager(self._manager._client, self.key)
+
+    @property
+    def cluster_status(self) -> ClusterStatusManager:
+        """Live capacity/status for this cluster, for an N-1 check (issue #127).
+
+        ``.status`` on this object is the status *string*; this is the full
+        ``cluster_status`` row, scoped by a filter on ``cluster``.
+
+        Returns:
+            ClusterStatusManager scoped to this cluster.
+
+        Example:
+            >>> if not cluster.cluster_status.get().can_lose_one_node():
+            ...     raise RuntimeError("draining a node would overcommit")
+        """
+        from pyvergeos.resources.cluster_status import ClusterStatusManager
+
+        return ClusterStatusManager(self._manager._client, self.key)
 
     def __repr__(self) -> str:
         return (
