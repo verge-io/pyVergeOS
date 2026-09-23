@@ -11,11 +11,23 @@ from pyvergeos.resources.base import (
     Projected,
     ResourceManager,
     ResourceObject,
+    display_map,
     serialize_list,
 )
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+
+#: Raw sync status -> human-readable label.
+SYNC_STATUS_DISPLAY = {
+    "complete": "Complete",
+    "offline": "Offline",
+    "syncing": "Syncing",
+    "aborted": "Aborted",
+    "error": "Error",
+    "warning": "Warning",
+}
 
 
 class NASVolumeSync(ResourceObject):
@@ -157,19 +169,13 @@ class NASVolumeSync(ResourceObject):
         }
         return mode_map.get(mode, mode)
 
-    @property
-    def status_display(self) -> str:
-        """Get human-readable status."""
-        status = str(self.require_projected("status", ""))
-        status_map = {
-            "complete": "Complete",
-            "offline": "Offline",
-            "syncing": "Syncing",
-            "aborted": "Aborted",
-            "error": "Error",
-            "warning": "Warning",
-        }
-        return status_map.get(status, status)
+    status_display = Projected[str](
+        "progress#status as status",
+        str,
+        default="",
+        transform=display_map(SYNC_STATUS_DISPLAY),
+        doc="Get human-readable status.",
+    )
 
 
 class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
@@ -234,7 +240,6 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         "preserve_xattrs",
         "copy_symlinks",
         "fsfreeze",
-        "progress#status as status",
         "progress#files_transferred as files_transferred",
         "progress#bytes_transferred as bytes_transferred",
         "progress#transfer_rate as transfer_rate",

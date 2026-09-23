@@ -7,12 +7,20 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.nas_antivirus import VolumeAntivirusManager
     from pyvergeos.resources.nas_volume_browser import NASVolumeFileManager
+
+
+_BYTES_PER_GB = 1073741824
+
+
+def _bytes_to_gb(value: object) -> float:
+    """Render a byte count as GB to two decimals, or 0 when there is none."""
+    return round(value / _BYTES_PER_GB, 2) if value else 0  # type: ignore[operator]
 
 
 class NASVolume(ResourceObject):
@@ -102,25 +110,28 @@ class NASVolume(ResourceObject):
         max_size = self.get("maxsize", 0)
         return round(max_size / 1073741824, 2) if max_size else 0
 
-    @property
-    def used_gb(self) -> float:
-        """Get the used space in GB."""
-        used = self.require_projected("used_bytes", 0)
-        return round(used / 1073741824, 2) if used else 0
+    used_gb = Projected[float](
+        "drive#media_source#used_bytes as used_bytes",
+        default=0,
+        transform=_bytes_to_gb,
+        doc="Get the used space in GB.",
+    )
 
-    @property
-    def allocated_gb(self) -> float:
-        """Get the allocated space in GB."""
-        allocated = self.require_projected("allocated_bytes", 0)
-        return round(allocated / 1073741824, 2) if allocated else 0
+    allocated_gb = Projected[float](
+        "drive#media_source#filesize as allocated_bytes",
+        default=0,
+        transform=_bytes_to_gb,
+        doc="Get the allocated space in GB.",
+    )
+
+    #: Declared so the projection carries them; read through is_mounted below.
+    _mounted = Projected[Any]("status#mounted as mounted", default=False)
+    _mount_status = Projected[Any]("status#status as mount_status")
 
     @property
     def is_mounted(self) -> bool:
         """Check if the volume is mounted."""
-        return bool(
-            self.require_projected("mounted", False)
-            or self.require_projected("mount_status") == "mounted"
-        )
+        return bool(self._mounted or self._mount_status == "mounted")
 
     @property
     def service_key(self) -> int | None:
@@ -270,11 +281,8 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         "service#vm#machine#status#status as nas_status",
         "snapshot_profile",
         "snapshot_profile#$display as snapshot_profile_display",
-        "status#status as mount_status",
-        "status#mounted as mounted",
         "drive",
-        "drive#media_source#used_bytes as used_bytes",
-        "drive#media_source#filesize as allocated_bytes",
+        *NASVolume.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:

@@ -279,6 +279,18 @@ def display_map(mapping: Mapping[Any, Any], default: Any = _NO_VALUE) -> Callabl
     return _render
 
 
+def epoch_utc(value: Any) -> Any:
+    """Render a Unix timestamp as a timezone-aware UTC datetime.
+
+    A ``transform`` for the several accessors that turn an epoch column into
+    a ``datetime``. Pair it with ``falsy=None, null=None`` so that a missing
+    or zero timestamp stays None rather than becoming 1970.
+    """
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(int(value), tz=timezone.utc)
+
+
 class Projected(Generic[PT]):
     """Declare an accessor and the projection entry behind it, together.
 

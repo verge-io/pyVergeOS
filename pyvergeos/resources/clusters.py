@@ -13,6 +13,7 @@ from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
     display_map,
+    epoch_utc,
 )
 
 if TYPE_CHECKING:
@@ -491,13 +492,13 @@ class VSANStatus(ResourceObject):
             return round((self.used_cores / self.online_cores) * 100, 1)
         return 0.0
 
-    @property
-    def last_update(self) -> datetime | None:
-        """Last status update timestamp."""
-        ts = self.require_projected("last_update")
-        if ts:
-            return datetime.fromtimestamp(int(ts), tz=timezone.utc)
-        return None
+    last_update = Projected["datetime | None"](
+        "last_update",
+        falsy=None,
+        null=None,
+        transform=epoch_utc,
+        doc="Last status update timestamp.",
+    )
 
     @property
     def tiers(self) -> builtins.list[dict[str, Any]]:

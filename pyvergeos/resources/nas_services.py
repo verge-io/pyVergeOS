@@ -31,13 +31,14 @@ class NASService(ResourceObject):
         nfs: NFS settings key.
     """
 
+    #: Declared so the projection carries them; read through is_running below.
+    _vm_running = Projected[Any]("vm#machine#status#running as vm_running", default=False)
+    _vm_status = Projected[Any]("vm#machine#status#status as vm_status")
+
     @property
     def is_running(self) -> bool:
         """Check if the NAS service VM is running."""
-        return bool(
-            self.require_projected("vm_running", False)
-            or self.require_projected("vm_status") == "running"
-        )
+        return bool(self._vm_running or self._vm_status == "running")
 
     @property
     def vm_key(self) -> int | None:
@@ -153,8 +154,6 @@ class NASServiceManager(ResourceManager[NASService]):
         "vm#name as vm_name",
         "vm#$display as vm_display",
         "vm#description as vm_description",
-        "vm#machine#status#status as vm_status",
-        "vm#machine#status#running as vm_running",
         "vm#machine#cores as vm_cores",
         "vm#machine#ram as vm_ram",
         "vm#created as created",

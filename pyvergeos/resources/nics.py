@@ -36,7 +36,6 @@ _NIC_COLUMNS = [
     "machine",
     "status#status as status",
     "status#display(status) as status_display",
-    "status#speed as speed",
     "vnet#machine#status#status as vnet_status",
     "stats#rxbps as rxbps",
     "stats#txbps as txbps",
@@ -53,6 +52,15 @@ INTERFACE_DISPLAY_MAP = {
     "vmxnet3": "VMware Paravirt v3",
     "direct": "Direct",
 }
+
+
+def _format_speed(speed: object) -> str | None:
+    """Render a link speed in Mbps as Gbps above 1000, or None when unknown."""
+    if not speed:
+        return None
+    if speed >= 1000:  # type: ignore[operator]
+        return f"{round(speed / 1000, 1)} Gbps"  # type: ignore[operator]
+    return f"{speed} Mbps"
 
 
 class NIC(ResourceObject):
@@ -93,15 +101,11 @@ class NIC(ResourceObject):
         doc="Get connected network key.",
     )
 
-    @property
-    def speed_display(self) -> str | None:
-        """Get formatted speed string."""
-        speed = self.require_projected("speed")
-        if not speed:
-            return None
-        if speed >= 1000:
-            return f"{round(speed / 1000, 1)} Gbps"
-        return f"{speed} Mbps"
+    speed_display = Projected["str | None"](
+        "status#speed as speed",
+        transform=_format_speed,
+        doc="Get formatted speed string.",
+    )
 
     rx_bytes = Projected[int](
         "stats#rx_bytes as rx_bytes",

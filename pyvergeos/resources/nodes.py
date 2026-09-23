@@ -13,6 +13,7 @@ from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
     display_map,
+    epoch_utc,
 )
 
 if TYPE_CHECKING:
@@ -198,13 +199,12 @@ class Node(ResourceObject):
         doc="CPU usage percentage.",
     )
 
-    @property
-    def core_temp(self) -> float | None:
-        """Core temperature in Celsius."""
-        temp = self.require_projected("core_temp")
-        if temp is not None:
-            return float(temp)
-        return None
+    core_temp = Projected["float | None"](
+        "machine#stats#core_temp as core_temp",
+        float,
+        null=None,
+        doc="Core temperature in Celsius.",
+    )
 
     @property
     def has_iommu(self) -> bool:
@@ -304,13 +304,13 @@ class Node(ResourceObject):
         """QEMU version."""
         return str(self.get("qemu_version", ""))
 
-    @property
-    def started_at(self) -> datetime | None:
-        """Timestamp when node was started."""
-        ts = self.require_projected("started")
-        if ts:
-            return datetime.fromtimestamp(int(ts), tz=timezone.utc)
-        return None
+    started_at = Projected["datetime | None"](
+        "machine#status#started as started",
+        falsy=None,
+        null=None,
+        transform=epoch_utc,
+        doc="Timestamp when node was started.",
+    )
 
     def enable_maintenance(self) -> Node:
         """Enable maintenance mode on this node.
@@ -1706,8 +1706,6 @@ class NodeManager(ResourceManager[Node]):
         "qemu_version",
         "cluster",
         "machine",
-        "machine#status#started as started",
-        "machine#stats#core_temp as core_temp",
         *Node.projected_entries(),
     ]
 
