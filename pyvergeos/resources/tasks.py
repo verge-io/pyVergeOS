@@ -53,8 +53,8 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import NotFoundError, TaskError, TaskTimeoutError
-from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -338,7 +338,7 @@ class TaskManager(ResourceManager[Task]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -358,7 +358,7 @@ class TaskManager(ResourceManager[Task]):
             status: Filter by status ('running' or 'idle').
             running: If True, filter for running tasks only.
             enabled: Filter by enabled state.
-            name: Filter by name (supports partial match with 'ct' operator).
+            name: Filter by name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -388,20 +388,14 @@ class TaskManager(ResourceManager[Task]):
         elif running is False:
             conditions.append("status eq 'idle'")
         elif status:
-            conditions.append(f"status eq '{status.lower()}'")
+            conditions.append(f"status eq {quote_value(status.lower())}")
 
         if enabled is not None:
             conditions.append(f"enabled eq {str(enabled).lower()}")
 
         if name:
             # Check if name contains wildcards
-            if "*" in name or "?" in name:
-                # Use contains for partial match
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    conditions.append(f"name ct {quote_value(search_term)}")
-            else:
-                conditions.append(f"name eq {quote_value(name)}")
+            conditions.append(wildcard_condition("name", name))
 
         # Add any additional filter kwargs
         if filter_kwargs:
@@ -418,7 +412,7 @@ class TaskManager(ResourceManager[Task]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -436,7 +430,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_running(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List running tasks.
@@ -452,7 +446,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_idle(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List idle tasks.
@@ -468,7 +462,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List enabled tasks.
@@ -484,7 +478,7 @@ class TaskManager(ResourceManager[Task]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List disabled tasks.
@@ -503,7 +497,7 @@ class TaskManager(ResourceManager[Task]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Task:
         """Get a task by key or name.
 
@@ -524,7 +518,7 @@ class TaskManager(ResourceManager[Task]):
             if fields is None:
                 fields = _DEFAULT_LIST_FIELDS
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -849,7 +843,7 @@ class TaskManager(ResourceManager[Task]):
     def list_by_owner(
         self,
         owner_key: int,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List tasks for a specific owner resource.
@@ -867,7 +861,7 @@ class TaskManager(ResourceManager[Task]):
     def list_by_action(
         self,
         action: str,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[Task]:
         """List tasks by action type.
@@ -880,4 +874,4 @@ class TaskManager(ResourceManager[Task]):
         Returns:
             List of Task objects.
         """
-        return self.list(filter=f"action eq '{action}'", fields=fields, limit=limit)
+        return self.list(filter=f"action eq {quote_value(action)}", fields=fields, limit=limit)

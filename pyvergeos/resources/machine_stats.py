@@ -31,8 +31,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -355,7 +355,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
     def _to_history_model(self, data: dict[str, Any]) -> MachineStatsHistory:
         return MachineStatsHistory(data, self)
 
-    def get(self, fields: builtins.list[str] | None = None) -> MachineStats:  # type: ignore[override]
+    def get(self, fields: str | builtins.list[str] | None = None) -> MachineStats:  # type: ignore[override]
         """Get current machine statistics.
 
         Args:
@@ -372,7 +372,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
 
         params: dict[str, Any] = {
             "filter": f"machine eq {self._machine_key}",
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "limit": 1,
         }
 
@@ -394,7 +394,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[MachineStatsHistory]:
         """Get short-term stats history (high resolution).
 
@@ -423,7 +423,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[MachineStatsHistory]:
         """Get long-term stats history (lower resolution, longer retention).
 
@@ -453,7 +453,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[MachineStatsHistory]:
         """Internal helper to get history from short or long endpoint."""
         if fields is None:
@@ -472,7 +472,7 @@ class MachineStatsManager(ResourceManager[MachineStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "-timestamp",
         }
 
@@ -681,7 +681,7 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
     def _to_model(self, data: dict[str, Any]) -> MachineStatus:
         return MachineStatus(data, self)
 
-    def get(self, fields: builtins.list[str] | None = None) -> MachineStatus:  # type: ignore[override]
+    def get(self, fields: str | builtins.list[str] | None = None) -> MachineStatus:  # type: ignore[override]
         """Get machine status.
 
         Args:
@@ -698,7 +698,7 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
 
         params: dict[str, Any] = {
             "filter": f"machine eq {self._machine_key}",
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "limit": 1,
         }
 
@@ -828,7 +828,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -866,7 +866,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
             filters.append(filter)
 
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
         elif errors_only:
             filters.append("(level eq 'error' or level eq 'critical')")
         elif warnings_only:
@@ -892,7 +892,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "-timestamp",
         }
 
@@ -915,7 +915,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> MachineLog:
         """Get a specific log entry by key.
 
@@ -936,7 +936,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:

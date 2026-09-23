@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -142,7 +142,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         auth_source: int | None = None,
@@ -183,7 +183,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -210,7 +210,7 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
         self,
         key: str | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> AuthSourceState:
         """Get a single state by key.
 
@@ -229,10 +229,10 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
             raise ValueError("Key must be provided")
 
         params: dict[str, Any] = {
-            "filter": f"state eq '{key}'",
+            "filter": f"state eq {quote_value(key)}",
         }
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -395,17 +395,6 @@ class AuthSource(ResourceObject):
         manager = cast("AuthSourceManager", self._manager)
         return manager.update(self.key, debug=False)
 
-    def refresh(self) -> AuthSource:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated AuthSource object.
-        """
-        from typing import cast
-
-        manager = cast("AuthSourceManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> AuthSource:
         """Save changes to resource.
 
@@ -484,7 +473,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         driver: str | None = None,
@@ -524,14 +513,14 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
 
         # Add driver filter
         if driver is not None:
-            filters.append(f"driver eq '{driver}'")
+            filters.append(f"driver eq {quote_value(driver)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -556,7 +545,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_settings: bool = False,
     ) -> AuthSource:
         """Get a single auth source by key or name.
@@ -586,7 +575,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
             >>> print(source.settings)
         """
         # Determine which fields to request
-        request_fields = list(fields) if fields else list(self._default_fields)
+        request_fields = split_fields(fields) or list(self._default_fields)
         if include_settings and "settings" not in request_fields:
             request_fields.append("settings")
 

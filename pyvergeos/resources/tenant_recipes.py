@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -88,17 +88,6 @@ class TenantRecipe(ResourceObject):
         if k is None:
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
-
-    def refresh(self) -> TenantRecipe:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated TenantRecipe object.
-        """
-        from typing import cast
-
-        manager = cast("TenantRecipeManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> TenantRecipe:
         """Save changes to resource.
@@ -321,7 +310,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         catalog: str | int | None = None,
@@ -368,7 +357,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
             elif isinstance(catalog, str):
                 # Check if it looks like a catalog key (40-char hex) or a name
                 if len(catalog) == 40 and all(c in "0123456789abcdef" for c in catalog.lower()):
-                    filters.append(f"catalog eq '{catalog}'")
+                    filters.append(f"catalog eq {quote_value(catalog)}")
                 else:
                     # Look up catalog by name
                     cat_response = self._client._request(
@@ -384,7 +373,9 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
                         if isinstance(cat_response, list):
                             cat_response = cat_response[0] if cat_response else None
                         if cat_response:
-                            filters.append(f"catalog eq '{cat_response.get('$key')}'")
+                            filters.append(
+                                f"catalog eq {quote_value(str(cat_response.get('$key')))}"
+                            )
 
         # Add downloaded filter
         if downloaded is not None:
@@ -395,7 +386,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -420,7 +411,7 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantRecipe:
         """Get a single tenant recipe by key or name.
 
@@ -446,10 +437,10 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -651,7 +642,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         recipe: str | None = None,
@@ -685,14 +676,14 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
             recipe_key = recipe
 
         if recipe_key is not None:
-            filters.append(f"recipe eq '{recipe_key}'")
+            filters.append(f"recipe eq {quote_value(recipe_key)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -717,7 +708,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantRecipeInstance:
         """Get a single recipe instance by key or name.
 
@@ -736,7 +727,7 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -845,7 +836,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         tenant_recipe: str | None = None,
@@ -881,18 +872,18 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
             recipe_key = tenant_recipe
 
         if recipe_key is not None:
-            filters.append(f"tenant_recipe eq '{recipe_key}'")
+            filters.append(f"tenant_recipe eq {quote_value(recipe_key)}")
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -919,7 +910,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantRecipeLog:
         """Get a single log entry by key.
 
@@ -939,7 +930,7 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

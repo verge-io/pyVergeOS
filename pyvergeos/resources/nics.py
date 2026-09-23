@@ -6,8 +6,8 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -189,10 +189,12 @@ class MachineNICManager(ResourceManager[NIC]):
     def _to_model(self, data: dict[str, Any]) -> NIC:
         return NIC(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[NIC]:
         """List NICs with optional filtering.
@@ -224,9 +226,13 @@ class MachineNICManager(ResourceManager[NIC]):
         else:
             combined = filter
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         if combined:
             params["filter"] = combined
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         if kwargs:
             from pyvergeos.filters import build_filter
 
@@ -253,7 +259,7 @@ class MachineNICManager(ResourceManager[NIC]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NIC:
         """Get a NIC by key or name.
 
@@ -273,7 +279,7 @@ class MachineNICManager(ResourceManager[NIC]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -320,10 +326,12 @@ class NICManager(ResourceManager[NIC]):
     def _to_model(self, data: dict[str, Any]) -> NIC:
         return NIC(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[NIC]:
         """List NICs for this VM.
@@ -343,12 +351,18 @@ class NICManager(ResourceManager[NIC]):
         machine_filter = f"machine eq {self.machine_key}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(machine_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": machine_filter,
-            "fields": ",".join(fields),
+            "filter": combined_filter,
+            "fields": normalize_fields(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -365,7 +379,7 @@ class NICManager(ResourceManager[NIC]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NIC:
         """Get a NIC by key or name.
 
@@ -385,7 +399,7 @@ class NICManager(ResourceManager[NIC]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -498,28 +512,37 @@ class NICManager(ResourceManager[NIC]):
         Returns:
             Updated NIC object.
         """
-        # Handle network name -> key resolution
-        if "network" in kwargs:
-            network = kwargs.pop("network")
-            if isinstance(network, str):
-                response = self._client._request(
-                    "GET",
-                    "vnets",
-                    params={"filter": f"name eq {quote_value(network)}", "fields": "$key,name"},
-                )
-                if not response:
-                    raise ValueError(f"Network '{network}' not found")
-                if isinstance(response, list):
-                    if not response:
-                        raise ValueError(f"Network '{network}' not found")
-                    network = response[0].get("$key")
-                else:
-                    network = response.get("$key")
-            kwargs["vnet"] = int(network)
-
+        kwargs = self._prepare_write_fields(kwargs)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
         return self._to_model(response)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Translate the ``network`` alias to the API's ``vnet`` field.
+
+        ``network`` accepts a network name or key and is resolved to the
+        ``vnet`` key the API expects. Used by both ``update()`` and
+        ``ResourceObject._save()`` so ``nic.network = X; nic.save()`` works
+        the same as ``update(key, network=X)`` (issue #97).
+        """
+        if "network" not in fields:
+            return fields
+        fields = dict(fields)
+        network = fields.pop("network")
+        if isinstance(network, str):
+            response = self._client._request(
+                "GET",
+                "vnets",
+                params={"filter": f"name eq {quote_value(network)}", "fields": "$key,name"},
+            )
+            if not response:
+                raise ValueError(f"Network '{network}' not found")
+            if isinstance(response, list):
+                network = response[0].get("$key")
+            else:
+                network = response.get("$key")
+        fields["vnet"] = int(network)
+        return fields

@@ -6,8 +6,8 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -132,10 +132,12 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
     def _to_model(self, data: dict[str, Any]) -> TenantLayer2Network:
         return TenantLayer2Network(data, self)
 
-    def list(  # type: ignore[override]
+    def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[TenantLayer2Network]:
         """List Layer 2 networks assigned to this tenant.
@@ -155,11 +157,17 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
         tenant_filter = f"tenant eq {self._tenant.key}"
         if filter:
             tenant_filter = f"{tenant_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(tenant_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": tenant_filter,
-            "fields": ",".join(fields),
+            "filter": combined_filter,
+            "fields": normalize_fields(fields),
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -176,7 +184,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
         key: int | None = None,
         *,
         network_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantLayer2Network:
         """Get a Layer 2 network by key or network name.
 
@@ -199,7 +207,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             # Query by key with tenant filter to ensure it belongs to this tenant
             params: dict[str, Any] = {
                 "filter": f"$key eq {key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if response is None:

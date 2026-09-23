@@ -6,8 +6,8 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -128,10 +128,12 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         hostname: str | None = None,
         ip: str | None = None,
         host_type: HostType | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[NetworkHost]:
         """List DHCP/DNS host overrides for this network.
@@ -162,18 +164,27 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
             filters.append(f"ip eq {quote_value(ip)}")
 
         if host_type:
-            filters.append(f"type eq '{host_type}'")
+            filters.append(f"type eq {quote_value(host_type)}")
 
         if filter:
             filters.append(f"({filter})")
+
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, kwargs)
+        if extra:
+            filters.append(extra)
 
         combined_filter = " and ".join(filters)
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+host",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -191,7 +202,7 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
         *,
         hostname: str | None = None,
         ip: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NetworkHost:
         """Get a host override by key, hostname, or IP address.
 
@@ -212,7 +223,7 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Host {key} not found")

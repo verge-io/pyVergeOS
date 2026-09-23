@@ -270,6 +270,47 @@ class TestDriveManager:
         assert body["preferred_tier"] == "4"
         assert drive.get("preferred_tier") == "4"
 
+    def test_save_dirty_tier_attribute_translates_to_preferred_tier(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """drive.tier = N; drive.save() must translate like update() (issue #97).
+
+        _save() sends dirty fields as a raw PUT that bypasses the typed
+        update(), so the alias translation must also apply on that path.
+        """
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "name": "TieredDrive",
+            "preferred_tier": "2",
+        }
+
+        drive = Drive({"$key": 1, "name": "TieredDrive", "preferred_tier": "1"}, vm.drives)
+        drive.tier = 2
+        drive.save()
+
+        puts = [
+            c
+            for c in mock_session.request.call_args_list
+            if c.kwargs.get("method") == "PUT" and "machine_drives/1" in c.kwargs.get("url", "")
+        ]
+        assert len(puts) == 1
+        body = puts[0].kwargs["json"]
+        assert "tier" not in body
+        assert body["preferred_tier"] == "2"
+
+    def test_list_drives_name_kwarg_is_merged(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Shorthand kwargs must merge into the scoped filter (issue #96)."""
+        mock_session.request.return_value.json.return_value = []
+
+        vm.drives.list(name="does-not-exist")
+
+        params = mock_session.request.call_args.kwargs.get("params", {})
+        filter_value = params.get("filter", "")
+        assert "machine eq 200" in filter_value
+        assert "name eq 'does-not-exist'" in filter_value
+
     def test_update_drive_tier_none_is_omitted(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:

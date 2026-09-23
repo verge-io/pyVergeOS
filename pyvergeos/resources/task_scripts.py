@@ -27,8 +27,8 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -130,7 +130,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -144,7 +144,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
             fields: List of fields to return.
             limit: Maximum number of results.
             offset: Skip this many results.
-            name: Filter by name.
+            name: Filter by name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -166,12 +166,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
             filters.append(f"({filter})")
 
         if name is not None:
-            if "*" in name or "?" in name:
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    filters.append(f"name ct {quote_value(search_term)}")
-            else:
-                filters.append(f"name eq {quote_value(name)}")
+            filters.append(wildcard_condition("name", name))
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -181,7 +176,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -206,7 +201,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TaskScript:
         """Get a task script by key or name.
 
@@ -225,7 +220,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

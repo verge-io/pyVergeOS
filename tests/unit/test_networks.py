@@ -328,14 +328,16 @@ class TestNetwork:
         mock_session: MagicMock,
         network_data: dict[str, Any],
     ) -> None:
-        """Test forced power off (killpower)."""
+        """Forced power off sends 'kill', the valid vnet action (issue #112)."""
         network = Network(network_data, mock_client.networks)
 
         network.power_off(force=True)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
-        assert body["action"] == "killpower"
+        assert body["action"] == "kill"
+        assert body["action"] != "killpower"  # rejected by the platform
+        assert body["vnet"] == 100
 
     def test_restart(
         self,

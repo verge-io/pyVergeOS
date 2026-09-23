@@ -517,9 +517,15 @@ class TestOidcApplicationManager:
         assert body["name"] == "Test"
         assert body["redirect_uri"] == "https://example.com/callback"
         assert body["description"] == "Test app"
-        # force_auth_source and map_user always included (default 0)
-        assert body["force_auth_source"] == 0
-        assert body["map_user"] == 0
+        # Both are required by the API, so they are always sent. The unset
+        # value must be null, not 0: VergeOS resolves them as row references
+        # and answers HTTP 404 "error setting field ... No such file or
+        # directory" for key 0, which made create() fail on any system
+        # without auth source / user key 0 (issue #107).
+        assert "force_auth_source" in body
+        assert body["force_auth_source"] is None
+        assert "map_user" in body
+        assert body["map_user"] is None
 
     def test_create_with_list_redirect_uri(self, mock_client: MagicMock) -> None:
         """Test creating with list of redirect URIs."""

@@ -5,7 +5,8 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -125,7 +126,7 @@ class NodeLLDPNeighborManager(ResourceManager[NodeLLDPNeighbor]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -152,8 +153,13 @@ class NodeLLDPNeighborManager(ResourceManager[NodeLLDPNeighbor]):
         if filter:
             filters.append(f"({filter})")
 
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
+
         params: dict[str, Any] = {
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
         if filters:
             params["filter"] = " and ".join(filters)

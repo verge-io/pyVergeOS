@@ -67,6 +67,29 @@ class TestVMManager:
         filter_value = params.get("filter", "")
         assert "is_snapshot" not in filter_value or filter_value is None
 
+    def test_list_vms_name_kwarg_is_merged_with_snapshot_filter(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Shorthand kwargs must merge with the snapshot filter (issue #96).
+
+        Previously the always-present snapshot filter caused every
+        filter kwarg to be silently dropped, so vms.list(name=X)
+        returned every VM.
+        """
+        mock_session.request.return_value.json.return_value = []
+
+        mock_client.vms.list(name="does-not-exist")
+
+        params = mock_session.request.call_args.kwargs.get("params", {})
+        filter_value = params.get("filter", "")
+        assert "is_snapshot eq false" in filter_value
+        assert "name eq 'does-not-exist'" in filter_value
+
+    def test_list_vms_all_none_kwargs_raise(self, mock_client: VergeClient) -> None:
+        """All-None filter kwargs must not widen to a full table scan (issue #96)."""
+        with pytest.raises(ValueError, match="empty filter"):
+            mock_client.vms.list(name=None)
+
     def test_get_vm_by_key(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test getting a VM by key."""
         mock_session.request.return_value.json.return_value = {

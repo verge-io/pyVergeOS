@@ -712,7 +712,7 @@ class VMManager(ResourceManager[VM]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_snapshots: bool = False,
@@ -753,7 +753,7 @@ class VMManager(ResourceManager[VM]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VM:
         """Get a single VM by key or name.
 
@@ -913,9 +913,19 @@ class VMManager(ResourceManager[VM]):
         preserves cloud-init files. Delete files through vm.cloudinit_files
         when removing the configuration entirely.
         """
-        if kwargs.get("cloudinit_datasource") == "":
-            kwargs["cloudinit_datasource"] = "none"
+        kwargs = self._prepare_write_fields(kwargs)
         return super().update(key, **kwargs)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Normalize the empty-string ``cloudinit_datasource`` alias to 'none'.
+
+        Used by both ``update()`` and ``ResourceObject._save()`` so attribute
+        assignment behaves the same as ``update()`` (issue #97).
+        """
+        if fields.get("cloudinit_datasource") == "":
+            fields = dict(fields)
+            fields["cloudinit_datasource"] = "none"
+        return fields
 
     def _create_cloud_init_files(
         self,

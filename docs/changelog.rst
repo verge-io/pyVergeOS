@@ -6,6 +6,208 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- ``fields="$key,name"`` no longer silently destroys the projection.
+  ``fields`` was typed as a list but every call site serialised it with
+  ``",".join(fields)``; a caller-supplied string - the API's own native
+  format - was joined character by character (``'$,k,e,y,,,n,a,m,e'``),
+  which the API accepted and answered with rows containing no usable
+  fields. All 272 call sites now serialise through ``normalize_fields()``,
+  which accepts a list of names or a comma-separated string, and the
+  ``fields`` signatures were widened to match. The same footgun corrupted
+  write-path sequence parameters (``ip_allow_list``/``ip_deny_list`` on API
+  keys, ``valid_users``/``valid_groups``/``admin_users``/``admin_groups``/
+  ``allowed_hosts``/``denied_hosts`` on CIFS shares, ``include``/``exclude``
+  on volume syncs, ``dns_servers`` on networks); those now serialise through
+  ``serialize_list()``, which passes strings through unchanged. An AST
+  tripwire test fails CI if any function joins a caller-supplied parameter
+  directly. (#101)
+- The ``name`` search in ``tasks``, ``task_scripts``, ``task_schedules``
+  and ``cloudinit_files`` no longer fails open for all-wildcard patterns.
+  These managers carried a hand-rolled workaround that stripped ``*``/``?``
+  and used a ``ct`` contains match; a name of ``"*"`` (or ``"?"``) stripped
+  to an empty search term and appended no condition at all, returning every
+  row - the fail-open shape of #96 - and ``name="Backup*"`` matched as a
+  case-insensitive contains (also matching ``Nightly Backup``). All four now
+  share the wildcard translation, so prefix patterns match prefixes,
+  matching is case-sensitive, and a condition is always sent. Ported from
+  the parallel fix in PR #104. (#103)
+- Wildcard and list filter shorthands no longer emit operators VergeOS
+  rejects. ``build_filter()`` and ``Filter`` produced ``like`` (from
+  ``name="web*"``) and ``in`` (from ``status=[...]``), neither of which is
+  in the platform's filter grammar - every such filter failed with HTTP 422
+  "Invalid argument". Wildcards now translate to supported operators
+  (``foo*`` -> ``bw``, ``*foo`` -> ``ew``, ``*foo*`` -> ``cs``, complex
+  patterns -> anchored POSIX-ERE ``rx`` with metacharacters escaped), and
+  lists expand to a parenthesized ``or`` chain of conditions - parenthesized
+  because the platform evaluates ``and``/``or`` strictly left-to-right with
+  no precedence. Wildcard matching is case-sensitive, consistent with
+  ``eq``. (#103)
+- ``list()`` no longer returns every row when a filter cannot be applied.
+  Shorthand filter kwargs were silently dropped whenever a manager supplied
+  its own ``filter`` string, so ``client.vms.list(name=...)`` ignored the name
+  and returned every non-snapshot VM - making the ordinary cleanup idiom
+  ``for v in client.vms.list(name=missing): client.vms.delete(...)`` a
+  destructive operation. A new ``combine_filters()`` helper merges both forms
+  as ``(filter) and (built)``, and the 33 manager ``list()`` overrides that
+  documented ``**kwargs`` as "additional filter arguments" without ever
+  reading them now merge those kwargs into the filter they send. (#96)
+- ``drive.tier = 2; drive.save()`` is no longer a silent no-op.
+  ``ResourceObject._save()`` sends locally modified fields as a raw PUT that
+  bypasses the typed ``update()``, so the ``tier`` -> ``preferred_tier``
+  translation added in #81 was skipped and VergeOS accepted the raw ``tier``
+  field with HTTP 200 and ignored it. A new
+  ``ResourceManager._prepare_write_fields()`` hook applies alias translation
+  on every write path, so attribute assignment and ``update()`` behave
+  identically: ``tier`` -> ``preferred_tier`` (drives), ``network`` ->
+  ``vnet`` (NICs), empty ``cloudinit_datasource`` -> ``"none"`` (VMs), and
+  frequency/day validation plus ``max_tier`` coercion (snapshot profile
+  periods). (#97)
+- ``ResourceObject.refresh()`` now updates the object it is called on instead
+  of returning a new one and leaving the receiver stale. The obvious wait loop
+  (``while not vm.running: vm.refresh()``) converges as soon as the state
+  changes rather than always running to its deadline. ``refresh()`` returns
+  ``self``, so ``vm = vm.refresh()`` remains correct, and the 26 subclass
+  overrides that existed only to narrow the return type were removed.
+  ``SharedObject.refresh()`` gained the same in-place semantics;
+  ``UpdateSource.refresh()``, which triggers an update check, is unchanged.
+  (#98)
+- Iterating a scoped collection no longer returns zero rows.
+  ``iter_all()``/``__iter__`` pass ``limit``/``offset`` to ``list()``, and 19
+  overrides consumed them as ``**kwargs`` filter arguments, producing filters
+  such as ``(machine eq 55) and (limit eq 100 and offset eq 0)`` that matched
+  nothing. Those overrides now declare ``limit``/``offset`` and send them as
+  request parameters, so iteration works and pages server-side instead of
+  re-fetching the full table. An AST-based guard test fails CI if a future
+  ``list()`` override consumes ``**kwargs`` without declaring them. (#102)
+
+- A ``fields`` string containing no field names - ``","``, ``"   "``, ``",,,"``
+  - was passed through to the API, which answered with a single
+  ``{"$count": N}`` row instead of the requested resources. Measured on
+  VergeOS 26.1.8, a five-VM list collapsed to one meaningless row: the same
+  silent-empty result #101 was filed for. Such values now mean "no projection
+  requested". ``normalize_fields()`` and ``split_fields()`` also clean field
+  names identically, so the string and sequence forms are interchangeable
+  (``"$key,"`` and ``["$key", ""]`` now agree). A mapping, or a sequence
+  containing a non-string, is rejected with ``TypeError`` rather than
+  serialized into a plausible-looking but wrong projection. (#101)
+- ``ResourceObject.update()`` and ``setdefault()`` bypassed dirty tracking,
+  so ``obj.update({...}); obj.save()`` reported success while persisting
+  nothing - the fields were changed locally and an empty ``PUT`` was sent.
+  Both now route through the tracked ``__setitem__``, so a batch update
+  behaves like a sequence of assignments. ``refresh()`` still bypasses
+  tracking, as it loads server state rather than local edits. All 165
+  resource classes inherit the fix. (#110)
+- ``save()`` with nothing to save no longer issues an empty ``PUT``. An empty
+  write is still subject to permissions, audit logging and update side
+  effects, for a request the caller did not make; current state is returned
+  instead. (#111)
+- ``OidcApplicationManager.create()`` failed on any system without auth
+  source key 0 and user key 0 - that is, any normal system. Both
+  ``force_auth_source`` and ``map_user`` are required by the API but are
+  resolved as row references, and the SDK coerced an unsupplied value from
+  ``None`` to ``0``, which VergeOS rejects with HTTP 404 ``error setting
+  field ... No such file or directory``. ``null`` is the accepted "not set"
+  value and is now sent, so creating an application with only a name works.
+  Explicitly supplied keys are unaffected. (#107)
+- Every multi-value write parameter (``ssh_keys``, ``dns_servers``,
+  ``ip_allow_list``, ``domain_list``, ``redirect_uri``, the NAS CIFS user and
+  host lists, volume-sync ``include``/``exclude``) rejects a mapping, an
+  unordered collection and non-string values instead of serializing them.
+  Iterating a mapping yields its keys, so ``ssh_keys={"a": 1}`` was sent as
+  ``'a'``; a ``set`` was joined in arbitrary order, and order is part of the
+  value - the first entry of ``dnslist`` is the primary DNS server. (#101)
+- ``WebhookManager.update(headers="")`` stored a lone blank line instead of
+  clearing the header block, which ``headers={}`` already did correctly.
+  Both forms now clear it. (#101)
+- ``CertificateManager.get()`` and ``.list()`` silently ignored
+  ``include_keys`` whenever an explicit ``fields`` projection was supplied, so
+  the requested key material was missing from the result. The key fields are
+  now appended to whatever projection was asked for, without duplicating
+  entries, matching ``AuthSourceManager.get(include_settings=...)`` and
+  ``OidcApplicationManager.get(include_secret=...)``. (#101)
+- Six ``get()``/``list()`` methods still corrupted a ``fields`` string after
+  the #101 sweep: ``auth_sources``, ``certificates``, ``cloudinit_files``
+  (list and get), ``oidc_applications`` and ``webhooks`` build an *augmented*
+  projection (adding ``settings``, ``client_secret`` and similar), so they
+  aliased the parameter with ``list(fields)`` before joining and bypassed
+  ``normalize_fields()``. ``list("$key,name")`` splits into characters exactly
+  as ``",".join()`` does. A new ``split_fields()`` helper returns the list
+  form, and the AST tripwire now follows locals that alias a parameter, which
+  is how the original guard missed these. (#101)
+- Filter values are no longer interpolated straight into a quoted literal.
+  ``quote_value()`` exists so a caller-supplied value cannot be parsed as
+  filter grammar, but **91 conditions across 40 modules never called it**,
+  writing ``f"key ct '{key_contains}'"`` instead. A value containing an
+  apostrophe broke out of the literal and the remainder was evaluated as
+  grammar: measured on a live system,
+  ``settings.list(key_contains="zzzz' or key ne 'zzzz")`` returned all 68
+  rows instead of zero, and the same shape leaked whole tables from
+  ``tasks.list_by_action()`` and ``task_events.list()``. The #100 brace
+  effect reached these sites too - ``key_contains="clou{x}"`` silently
+  matched ``clou`` - and a trailing backslash was rejected outright. This is
+  not a privilege escalation: the injected condition runs with the caller's
+  own permissions. The damage is wrong rows, and since the standard pattern
+  is look-up-by-name then act on the returned key, a ``get_by_*`` resolving
+  to the wrong row can lead to modifying or deleting the wrong object. All
+  91 now route through ``quote_value()``; output is byte-identical for
+  values with no reserved characters, so behaviour is unchanged otherwise.
+  An AST tripwire fails CI if any filter condition interpolates a value
+  directly inside ``'...'``. (#115)
+- ``quote_value()`` now escapes ``{``, so a lookup by a name containing a
+  brace no longer resolves to a different object. VergeOS reserves three
+  characters inside a filter string literal - ``\\``, ``'`` and ``{`` - and
+  only the first two were escaped. ``{`` opens a balanced, nesting-aware
+  construct, so a *balanced* ``{...}`` was consumed silently and the query
+  matched whatever the stripped string named: ``get(name="br{x}ace")``
+  returned the unrelated row ``brace``, and because the standard pattern is
+  look-up-by-name then act on the returned key, a caller could update or
+  delete an object it never asked for. An unbalanced ``{`` was merely
+  rejected with HTTP 422. The reserved set was re-measured by sweeping all 95
+  printable ASCII characters against a live system and by round-tripping rows
+  whose names contain each one; ``}`` is not reserved. The ``rx`` path is
+  fixed by the same change - a brace there carries both the POSIX-ERE escape
+  and the literal escape, and the previous single escape matched nothing. A
+  tripwire test now pins the reserved set and fails if any ``{`` can reach the
+  wire unescaped. (#100)
+- ``Network.power_off(force=True)`` no longer sends an action the platform
+  rejects. It emitted ``action="killpower"``, which is not in the vnet action
+  list, so every forced power off of a network failed with ``ValidationError:
+  value 'killpower' is not in list for field 'action'`` - forced power off was
+  simply unavailable through the SDK. The valid value is ``kill``, the same
+  value #42 applied to VMs; that fix was never carried across to networks, and
+  the unit test asserted the broken string, so CI defended the bug. The
+  ``_power_action()`` docstring advertised ``killpower`` as well. A new AST
+  tripwire scans every resource module, so a third occurrence cannot ship.
+  (#112)
+
+Changed
+^^^^^^^
+
+- Filter kwargs whose values are all ``None`` (for example
+  ``client.networks.list(name=None)``) now raise ``ValueError`` instead of
+  producing an empty filter that matched every row. This matches the existing
+  behaviour of ``get(name=None)``. Filter kwargs that are only partly ``None``
+  still filter on the non-``None`` conditions. (#96)
+- Invalid snapshot profile period fields now raise at ``save()`` as well as
+  ``update()``, rather than being sent raw and silently ignored. (#97)
+- An empty sequence passed as a filter value (``list(name=[])``) now raises
+  ``ValueError`` instead of sending ``in ()``, which the platform rejected
+  with an opaque 422. (#103)
+
+Added
+^^^^^
+
+- ``Filter`` gained methods for the platform's native string operators:
+  ``bw()`` (begins-with), ``ew()`` (ends-with), ``cs()`` (contains,
+  case-sensitive), ``ct()`` (contains, case-insensitive) and ``rx()``
+  (POSIX-ERE regex). (#103)
+
 [1.2.7] - 2026-09-21
 --------------------
 

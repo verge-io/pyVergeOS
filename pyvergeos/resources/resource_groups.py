@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -175,13 +175,6 @@ class ResourceGroup(ResourceObject):
         manager = cast("ResourceGroupManager", self._manager)
         return ResourceRuleManager(manager._client, self.key)
 
-    def refresh(self) -> ResourceGroup:
-        """Refresh this resource group's data from the server."""
-        from typing import cast
-
-        manager = cast("ResourceGroupManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> ResourceGroup:
         """Update this resource group with the given values."""
         from typing import cast
@@ -263,7 +256,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -305,7 +298,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         *,
         name: str | None = None,
         uuid: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> ResourceGroup:
         """Get a resource group by key (UUID), name, or UUID.
 
@@ -338,7 +331,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         # key parameter is actually UUID for resource groups
         if key is not None:
             key_str = str(key).lower()
-            results = self.list(filter=f"uuid eq '{key_str}'", fields=fields, limit=1)
+            results = self.list(filter=f"uuid eq {quote_value(key_str)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Resource group with UUID '{key}' not found")
             return results[0]
@@ -353,7 +346,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         if uuid is not None:
             # Search by UUID (alias for key)
             uuid_lower = uuid.lower()
-            results = self.list(filter=f"uuid eq '{uuid_lower}'", fields=fields, limit=1)
+            results = self.list(filter=f"uuid eq {quote_value(uuid_lower)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Resource group with UUID '{uuid}' not found")
             return results[0]
@@ -362,7 +355,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List enabled resource groups.
 
@@ -381,7 +374,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List disabled resource groups.
 
@@ -398,7 +391,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         device_type: str,
         *,
         enabled: bool | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List resource groups by device type.
 
@@ -424,7 +417,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         # Convert display name to API value if needed
         api_type = DEVICE_TYPE_REVERSE_MAP.get(device_type, device_type)
 
-        filters = [f"type eq '{api_type}'"]
+        filters = [f"type eq {quote_value(api_type)}"]
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
@@ -435,7 +428,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         device_class: str,
         *,
         enabled: bool | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[ResourceGroup]:
         """List resource groups by device class.
 
@@ -461,7 +454,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         # Convert display name to API value if needed
         api_class = DEVICE_CLASS_REVERSE_MAP.get(device_class.lower(), device_class.lower())
 
-        filters = [f"class eq '{api_class}'"]
+        filters = [f"class eq {quote_value(api_class)}"]
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
@@ -963,13 +956,6 @@ class ResourceRule(ResourceObject):
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None
 
-    def refresh(self) -> ResourceRule:
-        """Refresh this rule's data from the server."""
-        from typing import cast
-
-        manager = cast("ResourceRuleManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> ResourceRule:
         """Update this rule with the given values."""
         from typing import cast
@@ -1043,7 +1029,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1077,7 +1063,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             # Resource groups use UUID strings, which need quotes in filters
             rg_key = str(self._resource_group_key)
             if "-" in rg_key:  # UUID format needs quotes
-                filters.append(f"resource_group eq '{rg_key}'")
+                filters.append(f"resource_group eq {quote_value(rg_key)}")
             else:  # Integer key (for backwards compatibility)
                 filters.append(f"resource_group eq {rg_key}")
 
@@ -1092,7 +1078,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
 
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1116,7 +1102,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> ResourceRule:
         """Get a resource rule by key or name.
 
@@ -1136,7 +1122,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Resource rule with key {key} not found")

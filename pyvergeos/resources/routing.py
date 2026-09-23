@@ -6,8 +6,8 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -271,7 +271,7 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -294,11 +294,15 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
         filters = [f"bgp_router eq {self._router.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTER_COMMAND_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "orderid"
 
@@ -319,7 +323,7 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPRouterCommand:
         """Get a single command by key.
 
@@ -340,7 +344,7 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
         if fields is None:
             fields = DEFAULT_BGP_ROUTER_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP router command with key {key} not found")
@@ -523,7 +527,7 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -549,11 +553,15 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTER_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "asn"
 
@@ -575,7 +583,7 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
         key: int | None = None,
         *,
         asn: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPRouter:
         """Get a single BGP router by key or ASN.
 
@@ -595,7 +603,7 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
             fields = DEFAULT_BGP_ROUTER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"BGP router with key {key} not found")
@@ -733,7 +741,7 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -755,11 +763,15 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
         filters = [f"bgp_interface eq {self._interface.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_INTERFACE_COMMAND_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "orderid"
 
@@ -780,7 +792,7 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPInterfaceCommand:
         """Get a single command by key.
 
@@ -801,7 +813,7 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
         if fields is None:
             fields = DEFAULT_BGP_INTERFACE_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP interface command with key {key} not found")
@@ -983,7 +995,7 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1009,11 +1021,15 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_INTERFACE_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "name"
 
@@ -1035,7 +1051,7 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPInterface:
         """Get a single BGP interface by key or name.
 
@@ -1055,7 +1071,7 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
             fields = DEFAULT_BGP_INTERFACE_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"BGP interface with key {key} not found")
@@ -1243,7 +1259,7 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1265,11 +1281,15 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
         filters = [f"bgp_routemap eq {self._routemap.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTEMAP_COMMAND_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "orderid"
 
@@ -1290,7 +1310,7 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPRouteMapCommand:
         """Get a single command by key.
 
@@ -1311,7 +1331,7 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
         if fields is None:
             fields = DEFAULT_BGP_ROUTEMAP_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP route map command with key {key} not found")
@@ -1486,7 +1506,7 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1512,11 +1532,15 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_ROUTEMAP_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "tag,sequence"
 
@@ -1539,7 +1563,7 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
         *,
         tag: str | None = None,
         sequence: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPRouteMap:
         """Get a single route map by key or tag+sequence.
 
@@ -1560,7 +1584,7 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
             fields = DEFAULT_BGP_ROUTEMAP_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"BGP route map with key {key} not found")
@@ -1737,7 +1761,7 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1763,11 +1787,15 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_BGP_IP_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "orderid"
 
@@ -1788,7 +1816,7 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> BGPIPCommand:
         """Get a single IP command by key.
 
@@ -1809,7 +1837,7 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
         if fields is None:
             fields = DEFAULT_BGP_IP_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"BGP IP command with key {key} not found")
@@ -1977,7 +2005,7 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -2003,11 +2031,15 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_OSPF_COMMAND_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "orderid"
 
@@ -2028,7 +2060,7 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OSPFCommand:
         """Get a single OSPF command by key.
 
@@ -2049,7 +2081,7 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
         if fields is None:
             fields = DEFAULT_OSPF_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"OSPF command with key {key} not found")
@@ -2230,7 +2262,7 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -2252,11 +2284,15 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
         filters = [f"eigrp_router eq {self._router.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_EIGRP_ROUTER_COMMAND_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "orderid"
 
@@ -2277,7 +2313,7 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> EIGRPRouterCommand:
         """Get a single command by key.
 
@@ -2298,7 +2334,7 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
         if fields is None:
             fields = DEFAULT_EIGRP_ROUTER_COMMAND_FIELDS.copy()
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"EIGRP router command with key {key} not found")
@@ -2482,7 +2518,7 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -2508,11 +2544,15 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
         filters = [f"bgp eq {bgp_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         if fields is None:
             fields = DEFAULT_EIGRP_ROUTER_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         params["sort"] = "asn"
 
@@ -2534,7 +2574,7 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
         key: int | None = None,
         *,
         asn: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> EIGRPRouter:
         """Get a single EIGRP router by key or ASN.
 
@@ -2554,7 +2594,7 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
             fields = DEFAULT_EIGRP_ROUTER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"EIGRP router with key {key} not found")

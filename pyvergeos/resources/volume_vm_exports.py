@@ -6,8 +6,8 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -184,7 +184,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         status: str | None = None,
@@ -223,7 +223,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
 
         # Add status filter
         if status:
-            filters.append(f"status eq '{status}'")
+            filters.append(f"status eq {quote_value(status)}")
 
         # Add volume filter
         if volume is not None:
@@ -234,7 +234,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -259,7 +259,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
         key: int | None = None,
         *,
         volume: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VolumeVmExport:
         """Get a single volume VM export by key or volume.
 
@@ -286,7 +286,7 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -539,7 +539,7 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         volume_vm_exports: int | None = None,
@@ -587,7 +587,7 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -611,7 +611,7 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VolumeVmExportStat:
         """Get a single VM export stat by key.
 
@@ -632,7 +632,7 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

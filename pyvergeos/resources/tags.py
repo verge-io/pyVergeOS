@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -139,7 +139,7 @@ class TagMemberManager(ResourceManager[TagMember]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         resource_type: str | None = None,
@@ -180,7 +180,7 @@ class TagMemberManager(ResourceManager[TagMember]):
 
         # Default fields
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = "$key,tag,member"
 
@@ -505,17 +505,6 @@ class Tag(ResourceObject):
         manager = cast("TagManager", self._manager)
         return manager.members(self.key)
 
-    def refresh(self) -> Tag:
-        """Refresh tag data from the server.
-
-        Returns:
-            Updated Tag object.
-        """
-        from typing import cast
-
-        manager = cast("TagManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Tag:
         """Save changes to this tag.
 
@@ -584,7 +573,7 @@ class TagManager(ResourceManager[Tag]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         category_key: int | None = None,
@@ -640,7 +629,7 @@ class TagManager(ResourceManager[Tag]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -667,7 +656,7 @@ class TagManager(ResourceManager[Tag]):
         name: str | None = None,
         category_key: int | None = None,
         category_name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Tag:
         """Get a single tag by key or name.
 
@@ -696,7 +685,7 @@ class TagManager(ResourceManager[Tag]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -968,17 +957,6 @@ class TagCategory(ResourceObject):
         manager = cast("TagCategoryManager", self._manager)
         return manager._client.tags.list(category_key=self.key)
 
-    def refresh(self) -> TagCategory:
-        """Refresh category data from the server.
-
-        Returns:
-            Updated TagCategory object.
-        """
-        from typing import cast
-
-        manager = cast("TagCategoryManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> TagCategory:
         """Save changes to this category.
 
@@ -1058,7 +1036,7 @@ class TagCategoryManager(ResourceManager[TagCategory]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1097,7 +1075,7 @@ class TagCategoryManager(ResourceManager[TagCategory]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1122,7 +1100,7 @@ class TagCategoryManager(ResourceManager[TagCategory]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TagCategory:
         """Get a single tag category by key or name.
 
@@ -1149,7 +1127,7 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

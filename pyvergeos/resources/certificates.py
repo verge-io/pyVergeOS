@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    serialize_list,
+    split_fields,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -229,17 +234,6 @@ class Certificate(ResourceObject):
         val = self.get("chain")
         return str(val) if val else None
 
-    def refresh(self) -> Certificate:
-        """Refresh certificate data from API.
-
-        Returns:
-            Updated Certificate object.
-        """
-        from typing import cast
-
-        manager = cast("CertificateManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Certificate:
         """Update certificate with new values.
 
@@ -325,7 +319,7 @@ class CertificateManager(ResourceManager[Certificate]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -359,7 +353,7 @@ class CertificateManager(ResourceManager[Certificate]):
         # Filter by certificate type
         if cert_type:
             api_type = CERT_TYPE_MAP.get(cert_type, cert_type.lower())
-            filters.append(f"type eq '{api_type}'")
+            filters.append(f"type eq {quote_value(api_type)}")
 
         # Filter by valid status
         if valid is not None:
@@ -372,14 +366,12 @@ class CertificateManager(ResourceManager[Certificate]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Field selection
-        if fields:
-            params["fields"] = ",".join(fields)
-        else:
-            field_list = list(_DEFAULT_CERT_FIELDS)
-            if include_keys:
-                field_list.extend(_CERT_KEY_FIELDS)
-            params["fields"] = ",".join(field_list)
+        # Field selection. include_keys augments whatever projection was
+        # requested, rather than applying only to the defaults (issue #101).
+        field_list = split_fields(fields) or list(_DEFAULT_CERT_FIELDS)
+        if include_keys:
+            field_list.extend(f for f in _CERT_KEY_FIELDS if f not in field_list)
+        params["fields"] = ",".join(field_list)
 
         # Pagination
         if limit is not None:
@@ -460,7 +452,7 @@ class CertificateManager(ResourceManager[Certificate]):
         key: int | None = None,
         *,
         domain: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_keys: bool = False,
     ) -> Certificate:
         """Get a certificate by key or domain.
@@ -478,13 +470,16 @@ class CertificateManager(ResourceManager[Certificate]):
             NotFoundError: If certificate not found.
             ValueError: If neither key nor domain provided.
         """
-        # Build field list
-        if fields:
-            field_list = fields
-        else:
-            field_list = list(_DEFAULT_CERT_FIELDS)
-            if include_keys:
-                field_list.extend(_CERT_KEY_FIELDS)
+        # Build field list. A projection that contains no field names falls
+        # back to the defaults rather than sending an empty ``fields=``,
+        # matching the other managers that augment a projection (issue #101).
+        field_list = split_fields(fields) or list(_DEFAULT_CERT_FIELDS)
+        if include_keys:
+            # Appended whether or not the caller supplied a projection, so
+            # include_keys is never silently ignored - matching
+            # AuthSourceManager.get(include_settings=...) and
+            # OidcApplicationManager.get(include_secret=...).
+            field_list.extend(f for f in _CERT_KEY_FIELDS if f not in field_list)
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(field_list)}
@@ -576,10 +571,7 @@ class CertificateManager(ResourceManager[Certificate]):
 
         # Add domain list (SANs)
         if domain_list:
-            if isinstance(domain_list, list):
-                body["domainlist"] = ",".join(domain_list)
-            else:
-                body["domainlist"] = domain_list
+            body["domainlist"] = serialize_list(domain_list)
 
         # Add optional description
         if description:
@@ -672,10 +664,7 @@ class CertificateManager(ResourceManager[Certificate]):
             body["description"] = description
 
         if domain_list is not None:
-            if isinstance(domain_list, list):
-                body["domainlist"] = ",".join(domain_list)
-            else:
-                body["domainlist"] = domain_list
+            body["domainlist"] = serialize_list(domain_list)
 
         if public_key is not None:
             body["public"] = public_key

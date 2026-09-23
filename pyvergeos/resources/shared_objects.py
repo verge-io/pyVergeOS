@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
+from pyvergeos.resources.base import normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -102,6 +103,17 @@ class SharedObject(dict[str, Any]):
             return datetime.fromtimestamp(created, tz=timezone.utc)
         return None
 
+    def refresh(self) -> SharedObject:
+        """Refresh this shared object in place with fresh data from the API.
+
+        Returns:
+            This object, updated with the latest data.
+        """
+        result = self._manager.get(self.key)
+        dict.clear(self)
+        dict.update(self, result)
+        return self
+
     def import_object(self) -> dict[str, Any] | None:
         """Import this shared object into the tenant.
 
@@ -116,14 +128,6 @@ class SharedObject(dict[str, Any]):
             >>> shared_obj.import_object()
         """
         return self._manager.import_object(self.key)
-
-    def refresh(self) -> SharedObject:
-        """Refresh shared object data from API.
-
-        Returns:
-            Updated SharedObject.
-        """
-        return self._manager.get(self.key)
 
     def delete(self) -> None:
         """Delete this shared object.
@@ -176,7 +180,7 @@ class SharedObjectManager:
         tenant: Tenant | None = None,
         name: str | None = None,
         inbox_only: bool = False,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> builtins.list[SharedObject]:
@@ -221,7 +225,7 @@ class SharedObjectManager:
         if inbox_only:
             filters.append("inbox eq true")
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         if filters:
             params["filter"] = " and ".join(filters)
         if limit is not None:
@@ -243,7 +247,7 @@ class SharedObjectManager:
         *,
         tenant_key: int | None = None,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SharedObject:
         """Get a single shared object by key or by tenant/name.
 
@@ -272,7 +276,7 @@ class SharedObjectManager:
 
         if key is not None:
             # Get by key
-            params = {"fields": ",".join(fields), "filter": f"$key eq {key}"}
+            params = {"fields": normalize_fields(fields), "filter": f"$key eq {key}"}
             response = self._client._request("GET", self._endpoint, params=params)
 
             if not response:

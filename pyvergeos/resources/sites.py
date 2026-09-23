@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -253,17 +253,6 @@ class Site(ResourceObject):
         manager = cast("SiteManager", self._manager)
         return manager.disable(self.key)
 
-    def refresh(self) -> Site:
-        """Refresh site data from server.
-
-        Returns:
-            Updated Site object.
-        """
-        from typing import cast
-
-        manager = cast("SiteManager", self._manager)
-        return manager.get(self.key)
-
     def reauthenticate(self, username: str, password: str) -> Site:
         """Reauthenticate with the remote site.
 
@@ -334,7 +323,7 @@ class SiteManager(ResourceManager[Site]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -372,7 +361,7 @@ class SiteManager(ResourceManager[Site]):
             conditions.append(f"enabled eq {str(enabled).lower()}")
 
         if status is not None:
-            conditions.append(f"status eq '{status}'")
+            conditions.append(f"status eq {quote_value(status)}")
 
         if filter:
             conditions.append(f"({filter})")
@@ -389,7 +378,7 @@ class SiteManager(ResourceManager[Site]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -408,7 +397,7 @@ class SiteManager(ResourceManager[Site]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[Site]:
         """List enabled sites.
 
@@ -422,7 +411,7 @@ class SiteManager(ResourceManager[Site]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[Site]:
         """List disabled sites.
 
@@ -437,7 +426,7 @@ class SiteManager(ResourceManager[Site]):
     def list_by_status(
         self,
         status: str,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[Site]:
         """List sites by status.
 
@@ -455,7 +444,7 @@ class SiteManager(ResourceManager[Site]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Site:
         """Get a site by key or name.
 
@@ -477,7 +466,7 @@ class SiteManager(ResourceManager[Site]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

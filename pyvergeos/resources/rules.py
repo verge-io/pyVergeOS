@@ -6,8 +6,8 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -228,11 +228,13 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         direction: Direction | None = None,
         action: Action | None = None,
         protocol: Protocol | None = None,
         enabled: bool | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[NetworkRule]:
         """List firewall rules for this network.
@@ -256,13 +258,13 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
         filters: builtins.list[str] = [f"vnet eq {self.network_key}"]
 
         if direction:
-            filters.append(f"direction eq '{direction}'")
+            filters.append(f"direction eq {quote_value(direction)}")
 
         if action:
-            filters.append(f"action eq '{action}'")
+            filters.append(f"action eq {quote_value(action)}")
 
         if protocol:
-            filters.append(f"protocol eq '{protocol}'")
+            filters.append(f"protocol eq {quote_value(protocol)}")
 
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
@@ -270,13 +272,22 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
         if filter:
             filters.append(f"({filter})")
 
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, kwargs)
+        if extra:
+            filters.append(extra)
+
         combined_filter = " and ".join(filters)
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -293,7 +304,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NetworkRule:
         """Get a rule by key or name.
 
@@ -313,7 +324,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Rule {key} not found")

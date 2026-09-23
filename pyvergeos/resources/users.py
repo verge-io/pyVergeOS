@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -266,7 +271,7 @@ class UserManager(ResourceManager[User]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         user_type: UserType | None = None,
@@ -321,7 +326,7 @@ class UserManager(ResourceManager[User]):
 
         # Add user_type filter
         if user_type is not None:
-            filters.append(f"type eq '{user_type}'")
+            filters.append(f"type eq {quote_value(user_type)}")
 
         # Add enabled filter
         if enabled is not None:
@@ -332,7 +337,7 @@ class UserManager(ResourceManager[User]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -389,7 +394,7 @@ class UserManager(ResourceManager[User]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> User:
         """Get a single user by key or name.
 
@@ -416,7 +421,7 @@ class UserManager(ResourceManager[User]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -539,10 +544,7 @@ class UserManager(ResourceManager[User]):
 
         # Handle SSH keys
         if ssh_keys:
-            if isinstance(ssh_keys, list):
-                body["ssh_keys"] = "\n".join(ssh_keys)
-            else:
-                body["ssh_keys"] = ssh_keys
+            body["ssh_keys"] = serialize_list(ssh_keys, "\n")
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 
@@ -636,10 +638,7 @@ class UserManager(ResourceManager[User]):
             body["two_factor_setup_next_login"] = two_factor_setup_required
 
         if ssh_keys is not None:
-            if isinstance(ssh_keys, list):
-                body["ssh_keys"] = "\n".join(ssh_keys) if ssh_keys else ""
-            else:
-                body["ssh_keys"] = ssh_keys
+            body["ssh_keys"] = serialize_list(ssh_keys, "\n") or ""
 
         if not body:
             return self.get(key)

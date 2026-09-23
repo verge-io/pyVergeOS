@@ -6,8 +6,8 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -127,8 +127,10 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         ip: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[TenantExternalIP]:
         """List external IPs assigned to this tenant.
@@ -148,14 +150,20 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
         # Build filter for this tenant's virtual IPs
         owner_filter = f"owner eq 'tenants/{self._tenant.key}' and type eq 'virtual'"
         if ip:
-            owner_filter = f"{owner_filter} and ip eq '{ip}'"
+            owner_filter = f"{owner_filter} and ip eq {quote_value(ip)}"
         if filter:
             owner_filter = f"{owner_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(owner_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": owner_filter,
-            "fields": ",".join(fields),
+            "filter": combined_filter,
+            "fields": normalize_fields(fields),
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -172,7 +180,7 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
         key: int | None = None,
         *,
         ip: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantExternalIP:
         """Get an external IP by key or IP address.
 
@@ -192,7 +200,7 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError

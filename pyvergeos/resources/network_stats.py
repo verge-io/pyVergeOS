@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -313,7 +313,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
     def _to_history_model(self, data: dict[str, Any]) -> NetworkMonitorStatsHistory:
         return NetworkMonitorStatsHistory(data, self)
 
-    def get(self, fields: builtins.list[str] | None = None) -> NetworkMonitorStats:  # type: ignore[override]
+    def get(self, fields: str | builtins.list[str] | None = None) -> NetworkMonitorStats:  # type: ignore[override]
         """Get the most recent network monitor statistics.
 
         Args:
@@ -330,7 +330,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
 
         params: dict[str, Any] = {
             "filter": f"vnet eq {self._network_key}",
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "-timestamp",
             "limit": 1,
         }
@@ -353,7 +353,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[NetworkMonitorStatsHistory]:
         """Get short-term stats history (high resolution).
 
@@ -385,7 +385,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[NetworkMonitorStatsHistory]:
         """Get long-term stats history (aggregated, longer retention).
 
@@ -418,7 +418,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[NetworkMonitorStatsHistory]:
         """Internal helper to get history from short or long endpoint."""
         if fields is None:
@@ -437,7 +437,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "-timestamp",
         }
 
@@ -870,7 +870,7 @@ class IPSecActiveConnectionManager(ResourceManager[IPSecActiveConnection]):
     def list(  # noqa: A002
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -899,7 +899,7 @@ class IPSecActiveConnectionManager(ResourceManager[IPSecActiveConnection]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
 
         if limit is not None:
@@ -1037,7 +1037,7 @@ class WireGuardPeerStatusManager(ResourceManager[WireGuardPeerStatus]):
     def list(  # noqa: A002
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1087,7 +1087,7 @@ class WireGuardPeerStatusManager(ResourceManager[WireGuardPeerStatus]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
 
         if limit is not None:

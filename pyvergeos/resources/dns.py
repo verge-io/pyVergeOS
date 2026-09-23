@@ -6,8 +6,8 @@ import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -163,9 +163,11 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         host: str | None = None,
         record_type: RecordType | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[DNSRecord]:
         """List DNS records in this zone.
@@ -192,18 +194,27 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
             filters.append(f"host eq {quote_value(host)}")
 
         if record_type:
-            filters.append(f"type eq '{record_type}'")
+            filters.append(f"type eq {quote_value(record_type)}")
 
         if filter:
             filters.append(f"({filter})")
+
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, kwargs)
+        if extra:
+            filters.append(extra)
 
         combined_filter = " and ".join(filters)
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+orderid",
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -221,7 +232,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
         *,
         host: str | None = None,
         record_type: RecordType | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> DNSRecord:
         """Get a DNS record by key, host, or type.
 
@@ -242,7 +253,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS record {key} not found")
@@ -525,10 +536,12 @@ class DNSZoneManager(ResourceManager[DNSZone]):
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         domain: str | None = None,
         zone_type: ZoneType | None = None,
         include_records: bool = False,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[DNSZone]:
         """List DNS zones for this network or view.
@@ -547,16 +560,20 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         if fields is None:
             fields = self._default_fields.copy()
 
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        merged_filter = combine_filters(filter, kwargs)
+
         # When scoped to a view, query directly
         if self._view is not None:
-            return self._list_for_view(
+            zones = self._list_for_view(
                 self._view.key,
                 self._view.get("name"),
-                filter=filter,
+                filter=merged_filter,
                 fields=fields,
                 domain=domain,
                 zone_type=zone_type,
             )
+            return self._paginate(zones, limit, offset)
 
         # Otherwise iterate all views for this network
         views = self._get_views()
@@ -576,21 +593,30 @@ class DNSZoneManager(ResourceManager[DNSZone]):
                 self._list_for_view(
                     view_key,
                     view_name,
-                    filter=filter,
+                    filter=merged_filter,
                     fields=fields,
                     domain=domain,
                     zone_type=zone_type,
                 )
             )
 
-        return all_zones
+        return self._paginate(all_zones, limit, offset)
+
+    @staticmethod
+    def _paginate(
+        zones: builtins.list[DNSZone], limit: int | None, offset: int | None
+    ) -> builtins.list[DNSZone]:
+        """Apply limit/offset client-side (zones aggregate across views)."""
+        start = offset or 0
+        end = start + limit if limit is not None else None
+        return zones[start:end]
 
     def _list_for_view(
         self,
         view_key: int,
         view_name: str | None,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         domain: str | None = None,
         zone_type: ZoneType | None = None,
     ) -> builtins.list[DNSZone]:
@@ -604,7 +630,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             filters.append(f"domain eq {quote_value(domain)}")
 
         if zone_type:
-            filters.append(f"type eq '{zone_type}'")
+            filters.append(f"type eq {quote_value(zone_type)}")
 
         if filter:
             filters.append(f"({filter})")
@@ -613,7 +639,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "+domain",
         }
 
@@ -632,7 +658,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         key: int | None = None,
         *,
         domain: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> DNSZone:
         """Get a DNS zone by key or domain.
 
@@ -652,7 +678,7 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS zone {key} not found")

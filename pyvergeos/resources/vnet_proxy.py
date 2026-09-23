@@ -6,7 +6,8 @@ import builtins
 from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -39,17 +40,6 @@ class VnetProxyTenant(ResourceObject):
     def proxy_key(self) -> int:
         """Get the parent proxy configuration key."""
         return int(self.get("proxy", 0))
-
-    def refresh(self) -> VnetProxyTenant:
-        """Refresh this tenant mapping from the API.
-
-        Returns:
-            Updated VnetProxyTenant instance.
-        """
-        manager = self._manager
-        if not isinstance(manager, VnetProxyTenantManager):
-            raise TypeError("Manager must be VnetProxyTenantManager")
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> VnetProxyTenant:
         """Save changes to this tenant mapping.
@@ -118,7 +108,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -163,7 +153,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
         *,
         fqdn: str | None = None,
         tenant: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VnetProxyTenant:
         """Get a proxy tenant mapping by key, FQDN, or tenant.
 
@@ -194,7 +184,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
             # Direct key lookup - verify it belongs to this proxy
             params = {
                 "filter": f"$key eq {key} and proxy eq {self._proxy.key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if not response:
@@ -208,7 +198,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
         # Build filter for other lookups
         filter_parts = [f"proxy eq {self._proxy.key}"]
         if fqdn is not None:
-            filter_parts.append(f"fqdn eq '{fqdn}'")
+            filter_parts.append(f"fqdn eq {quote_value(fqdn)}")
         elif tenant is not None:
             filter_parts.append(f"tenant eq {tenant}")
         else:
@@ -216,7 +206,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
 
         params = {
             "filter": " and ".join(filter_parts),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
         }
         response = self._client._request("GET", self._endpoint, params=params)
         if not response:
@@ -360,17 +350,6 @@ class VnetProxy(ResourceObject):
         """
         return VnetProxyTenantManager(self._manager._client, self)
 
-    def refresh(self) -> VnetProxy:
-        """Refresh this proxy configuration from the API.
-
-        Returns:
-            Updated VnetProxy instance.
-        """
-        manager = self._manager
-        if not isinstance(manager, VnetProxyManager):
-            raise TypeError("Manager must be VnetProxyManager")
-        return manager.get(self.key)
-
     def save(
         self,
         listen_address: str | None = None,
@@ -481,7 +460,7 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VnetProxy:
         """Get the proxy configuration for this network.
 
@@ -511,13 +490,13 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             # Verify it belongs to this network
             params = {
                 "filter": f"$key eq {key} and vnet eq {self._network.key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
         else:
             # Get by network
             params = {
                 "filter": f"vnet eq {self._network.key}",
-                "fields": ",".join(fields),
+                "fields": normalize_fields(fields),
             }
 
         response = self._client._request("GET", self._endpoint, params=params)

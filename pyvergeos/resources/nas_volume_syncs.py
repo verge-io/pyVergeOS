@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -68,17 +73,6 @@ class NASVolumeSync(ResourceObject):
         if k is None:
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
-
-    def refresh(self) -> NASVolumeSync:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated NASVolumeSync object.
-        """
-        from typing import cast
-
-        manager = cast("NASVolumeSyncManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> NASVolumeSync:
         """Save changes to resource.
@@ -254,7 +248,7 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         service: int | str | None = None,
@@ -327,7 +321,7 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -353,7 +347,7 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         *,
         name: str | None = None,
         service: int | str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASVolumeSync:
         """Get a single volume sync by key or name.
 
@@ -383,10 +377,10 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -426,8 +420,8 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         source_path: str | None = None,
         destination_path: str | None = None,
         description: str | None = None,
-        include: builtins.list[str] | None = None,
-        exclude: builtins.list[str] | None = None,
+        include: str | builtins.list[str] | None = None,
+        exclude: str | builtins.list[str] | None = None,
         sync_method: str = "ysync",
         destination_delete: str = "never",
         workers: int = 4,
@@ -578,10 +572,10 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
             body["description"] = description
 
         if include:
-            body["include"] = "\n".join(include)
+            body["include"] = serialize_list(include, "\n")
 
         if exclude:
-            body["exclude"] = "\n".join(exclude)
+            body["exclude"] = serialize_list(exclude, "\n")
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 
@@ -601,8 +595,8 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         description: str | None = None,
         source_path: str | None = None,
         destination_path: str | None = None,
-        include: builtins.list[str] | None = None,
-        exclude: builtins.list[str] | None = None,
+        include: str | builtins.list[str] | None = None,
+        exclude: str | builtins.list[str] | None = None,
         sync_method: str | None = None,
         destination_delete: str | None = None,
         workers: int | None = None,
@@ -660,10 +654,10 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
             body["destination_path"] = destination_path
 
         if include is not None:
-            body["include"] = "\n".join(include) if include else ""
+            body["include"] = serialize_list(include, "\n") or ""
 
         if exclude is not None:
-            body["exclude"] = "\n".join(exclude) if exclude else ""
+            body["exclude"] = serialize_list(exclude, "\n") or ""
 
         if sync_method is not None:
             sync_method_map = {

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -54,17 +54,6 @@ class NASUser(ResourceObject):
         if k is None:
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
-
-    def refresh(self) -> NASUser:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated NASUser object.
-        """
-        from typing import cast
-
-        manager = cast("NASUserManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> NASUser:
         """Save changes to resource.
@@ -232,7 +221,7 @@ class NASUserManager(ResourceManager["NASUser"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         service: int | str | None = None,
@@ -287,7 +276,7 @@ class NASUserManager(ResourceManager["NASUser"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -313,7 +302,7 @@ class NASUserManager(ResourceManager["NASUser"]):
         *,
         name: str | None = None,
         service: int | str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASUser:
         """Get a single NAS user by key or name.
 
@@ -340,10 +329,10 @@ class NASUserManager(ResourceManager["NASUser"]):
         if key is not None:
             # Fetch by key using filter (keys are hex strings)
             params: dict[str, Any] = {
-                "filter": f"$key eq '{key}'",
+                "filter": f"$key eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

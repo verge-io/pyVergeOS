@@ -8,8 +8,8 @@ import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -222,7 +222,7 @@ class QueryManager(ResourceManager[QueryResult]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -244,10 +244,12 @@ class QueryManager(ResourceManager[QueryResult]):
         parent_filter = f"{self._parent_field} eq {self._parent_key}"
         if filter:
             parent_filter = f"{parent_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(parent_filter, filter_kwargs)
 
         params: dict[str, Any] = {
-            "filter": parent_filter,
-            "fields": ",".join(fields),
+            "filter": combined_filter,
+            "fields": normalize_fields(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -266,7 +268,7 @@ class QueryManager(ResourceManager[QueryResult]):
         key: str | int | None = None,
         *,
         query_id: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> QueryResult:
         """Get a query by key or query ID.
 
@@ -286,7 +288,7 @@ class QueryManager(ResourceManager[QueryResult]):
             fields = QUERY_DEFAULT_FIELDS
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Query {key} not found")

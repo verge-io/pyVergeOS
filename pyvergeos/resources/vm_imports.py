@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -54,17 +54,6 @@ class VmImport(ResourceObject):
         if k is None:
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
-
-    def refresh(self) -> VmImport:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated VmImport object.
-        """
-        from typing import cast
-
-        manager = cast("VmImportManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> VmImport:
         """Save changes to resource.
@@ -233,7 +222,7 @@ class VmImportManager(ResourceManager["VmImport"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         status: str | None = None,
@@ -273,14 +262,14 @@ class VmImportManager(ResourceManager["VmImport"]):
 
         # Add status filter
         if status:
-            filters.append(f"status eq '{status}'")
+            filters.append(f"status eq {quote_value(status)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -305,7 +294,7 @@ class VmImportManager(ResourceManager["VmImport"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VmImport:
         """Get a single VM import by key or name.
 
@@ -331,10 +320,10 @@ class VmImportManager(ResourceManager["VmImport"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -639,7 +628,7 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         level: str | None = None,
@@ -685,18 +674,18 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
             import_key = vm_import
 
         if import_key is not None:
-            filters.append(f"vm_import eq '{import_key}'")
+            filters.append(f"vm_import eq {quote_value(import_key)}")
 
         # Add level filter
         if level:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -720,7 +709,7 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VmImportLog:
         """Get a single VM import log entry by key.
 
@@ -741,7 +730,7 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

@@ -163,17 +163,6 @@ class Tenant(ResourceObject):
         result = self._manager._client._request("POST", "tenant_actions", json_data=body)
         return result if isinstance(result, dict) else None
 
-    def refresh(self) -> Tenant:
-        """Refresh tenant data from API.
-
-        Returns:
-            Updated Tenant object.
-        """
-        from typing import cast
-
-        manager = cast("TenantManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> Tenant:
         """Save changes to tenant.
 
@@ -742,7 +731,7 @@ class TenantManager(ResourceManager[Tenant]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         include_snapshots: bool = False,
@@ -783,7 +772,7 @@ class TenantManager(ResourceManager[Tenant]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Tenant:
         """Get a single tenant by key or name.
 

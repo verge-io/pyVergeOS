@@ -44,7 +44,13 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    normalize_fields,
+    serialize_list,
+    split_fields,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -124,7 +130,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         oidc_application: int | None = None,
@@ -164,7 +170,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -187,7 +193,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OidcApplicationUser:
         """Get a single user ACL entry by key.
 
@@ -207,7 +213,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -338,7 +344,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         oidc_application: int | None = None,
@@ -378,7 +384,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -401,7 +407,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OidcApplicationGroup:
         """Get a single group ACL entry by key.
 
@@ -421,7 +427,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -551,7 +557,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         oidc_application: int | None = None,
@@ -591,13 +597,13 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -623,7 +629,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> OidcApplicationLog:
         """Get a single log entry by key.
 
@@ -643,7 +649,7 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -854,17 +860,6 @@ class OidcApplication(ResourceObject):
         manager = cast("OidcApplicationManager", self._manager)
         return manager.update(self.key, enabled=False)
 
-    def refresh(self) -> OidcApplication:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated OidcApplication object.
-        """
-        from typing import cast
-
-        manager = cast("OidcApplicationManager", self._manager)
-        return manager.get(self.key)
-
     def save(self, **kwargs: Any) -> OidcApplication:
         """Save changes to resource.
 
@@ -940,7 +935,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         enabled: bool | None = None,
@@ -987,7 +982,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1012,7 +1007,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         include_secret: bool = False,
         include_well_known: bool = False,
     ) -> OidcApplication:
@@ -1044,7 +1039,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
             >>> print(app.client_secret)
         """
         # Determine which fields to request
-        request_fields = list(fields) if fields else list(self._default_fields)
+        request_fields = split_fields(fields) or list(self._default_fields)
         if include_secret and "client_secret" not in request_fields:
             request_fields.append("client_secret")
         if include_well_known and "well_known_configuration" not in request_fields:
@@ -1129,20 +1124,23 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
 
         # Handle redirect URIs
         if redirect_uri is not None:
-            if isinstance(redirect_uri, list):
-                body["redirect_uri"] = "\n".join(redirect_uri)
-            else:
-                body["redirect_uri"] = redirect_uri
+            body["redirect_uri"] = serialize_list(redirect_uri, "\n")
 
         if description is not None:
             body["description"] = description
 
-        body["force_auth_source"] = force_auth_source if force_auth_source is not None else 0
+        # Both fields are required by the API but are resolved as row
+        # references, and 0 is not a valid row: VergeOS answers HTTP 404
+        # "error setting field ... No such file or directory". null is the
+        # accepted "not set" value, so coercing None to 0 made create()
+        # fail on any system without auth source / user key 0 -- that is,
+        # any normal system (issue #107).
+        body["force_auth_source"] = force_auth_source
 
         if restrict_access:
             body["restrict_access"] = restrict_access
 
-        body["map_user"] = map_user if map_user is not None else 0
+        body["map_user"] = map_user
 
         response = self._client._request("POST", self._endpoint, json_data=body)
 
@@ -1209,10 +1207,7 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
             body["name"] = name
 
         if redirect_uri is not None:
-            if isinstance(redirect_uri, list):
-                body["redirect_uri"] = "\n".join(redirect_uri)
-            else:
-                body["redirect_uri"] = redirect_uri
+            body["redirect_uri"] = serialize_list(redirect_uri, "\n")
 
         if description is not None:
             body["description"] = description

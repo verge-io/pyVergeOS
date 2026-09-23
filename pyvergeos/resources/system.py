@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -102,8 +102,10 @@ class SettingsManager(ResourceManager[SystemSetting]):
     def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         key_contains: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **filter_kwargs: Any,
     ) -> builtins.list[SystemSetting]:
         """List system settings.
@@ -132,17 +134,19 @@ class SettingsManager(ResourceManager[SystemSetting]):
         if filter:
             filters.append(filter)
         if key_contains:
-            filters.append(f"key ct '{key_contains}'")
+            filters.append(f"key ct {quote_value(key_contains)}")
 
         combined_filter = " and ".join(filters) if filters else None
 
-        return super().list(filter=combined_filter, fields=fields, **filter_kwargs)
+        return super().list(
+            filter=combined_filter, fields=fields, limit=limit, offset=offset, **filter_kwargs
+        )
 
     def get(  # type: ignore[override]
         self,
         key: str | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> SystemSetting:
         """Get a system setting by key.
 
@@ -170,8 +174,8 @@ class SettingsManager(ResourceManager[SystemSetting]):
 
         # Settings uses 'key' as the keyfield, not $key
         params: dict[str, Any] = {
-            "filter": f"key eq '{key}'",
-            "fields": ",".join(fields),
+            "filter": f"key eq {quote_value(key)}",
+            "fields": normalize_fields(fields),
         }
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -219,7 +223,7 @@ class SettingsManager(ResourceManager[SystemSetting]):
         # First, we need to get the setting to find its row key
         # Settings uses 'key' as the keyfield, so we filter by it
         params: dict[str, Any] = {
-            "filter": f"key eq '{key}'",
+            "filter": f"key eq {quote_value(key)}",
             "fields": "all",
         }
 
@@ -410,8 +414,10 @@ class LicenseManager(ResourceManager[License]):
     def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         name: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **filter_kwargs: Any,
     ) -> builtins.list[License]:
         """List licenses.
@@ -456,14 +462,16 @@ class LicenseManager(ResourceManager[License]):
 
         combined_filter = " and ".join(filters) if filters else None
 
-        return super().list(filter=combined_filter, fields=fields, **filter_kwargs)
+        return super().list(
+            filter=combined_filter, fields=fields, limit=limit, offset=offset, **filter_kwargs
+        )
 
     def get(
         self,
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> License:
         """Get a license by key or name.
 
@@ -1328,17 +1336,6 @@ class SystemDiagnostic(ResourceObject):
             return datetime.fromtimestamp(int(ts), tz=timezone.utc)
         return None
 
-    def refresh(self) -> SystemDiagnostic:
-        """Refresh diagnostic data from API.
-
-        Returns:
-            Updated SystemDiagnostic object.
-        """
-        from typing import cast
-
-        manager = cast("SystemDiagnosticManager", self._manager)
-        return manager.get(self.key)
-
     def send_to_support(self) -> None:
         """Send this diagnostic report to Verge.io support.
 
@@ -1434,7 +1431,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -1476,7 +1473,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
         if filter:
             filters.append(filter)
         if status:
-            filters.append(f"status eq '{status}'")
+            filters.append(f"status eq {quote_value(status)}")
 
         combined_filter = " and ".join(filters) if filters else None
 
@@ -1489,7 +1486,7 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
         )
 
     def get(  # type: ignore[override]
-        self, key: int, *, fields: builtins.list[str] | None = None
+        self, key: int, *, fields: str | builtins.list[str] | None = None
     ) -> SystemDiagnostic:
         """Get a diagnostic report by key.
 
@@ -1779,7 +1776,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1821,7 +1818,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
         )
 
     def get(  # type: ignore[override]
-        self, key: int, *, fields: builtins.list[str] | None = None
+        self, key: int, *, fields: str | builtins.list[str] | None = None
     ) -> RootCertificate:
         """Get a root certificate by key.
 
@@ -1861,7 +1858,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
         Raises:
             NotFoundError: If certificate not found.
         """
-        results = self.list(filter=f"subject ct '{subject}'", limit=1)
+        results = self.list(filter=f"subject ct {quote_value(subject)}", limit=1)
         if not results:
             from pyvergeos.exceptions import NotFoundError
 
@@ -1880,7 +1877,7 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
         Raises:
             NotFoundError: If certificate not found.
         """
-        results = self.list(filter=f"fingerprint eq '{fingerprint}'", limit=1)
+        results = self.list(filter=f"fingerprint eq {quote_value(fingerprint)}", limit=1)
         if not results:
             from pyvergeos.exceptions import NotFoundError
 

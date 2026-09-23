@@ -34,6 +34,13 @@ from pyvergeos.resources.vm_recipes import VmRecipeInstanceManager, VmRecipeMana
         (r"C:\O'Brien\share", r"name eq 'C:\\O\'Brien\\share'"),
         ("trailing\\", r"name eq 'trailing\\'"),
         ("literal*?", "name eq 'literal*?'"),
+        # '{' is reserved by the literal grammar (issue #100): unescaped, a
+        # balanced {...} is consumed and the lookup silently resolves to a
+        # different row.
+        ("br{x}ace", r"name eq 'br\{x}ace'"),
+        ("{lead", r"name eq '\{lead'"),
+        ("trail}", "name eq 'trail}'"),
+        ("O'Brien{x}", r"name eq 'O\'Brien\{x}'"),
     ],
 )
 def test_get_by_name_quotes_literal(manager_type: Any, name: str, expected: str) -> None:
@@ -60,7 +67,8 @@ def test_task_name_search_quotes_literal(
 
     manager.list(name=name + ("*" if wildcard else ""))
 
-    op = "ct" if wildcard else "eq"
+    # A trailing '*' is a prefix match, so it maps to bw, not a contains (#103).
+    op = "bw" if wildcard else "eq"
     expected = rf"name {op} 'O\'Brien\\share'"
     assert expected in mock_client._request.call_args.kwargs["params"]["filter"]
 
@@ -119,3 +127,118 @@ def test_node_filters_quote_name_and_cluster(mock_client: Any) -> None:
     expression = mock_client._request.call_args.kwargs["params"]["filter"]
     assert r"name eq 'O\'Brien\\node'" in expression
     assert r"cluster#name eq 'O\'Brien\\cluster'" in expression
+
+
+@pytest.mark.parametrize(
+    "manager_name", ["tasks", "task_scripts", "task_schedules", "cloudinit_files"]
+)
+@pytest.mark.parametrize("pattern", ["*", "?", "**"])
+def test_all_wildcard_name_still_sends_a_filter(
+    mock_client: Any, manager_name: str, pattern: str
+) -> None:
+    """An all-wildcard name must not drop the filter entirely (#103 / #104).
+
+    These managers stripped '*' and '?' from the name and appended a filter
+    only ``if search_term:`` - so a name of ``"*"`` left no name condition at
+    all and returned every row, the fail-open shape of #96.
+    """
+    mock_client._request = MagicMock(return_value=[])
+    manager = getattr(mock_client, manager_name)
+
+    manager.list(name=pattern)
+
+    sent = mock_client._request.call_args.kwargs["params"].get("filter", "")
+    assert "name " in sent, f"{manager_name} dropped the name filter for {pattern!r}"
+
+
+@pytest.mark.parametrize(
+    "manager_name", ["tasks", "task_scripts", "task_schedules", "cloudinit_files"]
+)
+def test_prefix_wildcard_is_not_a_contains(mock_client: Any, manager_name: str) -> None:
+    """``name="Backup*"`` is a prefix match, not a contains match (#103 / #104)."""
+    mock_client._request = MagicMock(return_value=[])
+    manager = getattr(mock_client, manager_name)
+
+    manager.list(name="Backup*")
+
+    sent = mock_client._request.call_args.kwargs["params"]["filter"]
+    assert "name bw 'Backup'" in sent
+    assert " ct " not in sent
+
+
+# ---------------------------------------------------------------------------
+# Issue #115: sites that previously interpolated the value into the literal
+# ---------------------------------------------------------------------------
+#
+# These 91 conditions never called quote_value(), so an apostrophe broke out
+# of the literal and the remainder was evaluated as filter grammar. Measured
+# live before the fix: list(key_contains="zzzz' or key ne 'zzzz") returned
+# the whole table instead of zero rows.
+
+HOSTILE_VALUES = [
+    ("O'Brien", r"'O\'Brien'"),
+    ("zzzz' or key ne 'zzzz", r"'zzzz\' or key ne \'zzzz'"),
+    ("br{x}ace", r"'br\{x}ace'"),
+    (r"back\slash", r"'back\\slash'"),
+    ("plain", "'plain'"),
+]
+
+
+def _filter_of(client: MagicMock) -> str:
+    call = client._request.call_args
+    params = call.kwargs.get("params") or {}
+    return str(params.get("filter", ""))
+
+
+@pytest.mark.parametrize(("value", "literal"), HOSTILE_VALUES)
+def test_settings_key_contains_is_quoted(value: str, literal: str) -> None:
+    from pyvergeos.resources.system import SettingsManager
+
+    client = MagicMock()
+    client._request.return_value = []
+    SettingsManager(client).list(key_contains=value)
+    assert f"key ct {literal}" in _filter_of(client)
+
+
+@pytest.mark.parametrize(("value", "literal"), HOSTILE_VALUES)
+def test_root_certificate_subject_is_quoted(value: str, literal: str) -> None:
+    from pyvergeos.exceptions import NotFoundError
+    from pyvergeos.resources.system import RootCertificateManager
+
+    client = MagicMock()
+    client._request.return_value = []
+    with pytest.raises(NotFoundError):
+        RootCertificateManager(client).get_by_subject(value)
+    assert f"subject ct {literal}" in _filter_of(client)
+
+
+@pytest.mark.parametrize(("value", "literal"), HOSTILE_VALUES)
+def test_task_list_by_action_is_quoted(value: str, literal: str) -> None:
+    from pyvergeos.resources.tasks import TaskManager
+
+    client = MagicMock()
+    client._request.return_value = []
+    TaskManager(client).list_by_action(value)
+    assert f"action eq {literal}" in _filter_of(client)
+
+
+@pytest.mark.parametrize(("value", "literal"), HOSTILE_VALUES)
+def test_network_rules_direction_is_quoted(value: str, literal: str) -> None:
+    from pyvergeos.resources.rules import NetworkRuleManager
+
+    client = MagicMock()
+    client._request.return_value = []
+    network = MagicMock()
+    network.key = 1
+    NetworkRuleManager(client, network).list(direction=value)
+    assert f"direction eq {literal}" in _filter_of(client)
+
+
+@pytest.mark.parametrize(("value", "literal"), HOSTILE_VALUES)
+def test_task_events_table_is_quoted(value: str, literal: str) -> None:
+    from pyvergeos.resources.task_events import TaskEventManager
+
+    client = MagicMock()
+    client._request.return_value = []
+    TaskEventManager(client).list(table=value)
+    assert f"table eq {literal}" in _filter_of(client)

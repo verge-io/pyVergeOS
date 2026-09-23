@@ -31,8 +31,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -430,7 +430,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
     def _to_history_model(self, data: dict[str, Any]) -> TenantStatsHistory:
         return TenantStatsHistory(data, self)
 
-    def get(self, fields: builtins.list[str] | None = None) -> TenantStats:  # type: ignore[override]
+    def get(self, fields: str | builtins.list[str] | None = None) -> TenantStats:  # type: ignore[override]
         """Get current tenant statistics.
 
         Args:
@@ -447,7 +447,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
 
         params: dict[str, Any] = {
             "filter": f"tenant eq {self._tenant_key}",
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "limit": 1,
         }
 
@@ -469,7 +469,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[TenantStatsHistory]:
         """Get short-term stats history (high resolution).
 
@@ -498,7 +498,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[TenantStatsHistory]:
         """Get long-term stats history (lower resolution, longer retention).
 
@@ -528,7 +528,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
         offset: int | None = None,
         since: datetime | int | None = None,
         until: datetime | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> builtins.list[TenantStatsHistory]:
         """Internal helper to get history from short or long endpoint."""
         if fields is None:
@@ -547,7 +547,7 @@ class TenantStatsManager(ResourceManager[TenantStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "-timestamp",
         }
 
@@ -681,7 +681,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -719,7 +719,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
             filters.append(filter)
 
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
         elif errors_only:
             filters.append("(level eq 'error' or level eq 'critical')")
         elif warnings_only:
@@ -745,7 +745,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(fields),
+            "fields": normalize_fields(fields),
             "sort": "-timestamp",
         }
 
@@ -768,7 +768,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantLog:
         """Get a specific log entry by key.
 
@@ -789,7 +789,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": ",".join(fields)}
+        params: dict[str, Any] = {"fields": normalize_fields(fields)}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:

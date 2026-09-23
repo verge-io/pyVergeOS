@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -56,17 +56,6 @@ class NASNFSShare(ResourceObject):
         if k is None:
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
-
-    def refresh(self) -> NASNFSShare:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated NASNFSShare object.
-        """
-        from typing import cast
-
-        manager = cast("NASNFSShareManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> NASNFSShare:
         """Save changes to resource.
@@ -192,7 +181,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         volume: str | int | None = None,
@@ -247,7 +236,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -273,7 +262,7 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
         *,
         name: str | None = None,
         volume: str | int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> NASNFSShare:
         """Get a single NFS share by key or name.
 
@@ -300,10 +289,10 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -648,7 +637,11 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
             vol_response = self._client._request(
                 "GET",
                 "volumes",
-                params={"filter": f"id eq '{volume}'", "fields": "$key,id,name", "limit": "1"},
+                params={
+                    "filter": f"id eq {quote_value(volume)}",
+                    "fields": "$key,id,name",
+                    "limit": "1",
+                },
             )
             if vol_response:
                 if isinstance(vol_response, list):

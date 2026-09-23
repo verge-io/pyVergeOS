@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -916,7 +916,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -959,7 +959,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -987,7 +987,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         key: int | None = None,
         *,
         tier: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> ClusterTier:
         """Get a cluster tier by key or tier number.
 
@@ -1012,7 +1012,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
             if fields is None:
                 fields = self._default_fields
 
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
             if response is None:

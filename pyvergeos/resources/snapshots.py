@@ -7,8 +7,8 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -142,10 +142,12 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
     def _to_model(self, data: dict[str, Any]) -> VMSnapshot:
         return VMSnapshot(data, self)
 
-    def list(  # type: ignore[override]  # noqa: A003
+    def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
-        fields: list[str] | None = None,
+        fields: str | list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> list[VMSnapshot]:
         """List snapshots for this VM.
@@ -165,12 +167,18 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         machine_filter = f"machine eq {self.machine_key}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(machine_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": machine_filter,
-            "fields": ",".join(fields),
+            "filter": combined_filter,
+            "fields": normalize_fields(fields),
             "sort": "-created",  # Most recent first
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -187,7 +195,7 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VMSnapshot:
         """Get a snapshot by key or name.
 
@@ -207,7 +215,7 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError

@@ -6,8 +6,8 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -186,10 +186,12 @@ class TenantNodeManager(ResourceManager[TenantNode]):
     def _to_model(self, data: dict[str, Any]) -> TenantNode:
         return TenantNode(data, self)
 
-    def list(  # type: ignore[override]
+    def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
         **kwargs: Any,
     ) -> builtins.list[TenantNode]:
         """List nodes for this tenant.
@@ -209,11 +211,17 @@ class TenantNodeManager(ResourceManager[TenantNode]):
         tenant_filter = f"tenant eq {self._tenant.key}"
         if filter:
             tenant_filter = f"{tenant_filter} and ({filter})"
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        combined_filter = combine_filters(tenant_filter, kwargs)
 
         params: dict[str, Any] = {
-            "filter": tenant_filter,
-            "fields": ",".join(fields),
+            "filter": combined_filter,
+            "fields": normalize_fields(fields),
         }
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         response = self._client._request("GET", self._endpoint, params=params)
 
@@ -230,7 +238,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TenantNode:
         """Get a node by key or name.
 
@@ -252,7 +260,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Tenant node {key} not found")

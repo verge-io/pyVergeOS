@@ -149,7 +149,8 @@ class TestTaskScriptManagerList:
 
         assert len(scripts) == 2
         call_args = mock_session.request.call_args
-        assert "name ct 'Backup'" in str(call_args)
+        # prefix match, not contains (#103)
+        assert "name bw 'Backup'" in str(call_args)
 
     def test_list_scripts_with_pagination(
         self, mock_client: VergeClient, mock_session: MagicMock

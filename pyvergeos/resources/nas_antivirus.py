@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -332,7 +332,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         volume: str | None = None,
@@ -393,7 +393,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         if volume_key is not None:
             # Volume keys are 40-char hex strings
-            filters.append(f"volume eq '{volume_key}'")
+            filters.append(f"volume eq {quote_value(volume_key)}")
 
         # Add enabled filter
         if enabled is not None:
@@ -404,7 +404,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -429,7 +429,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         key: int | None = None,
         *,
         volume: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> VolumeAntivirus:
         """Get a single volume antivirus configuration.
 
@@ -457,7 +457,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -492,7 +492,9 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
                     if vol_response:
                         volume_key = vol_response.get("$key")
 
-            results = self.list(filter=f"volume eq '{volume_key}'", fields=fields, limit=1)
+            results = self.list(
+                filter=f"volume eq {quote_value(str(volume_key))}", fields=fields, limit=1
+            )
             if not results:
                 raise NotFoundError(f"Volume antivirus config not found for volume {volume_key}")
             return results[0]
@@ -744,7 +746,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -773,7 +775,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -865,7 +867,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -894,7 +896,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -948,7 +950,7 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
     def list(  # noqa: A002
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -985,7 +987,7 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1039,7 +1041,7 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
     def list(  # noqa: A002
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         level: str | None = None,
@@ -1076,13 +1078,13 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1182,7 +1184,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -1211,7 +1213,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             params["filter"] = " and ".join(filters)
 
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 

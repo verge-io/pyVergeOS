@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import combine_filters, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -376,7 +376,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -404,12 +404,16 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         filters = [f"ipsec eq {ipsec_key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         # Default fields
         if fields is None:
             fields = DEFAULT_CONNECTION_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -434,7 +438,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> IPSecConnection:
         """Get a single IPSec connection by key or name.
 
@@ -455,7 +459,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             fields = DEFAULT_CONNECTION_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -724,7 +728,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -747,12 +751,16 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         filters = [f"phase1 eq {self._connection.key}"]
         if filter:
             filters.append(filter)
+        # Merge shorthand kwargs instead of silently dropping them (issue #96)
+        extra = combine_filters(None, filter_kwargs)
+        if extra:
+            filters.append(extra)
         params["filter"] = " and ".join(filters)
 
         # Default fields
         if fields is None:
             fields = DEFAULT_POLICY_FIELDS.copy()
-        params["fields"] = ",".join(fields)
+        params["fields"] = normalize_fields(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -777,7 +785,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> IPSecPolicy:
         """Get a single Phase 2 policy by key or name.
 
@@ -798,7 +806,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             fields = DEFAULT_POLICY_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(fields)}
+            params: dict[str, Any] = {"fields": normalize_fields(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

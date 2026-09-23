@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -384,7 +384,7 @@ class AlarmManager(ResourceManager[Alarm]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -436,9 +436,9 @@ class AlarmManager(ResourceManager[Alarm]):
         # Level filter
         if level:
             if isinstance(level, str):
-                conditions.append(f"level eq '{level.lower()}'")
+                conditions.append(f"level eq {quote_value(level.lower())}")
             else:
-                level_filters = [f"level eq '{lv.lower()}'" for lv in level]
+                level_filters = [f"level eq {quote_value(lv.lower())}" for lv in level]
                 if len(level_filters) == 1:
                     conditions.append(level_filters[0])
                 else:
@@ -447,7 +447,7 @@ class AlarmManager(ResourceManager[Alarm]):
         # Owner type filter
         if owner_type:
             api_owner_type = OWNER_TYPE_MAP.get(owner_type, owner_type)
-            conditions.append(f"owner_type eq '{api_owner_type}'")
+            conditions.append(f"owner_type eq {quote_value(api_owner_type)}")
 
         # Active (non-snoozed) filter - default behavior
         if not include_snoozed:
@@ -469,7 +469,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -559,7 +559,7 @@ class AlarmManager(ResourceManager[Alarm]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Alarm:
         """Get an alarm by key.
 
@@ -586,7 +586,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if fields is None:
             fields = _DEFAULT_ALARM_FIELDS
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -701,7 +701,7 @@ class AlarmManager(ResourceManager[Alarm]):
     def list_history(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -736,9 +736,9 @@ class AlarmManager(ResourceManager[Alarm]):
         # Level filter
         if level:
             if isinstance(level, str):
-                conditions.append(f"level eq '{level.lower()}'")
+                conditions.append(f"level eq {quote_value(level.lower())}")
             else:
-                level_filters = [f"level eq '{lv.lower()}'" for lv in level]
+                level_filters = [f"level eq {quote_value(lv.lower())}" for lv in level]
                 if len(level_filters) == 1:
                     conditions.append(level_filters[0])
                 else:
@@ -759,7 +759,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -782,7 +782,7 @@ class AlarmManager(ResourceManager[Alarm]):
         self,
         key: int,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> AlarmHistory:
         """Get an alarm history entry by key.
 
@@ -800,7 +800,7 @@ class AlarmManager(ResourceManager[Alarm]):
         if fields is None:
             fields = _DEFAULT_HISTORY_FIELDS
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
 
         response = self._client._request("GET", f"alarm_history/{key}", params=params)
         if response is None:

@@ -6,7 +6,7 @@ import builtins
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, serialize_list
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -146,7 +146,8 @@ class Network(ResourceObject):
         """Power off the network.
 
         Args:
-            force: Force immediate power off (killpower) instead of graceful.
+            force: If True, immediately terminates the network (``kill``).
+                If False (default), requests a graceful shutdown (``poweroff``).
 
         Returns:
             Self for chaining.
@@ -154,7 +155,10 @@ class Network(ResourceObject):
         manager = self._manager
         if not isinstance(manager, NetworkManager):
             raise TypeError("Manager must be NetworkManager")
-        action = "killpower" if force else "poweroff"
+        # 'kill' = immediate termination, 'poweroff' = graceful shutdown.
+        # 'killpower' is not a valid vnet action and is rejected by the
+        # platform, so forced power off never worked (issue #112, cf. #42).
+        action = "kill" if force else "poweroff"
         manager._power_action(self.key, action)
         return self
 
@@ -826,7 +830,7 @@ class NetworkManager(ResourceManager[Network]):
 
         Args:
             key: Network $key (ID).
-            action: Power action (poweron, poweroff, killpower, reset).
+            action: Power action (poweron, poweroff, kill, reset).
             **params: Action parameters (e.g., apply=True).
 
         Returns:
@@ -843,7 +847,7 @@ class NetworkManager(ResourceManager[Network]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         **filter_kwargs: Any,
@@ -879,7 +883,7 @@ class NetworkManager(ResourceManager[Network]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Network:
         """Get a single network by key or name.
 
@@ -941,7 +945,7 @@ class NetworkManager(ResourceManager[Network]):
         dhcp_start: str | None = None,
         dhcp_stop: str | None = None,
         dns: str = "simple",
-        dns_servers: builtins.list[str] | None = None,
+        dns_servers: str | builtins.list[str] | None = None,
         domain: str | None = None,
         mtu: int | None = None,
         layer2_type: str = "vxlan",
@@ -998,7 +1002,7 @@ class NetworkManager(ResourceManager[Network]):
         if dhcp_stop:
             data["dhcp_stop"] = dhcp_stop
         if dns_servers:
-            data["dnslist"] = ",".join(dns_servers)
+            data["dnslist"] = serialize_list(dns_servers)
         if domain:
             data["domain"] = domain
         if mtu:

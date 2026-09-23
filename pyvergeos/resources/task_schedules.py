@@ -55,8 +55,8 @@ import builtins
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -319,7 +319,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -337,7 +337,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
             offset: Skip this many results.
             enabled: Filter by enabled state.
             repeat_every: Filter by repeat interval.
-            name: Filter by name.
+            name: Filter by name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -365,15 +365,10 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
             filters.append(f"enabled eq {str(enabled).lower()}")
 
         if repeat_every is not None:
-            filters.append(f"repeat_every eq '{repeat_every}'")
+            filters.append(f"repeat_every eq {quote_value(repeat_every)}")
 
         if name is not None:
-            if "*" in name or "?" in name:
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    filters.append(f"name ct {quote_value(search_term)}")
-            else:
-                filters.append(f"name eq {quote_value(name)}")
+            filters.append(wildcard_condition("name", name))
 
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
@@ -383,7 +378,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -408,7 +403,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> TaskSchedule:
         """Get a task schedule by key or name.
 
@@ -427,7 +422,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -721,7 +716,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
 
     def list_enabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[TaskSchedule]:
         """List enabled schedules.
@@ -737,7 +732,7 @@ class TaskScheduleManager(ResourceManager[TaskSchedule]):
 
     def list_disabled(
         self,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
     ) -> builtins.list[TaskSchedule]:
         """List disabled schedules.

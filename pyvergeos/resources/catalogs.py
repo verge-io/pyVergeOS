@@ -41,7 +41,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -122,7 +122,7 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         repository: int | None = None,
@@ -163,7 +163,7 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -187,7 +187,7 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CatalogRepositoryStatus:
         """Get a single status record by key.
 
@@ -207,7 +207,7 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -309,7 +309,7 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         catalog_repository: int | None = None,
@@ -349,14 +349,14 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -383,7 +383,7 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CatalogRepositoryLog:
         """Get a single log entry by key.
 
@@ -403,7 +403,7 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -519,7 +519,7 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         catalog: str | None = None,
@@ -555,18 +555,18 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
             cat_key = catalog
 
         if cat_key is not None:
-            filters.append(f"catalog eq '{cat_key}'")
+            filters.append(f"catalog eq {quote_value(cat_key)}")
 
         # Add level filter
         if level is not None:
-            filters.append(f"level eq '{level}'")
+            filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -593,7 +593,7 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
         self,
         key: int | None = None,
         *,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CatalogLog:
         """Get a single log entry by key.
 
@@ -613,7 +613,7 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -696,17 +696,6 @@ class Catalog(ResourceObject):
         if k is None:
             raise ValueError("Resource has no $key - may not be persisted")
         return str(k)
-
-    def refresh(self) -> Catalog:
-        """Refresh resource data from API.
-
-        Returns:
-            Updated Catalog object.
-        """
-        from typing import cast
-
-        manager = cast("CatalogManager", self._manager)
-        return manager.get(self.key)
 
     def save(self, **kwargs: Any) -> Catalog:
         """Save changes to resource.
@@ -796,7 +785,7 @@ class CatalogManager(ResourceManager["Catalog"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         repository: int | None = None,
@@ -853,7 +842,7 @@ class CatalogManager(ResourceManager["Catalog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -878,7 +867,7 @@ class CatalogManager(ResourceManager["Catalog"]):
         key: str | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> Catalog:
         """Get a single catalog by key or name.
 
@@ -904,10 +893,10 @@ class CatalogManager(ResourceManager["Catalog"]):
         if key is not None:
             # Fetch by key using id filter
             params: dict[str, Any] = {
-                "filter": f"id eq '{key}'",
+                "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 
@@ -1222,7 +1211,7 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         type: str | None = None,
@@ -1264,7 +1253,7 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
 
         # Add type filter
         if type is not None:
-            filters.append(f"type eq '{type}'")
+            filters.append(f"type eq {quote_value(type)}")
 
         # Add enabled filter
         if enabled is not None:
@@ -1275,7 +1264,7 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = ",".join(fields)
+            params["fields"] = normalize_fields(fields)
         else:
             params["fields"] = ",".join(self._default_fields)
 
@@ -1300,7 +1289,7 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CatalogRepository:
         """Get a single repository by key or name.
 
@@ -1326,7 +1315,7 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = ",".join(fields)
+                params["fields"] = normalize_fields(fields)
             else:
                 params["fields"] = ",".join(self._default_fields)
 

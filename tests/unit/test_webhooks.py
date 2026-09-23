@@ -672,3 +672,51 @@ class TestMappings:
         assert "running" in STATUS_DISPLAY
         assert "sent" in STATUS_DISPLAY
         assert "error" in STATUS_DISPLAY
+
+
+class TestWebhookHeaderNormalisation:
+    """An empty header block must clear, not store a blank line."""
+
+    def _body(self, mock_session: MagicMock) -> dict:
+        for call in mock_session.request.call_args_list:
+            if call.kwargs.get("method") in ("POST", "PUT") and call.kwargs.get("json"):
+                return call.kwargs["json"]
+        raise AssertionError("no write request captured")
+
+    def test_update_empty_string_clears_headers(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1, "name": "w"}
+
+        mock_client.webhooks.update(1, headers="")
+
+        # Appending a newline here would store '\n' - a lone blank line -
+        # instead of clearing, which an empty dict already does correctly.
+        assert self._body(mock_session)["headers"] == ""
+
+    def test_update_empty_dict_clears_headers(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1, "name": "w"}
+
+        mock_client.webhooks.update(1, headers={})
+
+        assert self._body(mock_session)["headers"] == ""
+
+    def test_update_string_gains_trailing_newline(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1, "name": "w"}
+
+        mock_client.webhooks.update(1, headers="X-A:1")
+
+        assert self._body(mock_session)["headers"] == "X-A:1\n"
+
+    def test_update_string_keeps_existing_newline(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_session.request.return_value.json.return_value = {"$key": 1, "name": "w"}
+
+        mock_client.webhooks.update(1, headers="X-A:1\n")
+
+        assert self._body(mock_session)["headers"] == "X-A:1\n"

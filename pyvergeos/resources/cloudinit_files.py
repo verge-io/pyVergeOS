@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.filters import build_filter, quote_value, wildcard_condition
+from pyvergeos.resources.base import ResourceManager, ResourceObject, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -234,7 +234,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
     def list(
         self,
         filter: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -254,7 +254,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             limit: Maximum number of results.
             offset: Skip this many results.
             vm_key: Filter by VM $key.
-            name: Filter by file name (exact match or wildcard ``*``).
+            name: Filter by file name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             render: Filter by render type (No, Variables, Jinja2).
             **filter_kwargs: Additional filter arguments.
 
@@ -274,18 +274,12 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
 
         # Filter by name
         if name is not None:
-            if "*" in name or "?" in name:
-                # Wildcard search - use contains
-                search_term = name.replace("*", "").replace("?", "")
-                if search_term:
-                    filters.append(f"name ct {quote_value(search_term)}")
-            else:
-                filters.append(f"name eq {quote_value(name)}")
+            filters.append(wildcard_condition("name", name))
 
         # Filter by render type
         if render:
             api_render = RENDER_TYPE_MAP.get(render, render.lower())
-            filters.append(f"render eq '{api_render}'")
+            filters.append(f"render eq {quote_value(api_render)}")
 
         # Add filter kwargs
         if filter_kwargs:
@@ -295,7 +289,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             params["filter"] = " and ".join(filters)
 
         # Field selection
-        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+        field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
         params["fields"] = ",".join(field_list)
 
         # Pagination
@@ -320,7 +314,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         *,
         name: str | None = None,
         vm_key: int | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CloudInitFile:
         """Get a cloud-init file by key or name.
 
@@ -340,7 +334,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             NotFoundError: If file not found.
             ValueError: If neither key nor (name + vm_key) provided.
         """
-        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+        field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
 
         if key is not None:
             params: dict[str, Any] = {"fields": ",".join(field_list)}
@@ -591,7 +585,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
     def list(
         self,
         filter: str | None = None,  # noqa: A002
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
         *,
@@ -606,7 +600,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
             fields: List of fields to return.
             limit: Maximum number of results.
             offset: Skip this many results.
-            name: Filter by file name (exact match or wildcard ``*``).
+            name: Filter by file name (exact match, or ``*``/``?`` wildcards; case-sensitive).
             render: Filter by render type (No, Variables, Jinja2).
             **filter_kwargs: Additional filter arguments.
 
@@ -629,7 +623,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
         key: int | None = None,
         *,
         name: str | None = None,
-        fields: builtins.list[str] | None = None,
+        fields: str | builtins.list[str] | None = None,
     ) -> CloudInitFile:
         """Get a cloud-init file by key or name for this VM.
 
@@ -645,7 +639,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
             NotFoundError: If file not found.
             ValueError: If neither key nor name provided.
         """
-        field_list = list(fields) if fields else list(_DEFAULT_CLOUDINIT_FIELDS)
+        field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
 
         if key is not None:
             # Get by key directly (no VM filtering needed)
