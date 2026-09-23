@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -15,11 +15,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields for tenant network blocks
-TENANT_NETWORK_BLOCK_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_NETWORK_BLOCK_COLUMNS = [
     "$key",
     "vnet",
-    "vnet#name as network_name",
     "cidr",
     "description",
     "owner",
@@ -49,10 +50,12 @@ class TenantNetworkBlock(ResourceObject):
         """Get the network key this block belongs to."""
         return int(self.get("vnet", 0))
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the network name."""
-        return self.get("network_name")
+    network_name = Projected["str | None"](
+        "vnet#name as network_name",
+        str,
+        null=None,
+        doc="Get the network name.",
+    )
 
     @property
     def cidr(self) -> str:
@@ -97,6 +100,14 @@ class TenantNetworkBlock(ResourceObject):
 
     def __repr__(self) -> str:
         return f"<TenantNetworkBlock {self.cidr} on {self.network_name}>"
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_NETWORK_BLOCK_DEFAULT_FIELDS = [
+    *_TENANT_NETWORK_BLOCK_COLUMNS,
+    *TenantNetworkBlock.projected_entries(),
+]
 
 
 class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
@@ -161,7 +172,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -203,7 +214,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError

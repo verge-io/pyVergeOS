@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -41,10 +41,12 @@ class Permission(ResourceObject):
         """Get the identity key."""
         return int(self.get("identity", 0))
 
-    @property
-    def identity_name(self) -> str | None:
-        """Get the identity display name (user/group name)."""
-        return self.get("identity_display")
+    identity_name = Projected["str | None"](
+        "identity#owner#$display as identity_display",
+        str,
+        null=None,
+        doc="Get the identity display name (user/group name).",
+    )
 
     @property
     def table(self) -> str:
@@ -152,7 +154,6 @@ class PermissionManager(ResourceManager[Permission]):
     _default_fields = [
         "$key",
         "identity",
-        "identity#owner#$display as identity_display",
         "table",
         "rowdisplay",
         "row",
@@ -161,6 +162,7 @@ class PermissionManager(ResourceManager[Permission]):
         "create",
         "modify",
         "delete",
+        *Permission.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -274,9 +276,9 @@ class PermissionManager(ResourceManager[Permission]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -317,9 +319,9 @@ class PermissionManager(ResourceManager[Permission]):
         """
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:

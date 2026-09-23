@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -24,8 +24,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields to request for VMs
-VM_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_VM_COLUMNS = [
     "$key",
     "name",
     "description",
@@ -41,12 +43,8 @@ VM_DEFAULT_FIELDS = [
     "modified",
     "is_snapshot",
     "machine",
-    "machine#status#status as status",
-    "machine#status#running as running",
     "machine#status#node as node_key",
-    "machine#status#node#name as node_name",
     "machine#cluster as cluster_key",
-    "machine#cluster#name as cluster_name",
     "machine#ha_group as ha_group",
     "cloudinit_datasource",
 ]
@@ -671,30 +669,46 @@ class VM(ResourceObject):
             "is_available": bool(host and port),
         }
 
-    @property
-    def is_running(self) -> bool:
-        """Check if VM is powered on."""
-        return bool(self.get("running", False))
+    is_running = Projected[bool](
+        "machine#status#running as running",
+        bool,
+        default=False,
+        doc="Check if VM is powered on.",
+    )
 
     @property
     def is_snapshot(self) -> bool:
         """Check if this is a snapshot (not a running VM)."""
         return bool(self.get("is_snapshot", False))
 
-    @property
-    def status(self) -> str:
-        """Get VM status (running, stopped, etc.)."""
-        return str(self.get("status", "unknown"))
+    status = Projected[str](
+        "machine#status#status as status",
+        str,
+        default="unknown",
+        doc="Get VM status (running, stopped, etc.).",
+    )
 
-    @property
-    def node_name(self) -> str | None:
-        """Get the name of the node this VM is running on."""
-        return self.get("node_name")
+    node_name = Projected["str | None"](
+        "machine#status#node#name as node_name",
+        str,
+        null=None,
+        doc="Get the name of the node this VM is running on.",
+    )
 
-    @property
-    def cluster_name(self) -> str | None:
-        """Get the name of the cluster this VM belongs to."""
-        return self.get("cluster_name")
+    cluster_name = Projected["str | None"](
+        "machine#cluster#name as cluster_name",
+        str,
+        null=None,
+        doc="Get the name of the cluster this VM belongs to.",
+    )
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+VM_DEFAULT_FIELDS = [
+    *_VM_COLUMNS,
+    *VM.projected_entries(),
+]
 
 
 class VMManager(ResourceManager[VM]):

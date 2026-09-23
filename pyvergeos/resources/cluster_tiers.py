@@ -32,7 +32,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    display_map,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -150,20 +155,24 @@ class ClusterTierStatsHistoryLong(ResourceObject):
         return int(self.get("write_bytes", 0))
 
     # Capacity metrics
-    @property
-    def capacity_bytes(self) -> int:
-        """Capacity in bytes at this point."""
-        return int(self.get("capacity", 0))
+    capacity_bytes = Projected[int](
+        "capacity",
+        int,
+        default=0,
+        doc="Capacity in bytes at this point.",
+    )
 
     @property
     def capacity_gb(self) -> float:
         """Capacity in GB."""
         return round(self.capacity_bytes / 1073741824, 2) if self.capacity_bytes else 0.0
 
-    @property
-    def used_bytes(self) -> int:
-        """Used space in bytes at this point."""
-        return int(self.get("used", 0))
+    used_bytes = Projected[int](
+        "used",
+        int,
+        default=0,
+        doc="Used space in bytes at this point.",
+    )
 
     @property
     def used_gb(self) -> float:
@@ -214,25 +223,33 @@ class ClusterTierStatsHistoryShort(ResourceObject):
         """Timestamp as Unix epoch."""
         return int(self.get("timestamp", 0))
 
-    @property
-    def read_ops(self) -> int:
-        """Read operations per second."""
-        return int(self.get("rops", 0))
+    read_ops = Projected[int](
+        "rops",
+        int,
+        default=0,
+        doc="Read operations per second.",
+    )
 
-    @property
-    def write_ops(self) -> int:
-        """Write operations per second."""
-        return int(self.get("wops", 0))
+    write_ops = Projected[int](
+        "wops",
+        int,
+        default=0,
+        doc="Write operations per second.",
+    )
 
-    @property
-    def read_bps(self) -> int:
-        """Read bytes per second."""
-        return int(self.get("rbps", 0))
+    read_bps = Projected[int](
+        "rbps",
+        int,
+        default=0,
+        doc="Read bytes per second.",
+    )
 
-    @property
-    def write_bps(self) -> int:
-        """Write bytes per second."""
-        return int(self.get("wbps", 0))
+    write_bps = Projected[int](
+        "wbps",
+        int,
+        default=0,
+        doc="Write bytes per second.",
+    )
 
     @property
     def total_reads(self) -> int:
@@ -254,20 +271,24 @@ class ClusterTierStatsHistoryShort(ResourceObject):
         """Total bytes written."""
         return int(self.get("write_bytes", 0))
 
-    @property
-    def capacity_bytes(self) -> int:
-        """Capacity in bytes at this point."""
-        return int(self.get("capacity", 0))
+    capacity_bytes = Projected[int](
+        "capacity",
+        int,
+        default=0,
+        doc="Capacity in bytes at this point.",
+    )
 
     @property
     def capacity_gb(self) -> float:
         """Capacity in GB."""
         return round(self.capacity_bytes / 1073741824, 2) if self.capacity_bytes else 0.0
 
-    @property
-    def used_bytes(self) -> int:
-        """Used space in bytes at this point."""
-        return int(self.get("used", 0))
+    used_bytes = Projected[int](
+        "used",
+        int,
+        default=0,
+        doc="Used space in bytes at this point.",
+    )
 
     @property
     def used_gb(self) -> float:
@@ -302,25 +323,33 @@ class ClusterTierStats(ResourceObject):
         """Parent tier key."""
         return int(self.get("tier", 0))
 
-    @property
-    def read_ops(self) -> int:
-        """Current read operations per second."""
-        return int(self.get("rops", 0))
+    read_ops = Projected[int](
+        "rops",
+        int,
+        default=0,
+        doc="Current read operations per second.",
+    )
 
-    @property
-    def write_ops(self) -> int:
-        """Current write operations per second."""
-        return int(self.get("wops", 0))
+    write_ops = Projected[int](
+        "wops",
+        int,
+        default=0,
+        doc="Current write operations per second.",
+    )
 
-    @property
-    def read_bps(self) -> int:
-        """Current read bytes per second."""
-        return int(self.get("rbps", 0))
+    read_bps = Projected[int](
+        "rbps",
+        int,
+        default=0,
+        doc="Current read bytes per second.",
+    )
 
-    @property
-    def write_bps(self) -> int:
-        """Current write bytes per second."""
-        return int(self.get("wbps", 0))
+    write_bps = Projected[int](
+        "wbps",
+        int,
+        default=0,
+        doc="Current write bytes per second.",
+    )
 
     @property
     def read_mbps(self) -> float:
@@ -422,10 +451,12 @@ class ClusterTierStatus(ResourceObject):
         """Check if tier is in error state."""
         return self.state_raw == "error"
 
-    @property
-    def capacity_bytes(self) -> int:
-        """Total capacity in bytes."""
-        return int(self.get("capacity", 0))
+    capacity_bytes = Projected[int](
+        "capacity",
+        int,
+        default=0,
+        doc="Total capacity in bytes.",
+    )
 
     @property
     def capacity_gb(self) -> float:
@@ -437,10 +468,12 @@ class ClusterTierStatus(ResourceObject):
         """Total capacity in TB."""
         return round(self.capacity_bytes / 1099511627776, 2) if self.capacity_bytes else 0.0
 
-    @property
-    def used_bytes(self) -> int:
-        """Used space in bytes."""
-        return int(self.get("used", 0))
+    used_bytes = Projected[int](
+        "used",
+        int,
+        default=0,
+        doc="Used space in bytes.",
+    )
 
     @property
     def used_gb(self) -> float:
@@ -472,20 +505,26 @@ class ClusterTierStatus(ResourceObject):
         """Free space in GB."""
         return round(self.free_bytes / 1073741824, 2) if self.free_bytes else 0.0
 
-    @property
-    def is_redundant(self) -> bool:
-        """Check if tier has redundancy."""
-        return bool(self.get("redundant", False))
+    is_redundant = Projected[bool](
+        "redundant",
+        bool,
+        default=False,
+        doc="Check if tier has redundancy.",
+    )
 
-    @property
-    def is_encrypted(self) -> bool:
-        """Check if tier is encrypted."""
-        return bool(self.get("encrypted", False))
+    is_encrypted = Projected[bool](
+        "encrypted",
+        bool,
+        default=False,
+        doc="Check if tier is encrypted.",
+    )
 
-    @property
-    def is_working(self) -> bool:
-        """Check if tier is actively working."""
-        return bool(self.get("working", False))
+    is_working = Projected[bool](
+        "working",
+        bool,
+        default=False,
+        doc="Check if tier is actively working.",
+    )
 
     @property
     def last_walk_time_ms(self) -> int:
@@ -602,21 +641,30 @@ class ClusterTier(ResourceObject):
         return float(self.get("price_per_gb", 0))
 
     # Embedded status properties (from list view)
-    @property
-    def status(self) -> str:
-        """Status from embedded status field."""
-        raw = str(self.get("display_status") or self.get("status_status", "offline"))
-        return TIER_STATUS_DISPLAY.get(raw, raw)
+    status = Projected[str](
+        "status#status as display_status",
+        str,
+        fallback="status_status",
+        fallback_default="offline",
+        transform=display_map(TIER_STATUS_DISPLAY),
+        doc="Status from embedded status field.",
+    )
 
-    @property
-    def status_raw(self) -> str:
-        """Raw status value."""
-        return str(self.get("display_status") or self.get("status_status", "offline"))
+    status_raw = Projected[str](
+        "status#status as display_status",
+        str,
+        fallback="status_status",
+        fallback_default="offline",
+        doc="Raw status value.",
+    )
 
-    @property
-    def capacity_bytes(self) -> int:
-        """Total capacity in bytes."""
-        return int(self.get("capacity") or self.get("status_capacity", 0))
+    capacity_bytes = Projected[int](
+        "status#capacity as capacity",
+        int,
+        fallback="status_capacity",
+        fallback_default=0,
+        doc="Total capacity in bytes.",
+    )
 
     @property
     def capacity_gb(self) -> float:
@@ -628,10 +676,13 @@ class ClusterTier(ResourceObject):
         """Total capacity in TB."""
         return round(self.capacity_bytes / 1099511627776, 2) if self.capacity_bytes else 0.0
 
-    @property
-    def used_bytes(self) -> int:
-        """Used space in bytes."""
-        return int(self.get("used") or self.get("status_used", 0))
+    used_bytes = Projected[int](
+        "status#used as used",
+        int,
+        fallback="status_used",
+        fallback_default=0,
+        doc="Used space in bytes.",
+    )
 
     @property
     def used_gb(self) -> float:
@@ -663,41 +714,62 @@ class ClusterTier(ResourceObject):
         """Free space in GB."""
         return round(self.free_bytes / 1073741824, 2) if self.free_bytes else 0.0
 
-    @property
-    def is_redundant(self) -> bool:
-        """Check if tier has redundancy."""
-        return bool(self.get("redundant") or self.get("status_redundant", False))
+    is_redundant = Projected[bool](
+        "status#redundant as redundant",
+        bool,
+        fallback="status_redundant",
+        fallback_default=False,
+        doc="Check if tier has redundancy.",
+    )
 
-    @property
-    def is_working(self) -> bool:
-        """Check if tier is actively working."""
-        return bool(self.get("working") or self.get("status_working", False))
+    is_working = Projected[bool](
+        "status#working as working",
+        bool,
+        fallback="status_working",
+        fallback_default=False,
+        doc="Check if tier is actively working.",
+    )
 
-    @property
-    def is_encrypted(self) -> bool:
-        """Check if tier is encrypted."""
-        return bool(self.get("encrypted") or self.get("status_encrypted", False))
+    is_encrypted = Projected[bool](
+        "status#encrypted as encrypted",
+        bool,
+        fallback="status_encrypted",
+        fallback_default=False,
+        doc="Check if tier is encrypted.",
+    )
 
     # Embedded stats properties (from list view)
-    @property
-    def read_ops(self) -> int:
-        """Current read operations per second."""
-        return int(self.get("rops") or self.get("stats_rops", 0))
+    read_ops = Projected[int](
+        "stats#rops as rops",
+        int,
+        fallback="stats_rops",
+        fallback_default=0,
+        doc="Current read operations per second.",
+    )
 
-    @property
-    def write_ops(self) -> int:
-        """Current write operations per second."""
-        return int(self.get("wops") or self.get("stats_wops", 0))
+    write_ops = Projected[int](
+        "stats#wops as wops",
+        int,
+        fallback="stats_wops",
+        fallback_default=0,
+        doc="Current write operations per second.",
+    )
 
-    @property
-    def read_bps(self) -> int:
-        """Current read bytes per second."""
-        return int(self.get("rbps") or self.get("stats_rbps", 0))
+    read_bps = Projected[int](
+        "stats#rbps as rbps",
+        int,
+        fallback="stats_rbps",
+        fallback_default=0,
+        doc="Current read bytes per second.",
+    )
 
-    @property
-    def write_bps(self) -> int:
-        """Current write bytes per second."""
-        return int(self.get("wbps") or self.get("stats_wbps", 0))
+    write_bps = Projected[int](
+        "stats#wbps as wbps",
+        int,
+        fallback="stats_wbps",
+        fallback_default=0,
+        doc="Current write bytes per second.",
+    )
 
     def get_status(self) -> ClusterTierStatus:
         """Get detailed tier status.
@@ -818,18 +890,9 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         "description",
         "cost_per_gb",
         "price_per_gb",
-        "status#status as display_status",
         "status#state as display_state",
-        "status#capacity as capacity",
-        "status#used as used",
         "status#used_pct as used_pct",
-        "status#redundant as redundant",
-        "status#encrypted as encrypted",
-        "status#working as working",
-        "stats#rops as rops",
-        "stats#wops as wops",
-        "stats#rbps as rbps",
-        "stats#wbps as wbps",
+        *ClusterTier.projected_entries(),
     ]
 
     _status_fields = [
@@ -959,9 +1022,9 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -1012,7 +1075,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
             if fields is None:
                 fields = self._default_fields
 
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
             if response is None:
@@ -1046,7 +1109,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         """
         params: dict[str, Any] = {
             "filter": f"tier eq {tier_key}",
-            "fields": ",".join(self._status_fields),
+            "fields": self._projection(self._status_fields),
             "limit": 1,
         }
 
@@ -1076,7 +1139,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         """
         params: dict[str, Any] = {
             "filter": f"tier eq {tier_key}",
-            "fields": ",".join(self._stats_fields),
+            "fields": self._projection(self._stats_fields),
             "limit": 1,
         }
 
@@ -1125,7 +1188,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(self._history_short_fields),
+            "fields": self._projection(self._history_short_fields),
             "sort": "-timestamp",
         }
 
@@ -1177,7 +1240,7 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": ",".join(self._history_long_fields),
+            "fields": self._projection(self._history_long_fields),
             "sort": "-timestamp",
         }
 

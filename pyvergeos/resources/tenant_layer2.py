@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -15,14 +15,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields for tenant Layer 2 networks
-TENANT_LAYER2_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_LAYER2_COLUMNS = [
     "$key",
     "tenant",
-    "tenant#name as tenant_name",
     "vnet",
-    "vnet#name as network_name",
-    "vnet#type as network_type",
     "enabled",
 ]
 
@@ -40,25 +39,31 @@ class TenantLayer2Network(ResourceObject):
         """Get the tenant key this L2 network is assigned to."""
         return int(self.get("tenant", 0))
 
-    @property
-    def tenant_name(self) -> str | None:
-        """Get the tenant name."""
-        return self.get("tenant_name")
+    tenant_name = Projected["str | None"](
+        "tenant#name as tenant_name",
+        str,
+        null=None,
+        doc="Get the tenant name.",
+    )
 
     @property
     def network_key(self) -> int:
         """Get the network key (vnet)."""
         return int(self.get("vnet", 0))
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the network name."""
-        return self.get("network_name")
+    network_name = Projected["str | None"](
+        "vnet#name as network_name",
+        str,
+        null=None,
+        doc="Get the network name.",
+    )
 
-    @property
-    def network_type(self) -> str | None:
-        """Get the network type (internal, external, bgp, vpn, etc.)."""
-        return self.get("network_type")
+    network_type = Projected["str | None"](
+        "vnet#type as network_type",
+        str,
+        null=None,
+        doc="Get the network type (internal, external, bgp, vpn, etc.).",
+    )
 
     @property
     def is_enabled(self) -> bool:
@@ -97,6 +102,14 @@ class TenantLayer2Network(ResourceObject):
     def __repr__(self) -> str:
         enabled_str = "enabled" if self.is_enabled else "disabled"
         return f"<TenantLayer2Network {self.network_name} ({enabled_str})>"
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_LAYER2_DEFAULT_FIELDS = [
+    *_TENANT_LAYER2_COLUMNS,
+    *TenantLayer2Network.projected_entries(),
+]
 
 
 class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
@@ -162,7 +175,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -207,7 +220,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             # Query by key with tenant filter to ensure it belongs to this tenant
             params: dict[str, Any] = {
                 "filter": f"$key eq {key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if response is None:

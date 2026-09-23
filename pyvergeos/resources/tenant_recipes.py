@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -119,10 +119,15 @@ class TenantRecipe(ResourceObject):
         """Check if an update is available."""
         return bool(self.get("update_available", False))
 
-    @property
-    def status_info(self) -> str | None:
-        """Get the recipe status string."""
-        return self.get("status") or self.get("rstatus")
+    status_info = Projected["str | None"](
+        (
+            "status#status as status",
+            "status#status as rstatus",
+        ),
+        str,
+        null=None,
+        doc="Get the recipe status string.",
+    )
 
     @property
     def catalog_key(self) -> str | None:
@@ -136,10 +141,12 @@ class TenantRecipe(ResourceObject):
         tenant = self.get("tenant")
         return int(tenant) if tenant is not None else None
 
-    @property
-    def instance_count(self) -> int:
-        """Get the number of deployed instances."""
-        return int(self.get("instances", 0))
+    instance_count = Projected[int](
+        "count(instances) as instances",
+        int,
+        default=0,
+        doc="Get the number of deployed instances.",
+    )
 
     @property
     def instances(self) -> TenantRecipeInstanceManager:
@@ -290,8 +297,6 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
         "catalog#$display as catalog_display",
         "catalog#repository as catalog_repository",
         "catalog#repository#$display as repository_display",
-        "status#status as status",
-        "status#status as rstatus",
         "downloaded",
         "update_available",
         "needs_republish",
@@ -300,8 +305,8 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
         "tenant#$display as tenant_display",
         "tenant_snapshot",
         "tenant_snapshot#$display as snapshot_display",
-        "count(instances) as instances",
         "creator",
+        *TenantRecipe.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -386,9 +391,9 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -440,9 +445,9 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
                 "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", self._endpoint, params=params)
 
@@ -683,9 +688,9 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -727,9 +732,9 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -883,9 +888,9 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -930,9 +935,9 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:

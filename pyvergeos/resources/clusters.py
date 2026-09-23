@@ -8,10 +8,17 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import ValidationError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    display_map,
+    epoch_utc,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.cluster_status import ClusterStatusManager
     from pyvergeos.resources.cluster_tiers import ClusterTierManager
 
 
@@ -188,51 +195,65 @@ class Cluster(ResourceObject):
         return None
 
     # Status properties (from status# fields)
-    @property
-    def status(self) -> str:
-        """Cluster status (Online, Offline, etc.)."""
-        raw = str(self.get("status_state", ""))
-        return STATE_DISPLAY.get(raw, raw)
+    status = Projected[str](
+        "status#status as status_state",
+        str,
+        default="",
+        transform=display_map(STATE_DISPLAY),
+        doc="Cluster status (Online, Offline, etc.).",
+    )
 
-    @property
-    def status_raw(self) -> str:
-        """Raw status value."""
-        return str(self.get("status_state", ""))
+    status_raw = Projected[str](
+        "status#status as status_state",
+        str,
+        default="",
+        doc="Raw status value.",
+    )
 
-    @property
-    def total_nodes(self) -> int:
-        """Total number of nodes in cluster."""
-        return int(self.get("total_nodes") or 0)
+    total_nodes = Projected[int](
+        "status#total_nodes as total_nodes",
+        int,
+        falsy=0,
+        doc="Total number of nodes in cluster.",
+    )
 
-    @property
-    def online_nodes(self) -> int:
-        """Number of online nodes."""
-        return int(self.get("online_nodes") or 0)
+    online_nodes = Projected[int](
+        "status#online_nodes as online_nodes",
+        int,
+        falsy=0,
+        doc="Number of online nodes.",
+    )
 
-    @property
-    def total_ram_mb(self) -> int:
-        """Total RAM in MB."""
-        return int(self.get("total_ram") or 0)
+    total_ram_mb = Projected[int](
+        "status#total_ram as total_ram",
+        int,
+        falsy=0,
+        doc="Total RAM in MB.",
+    )
 
     @property
     def total_ram_gb(self) -> float:
         """Total RAM in GB."""
         return round(self.total_ram_mb / 1024, 2) if self.total_ram_mb else 0.0
 
-    @property
-    def online_ram_mb(self) -> int:
-        """Online RAM in MB."""
-        return int(self.get("online_ram") or 0)
+    online_ram_mb = Projected[int](
+        "status#online_ram as online_ram",
+        int,
+        falsy=0,
+        doc="Online RAM in MB.",
+    )
 
     @property
     def online_ram_gb(self) -> float:
         """Online RAM in GB."""
         return round(self.online_ram_mb / 1024, 2) if self.online_ram_mb else 0.0
 
-    @property
-    def used_ram_mb(self) -> int:
-        """Used RAM in MB."""
-        return int(self.get("used_ram") or 0)
+    used_ram_mb = Projected[int](
+        "status#used_ram as used_ram",
+        int,
+        falsy=0,
+        doc="Used RAM in MB.",
+    )
 
     @property
     def used_ram_gb(self) -> float:
@@ -246,20 +267,26 @@ class Cluster(ResourceObject):
             return round((self.used_ram_mb / self.online_ram_mb) * 100, 1)
         return 0.0
 
-    @property
-    def total_cores(self) -> int:
-        """Total CPU cores."""
-        return int(self.get("total_cores") or 0)
+    total_cores = Projected[int](
+        "status#total_cores as total_cores",
+        int,
+        falsy=0,
+        doc="Total CPU cores.",
+    )
 
-    @property
-    def online_cores(self) -> int:
-        """Online CPU cores."""
-        return int(self.get("online_cores") or 0)
+    online_cores = Projected[int](
+        "status#online_cores as online_cores",
+        int,
+        falsy=0,
+        doc="Online CPU cores.",
+    )
 
-    @property
-    def used_cores(self) -> int:
-        """Used CPU cores."""
-        return int(self.get("used_cores") or 0)
+    used_cores = Projected[int](
+        "status#used_cores as used_cores",
+        int,
+        falsy=0,
+        doc="Used CPU cores.",
+    )
 
     @property
     def cores_used_percent(self) -> float:
@@ -268,10 +295,12 @@ class Cluster(ResourceObject):
             return round((self.used_cores / self.online_cores) * 100, 1)
         return 0.0
 
-    @property
-    def running_machines(self) -> int:
-        """Number of running VMs."""
-        return int(self.get("running_machines") or 0)
+    running_machines = Projected[int](
+        "status#running_machines as running_machines",
+        int,
+        falsy=0,
+        doc="Number of running VMs.",
+    )
 
     @property
     def tiers(self) -> ClusterTierManager:
@@ -288,6 +317,24 @@ class Cluster(ResourceObject):
         from pyvergeos.resources.cluster_tiers import ClusterTierManager
 
         return ClusterTierManager(self._manager._client, self.key)
+
+    @property
+    def cluster_status(self) -> ClusterStatusManager:
+        """Live capacity/status for this cluster, for an N-1 check (issue #127).
+
+        ``.status`` on this object is the status *string*; this is the full
+        ``cluster_status`` row, scoped by a filter on ``cluster``.
+
+        Returns:
+            ClusterStatusManager scoped to this cluster.
+
+        Example:
+            >>> if not cluster.cluster_status.get().can_lose_one_node():
+            ...     raise RuntimeError("draining a node would overcommit")
+        """
+        from pyvergeos.resources.cluster_status import ClusterStatusManager
+
+        return ClusterStatusManager(self._manager._client, self.key)
 
     def __repr__(self) -> str:
         return (
@@ -328,78 +375,101 @@ class VSANStatus(ResourceObject):
         """Whether cluster provides compute."""
         return bool(self.get("compute", False))
 
-    @property
-    def status(self) -> str:
-        """Cluster status (Online, Offline, etc.)."""
-        raw = str(self.get("status", ""))
-        return STATUS_DISPLAY.get(raw, raw)
+    status = Projected[str](
+        "status",
+        str,
+        default="",
+        transform=display_map(STATUS_DISPLAY),
+        doc="Cluster status (Online, Offline, etc.).",
+    )
 
-    @property
-    def status_raw(self) -> str:
-        """Raw status value."""
-        return str(self.get("status", ""))
+    status_raw = Projected[str](
+        "status",
+        str,
+        default="",
+        doc="Raw status value.",
+    )
 
-    @property
-    def state(self) -> str:
-        """Cluster state (Online, Warning, Error, Offline)."""
-        raw = str(self.get("state", ""))
-        return STATE_DISPLAY.get(raw, raw)
+    state = Projected[str](
+        "state",
+        str,
+        default="",
+        transform=display_map(STATE_DISPLAY),
+        doc="Cluster state (Online, Warning, Error, Offline).",
+    )
 
-    @property
-    def state_raw(self) -> str:
-        """Raw state value."""
-        return str(self.get("state", ""))
+    state_raw = Projected[str](
+        "state",
+        str,
+        default="",
+        doc="Raw state value.",
+    )
 
-    @property
-    def health_status(self) -> str:
-        """Health status (Healthy, Degraded, Critical, Offline)."""
-        raw = self.get("state", "")
-        return HEALTH_STATUS.get(raw, "Unknown")
+    health_status = Projected[str](
+        "state",
+        default="",
+        transform=display_map(HEALTH_STATUS, "Unknown"),
+        doc="Health status (Healthy, Degraded, Critical, Offline).",
+    )
 
-    @property
-    def status_info(self) -> str:
-        """Status information message."""
-        return str(self.get("status_info", ""))
+    status_info = Projected[str](
+        "status_info",
+        str,
+        default="",
+        doc="Status information message.",
+    )
 
-    @property
-    def total_nodes(self) -> int:
-        """Total number of nodes in cluster."""
-        return int(self.get("total_nodes") or 0)
+    total_nodes = Projected[int](
+        "total_nodes",
+        int,
+        falsy=0,
+        doc="Total number of nodes in cluster.",
+    )
 
-    @property
-    def online_nodes(self) -> int:
-        """Number of online nodes."""
-        return int(self.get("online_nodes") or 0)
+    online_nodes = Projected[int](
+        "online_nodes",
+        int,
+        falsy=0,
+        doc="Number of online nodes.",
+    )
 
-    @property
-    def running_machines(self) -> int:
-        """Number of running VMs."""
-        return int(self.get("running_machines") or 0)
+    running_machines = Projected[int](
+        "running_machines",
+        int,
+        falsy=0,
+        doc="Number of running VMs.",
+    )
 
-    @property
-    def total_ram_mb(self) -> int:
-        """Total RAM in MB."""
-        return int(self.get("total_ram") or 0)
+    total_ram_mb = Projected[int](
+        "total_ram",
+        int,
+        falsy=0,
+        doc="Total RAM in MB.",
+    )
 
     @property
     def total_ram_gb(self) -> float:
         """Total RAM in GB."""
         return round(self.total_ram_mb / 1024, 2) if self.total_ram_mb else 0.0
 
-    @property
-    def online_ram_mb(self) -> int:
-        """Online RAM in MB."""
-        return int(self.get("online_ram") or 0)
+    online_ram_mb = Projected[int](
+        "online_ram",
+        int,
+        falsy=0,
+        doc="Online RAM in MB.",
+    )
 
     @property
     def online_ram_gb(self) -> float:
         """Online RAM in GB."""
         return round(self.online_ram_mb / 1024, 2) if self.online_ram_mb else 0.0
 
-    @property
-    def used_ram_mb(self) -> int:
-        """Used RAM in MB."""
-        return int(self.get("used_ram") or 0)
+    used_ram_mb = Projected[int](
+        "used_ram",
+        int,
+        falsy=0,
+        doc="Used RAM in MB.",
+    )
 
     @property
     def used_ram_gb(self) -> float:
@@ -413,20 +483,26 @@ class VSANStatus(ResourceObject):
             return round((self.used_ram_mb / self.online_ram_mb) * 100, 1)
         return 0.0
 
-    @property
-    def total_cores(self) -> int:
-        """Total CPU cores."""
-        return int(self.get("total_cores") or 0)
+    total_cores = Projected[int](
+        "total_cores",
+        int,
+        falsy=0,
+        doc="Total CPU cores.",
+    )
 
-    @property
-    def online_cores(self) -> int:
-        """Online CPU cores."""
-        return int(self.get("online_cores") or 0)
+    online_cores = Projected[int](
+        "online_cores",
+        int,
+        falsy=0,
+        doc="Online CPU cores.",
+    )
 
-    @property
-    def used_cores(self) -> int:
-        """Used CPU cores."""
-        return int(self.get("used_cores") or 0)
+    used_cores = Projected[int](
+        "used_cores",
+        int,
+        falsy=0,
+        doc="Used CPU cores.",
+    )
 
     @property
     def core_used_percent(self) -> float:
@@ -435,13 +511,13 @@ class VSANStatus(ResourceObject):
             return round((self.used_cores / self.online_cores) * 100, 1)
         return 0.0
 
-    @property
-    def last_update(self) -> datetime | None:
-        """Last status update timestamp."""
-        ts = self.get("last_update")
-        if ts:
-            return datetime.fromtimestamp(int(ts), tz=timezone.utc)
-        return None
+    last_update = Projected["datetime | None"](
+        "last_update",
+        falsy=None,
+        null=None,
+        transform=epoch_utc,
+        doc="Last status update timestamp.",
+    )
 
     @property
     def tiers(self) -> builtins.list[dict[str, Any]]:
@@ -530,16 +606,7 @@ class ClusterManager(ResourceManager[Cluster]):
         "target_ram_pct",
         "ram_overcommit_pct",
         "created",
-        "status#status as status_state",
-        "status#total_nodes as total_nodes",
-        "status#online_nodes as online_nodes",
-        "status#total_ram as total_ram",
-        "status#online_ram as online_ram",
-        "status#used_ram as used_ram",
-        "status#total_cores as total_cores",
-        "status#online_cores as online_cores",
-        "status#used_cores as used_cores",
-        "status#running_machines as running_machines",
+        *Cluster.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -614,9 +681,9 @@ class ClusterManager(ResourceManager[Cluster]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -829,7 +896,7 @@ class ClusterManager(ResourceManager[Cluster]):
         if cluster_key:
             return self.get(int(cluster_key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,
@@ -1121,7 +1188,7 @@ class ClusterManager(ResourceManager[Cluster]):
                 "stats#wops as write_ops,stats#rbps as read_bps,stats#wbps as write_bps]"
             )
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if cluster_name:
             params["filter"] = f"name eq {quote_value(cluster_name)}"

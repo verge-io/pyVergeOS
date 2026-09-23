@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import builtins
 import time
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
-from pyvergeos.constants import TASK_WAIT_TIMEOUT
-from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
+from pyvergeos.exceptions import NotFoundError, ValidationError, VergeTimeoutError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+#: A tag given as its ``$key``, its name, or a Tag/ResourceObject.
+TagRef = Union[int, str, ResourceObject]
 
 
 # Default fields for cloud snapshot list operations
@@ -255,6 +259,10 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         ...     print(f"{vm.name}: {vm.cpu_cores} cores, {vm.ram_mb} MB RAM")
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_VM_FIELDS
+
     _endpoint = "cloud_snapshot_vms"
 
     def __init__(self, client: VergeClient, snapshot_key: int) -> None:
@@ -299,7 +307,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -343,7 +351,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -377,6 +385,10 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
         >>> for tenant in tenants:
         ...     print(f"{tenant.name}: {tenant.nodes} nodes")
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_TENANT_FIELDS
 
     _endpoint = "cloud_snapshot_tenants"
 
@@ -422,7 +434,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
 
         params: dict[str, Any] = {"filter": combined_filter}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -466,7 +478,7 @@ class CloudSnapshotTenantManager(ResourceManager[CloudSnapshotTenant]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -693,6 +705,10 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         >>> client.cloud_snapshots.delete(snapshot.key)
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = _DEFAULT_SNAPSHOT_FIELDS
+
     _endpoint = "cloud_snapshots"
 
     def __init__(self, client: VergeClient) -> None:
@@ -798,7 +814,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if combined_filter:
             params["filter"] = combined_filter
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -868,7 +884,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -906,6 +922,59 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
 
         raise ValueError("Either key or name must be provided")
 
+    def _resolve_tag_keys(self, tags: TagRef | Sequence[TagRef] | None) -> str | None:
+        """Resolve tags to the comma-separated ``$key`` string the API wants.
+
+        The ``partial_tags`` / ``quiesce_tags`` columns take tag **keys**; a
+        name sent verbatim is stored literally and silently ignored (it does
+        not resolve to a tag), so this converts names to keys instead.
+
+        Accepts a single tag or a sequence, where each tag is an ``int`` key,
+        a Tag/``ResourceObject`` (its ``$key`` is used), a numeric string, or a
+        tag name. A name is resolved via the tags endpoint and must match
+        exactly one tag -- names are only unique within a category, so an
+        ambiguous name raises rather than guessing (issue #129).
+
+        Returns:
+            The comma-separated key string, or None when ``tags`` is None.
+        """
+        if tags is None:
+            return None
+        items: list[TagRef]
+        if isinstance(tags, (str, int, ResourceObject)) or not isinstance(tags, Sequence):
+            items = [tags]  # a single tag; note str is itself a Sequence
+        else:
+            items = list(tags)
+        keys = [str(self._resolve_one_tag(t)) for t in items]
+        return ",".join(keys)
+
+    def _resolve_one_tag(self, tag: TagRef) -> int:
+        """Resolve a single tag to its ``$key`` (see _resolve_tag_keys)."""
+        if isinstance(tag, bool):  # guard: bool is an int subclass
+            raise TypeError(f"invalid tag: {tag!r}")
+        if isinstance(tag, int):
+            return tag
+        if isinstance(tag, ResourceObject):
+            key = tag.get("$key")
+            if key is None:
+                raise ValueError("tag object has no $key")
+            return int(key)
+        text = str(tag).strip()
+        if text.isdigit():
+            return int(text)
+        matches = self._client._request(
+            "GET", "tags", params={"filter": f"name eq {quote_value(text)}", "fields": "$key"}
+        )
+        rows = matches if isinstance(matches, list) else ([matches] if matches else [])
+        if not rows:
+            raise ValueError(f"no tag named {text!r}")
+        if len(rows) > 1:
+            raise ValueError(
+                f"tag name {text!r} is ambiguous ({len(rows)} matches); "
+                "pass the tag $key or a Tag object instead"
+            )
+        return int(rows[0]["$key"])
+
     def create(  # type: ignore[override]
         self,
         name: str | None = None,
@@ -916,6 +985,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         min_snapshots: int = 1,
         immutable: bool = False,
         private: bool = False,
+        include_tags: TagRef | Sequence[TagRef] | None = None,
+        exclude_tags: TagRef | Sequence[TagRef] | None = None,
+        quiesce_tags: TagRef | Sequence[TagRef] | None = None,
         wait: bool = False,
         wait_timeout: int = TASK_WAIT_TIMEOUT,
     ) -> CloudSnapshot:
@@ -929,6 +1001,16 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             min_snapshots: Minimum snapshots to retain (default: 1).
             immutable: Make snapshot immutable (locked, read-only).
             private: Hide snapshot from tenants.
+            include_tags: Capture only VMs carrying these tags -- a partial
+                (tag-scoped) snapshot, VergeOS 26.1+. Each tag is a ``$key``,
+                a name, or a Tag object. Mutually exclusive with
+                ``exclude_tags``.
+            exclude_tags: Capture everything *except* VMs carrying these tags.
+                Mutually exclusive with ``include_tags``.
+            quiesce_tags: VMs with these tags briefly freeze disk activity
+                during capture for an application-consistent snapshot. Valid
+                only for a partial snapshot (with ``include_tags`` or
+                ``exclude_tags``).
             wait: Wait for snapshot creation to complete.
             wait_timeout: Maximum seconds to wait (default: 300).
 
@@ -955,7 +1037,24 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             ...     never_expire=True,
             ...     immutable=True,
             ... )
+
+            >>> # Partial snapshot: only DB-tagged VMs, quiesced
+            >>> snapshot = client.cloud_snapshots.create(
+            ...     name="DB-Only",
+            ...     include_tags=["DB"],
+            ...     quiesce_tags=["DB"],
+            ... )
         """
+        if include_tags is not None and exclude_tags is not None:
+            raise ValueError(
+                "include_tags and exclude_tags are mutually exclusive; a partial "
+                "snapshot is either include-scoped or exclude-scoped, not both"
+            )
+        if quiesce_tags is not None and include_tags is None and exclude_tags is None:
+            raise ValueError(
+                "quiesce_tags applies only to a partial snapshot; also pass "
+                "include_tags or exclude_tags"
+            )
         # Generate default name if not provided
         if name is None:
             name = datetime.now().strftime("Snapshot_%Y%m%d_%H%M")
@@ -989,6 +1088,27 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if private:
             body["private"] = True
 
+        # Partial (tag-scoped) snapshot, VergeOS 26.1+. The platform models
+        # this as a ``type`` toggle plus a single ``partial_tags`` set; the
+        # tables store tag $keys, so names are resolved to keys here (#129).
+        if include_tags is not None:
+            partial_keys = self._resolve_tag_keys(include_tags)
+            if not partial_keys:
+                raise ValueError("include_tags must name at least one tag")
+            body["type"] = "partial_include"
+            body["partial_tags"] = partial_keys
+        elif exclude_tags is not None:
+            partial_keys = self._resolve_tag_keys(exclude_tags)
+            if not partial_keys:
+                raise ValueError("exclude_tags must name at least one tag")
+            body["type"] = "partial_exclude"
+            body["partial_tags"] = partial_keys
+
+        if quiesce_tags is not None:
+            quiesce_keys = self._resolve_tag_keys(quiesce_tags)
+            if quiesce_keys:
+                body["quiesce_tags"] = quiesce_keys
+
         response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None:
             raise ValueError("No response from create operation")
@@ -996,21 +1116,57 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             raise ValueError("Create operation returned invalid response")
 
         snapshot_key = response.get("$key")
-        task_key = response.get("task")
 
-        if wait and task_key:
-            # Wait for task to complete
-            from pyvergeos.resources.tasks import TaskManager
+        if snapshot_key is None:
+            # No key to fetch or wait on; hand back what the POST returned.
+            return self._to_model_unprojected(response)
 
-            task_manager = TaskManager(self._client)
-            task = task_manager.wait(int(task_key), timeout=wait_timeout)
-            if task.has_error:
-                raise ValidationError(f"Snapshot creation failed: {task.status_info}")
+        snapshot_key = int(snapshot_key)
 
-        if snapshot_key:
-            return self.get(int(snapshot_key))
+        # Cloud snapshot creation is not backed by a task row: the POST
+        # response carries no ``task`` key and the row's ``task`` field stays
+        # null. The real completion signal is the row's ``status``, which
+        # progresses ``building`` -> ``normal`` (issue #133). Waiting on a task
+        # here was a silent no-op, so poll the row instead.
+        if wait:
+            return self._wait_until_built(snapshot_key, wait_timeout)
 
-        return self._to_model(response)
+        return self.get(snapshot_key)
+
+    def _wait_until_built(self, key: int, timeout: int) -> CloudSnapshot:
+        """Poll a snapshot until it leaves the ``building`` state (issue #133).
+
+        Args:
+            key: Snapshot ``$key`` to poll.
+            timeout: Maximum seconds to wait (``0`` = wait indefinitely).
+
+        Returns:
+            The snapshot once it reports a settled status, fetched fresh so
+            ``status`` reflects reality rather than the stale value the POST
+            response would have implied.
+
+        Raises:
+            VergeTimeoutError: If the snapshot has not settled after
+                ``timeout`` seconds.
+        """
+        start = time.time()
+        while True:
+            snapshot = self.get(key)
+            # Read the raw field, not the ``status`` accessor: the accessor
+            # defaults a missing status to ``"normal"``, which right after the
+            # POST -- before the field flips to ``building`` -- would look
+            # settled and return immediately, reintroducing the no-op this
+            # fixes. Treat a missing/blank status as "not settled yet" and keep
+            # waiting; only a concrete, non-``building`` status is done (#133).
+            raw_status = snapshot.get("status")
+            if raw_status and raw_status != "building":
+                return snapshot
+            if timeout > 0 and (time.time() - start) > timeout:
+                raise VergeTimeoutError(
+                    f"Cloud snapshot {key} did not finish building within "
+                    f"{timeout} seconds (last status: {raw_status!r})"
+                )
+            time.sleep(POLL_INTERVAL)
 
     def delete(self, key: int) -> None:
         """Delete a cloud snapshot.

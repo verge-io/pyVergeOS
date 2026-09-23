@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -330,7 +330,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
 
         params: dict[str, Any] = {
             "filter": f"vnet eq {self._network_key}",
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
             "limit": 1,
         }
@@ -437,7 +437,7 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "-timestamp",
         }
 
@@ -899,7 +899,7 @@ class IPSecActiveConnectionManager(ResourceManager[IPSecActiveConnection]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
 
         if limit is not None:
@@ -1087,7 +1087,7 @@ class WireGuardPeerStatusManager(ResourceManager[WireGuardPeerStatus]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
 
         if limit is not None:
@@ -1119,7 +1119,7 @@ class WireGuardPeerStatusManager(ResourceManager[WireGuardPeerStatus]):
         """
         params: dict[str, Any] = {
             "filter": f"peer eq {peer_key}",
-            "fields": ",".join(self._default_fields),
+            "fields": self._projection(self._default_fields),
             "limit": 1,
         }
 

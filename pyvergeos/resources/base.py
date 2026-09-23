@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import builtins
-from collections.abc import Iterator, Mapping
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+import re
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 T = TypeVar("T", bound="ResourceObject")
+PT = TypeVar("PT")
 SelfT = TypeVar("SelfT", bound="ResourceObject")
 
 
@@ -128,6 +130,349 @@ def split_fields(fields: str | builtins.list[str] | None) -> builtins.list[str]:
     return names
 
 
+PROJECTION_ALL = "all"
+
+_ALIAS_RE = re.compile(r"\s+as\s+(\S+)\s*$")
+
+
+def projection_alias(field: str) -> str:
+    """Return the name a projection entry lands under in the response row.
+
+    ``"machine#status#running as running"`` lands under ``"running"``;
+    a plain column lands under itself.
+    """
+    match = _ALIAS_RE.search(field)
+    return match.group(1) if match else field.strip()
+
+
+def is_computed_projection(field: str) -> bool:
+    """Is this projection entry something the server computes, not a column?
+
+    ``fields=all`` returns columns. A traversal (``machine#status#running``),
+    an aggregate (``count(members)``) or a sub-selection
+    (``stats[reads,writes]``) is derived, so it is never part of ``all`` and
+    has to be asked for by name -- ``all`` answers a sub-selected column with
+    the bare foreign key instead, which is why ``storage_tier.read_ops``
+    raised ``AttributeError`` under ``all``. Detected structurally rather
+    than from a list of known names, so a new kind of computed entry is
+    covered the day it is written.
+    """
+    stripped = field.strip()
+    return (
+        "#" in stripped  # traversal: machine#status#running
+        or "(" in stripped  # aggregate: count(members)
+        or "[" in stripped  # sub-selection: stats[reads,writes,rops]
+        or projection_alias(stripped) != stripped  # anything explicitly aliased
+    )
+
+
+def expand_projection(
+    fields: str | builtins.list[str] | None,
+    defaults: builtins.list[str] | None,
+) -> str | builtins.list[str] | None:
+    """Make ``all`` an actual superset of a manager's default projection.
+
+    ``all`` is resolved server-side to the resource's *own columns*. Anything
+    a manager has the server compute rather than select is therefore absent
+    from it -- aliased traversals (``machine#status#running as running``) and
+    aggregates (``count(members) as member_count``) alike -- so a request for
+    ``all`` silently comes back without ``running``, ``status`` and friends,
+    and on ``nodes`` without even ``$key``. A caller who asked for *more*
+    data got a *wrong* answer (issue #117).
+
+    When ``all`` appears in the projection, the manager's computed entries and
+    ``$key`` are appended to it, which the API accepts and which measurably
+    restores the missing values. Entries the caller already named are left
+    alone, so an explicit override still wins.
+
+    Independently of ``all``, a caller who names one of the manager's alias
+    names gets the manager's entry for it. ``fields=["$key","name","running"]``
+    would otherwise select the ``vms`` table's own ``running`` column, which
+    is null on every row, and the accessor would answer ``False`` for a
+    running VM - the same defect reached without ``all``. Narrowing itself is
+    still honoured: the projection stays exactly as wide as asked for.
+
+    Args:
+        fields: The caller's projection.
+        defaults: The manager's default projection, or None.
+
+    Returns:
+        The projection to send, expanded only when ``all`` was requested.
+    """
+    if not fields:
+        return fields
+
+    names = split_fields(fields)
+    computed_by_alias = {
+        projection_alias(field): field for field in defaults or () if is_computed_projection(field)
+    }
+
+    # A caller who names an alias means the manager's field of that name, not
+    # whatever bare column happens to share it. Asking vms for "running"
+    # returns a real column that is null on every row, and vnets drops the
+    # name entirely - either way the accessor answered False for a running
+    # resource, which is issue #117 reached through a narrowed projection
+    # rather than through 'all'. Send what the manager means by the name.
+    resolved: builtins.list[str] = []
+    translated = False
+    for name in names:
+        entry = computed_by_alias.get(name)
+        if entry is not None and entry != name:
+            resolved.append(entry)
+            translated = True
+        else:
+            resolved.append(name)
+    names = resolved
+
+    if PROJECTION_ALL not in names:
+        return names if translated else fields
+
+    seen = {projection_alias(name) for name in names}
+    extra: builtins.list[str] = []
+
+    # $key is the resource's identity and ResourceObject.key depends on it,
+    # yet several endpoints leave it out of 'all' - nodes and storage_tiers
+    # among them, where .key then raised "Resource has no $key" for a plainly
+    # persisted row. Ask for it unconditionally: endpoints that already carry
+    # it tolerate the duplicate, and settings, which is keyed on 'key', simply
+    # answers with both.
+    if "$key" not in seen:
+        seen.add("$key")
+        extra.append("$key")
+
+    for field in defaults or ():
+        # 'all' already covers plain own-columns, so re-listing them only
+        # bloats the URL. It covers nothing the server has to compute, and
+        # it drops $key on at least the nodes endpoint.
+        if not is_computed_projection(field):
+            continue
+        alias = projection_alias(field)
+        if alias in seen:
+            continue
+        seen.add(alias)
+        extra.append(field)
+
+    return names + extra if extra else fields
+
+
+#: Sentinel for "nothing supplied here", distinct from a legitimate ``None``.
+_NO_VALUE: Any = object()
+
+
+def display_map(mapping: Mapping[Any, Any], default: Any = _NO_VALUE) -> Callable[[Any], Any]:
+    """Build a ``transform`` that renders a raw value through ``mapping``.
+
+    Args:
+        mapping: Raw value -> display value.
+        default: Returned for an unmapped value. Omit to pass the raw value
+            through unchanged, which is what the hand-written accessors did.
+
+    Returns:
+        A callable suitable for ``Projected(transform=...)``.
+    """
+
+    def _render(value: Any) -> Any:
+        if default is _NO_VALUE:
+            return mapping.get(value, value)
+        return mapping.get(value, default)
+
+    return _render
+
+
+def split_reference(value: Any) -> tuple[str | None, str | int | None]:
+    """Split a VergeOS reference into ``(table, key)``.
+
+    Several columns hold a *polymorphic* reference -- a ``"table/key"``
+    string such as ``"vms/39"`` naming both the table and the row, which is
+    how ``tasks.create(owner=..., table=...)`` composes them. Others hold a
+    plain key. A key is not always numeric either: recipes are keyed by name,
+    so ``owner`` can be ``"vm_recipes/yottabyte-services-nas-winbind"``.
+
+    Coercing any of those with ``int()`` raises ValueError, which is issue
+    #126. This reports what is actually there instead:
+
+    >>> split_reference("vms/39")
+    ('vms', 39)
+    >>> split_reference("vm_recipes/winbind-v1")
+    ('vm_recipes', 'winbind-v1')
+    >>> split_reference("deprecated")
+    (None, 'deprecated')
+    >>> split_reference("")
+    (None, None)
+
+    Args:
+        value: The raw column value.
+
+    Returns:
+        ``(table, key)``. ``table`` is None when the value carries no table
+        part; ``key`` is an int when it looks like one, and None when there
+        is no value at all.
+    """
+    if value is None:
+        return (None, None)
+    if isinstance(value, bool):
+        return (None, int(value))
+    if isinstance(value, int):
+        return (None, value)
+    text = str(value).strip()
+    if not text:
+        return (None, None)
+    table: str | None = None
+    if "/" in text:
+        table, _, text = text.partition("/")
+        table = table or None
+        if not text:
+            return (table, None)
+    try:
+        return (table, int(text))
+    except ValueError:
+        return (table, text)
+
+
+def reference_key(value: Any) -> str | int | None:
+    """The key part of a reference: 39 from ``"vms/39"``. See split_reference."""
+    return split_reference(value)[1]
+
+
+def reference_table(value: Any) -> str | None:
+    """The table part of a reference: ``"vms"`` from ``"vms/39"``, else None."""
+    return split_reference(value)[0]
+
+
+def epoch_utc(value: Any) -> Any:
+    """Render a Unix timestamp as a timezone-aware UTC datetime.
+
+    A ``transform`` for the several accessors that turn an epoch column into
+    a ``datetime``. Pair it with ``falsy=None, null=None`` so that a missing
+    or zero timestamp stays None rather than becoming 1970.
+    """
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(int(value), tz=timezone.utc)
+
+
+class Projected(Generic[PT]):
+    """Declare an accessor and the projection entry behind it, together.
+
+    Issue #117 was not that accessors guessed. It was that the fact
+    *"``is_running`` comes from ``machine#status#running``"* was written down
+    twice -- once in the manager's field list, once in the accessor's
+    ``self.get("running", False)`` -- with nothing tying the two. Each fix was
+    another sweep for copies of a hand-written pattern: ``all`` not carrying
+    the traversal, a caller naming the alias and getting a bare column, an
+    accessor with a two-argument read, then one with a one-argument read.
+
+    Stating it once removes the class of defect rather than its instances::
+
+        class Network(ResourceObject):
+            is_running = Projected("machine#status#running as running", bool,
+                                   default=False)
+
+    The manager then derives its projection from the declarations instead of
+    restating them, so the two cannot drift, and adding an accessor adds its
+    field to every query that reads it.
+
+    The read is performed in a fixed order, which is what lets the various
+    hand-written bodies this replaces be reproduced exactly:
+
+    1. ``require_projected(alias, default)``, or ``require_projected_any``
+       when several aliases are given.
+    2. If ``fallback`` is set and the value is falsy, re-read it from that
+       plain field -- the ``x or self.get("y", 0)`` idiom.
+    3. If ``falsy`` is set and the value is falsy, substitute it -- the
+       ``x or 0`` idiom.
+    4. If the value is None and ``null`` was given, return ``null``.
+    5. Apply ``coerce``, then ``transform``.
+
+    Note that ``coerce`` is applied to a null value unless ``null`` is given.
+    That is deliberate: it is what the accessors being replaced did, and
+    changing it here would alter behaviour silently rather than visibly.
+
+    Args:
+        entry: The projection entry -- ``"machine#status#running as running"``
+            -- or a plain column name. A sequence of entries reads whichever
+            was projected, for fields spelled differently by different
+            endpoints.
+        coerce: Applied to the value, typically ``str``, ``int`` or ``bool``.
+        default: Returned when the field was requested but the server omitted
+            it, as a traversal through a null polymorphic reference is.
+        null: Returned uncoerced when the value is None. Omit to pass None
+            to ``coerce``, which is what the accessors replaced here did.
+        falsy: Substituted for any falsy value, reproducing ``x or 0``.
+        fallback: Plain field read via ``get()`` when the value is falsy, for
+            rows that carry the same fact under an embedded name.
+        fallback_default: Default for that fallback read.
+        transform: Applied last, for display maps and unit conversions.
+        doc: Docstring for the generated attribute.
+    """
+
+    def __init__(
+        self,
+        entry: str | Sequence[str],
+        coerce: Callable[[Any], Any] | None = None,
+        *,
+        default: Any = None,
+        null: Any = _NO_VALUE,
+        falsy: Any = _NO_VALUE,
+        fallback: str | None = None,
+        fallback_default: Any = None,
+        transform: Callable[[Any], Any] | None = None,
+        doc: str | None = None,
+    ) -> None:
+        entries = [entry] if isinstance(entry, str) else list(entry)
+        if not entries:
+            raise ValueError("Projected requires at least one projection entry")
+        self.entries: builtins.list[str] = entries
+        self.aliases: builtins.list[str] = [projection_alias(e) for e in entries]
+        self.coerce = coerce
+        self.default = default
+        self.null = null
+        self.falsy = falsy
+        self.fallback = fallback
+        self.fallback_default = fallback_default
+        self.transform = transform
+        self.name = self.aliases[0]
+        self.__doc__ = doc
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.name = name
+
+    @overload
+    def __get__(self, obj: None, objtype: type | None = None) -> Projected[PT]: ...
+
+    @overload
+    def __get__(self, obj: Any, objtype: type | None = None) -> PT: ...
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        if obj is None:
+            return self
+        if len(self.aliases) == 1:
+            value = obj.require_projected(self.aliases[0], self.default)
+        else:
+            value = obj.require_projected_any(*self.aliases, default=self.default)
+        if self.fallback is not None and not value:
+            value = obj.get(self.fallback, self.fallback_default)
+        if self.falsy is not _NO_VALUE and not value:
+            value = self.falsy
+        if value is None and self.null is not _NO_VALUE:
+            return self.null
+        if self.coerce is not None:
+            value = self.coerce(value)
+        if self.transform is not None:
+            value = self.transform(value)
+        return value
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        """Write through to the backing mapping.
+
+        Defined so this is a *data* descriptor and therefore always wins over
+        the instance dictionary, matching the ``property`` it replaces. The
+        value lands in the mapping, which is where ``ResourceObject``'s own
+        ``__setattr__`` would have put it.
+        """
+        obj[self.name] = value
+
+
 class ResourceObject(dict[str, Any]):
     """Dict subclass with attribute access and resource methods.
 
@@ -143,6 +488,14 @@ class ResourceObject(dict[str, Any]):
         super().__init__(data)
         self._manager = manager
         self._dirty: set[str] = set()
+        # What the request that produced this row asked the server for.
+        # None when unknown, in which case require_projected() stays strict.
+        # Type-checked rather than taken on trust, so a hand-built or mocked
+        # manager degrades to "unknown" instead of to a truthy non-set.
+        requested = getattr(manager, "_requested_aliases", None)
+        self._requested: frozenset[str] | None = (
+            requested if isinstance(requested, frozenset) else None
+        )
 
     def __setitem__(self, key: str, value: Any) -> None:
         self.__dict__.setdefault("_dirty", set()).add(key)
@@ -180,6 +533,99 @@ class ResourceObject(dict[str, Any]):
         else:
             self[name] = value
 
+    @classmethod
+    def projected_entries(cls) -> builtins.list[str]:
+        """Projection entries declared by this model's ``Projected`` fields.
+
+        Lets a manager build its default projection from the declarations
+        rather than restating them, so an accessor and the field list that
+        feeds it cannot disagree (issue #125). Base classes first, in
+        declaration order, de-duplicated.
+        """
+        seen: dict[str, None] = {}
+        for klass in reversed(cls.__mro__):
+            for value in vars(klass).values():
+                if isinstance(value, Projected):
+                    for entry in value.entries:
+                        seen.setdefault(entry, None)
+        return list(seen)
+
+    def require_projected(self, name: str, default: Any = None) -> Any:
+        """Return field ``name``, refusing to guess when it was not projected.
+
+        Accessors built on this cannot conflate "the field says false" with
+        "the field was never fetched".
+
+        The test is what the request asked for, not merely whether the key
+        came back. Most computed fields do come back null when there is
+        nothing to report, but a traversal through a polymorphic reference
+        is omitted outright when that reference is null, so absence alone
+        would raise on a correctly projected row.
+
+        Args:
+            name: Field to read.
+            default: Returned when the field was requested but the server
+                omitted it, which a null polymorphic reference causes. This
+                is the same value the ``self.get(name, default)`` call this
+                replaced would have produced, so behaviour is unchanged for
+                every case except the one being fixed.
+
+        Returns:
+            The stored value, which may be None.
+
+        Raises:
+            FieldNotProjectedError: If the field was never requested.
+        """
+        try:
+            return self[name]
+        except KeyError:
+            pass
+        # Absence is not on its own proof that the field was not requested.
+        # A traversal through a *polymorphic* reference - ``creator#$display``
+        # on tasks, where ``creator`` holds a ``table/key`` string - is
+        # omitted entirely when that reference is null, rather than coming
+        # back null. Measured on a live system: 8 such fields across 6
+        # managers. So the row is only "not projected" if the request did not
+        # ask for it; if it did, ``default`` is the answer, exactly as the
+        # ``self.get(name, default)`` this replaced would have given.
+        if self._requested is not None and name in self._requested:
+            return default
+        raise FieldNotProjectedError(name, type(self).__name__) from None
+
+    def require_projected_any(self, *names: str, default: Any = None) -> Any:
+        """Read the first of ``names`` that was projected.
+
+        For accessors whose field is spelled differently depending on which
+        projection produced the row -- ``volume_name`` or ``volume_display``,
+        ``status`` or ``rstatus``. Requiring the first name alone would raise
+        for a row that legitimately carries the second.
+
+        Preserves the ``a or b`` chain these replaced: the first *truthy*
+        present value wins, falling back to the first present value, so a
+        genuine ``0`` or ``""`` is still reported.
+
+        Args:
+            *names: Candidate field names, in preference order.
+            default: Returned when a name was requested but the server
+                omitted it.
+
+        Returns:
+            The stored value, which may be None.
+
+        Raises:
+            FieldNotProjectedError: If none of ``names`` was requested.
+        """
+        present = [name for name in names if name in self]
+        for name in present:
+            value = self[name]
+            if value:
+                return value
+        if present:
+            return self[present[0]]
+        if self._requested is not None and any(name in self._requested for name in names):
+            return default
+        raise FieldNotProjectedError(names[0], type(self).__name__)
+
     @property
     def key(self) -> int:
         """Resource primary key ($key).
@@ -210,6 +656,12 @@ class ResourceObject(dict[str, Any]):
         # (dict methods bypass the tracking __setitem__).
         dict.clear(self)
         dict.update(self, result)
+        # Adopt the refetch's projection too. The rows are now whatever
+        # get() asked for, so keeping the old record would have this object
+        # disagree with an identical freshly-fetched one: a task refreshed
+        # from a narrow projection carried the full default row yet still
+        # raised for creator_display, which the server omits (issue #117).
+        self._requested = getattr(result, "_requested", None)
         self.__dict__.setdefault("_dirty", set()).clear()
         return self
 
@@ -286,8 +738,45 @@ class ResourceManager(Generic[T]):
 
     _endpoint: str = ""
 
+    #: The manager's default projection, when it has one. Declared here so
+    #: that list()/get() can make a caller's ``all`` a true superset of it
+    #: (issue #117). Subclasses that keep their defaults in a module constant
+    #: should point this at that constant.
+    _default_fields: builtins.list[str] | None = None
+
+    #: Alias names sent to the server by the most recent ``_projection()``
+    #: call. Captured by each ``ResourceObject`` at construction, which
+    #: happens during the same request, so it is never read stale.
+    _requested_aliases: frozenset[str] | None = None
+
     def __init__(self, client: VergeClient) -> None:
         self._client = client
+
+    def _projection(self, fields: str | builtins.list[str] | None) -> str | None:
+        """Serialize a caller-supplied ``fields`` argument for the wire.
+
+        The single place a projection becomes a request parameter, so that
+        ``all`` is expanded into a true superset of this manager's default
+        projection (issue #117) no matter which method built the request.
+        Managers that assemble ``params`` themselves must use this rather
+        than calling ``normalize_fields()`` directly; a tripwire enforces it.
+
+        Args:
+            fields: The caller's projection.
+
+        Returns:
+            The wire-format ``fields`` value, or None.
+        """
+        resolved = expand_projection(fields, self._default_fields)
+        # Record the names this request asks the server for, so that objects
+        # built from the response can tell "you never asked for this" from
+        # "you asked, and the server had nothing to say" (issue #117).
+        self._requested_aliases = (
+            frozenset(projection_alias(name) for name in split_fields(resolved))
+            if resolved
+            else None
+        )
+        return normalize_fields(resolved)
 
     def list(
         self,
@@ -323,9 +812,10 @@ class ResourceManager(Generic[T]):
         if combined_filter:
             params["filter"] = combined_filter
 
-        # Field selection
+        # Field selection. 'all' is expanded to include the manager's
+        # computed entries, which the API would otherwise omit (issue #117).
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
 
         # Pagination
         if limit is not None:
@@ -352,14 +842,23 @@ class ResourceManager(Generic[T]):
     ) -> T:
         """Get a single resource by key or name.
 
+        When looking up by ``name`` this returns the **first** match
+        (``limit=1``). VergeOS does not enforce unique names on every table, so
+        if two resources share a name only one is returned and the other is not
+        reported -- the duplicate is invisible to this call, not an error. When
+        names may not be unique, look up by ``key``, or use
+        ``list(filter="name eq ...")`` and decide how to handle more than one
+        row yourself.
+
         Args:
             key: Resource $key (ID).
-            name: Resource name (will search if key not provided).
+            name: Resource name (searched if ``key`` is not provided). Returns
+                the first match if the name is not unique; see above.
             fields: Fields to return - a list of names or the API's
                 comma-separated string.
 
         Returns:
-            Resource object.
+            Resource object (the first match when searching by ``name``).
 
         Raises:
             NotFoundError: If resource not found.
@@ -369,7 +868,7 @@ class ResourceManager(Generic[T]):
             # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -387,6 +886,25 @@ class ResourceManager(Generic[T]):
 
         raise ValueError("Either key or name must be provided")
 
+    def _to_model_unprojected(self, data: dict[str, Any]) -> T:
+        """Build a model from a response that carried no projection.
+
+        Write responses are not query results. ``POST`` answers with a
+        receipt -- ``$key``, ``$row``, ``dbpath``, ``location``, ``response``
+        -- and ``PUT`` answers with ``{}``. Nothing in either was requested
+        by a projection, so the object must not inherit the alias set left
+        behind by whatever this manager fetched last: otherwise
+        ``networks.list()`` followed by ``networks.update(...)`` would make
+        the updated object answer ``is_running`` as ``False`` from a row that
+        never contained it, which is issue #117 arriving by a side door.
+
+        Clearing the record first makes such an object report the field as
+        unfetched, the same answer it gives with no prior call, so the result
+        does not depend on unrelated history.
+        """
+        self._requested_aliases = None
+        return self._to_model(data)
+
     def create(self, **kwargs: Any) -> T:
         """Create a new resource.
 
@@ -401,7 +919,7 @@ class ResourceManager(Generic[T]):
             raise ValueError("No response from create operation")
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(self, key: int, **kwargs: Any) -> T:
         """Update an existing resource.
@@ -419,7 +937,7 @@ class ResourceManager(Generic[T]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a resource.

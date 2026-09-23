@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -26,10 +26,12 @@ class VnetProxyTenant(ResourceObject):
         """Get the tenant key."""
         return int(self.get("tenant", 0))
 
-    @property
-    def tenant_name(self) -> str:
-        """Get the tenant display name."""
-        return str(self.get("tenant_display", ""))
+    tenant_name = Projected[str](
+        "tenant_display",
+        str,
+        default="",
+        doc="Get the tenant display name.",
+    )
 
     @property
     def fqdn(self) -> str:
@@ -184,7 +186,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
             # Direct key lookup - verify it belongs to this proxy
             params = {
                 "filter": f"$key eq {key} and proxy eq {self._proxy.key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if not response:
@@ -206,7 +208,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
 
         params = {
             "filter": " and ".join(filter_parts),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         response = self._client._request("GET", self._endpoint, params=params)
         if not response:
@@ -306,10 +308,12 @@ class VnetProxy(ResourceObject):
         """Get the parent network key."""
         return int(self.get("vnet", 0))
 
-    @property
-    def network_name(self) -> str:
-        """Get the parent network display name."""
-        return str(self.get("vnet_display", ""))
+    network_name = Projected[str](
+        "vnet_display",
+        str,
+        default="",
+        doc="Get the parent network display name.",
+    )
 
     @property
     def listen_address(self) -> str:
@@ -490,13 +494,13 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             # Verify it belongs to this network
             params = {
                 "filter": f"$key eq {key} and vnet eq {self._network.key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
             }
         else:
             # Get by network
             params = {
                 "filter": f"vnet eq {self._network.key}",
-                "fields": normalize_fields(fields),
+                "fields": self._projection(fields),
             }
 
         response = self._client._request("GET", self._endpoint, params=params)

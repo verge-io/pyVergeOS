@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, VergeTimeoutError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -209,6 +209,10 @@ class QueryManager(ResourceManager[QueryResult]):
     Subclasses set ``_endpoint`` and ``_parent_field``.
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = QUERY_DEFAULT_FIELDS
+
     _endpoint: str = ""
     _parent_field: str = ""
 
@@ -249,7 +253,7 @@ class QueryManager(ResourceManager[QueryResult]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -288,7 +292,7 @@ class QueryManager(ResourceManager[QueryResult]):
             fields = QUERY_DEFAULT_FIELDS
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Query {key} not found")
@@ -334,7 +338,7 @@ class QueryManager(ResourceManager[QueryResult]):
         key = response.get("$key")
         if key is not None:
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def wait(
         self,

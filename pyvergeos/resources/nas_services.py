@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -31,10 +31,14 @@ class NASService(ResourceObject):
         nfs: NFS settings key.
     """
 
+    #: Declared so the projection carries them; read through is_running below.
+    _vm_running = Projected[Any]("vm#machine#status#running as vm_running", default=False)
+    _vm_status = Projected[Any]("vm#machine#status#status as vm_status")
+
     @property
     def is_running(self) -> bool:
         """Check if the NAS service VM is running."""
-        return self.get("vm_running", False) or self.get("vm_status") == "running"
+        return bool(self._vm_running or self._vm_status == "running")
 
     @property
     def vm_key(self) -> int | None:
@@ -42,11 +46,13 @@ class NASService(ResourceObject):
         vm = self.get("vm")
         return int(vm) if vm is not None else None
 
-    @property
-    def volume_count(self) -> int:
-        """Get the number of volumes managed by this service."""
-        count = self.get("volume_count", 0)
-        return int(count) if count is not None else 0
+    volume_count = Projected[int](
+        "count(volumes) as volume_count",
+        int,
+        default=0,
+        null=0,
+        doc="Get the number of volumes managed by this service.",
+    )
 
     @property
     def antivirus(self) -> NasServiceAntivirusManager:
@@ -148,8 +154,6 @@ class NASServiceManager(ResourceManager[NASService]):
         "vm#name as vm_name",
         "vm#$display as vm_display",
         "vm#description as vm_description",
-        "vm#machine#status#status as vm_status",
-        "vm#machine#status#running as vm_running",
         "vm#machine#cores as vm_cores",
         "vm#machine#ram as vm_ram",
         "vm#created as created",
@@ -160,7 +164,7 @@ class NASServiceManager(ResourceManager[NASService]):
         "read_ahead_kb_default",
         "cifs",
         "nfs",
-        "count(volumes) as volume_count",
+        *NASService.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -212,9 +216,9 @@ class NASServiceManager(ResourceManager[NASService]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -287,9 +291,9 @@ class NASServiceManager(ResourceManager[NASService]):
             # Fetch by key with default fields
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -688,7 +692,7 @@ class NASServiceManager(ResourceManager[NASService]):
         response = self._client._request(
             "GET",
             "vm_service_cifs",
-            params={"filter": f"service eq {key}", "fields": normalize_fields(fields)},
+            params={"filter": f"service eq {key}", "fields": self._projection(fields)},
         )
 
         if not response:
@@ -818,7 +822,7 @@ class NASServiceManager(ResourceManager[NASService]):
         response = self._client._request(
             "GET",
             "vm_service_nfs",
-            params={"filter": f"service eq {key}", "fields": normalize_fields(fields)},
+            params={"filter": f"service eq {key}", "fields": self._projection(fields)},
         )
 
         if not response:

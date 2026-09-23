@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -315,6 +315,10 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             peers = wg.peers.list()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_INTERFACE_FIELDS
+
     _endpoint = "vnet_wireguards"
 
     def __init__(self, client: VergeClient, network: Network) -> None:
@@ -363,7 +367,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         # Default fields
         if fields is None:
             fields = DEFAULT_INTERFACE_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -409,7 +413,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             fields = DEFAULT_INTERFACE_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -581,6 +585,10 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             config = peer.get_config()
     """
 
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_PEER_FIELDS
+
     _endpoint = "vnet_wireguard_peers"
 
     def __init__(self, client: VergeClient, interface: WireGuardInterface) -> None:
@@ -628,7 +636,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         # Default fields
         if fields is None:
             fields = DEFAULT_PEER_FIELDS.copy()
-        params["fields"] = normalize_fields(fields)
+        params["fields"] = self._projection(fields)
 
         # Sort by name
         params["sort"] = "name"
@@ -674,7 +682,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             fields = DEFAULT_PEER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:

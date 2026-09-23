@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -52,10 +52,12 @@ class TaskScheduleTrigger(ResourceObject):
         task = self.get("task")
         return int(task) if task is not None else None
 
-    @property
-    def task_display(self) -> str:
-        """Get the linked task display name."""
-        return str(self.get("task_display", ""))
+    task_display = Projected[str](
+        "display(task) as task_display",
+        str,
+        default="",
+        doc="Get the linked task display name.",
+    )
 
     @property
     def schedule_key(self) -> int | None:
@@ -63,10 +65,12 @@ class TaskScheduleTrigger(ResourceObject):
         schedule = self.get("schedule")
         return int(schedule) if schedule is not None else None
 
-    @property
-    def schedule_display(self) -> str:
-        """Get the linked schedule display name."""
-        return str(self.get("schedule_display", ""))
+    schedule_display = Projected[str](
+        "display(schedule) as schedule_display",
+        str,
+        default="",
+        doc="Get the linked schedule display name.",
+    )
 
     @property
     def is_schedule_enabled(self) -> bool:
@@ -124,14 +128,10 @@ class TaskScheduleTriggerManager(ResourceManager[TaskScheduleTrigger]):
     _default_fields = [
         "$key",
         "task",
-        "display(task) as task_display",
         "schedule",
-        "display(schedule) as schedule_display",
         "trigger",
-        "flatten(schedule[$key as sch_$key,enabled as sch_enabled,"
-        "start_time_of_day as sch_start_time_of_day,repeat_iteration as sch_repeat_iteration,"
-        "end_date as sch_end_date,display(day_of_month) as sch_day_of_month,"
-        "display(repeat_every) as sch_repeat_every])",
+        "flatten(schedule[$key as sch_$key,enabled as sch_enabled,start_time_of_day as sch_start_time_of_day,repeat_iteration as sch_repeat_iteration,end_date as sch_end_date,display(day_of_month) as sch_day_of_month,display(repeat_every) as sch_repeat_every])",
+        *TaskScheduleTrigger.projected_entries(),
     ]
 
     def __init__(
@@ -215,9 +215,9 @@ class TaskScheduleTriggerManager(ResourceManager[TaskScheduleTrigger]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -259,9 +259,9 @@ class TaskScheduleTriggerManager(ResourceManager[TaskScheduleTrigger]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -309,7 +309,7 @@ class TaskScheduleTriggerManager(ResourceManager[TaskScheduleTrigger]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a task schedule trigger.

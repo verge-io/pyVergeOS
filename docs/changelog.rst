@@ -6,6 +6,210 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.6.1] - 2026-09-23
+--------------------
+
+Fixed
+^^^^^
+
+- ``cloud_snapshots.create(wait=True)`` now actually waits. Snapshot creation
+  is not backed by a task row -- the POST response carries no ``task`` key and
+  the row's ``task`` field stays null -- so the old code, which waited only
+  when a task key was present, never waited at all: ``wait=True`` returned
+  immediately with a snapshot still ``building`` and a stale ``status``. It now
+  polls the snapshot row until it reports a settled status -- reading the raw
+  field so a not-yet-populated status right after the POST is treated as still
+  in progress rather than defaulting to ``normal`` and returning early --
+  honouring ``wait_timeout`` (raising ``VergeTimeoutError`` on expiry) and
+  returning the snapshot fetched fresh, so its ``status`` reflects reality.
+  ``wait=False`` behaviour is unchanged. (#133)
+
+[1.6.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``cloud_snapshots.create()`` can now take ``include_tags``, ``exclude_tags``
+  and ``quiesce_tags`` to create a **partial (tag-scoped) system snapshot** --
+  capture only, or all-but, the VMs carrying the given tags, a VergeOS 26.1
+  feature that was previously unreachable from the SDK. Tags may be given as a
+  ``$key``, a name, or a Tag object; names are resolved to keys (an ambiguous
+  name raises rather than guessing, since names are unique only within a
+  category). ``include_tags`` and ``exclude_tags`` are mutually exclusive, and
+  ``quiesce_tags`` requires one of them. A create with none of these is a full
+  snapshot exactly as before. (#129)
+
+[1.5.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``cluster_status`` manager (``client.cluster_status`` and, scoped,
+  ``cluster.cluster_status``) exposing the ``cluster_status`` table -- the
+  live per-cluster node/RAM/core capacity figures behind an N-1 capacity
+  pre-check. Previously reachable only through a private ``client._request()``.
+  ``ClusterStatus.can_lose_one_node()`` provides a conservative even-spread
+  check. (#127)
+
+- ``machine_drive_stats`` manager (``client.machine_drive_stats`` and, scoped,
+  ``drive.drive_stats``) exposing per-drive IO counters. It addresses rows by a
+  filter on ``parent_drive``; path-key access (``machine_drive_stats/<n>``)
+  returns the row whose own ``$key`` is ``n``, which belongs to a different
+  drive, and previously reported another drive's counters -- e.g. writes on a
+  VM that had never booted. ``MachineDriveStats.has_booted`` reports whether the
+  guest has issued disk writes, the reliable signal that it actually booted
+  rather than merely powering on. (#128)
+
+Notes
+^^^^^
+
+- The ``machine_nic_stats`` manager referenced in #128 already existed; only
+  ``machine_drive_stats`` was missing. Both scoped stats managers now default
+  ``list()`` to their projection, so a bare ``list()`` returns populated rows
+  rather than only ``$key``.
+
+
+[1.4.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``Projected``, a descriptor that declares an accessor and the projection
+  entry that feeds it in one place, plus ``ResourceObject.projected_entries()``
+  so a manager derives its default projection from those declarations instead
+  of restating them. Adding an accessor now adds its field to every query that
+  reads it. See :doc:`contributing`. (#125)
+
+- ``display_map()`` and ``epoch_utc()`` transforms, and
+  ``split_reference()`` / ``reference_key()`` / ``reference_table()`` for
+  reading ``"table/key"`` references. (#125, #126)
+
+- ``Task.owner_table`` was already present; ``TaskEvent.owner_key`` now
+  reports the key it previously discarded. (#126)
+
+Fixed
+^^^^^
+
+- Four accessors declared ``-> int`` coerced with ``int()`` on columns that
+  hold a polymorphic reference (``"vms/39"``), a name-keyed reference
+  (``"vm_recipes/winbind-v1"``) or a plain non-numeric value
+  (``"deprecated"``, ``""``). Reading them raised ``ValueError`` on ordinary
+  rows, so iterating alarms or tasks crashed on the first one::
+
+      for alarm in client.alarms.list():
+          print(alarm.owner_key)      # ValueError before this release
+
+  ``alarms.owner_key``, ``alarms.alarm_type_key``, ``alarms.sub_owner``,
+  ``tasks.owner_key``, ``tasks.creator_key`` and
+  ``task_schedules.creator_key`` now report the key part of the reference.
+  ``task_events.owner_key`` returned ``None`` for these rather than raising,
+  discarding the key; it now reports it. (#126)
+
+Changed
+^^^^^^^
+
+- **Type change.** The accessors above widen from ``int | None`` to
+  ``str | int | None``, because a VergeOS key is not always numeric. Numeric
+  references are unaffected -- ``39`` and ``"27"`` still read as ``int`` --
+  and an absent column still reads as ``None``. Only values that previously
+  raised behave differently. (#126)
+
+- Every accessor for a computed field is now declared with ``Projected``
+  rather than written by hand. This is a refactor: behaviour is unchanged,
+  verified by comparing each accessor against the implementation it replaced
+  across present, null, empty, falsy, absent-but-requested and
+  never-requested values, and by checking that every manager's projection is
+  unchanged in content. (#125)
+
+  Contributors adding an accessor should read the new section in
+  :doc:`contributing`; a test enforces that no ``@property`` calls
+  ``require_projected``.
+
+[1.3.0] - 2026-09-23
+--------------------
+
+Added
+^^^^^
+
+- ``FieldNotProjectedError``, raised when an accessor is asked for a field
+  the request never fetched. Exported from ``pyvergeos`` and documented in
+  :doc:`error_handling`. It is deliberately **not** an ``AttributeError``,
+  so ``getattr(vm, "is_running", None)`` and ``hasattr(vm, "is_running")``
+  propagate it rather than quietly answering ``None``/``False``; an
+  ``AttributeError`` subclass would be swallowed by ``ResourceObject``'s
+  dict attribute fallback. Use ``"running" in vm`` for a non-raising check.
+  (#117)
+
+Changed
+^^^^^^^
+
+- **Behaviour change.** An accessor whose backing field was not fetched now
+  raises ``FieldNotProjectedError`` instead of returning ``False``, ``""``,
+  ``0`` or ``"unknown"``. This affects callers that narrow ``fields`` and
+  then read ``is_running``, ``status``, ``member_count`` and similar: they
+  previously received a silently wrong answer.
+
+  A wrong answer in this direction is the dangerous one - ``is_running`` is
+  exactly the guard placed in front of a destructive operation, and a
+  storage tier reported as ``"Offline"`` with zero capacity invites action
+  on a healthy tier.
+
+  No signatures changed, and the default projection is unaffected. To get a
+  usable answer, use the manager's default fields, pass ``fields=["all"]``,
+  or name the field - all three now agree::
+
+      vm = client.vms.get(name="web-01")
+      vm = client.vms.get(name="web-01", fields=["all"])
+      vm = client.vms.get(name="web-01", fields=["$key", "running"])
+
+  Accessors that can still answer from another fetched field keep their
+  tolerant behaviour - ``device_type_display`` falls back to the
+  ``device_type`` column, ``size_gb`` to ``disksize``. (#117)
+
+- Accessors declared ``-> str | None`` now return a ``str``. Several
+  returned whatever the API sent, so ``permission.identity_name`` answered
+  the integer ``1`` where its own annotation promised text. Affects 32
+  accessors; compare against ``"1"`` rather than ``1``. (#117)
+
+Fixed
+^^^^^
+
+- ``fields=["all"]`` is no longer a silently lossy projection. ``all``
+  resolves server-side to a resource's *own columns*, so nothing the server
+  computes came back with it: aliased traversals
+  (``machine#status#running as running``), aggregates
+  (``count(members) as member_count``) and sub-selections
+  (``stats[reads,writes]``) alike, and on ``nodes`` and ``storage_tiers`` not
+  even ``$key``. A running VM read back under ``all`` reported
+  ``is_running is False``, and ``node.key`` raised "Resource has no $key" for
+  a plainly persisted node. ``all`` is now expanded with the manager's
+  computed entries and ``$key``. (#117)
+
+- Naming a field no longer selects the wrong one.
+  ``fields=["$key", "name", "running"]`` selected the ``vms`` table's own
+  ``running`` column, which is null on every row, so ``is_running`` answered
+  ``False`` for a running VM. A projection entry matching one of the
+  manager's alias names now resolves to the manager's entry for it.
+  Narrowing is still honoured and is never widened. (#117)
+
+- An object built from a write response no longer inherits the projection of
+  whatever the manager last queried. ``POST`` answers with a receipt and
+  ``PUT`` with ``{}``, so ``networks.list()`` followed by
+  ``networks.update(...)`` produced an object that answered ``is_running`` as
+  ``False`` from a row that never contained ``running`` - an answer that
+  depended on unrelated earlier calls. (#117)
+
+- ``refresh()`` adopts the refetched projection, so a refreshed object no
+  longer disagrees with an identically fetched one. (#117)
+
+- A field the server omits because a *polymorphic* reference is null - such
+  as ``creator#$display`` on a task with no creator - is reported as its
+  default rather than as unfetched. Absence alone is not proof that a field
+  was not requested. (#117)
+
 [1.2.8] - 2026-09-22
 --------------------
 

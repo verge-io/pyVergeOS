@@ -7,10 +7,11 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.drive_stats import MachineDriveStatsManager
     from pyvergeos.resources.vms import VM
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,24 @@ class Drive(ResourceObject):
         """Check if the Microsoft 2023 Secure Boot keys have been applied."""
         return bool(self.get("ms_2023_kek_applied", False))
 
+    @property
+    def drive_stats(self) -> MachineDriveStatsManager:
+        """Per-drive IO statistics, scoped to this drive (issue #128).
+
+        Addresses the stats by a filter on ``parent_drive``, avoiding the
+        path-key aliasing that reports another drive's counters.
+
+        Returns:
+            MachineDriveStatsManager scoped to this drive.
+
+        Example:
+            >>> stats = drive.drive_stats.get()
+            >>> print("booted" if stats.has_booted else "not booted")
+        """
+        from pyvergeos.resources.drive_stats import MachineDriveStatsManager
+
+        return MachineDriveStatsManager(self._manager._client, self.key)
+
     def apply_universal_vars(self) -> dict[str, Any] | None:
         """Apply the Microsoft 2023 Secure Boot keys to this EFI disk.
 
@@ -195,7 +214,7 @@ class DriveManager(ResourceManager[Drive]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "+orderid",
         }
         if limit is not None:
@@ -238,7 +257,7 @@ class DriveManager(ResourceManager[Drive]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -352,7 +371,7 @@ class DriveManager(ResourceManager[Drive]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
         # Fetch the full drive data with all fields
-        drive = self._to_model(response)
+        drive = self._to_model_unprojected(response)
         return self.get(drive.key)
 
     def delete(self, key: int) -> None:
@@ -386,7 +405,7 @@ class DriveManager(ResourceManager[Drive]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
         """Translate the ``tier`` alias to the API's ``preferred_tier`` field.
@@ -534,5 +553,5 @@ class DriveManager(ResourceManager[Drive]):
             raise ValueError("Import operation returned invalid response")
 
         # Fetch the full drive data with all fields
-        drive = self._to_model(response)
+        drive = self._to_model_unprojected(response)
         return self.get(drive.key)

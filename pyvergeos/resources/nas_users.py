@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -98,10 +98,15 @@ class NASUser(ResourceObject):
         svc = self.get("service")
         return int(svc) if svc is not None else None
 
-    @property
-    def service_name(self) -> str | None:
-        """Get the parent NAS service name."""
-        return self.get("service_name") or self.get("service_display")
+    service_name = Projected["str | None"](
+        (
+            "service#name as service_name",
+            "service#$display as service_display",
+        ),
+        str,
+        null=None,
+        doc="Get the parent NAS service name.",
+    )
 
     @property
     def home_share_key(self) -> int | None:
@@ -109,10 +114,12 @@ class NASUser(ResourceObject):
         share = self.get("home_share")
         return int(share) if share is not None else None
 
-    @property
-    def home_share_name(self) -> str | None:
-        """Get the home share name."""
-        return self.get("home_share_display")
+    home_share_name = Projected["str | None"](
+        "display(home_share) as home_share_display",
+        str,
+        null=None,
+        doc="Get the home share name.",
+    )
 
     @property
     def home_drive(self) -> str | None:
@@ -145,27 +152,33 @@ class NASUser(ResourceObject):
         }
         return status_map.get(status or "", status or "Unknown")
 
-    @property
-    def user_sid(self) -> str | None:
-        """Get the Windows SID."""
-        return self.get("user_sid")
+    user_sid = Projected["str | None"](
+        "status#user_sid as user_sid",
+        str,
+        null=None,
+        doc="Get the Windows SID.",
+    )
 
-    @property
-    def group_sid(self) -> str | None:
-        """Get the group SID."""
-        return self.get("group_sid")
+    group_sid = Projected["str | None"](
+        "status#group_sid as group_sid",
+        str,
+        null=None,
+        doc="Get the group SID.",
+    )
 
-    @property
-    def user_id(self) -> int | None:
-        """Get the Unix UID."""
-        uid = self.get("user_id")
-        return int(uid) if uid is not None else None
+    user_id = Projected["int | None"](
+        "status#user_id as user_id",
+        int,
+        null=None,
+        doc="Get the Unix UID.",
+    )
 
-    @property
-    def group_id(self) -> int | None:
-        """Get the Unix GID."""
-        gid = self.get("group_id")
-        return int(gid) if gid is not None else None
+    group_id = Projected["int | None"](
+        "status#group_id as group_id",
+        int,
+        null=None,
+        doc="Get the Unix GID.",
+    )
 
 
 class NASUserManager(ResourceManager["NASUser"]):
@@ -201,18 +214,12 @@ class NASUserManager(ResourceManager["NASUser"]):
         "displayname",
         "description",
         "home_share",
-        "display(home_share) as home_share_display",
         "home_drive",
         "created",
         "service",
-        "service#$display as service_display",
-        "service#name as service_name",
         "status#status as status_value",
         "status#status_info as status_info",
-        "status#user_sid as user_sid",
-        "status#group_sid as group_sid",
-        "status#user_id as user_id",
-        "status#group_id as group_id",
+        *NASUser.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -276,9 +283,9 @@ class NASUserManager(ResourceManager["NASUser"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -332,9 +339,9 @@ class NASUserManager(ResourceManager["NASUser"]):
                 "filter": f"$key eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", self._endpoint, params=params)
 

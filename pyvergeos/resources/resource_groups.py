@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -131,10 +131,12 @@ class ResourceGroup(ResourceObject):
         """Whether the resource group is enabled."""
         return bool(self.get("enabled", False))
 
-    @property
-    def resource_count(self) -> int:
-        """Number of resources (devices) in this group."""
-        return int(self.get("resource_count", 0))
+    resource_count = Projected[int](
+        "count(resources) as resource_count",
+        int,
+        default=0,
+        doc="Number of resources (devices) in this group.",
+    )
 
     @property
     def created_at(self) -> datetime | None:
@@ -245,9 +247,9 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
         "class",
         "display(class) as class_display",
         "enabled",
-        "count(resources) as resource_count",
         "created",
         "modified",
+        *ResourceGroup.projected_entries(),
     ]
 
     def _to_model(self, data: dict[str, Any]) -> ResourceGroup:
@@ -840,7 +842,7 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: str) -> None:  # type: ignore[override]
         """Delete a resource group.
@@ -888,10 +890,12 @@ class ResourceRule(ResourceObject):
         rg = self.get("resource_group")
         return int(rg) if rg else None
 
-    @property
-    def resource_group_name(self) -> str:
-        """Parent resource group name."""
-        return str(self.get("resource_group_display", ""))
+    resource_group_name = Projected[str](
+        "display(resource_group) as resource_group_display",
+        str,
+        default="",
+        doc="Parent resource group name.",
+    )
 
     @property
     def name(self) -> str:
@@ -922,10 +926,12 @@ class ResourceRule(ResourceObject):
         node = self.get("node")
         return int(node) if node else None
 
-    @property
-    def node_name(self) -> str:
-        """Node name filter."""
-        return str(self.get("node_display", ""))
+    node_name = Projected[str](
+        "display(node) as node_display",
+        str,
+        default="",
+        doc="Node name filter.",
+    )
 
     @property
     def filter_expression(self) -> str:
@@ -938,10 +944,12 @@ class ResourceRule(ResourceObject):
         config = self.get("filter_configuration")
         return config if isinstance(config, dict) else {}
 
-    @property
-    def resource_count(self) -> int:
-        """Number of devices matched by this rule."""
-        return int(self.get("resource_count", 0))
+    resource_count = Projected[int](
+        "count(resources) as resource_count",
+        int,
+        default=0,
+        doc="Number of devices matched by this rule.",
+    )
 
     @property
     def is_system_created(self) -> bool:
@@ -1005,18 +1013,16 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
     _default_fields = [
         "$key",
         "resource_group",
-        "display(resource_group) as resource_group_display",
         "name",
         "enabled",
         "type",
         "display(type) as type_display",
         "node",
-        "display(node) as node_display",
         "filter",
         "filter_configuration",
-        "count(resources) as resource_count",
         "system_created",
         "modified",
+        *ResourceRule.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, resource_group_key: str | int | None = None) -> None:
@@ -1078,7 +1084,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
 
             filters.append(build_filter(**filter_kwargs))
 
-        params: dict[str, Any] = {"fields": normalize_fields(fields)}
+        params: dict[str, Any] = {"fields": self._projection(fields)}
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1122,7 +1128,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Resource rule with key {key} not found")
@@ -1194,7 +1200,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
 
-        rule = self._to_model(response)
+        rule = self._to_model_unprojected(response)
         return self.get(rule.key)
 
     def update(self, key: int, **kwargs: Any) -> ResourceRule:
@@ -1216,7 +1222,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a resource rule.

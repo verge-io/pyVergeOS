@@ -49,7 +49,12 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    reference_key,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -73,20 +78,14 @@ class TaskEvent(ResourceObject):
     """
 
     @property
-    def owner_key(self) -> int | None:
-        """Get the owner resource key.
+    def owner_key(self) -> str | int | None:
+        """Owner row key, the '1' of 'update_settings/1'.
 
-        Note: Some events have non-integer owner values (e.g., 'update_settings/1').
-        In those cases, this property returns None.
+        The column holds a ``"table/key"`` reference, and a key is not
+        always numeric, so this reports the key part rather than
+        coercing with ``int()`` and raising (issue #126).
         """
-        owner = self.get("owner")
-        if owner is None or owner == "":
-            return None
-        # Owner can be an integer or a path like 'update_settings/1'
-        try:
-            return int(owner)
-        except (ValueError, TypeError):
-            return None
+        return reference_key(self.get("owner"))
 
     @property
     def owner_table(self) -> str | None:
@@ -109,10 +108,12 @@ class TaskEvent(ResourceObject):
         task = self.get("task")
         return int(task) if task is not None else None
 
-    @property
-    def task_display(self) -> str:
-        """Get the linked task display name."""
-        return str(self.get("task_display", ""))
+    task_display = Projected[str](
+        "task#$display as task_display",
+        str,
+        default="",
+        doc="Get the linked task display name.",
+    )
 
     @property
     def event_filters(self) -> dict[str, Any] | None:
@@ -175,11 +176,11 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         "event",
         "event_name",
         "task",
-        "task#$display as task_display",
         "task#name as task_name",
         "table_event_filters",
         "trigger",
         "context",
+        *TaskEvent.projected_entries(),
     ]
 
     def __init__(
@@ -276,9 +277,9 @@ class TaskEventManager(ResourceManager[TaskEvent]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -320,9 +321,9 @@ class TaskEventManager(ResourceManager[TaskEvent]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
@@ -399,7 +400,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

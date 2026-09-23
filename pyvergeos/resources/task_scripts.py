@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -60,10 +60,12 @@ class TaskScript(ResourceObject):
             return settings
         return None
 
-    @property
-    def task_count(self) -> int:
-        """Get the number of tasks using this script."""
-        return int(self.get("task_count", 0))
+    task_count = Projected[int](
+        "count(tasks) as task_count",
+        int,
+        default=0,
+        doc="Get the number of tasks using this script.",
+    )
 
     def run(self, **params: Any) -> dict[str, Any] | None:
         """Run this script.
@@ -118,7 +120,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         "description",
         "script",
         "task_settings",
-        "count(tasks) as task_count",
+        *TaskScript.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -176,9 +178,9 @@ class TaskScriptManager(ResourceManager[TaskScript]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -220,9 +222,9 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -292,7 +294,7 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,

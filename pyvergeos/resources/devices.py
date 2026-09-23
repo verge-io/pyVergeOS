@@ -31,7 +31,12 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    display_map,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -77,10 +82,12 @@ class Device(ResourceObject):
         """Parent machine (VM) key."""
         return int(self.get("machine", 0))
 
-    @property
-    def machine_name(self) -> str:
-        """Parent machine (VM) name."""
-        return str(self.get("machine_name", ""))
+    machine_name = Projected[str](
+        "machine#name as machine_name",
+        str,
+        default="",
+        doc="Parent machine (VM) name.",
+    )
 
     @property
     def machine_type(self) -> str:
@@ -134,26 +141,34 @@ class Device(ResourceObject):
         rg = self.get("resource_group")
         return int(rg) if rg else None
 
-    @property
-    def resource_group_name(self) -> str:
-        """Associated resource group name."""
-        return str(self.get("resource_group_name", ""))
+    resource_group_name = Projected[str](
+        "resource_group#name as resource_group_name",
+        str,
+        default="",
+        doc="Associated resource group name.",
+    )
 
-    @property
-    def status(self) -> str:
-        """Device status (human-readable)."""
-        raw = str(self.get("device_status", ""))
-        return DEVICE_STATUS_DISPLAY.get(raw, raw)
+    status = Projected[str](
+        "status#status as device_status",
+        str,
+        default="",
+        transform=display_map(DEVICE_STATUS_DISPLAY),
+        doc="Device status (human-readable).",
+    )
 
-    @property
-    def status_raw(self) -> str:
-        """Raw device status value."""
-        return str(self.get("device_status", ""))
+    status_raw = Projected[str](
+        "status#status as device_status",
+        str,
+        default="",
+        doc="Raw device status value.",
+    )
 
-    @property
-    def status_info(self) -> str:
-        """Additional status information."""
-        return str(self.get("status_info", ""))
+    status_info = Projected[str](
+        "status#status_info as status_info",
+        str,
+        default="",
+        doc="Additional status information.",
+    )
 
     @property
     def created_at(self) -> datetime | None:
@@ -269,7 +284,6 @@ class DeviceManager(ResourceManager[Device]):
     _default_fields = [
         "$key",
         "machine",
-        "machine#name as machine_name",
         "machine_type",
         "name",
         "description",
@@ -279,11 +293,9 @@ class DeviceManager(ResourceManager[Device]):
         "enabled",
         "optional",
         "resource_group",
-        "resource_group#name as resource_group_name",
-        "status#status as device_status",
-        "status#status_info as status_info",
         "created",
         "modified",
+        *Device.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient, machine_key: int) -> None:
@@ -357,7 +369,7 @@ class DeviceManager(ResourceManager[Device]):
 
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "+orderid",
         }
 
@@ -401,7 +413,7 @@ class DeviceManager(ResourceManager[Device]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
             if response is None:
@@ -488,7 +500,7 @@ class DeviceManager(ResourceManager[Device]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
 
-        device = self._to_model(response)
+        device = self._to_model_unprojected(response)
         return self.get(device.key)
 
     def create_vgpu(
@@ -797,7 +809,7 @@ class DeviceManager(ResourceManager[Device]):
             return self.get(key)
         if not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a device.

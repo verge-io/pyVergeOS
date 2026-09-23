@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import FieldNotProjectedError, NotFoundError
 from pyvergeos.resources.task_events import TaskEvent, TaskEventManager
 
 # =============================================================================
@@ -59,11 +59,15 @@ class TestTaskEvent:
         assert event.owner_key is None
 
     def test_task_event_owner_key_path_value(self, mock_client: VergeClient) -> None:
-        """Test TaskEvent.owner_key returns None for path-like values."""
+        """TaskEvent.owner_key reports the key of a 'table/key' reference.
+
+        It used to return None here, discarding the one piece of information
+        the caller asked for: the row is update_settings 1 (issue #126).
+        """
         data = {"$key": 1, "owner": "update_settings/1"}
         event = TaskEvent(data, mock_client.task_events)
 
-        assert event.owner_key is None
+        assert event.owner_key == 1
 
     def test_task_event_task_key_none(self, mock_client: VergeClient) -> None:
         """Test TaskEvent.task_key returns None when not set."""
@@ -86,12 +90,14 @@ class TestTaskEvent:
 
         assert event.event_context is None
 
-    def test_task_event_task_display_default(self, mock_client: VergeClient) -> None:
-        """Test TaskEvent.task_display returns empty string when not set."""
+    def test_task_event_task_display_refuses_to_guess(self, mock_client: VergeClient) -> None:
+        """'task_display' is a join; "" was indistinguishable from a real
+        empty display (issue #117)."""
         data = {"$key": 1}
         event = TaskEvent(data, mock_client.task_events)
 
-        assert event.task_display == ""
+        with pytest.raises(FieldNotProjectedError):
+            _ = event.task_display
 
 
 # =============================================================================

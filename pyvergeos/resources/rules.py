@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -20,11 +20,12 @@ Protocol = Literal["tcp", "udp", "tcpudp", "icmp", "any"]
 Interface = Literal["auto", "router", "dmz", "wireguard", "any"]
 PinPosition = Literal["top", "bottom"]
 
-# Default fields for comprehensive rule data
-RULE_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_RULE_COLUMNS = [
     "$key",
     "vnet",
-    "vnet#name as vnet_name",
     "name",
     "description",
     "enabled",
@@ -64,10 +65,12 @@ class NetworkRule(ResourceObject):
             raise ValueError("Rule has no network (vnet) key")
         return int(vnet)
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the network name this rule belongs to."""
-        return self.get("vnet_name")
+    network_name = Projected["str | None"](
+        "vnet#name as vnet_name",
+        str,
+        null=None,
+        doc="Get the network name this rule belongs to.",
+    )
 
     @property
     def is_enabled(self) -> bool:
@@ -168,6 +171,14 @@ class NetworkRule(ResourceObject):
         if self.is_system_rule:
             raise ValidationError("Cannot modify system rule")
         return self.save(enabled=False)  # type: ignore[return-value]
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+RULE_DEFAULT_FIELDS = [
+    *_RULE_COLUMNS,
+    *NetworkRule.projected_entries(),
+]
 
 
 class NetworkRuleManager(ResourceManager[NetworkRule]):
@@ -281,7 +292,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
             "sort": "+orderid",
         }
         if limit is not None:
@@ -324,7 +335,7 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Rule {key} not found")

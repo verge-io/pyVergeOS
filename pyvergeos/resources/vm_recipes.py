@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from pyvergeos.exceptions import APIError, NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -136,10 +136,15 @@ class VmRecipe(ResourceObject):
         """Check if an update is available."""
         return bool(self.get("update_available", False))
 
-    @property
-    def status_info(self) -> str | None:
-        """Get the recipe status string."""
-        return self.get("status") or self.get("rstatus")
+    status_info = Projected["str | None"](
+        (
+            "status#status as status",
+            "status#status as rstatus",
+        ),
+        str,
+        null=None,
+        doc="Get the recipe status string.",
+    )
 
     @property
     def catalog_key(self) -> str | None:
@@ -153,10 +158,12 @@ class VmRecipe(ResourceObject):
         vm = self.get("vm")
         return int(vm) if vm is not None else None
 
-    @property
-    def instance_count(self) -> int:
-        """Get the number of deployed instances."""
-        return int(self.get("instances", 0))
+    instance_count = Projected[int](
+        "count(instances) as instances",
+        int,
+        default=0,
+        doc="Get the number of deployed instances.",
+    )
 
     @property
     def instances(self) -> VmRecipeInstanceManager:
@@ -315,8 +322,6 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
         "catalog#$display as catalog_display",
         "catalog#repository as catalog_repository",
         "catalog#repository#$display as repository_display",
-        "status#status as status",
-        "status#status as rstatus",
         "downloaded",
         "update_available",
         "needs_republish",
@@ -324,8 +329,8 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
         "vm#$display as vm_display",
         "vm_snapshot",
         "vm_snapshot#$display as snapshot_display",
-        "count(instances) as instances",
         "creator",
+        *VmRecipe.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -410,9 +415,9 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -464,9 +469,9 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                 "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", self._endpoint, params=params)
 
@@ -705,9 +710,9 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -749,9 +754,9 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         if key is not None:
             params: dict[str, Any] = {}
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -1081,9 +1086,9 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -1128,9 +1133,9 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
 
         params: dict[str, Any] = {}
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:

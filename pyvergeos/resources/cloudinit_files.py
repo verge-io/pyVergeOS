@@ -290,7 +290,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
 
         # Field selection
         field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
-        params["fields"] = ",".join(field_list)
+        params["fields"] = self._projection(field_list)
 
         # Pagination
         if limit is not None:
@@ -337,7 +337,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
 
         if key is not None:
-            params: dict[str, Any] = {"fields": ",".join(field_list)}
+            params: dict[str, Any] = {"fields": self._projection(field_list)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Cloud-init file with key {key} not found")
@@ -415,7 +415,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         if key is not None:
             return self.get(int(key))
 
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def update(  # type: ignore[override]
         self,
@@ -463,7 +463,7 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
         if response is None or not isinstance(response, dict):
             return self.get(key)
-        return self._to_model(response)
+        return self._to_model_unprojected(response)
 
     def delete(self, key: int) -> None:
         """Delete a cloud-init file.
@@ -643,7 +643,7 @@ class VMCloudInitFileManager(CloudInitFileManager):
 
         if key is not None:
             # Get by key directly (no VM filtering needed)
-            params: dict[str, Any] = {"fields": ",".join(field_list)}
+            params: dict[str, Any] = {"fields": self._projection(field_list)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Cloud-init file with key {key} not found")

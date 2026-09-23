@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters
-from pyvergeos.resources.base import ResourceManager, ResourceObject, normalize_fields
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -16,13 +16,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields for tenant storage allocations
-TENANT_STORAGE_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_STORAGE_COLUMNS = [
     "$key",
     "tenant",
     "tier",
-    "tier#tier as tier_number",
-    "tier#description as tier_description",
     "provisioned",
     "used",
     "allocated",
@@ -49,20 +49,24 @@ class TenantStorage(ResourceObject):
         """Get the storage tier key."""
         return int(self.get("tier", 0))
 
-    @property
-    def tier(self) -> int:
-        """Get the tier number (1-5)."""
-        return int(self.get("tier_number", 0))
+    tier = Projected[int](
+        "tier#tier as tier_number",
+        int,
+        default=0,
+        doc="Get the tier number (1-5).",
+    )
 
     @property
     def tier_name(self) -> str:
         """Get the formatted tier name (e.g., 'Tier 1')."""
         return f"Tier {self.tier}"
 
-    @property
-    def tier_description(self) -> str | None:
-        """Get the tier description."""
-        return self.get("tier_description")
+    tier_description = Projected["str | None"](
+        "tier#description as tier_description",
+        str,
+        null=None,
+        doc="Get the tier description.",
+    )
 
     @property
     def provisioned_bytes(self) -> int:
@@ -147,6 +151,14 @@ class TenantStorage(ResourceObject):
         )
 
 
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_STORAGE_DEFAULT_FIELDS = [
+    *_TENANT_STORAGE_COLUMNS,
+    *TenantStorage.projected_entries(),
+]
+
+
 class TenantStorageManager(ResourceManager[TenantStorage]):
     """Manager for Tenant Storage allocation operations.
 
@@ -209,7 +221,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
 
         params: dict[str, Any] = {
             "filter": combined_filter,
-            "fields": normalize_fields(fields),
+            "fields": self._projection(fields),
         }
         if limit is not None:
             params["limit"] = limit
@@ -257,7 +269,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": normalize_fields(fields)}
+            params: dict[str, Any] = {"fields": self._projection(fields)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError

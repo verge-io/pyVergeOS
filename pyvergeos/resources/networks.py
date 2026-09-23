@@ -6,7 +6,12 @@ import builtins
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
-from pyvergeos.resources.base import ResourceManager, ResourceObject, serialize_list
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -26,8 +31,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.wireguard import WireGuardManager
 
 
-# Default fields to request for comprehensive network data
-DEFAULT_NETWORK_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_NETWORK_COLUMNS = [
     "$key",
     "name",
     "description",
@@ -51,8 +58,6 @@ DEFAULT_NETWORK_FIELDS = [
     "on_power_loss",
     "interface_vnet",
     "proxy_enabled",
-    "machine#status#running as running",
-    "machine#status#status as status",
 ]
 
 # Type aliases for diagnostics
@@ -200,15 +205,19 @@ class Network(ResourceObject):
         self._manager._client._request("PUT", f"vnets/{self.key}/applydns")
         return self
 
-    @property
-    def is_running(self) -> bool:
-        """Check if network is powered on."""
-        return bool(self.get("running", False))
+    is_running = Projected[bool](
+        "machine#status#running as running",
+        bool,
+        default=False,
+        doc="Check if network is powered on.",
+    )
 
-    @property
-    def status(self) -> str:
-        """Get the network status (running, stopped, etc.)."""
-        return str(self.get("status", "unknown"))
+    status = Projected[str](
+        "machine#status#status as status",
+        str,
+        default="unknown",
+        doc="Get the network status (running, stopped, etc.).",
+    )
 
     @property
     def needs_restart(self) -> bool:
@@ -783,6 +792,23 @@ class Network(ResourceObject):
         )
 
 
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+DEFAULT_NETWORK_FIELDS = [
+    *_NETWORK_COLUMNS,
+    *Network.projected_entries(),
+]
+
+
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_NETWORK_COLUMNS = [
+    "Name(id='_NETWORK_COLUMNS', ctx=Load())",
+    "Call(func=Attribute(value=Name(id='Network', ctx=Load(...)), attr='projected_entries', ctx=Load()), args=[], keywords=[])",
+]
+
+
 class NetworkManager(ResourceManager[Network]):
     """Manager for Virtual Network operations.
 
@@ -814,6 +840,10 @@ class NetworkManager(ResourceManager[Network]):
             net.restart()
             net.power_off()
     """
+
+    #: Default projection, so that a caller's 'all' can be expanded
+    #: into a true superset of it (issue #117).
+    _default_fields = DEFAULT_NETWORK_FIELDS
 
     _endpoint = "vnets"
 
@@ -1174,7 +1204,7 @@ class NetworkManager(ResourceManager[Network]):
         # Query stats fields
         stats_params = {
             "filter": f"$key eq {key}",
-            "fields": ",".join(STATISTICS_FIELDS),
+            "fields": self._projection(STATISTICS_FIELDS),
         }
         stats_response = self._client._request("GET", "vnets", params=stats_params)
 

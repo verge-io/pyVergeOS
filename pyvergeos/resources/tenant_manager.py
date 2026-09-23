@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.constants import DEFAULT_TIMEOUT
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 # Import sub-managers for use in properties
 from pyvergeos.resources.tenant_external_ips import TenantExternalIPManager
@@ -26,8 +26,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default fields to request for tenants (includes status info via field aliases)
-TENANT_DEFAULT_FIELDS = [
+# Plain own-columns. The computed entries live on the model below and are
+# appended when the full projection is assembled, so an accessor and the
+# field list feeding it cannot drift apart (issue #125).
+_TENANT_COLUMNS = [
     "$key",
     "name",
     "description",
@@ -40,18 +42,10 @@ TENANT_DEFAULT_FIELDS = [
     "note",
     "expose_cloud_snapshots",
     "allow_branding",
-    "status#status as status",
-    "status#running as running",
-    "status#starting as starting",
-    "status#stopping as stopping",
-    "status#migrating as migrating",
     "status#started as started_ts",
     "status#stopped as stopped_ts",
-    "status#state as state",
     "vnet",
-    "vnet#name as network_name",
     "ui_address",
-    "ui_address#ip as ui_address_ip",
 ]
 
 
@@ -176,25 +170,33 @@ class Tenant(ResourceObject):
 
         return cast("Tenant", self._save(**kwargs))
 
-    @property
-    def is_running(self) -> bool:
-        """Check if tenant is powered on."""
-        return bool(self.get("running", False))
+    is_running = Projected[bool](
+        "status#running as running",
+        bool,
+        default=False,
+        doc="Check if tenant is powered on.",
+    )
 
-    @property
-    def is_starting(self) -> bool:
-        """Check if tenant is starting."""
-        return bool(self.get("starting", False))
+    is_starting = Projected[bool](
+        "status#starting as starting",
+        bool,
+        default=False,
+        doc="Check if tenant is starting.",
+    )
 
-    @property
-    def is_stopping(self) -> bool:
-        """Check if tenant is stopping."""
-        return bool(self.get("stopping", False))
+    is_stopping = Projected[bool](
+        "status#stopping as stopping",
+        bool,
+        default=False,
+        doc="Check if tenant is stopping.",
+    )
 
-    @property
-    def is_migrating(self) -> bool:
-        """Check if tenant is migrating."""
-        return bool(self.get("migrating", False))
+    is_migrating = Projected[bool](
+        "status#migrating as migrating",
+        bool,
+        default=False,
+        doc="Check if tenant is migrating.",
+    )
 
     @property
     def is_snapshot(self) -> bool:
@@ -206,25 +208,33 @@ class Tenant(ResourceObject):
         """Check if tenant network isolation is enabled."""
         return bool(self.get("isolate", False))
 
-    @property
-    def status(self) -> str:
-        """Get tenant status (online, offline, starting, etc.)."""
-        return str(self.get("status", "unknown"))
+    status = Projected[str](
+        "status#status as status",
+        str,
+        default="unknown",
+        doc="Get tenant status (online, offline, starting, etc.).",
+    )
 
-    @property
-    def state(self) -> str:
-        """Get tenant state (online, offline, warning, error)."""
-        return str(self.get("state", "unknown"))
+    state = Projected[str](
+        "status#state as state",
+        str,
+        default="unknown",
+        doc="Get tenant state (online, offline, warning, error).",
+    )
 
-    @property
-    def network_name(self) -> str | None:
-        """Get the name of the tenant's network."""
-        return self.get("network_name")
+    network_name = Projected["str | None"](
+        "vnet#name as network_name",
+        str,
+        null=None,
+        doc="Get the name of the tenant's network.",
+    )
 
-    @property
-    def ui_address_ip(self) -> str | None:
-        """Get the UI access IP address."""
-        return self.get("ui_address_ip")
+    ui_address_ip = Projected["str | None"](
+        "ui_address#ip as ui_address_ip",
+        str,
+        null=None,
+        doc="Get the UI access IP address.",
+    )
 
     @property
     def snapshots(self) -> TenantSnapshotManager:
@@ -714,6 +724,14 @@ class Tenant(ResourceObject):
         tenant_client._parent_tenant_key = self.key  # type: ignore[attr-defined]
 
         return tenant_client
+
+
+# Full default projection: the plain columns above, plus every entry the
+# model declares. Adding a Projected accessor adds its field here.
+TENANT_DEFAULT_FIELDS = [
+    *_TENANT_COLUMNS,
+    *Tenant.projected_entries(),
+]
 
 
 class TenantManager(ResourceManager[Tenant]):

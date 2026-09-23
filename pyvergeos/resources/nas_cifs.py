@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import (
+    Projected,
     ResourceManager,
     ResourceObject,
-    normalize_fields,
     serialize_list,
 )
 
@@ -92,10 +92,15 @@ class NASCIFSShare(ResourceObject):
         vol = self.get("volume")
         return str(vol) if vol is not None else None
 
-    @property
-    def volume_name(self) -> str | None:
-        """Get the parent volume name."""
-        return self.get("volume_name") or self.get("volume_display")
+    volume_name = Projected["str | None"](
+        (
+            "volume#name as volume_name",
+            "volume#$display as volume_display",
+        ),
+        str,
+        null=None,
+        doc="Get the parent volume name.",
+    )
 
     @property
     def is_enabled(self) -> bool:
@@ -166,10 +171,9 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
         "host_deny",
         "vfs_shadow_copy2",
         "volume",
-        "volume#$display as volume_display",
-        "volume#name as volume_name",
         "status#status as status",
         "status#state as state",
+        *NASCIFSShare.projected_entries(),
     ]
 
     def __init__(self, client: VergeClient) -> None:
@@ -234,9 +238,9 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
 
         # Use default fields if not specified
         if fields:
-            params["fields"] = normalize_fields(fields)
+            params["fields"] = self._projection(fields)
         else:
-            params["fields"] = ",".join(self._default_fields)
+            params["fields"] = self._projection(self._default_fields)
 
         # Pagination
         if limit is not None:
@@ -290,9 +294,9 @@ class NASCIFSShareManager(ResourceManager["NASCIFSShare"]):
                 "filter": f"id eq {quote_value(key)}",
             }
             if fields:
-                params["fields"] = normalize_fields(fields)
+                params["fields"] = self._projection(fields)
             else:
-                params["fields"] = ",".join(self._default_fields)
+                params["fields"] = self._projection(self._default_fields)
 
             response = self._client._request("GET", self._endpoint, params=params)
 
