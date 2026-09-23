@@ -6,7 +6,12 @@ import builtins
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
-from pyvergeos.resources.base import ResourceManager, ResourceObject, serialize_list
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    serialize_list,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -26,8 +31,10 @@ if TYPE_CHECKING:
     from pyvergeos.resources.wireguard import WireGuardManager
 
 
-# Default fields to request for comprehensive network data
-DEFAULT_NETWORK_FIELDS = [
+# Plain own-columns. The computed entries are declared on Network itself and
+# appended below, so an accessor and the projection feeding it cannot drift
+# apart (issue #125).
+_NETWORK_COLUMNS = [
     "$key",
     "name",
     "description",
@@ -51,8 +58,6 @@ DEFAULT_NETWORK_FIELDS = [
     "on_power_loss",
     "interface_vnet",
     "proxy_enabled",
-    "machine#status#running as running",
-    "machine#status#status as status",
 ]
 
 # Type aliases for diagnostics
@@ -200,15 +205,19 @@ class Network(ResourceObject):
         self._manager._client._request("PUT", f"vnets/{self.key}/applydns")
         return self
 
-    @property
-    def is_running(self) -> bool:
-        """Check if network is powered on."""
-        return bool(self.require_projected("running", False))
+    is_running = Projected[bool](
+        "machine#status#running as running",
+        bool,
+        default=False,
+        doc="Check if network is powered on.",
+    )
 
-    @property
-    def status(self) -> str:
-        """Get the network status (running, stopped, etc.)."""
-        return str(self.require_projected("status", "unknown"))
+    status = Projected[str](
+        "machine#status#status as status",
+        str,
+        default="unknown",
+        doc="Get the network status (running, stopped, etc.).",
+    )
 
     @property
     def needs_restart(self) -> bool:
@@ -781,6 +790,12 @@ class Network(ResourceObject):
         return manager.statistics(
             self.key, include_history=include_history, history_limit=history_limit
         )
+
+
+# Default fields to request for comprehensive network data: the plain columns
+# above, plus whatever Network declares it needs. Declaring an accessor adds
+# its field to every query that reads it.
+DEFAULT_NETWORK_FIELDS = [*_NETWORK_COLUMNS, *Network.projected_entries()]
 
 
 class NetworkManager(ResourceManager[Network]):
