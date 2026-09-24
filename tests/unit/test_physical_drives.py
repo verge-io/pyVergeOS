@@ -300,14 +300,57 @@ class TestPhysicalDriveManager:
 
     def test_list_with_node_filter(self) -> None:
         mock_client = MagicMock()
-        mock_client._request.return_value = [SAMPLE_DRIVE]
+        # nodes/{key} then machine_drives then machine_drive_phys
+        mock_client._request.side_effect = [
+            {"$key": 1, "name": "node1", "machine": 1},
+            [{"$key": 10}],
+            [SAMPLE_DRIVE],
+        ]
         manager = PhysicalDriveManager(mock_client, node_key=1)
 
-        _ = manager.list()
+        drives = manager.list()
 
-        call_args = mock_client._request.call_args
-        params = call_args[1].get("params") or call_args[0][2]
-        assert "node eq 1" in params.get("filter", "")
+        assert len(drives) == 1
+        calls = mock_client._request.call_args_list
+        assert calls[0].args[0] == "GET"
+        assert calls[0].args[1] == "nodes/1"
+        assert calls[1].args[1] == "machine_drives"
+        assert "machine eq 1" in calls[1].kwargs["params"]["filter"]
+        phys_params = calls[2].kwargs.get("params") or calls[2].args[2]
+        assert "parent_drive eq 10" in phys_params.get("filter", "")
+        assert "node eq" not in phys_params.get("filter", "")
+
+    def test_list_with_node_filter_no_machine_drives(self) -> None:
+        mock_client = MagicMock()
+        mock_client._request.side_effect = [
+            {"$key": 1, "name": "node1", "machine": 1},
+            [],
+        ]
+        manager = PhysicalDriveManager(mock_client, node_key=1)
+        assert manager.list() == []
+        # Should not query machine_drive_phys when there are no parent drives
+        assert mock_client._request.call_count == 2
+
+    def test_list_with_node_filter_missing_node(self) -> None:
+        from pyvergeos.exceptions import NotFoundError
+
+        mock_client = MagicMock()
+        mock_client._request.side_effect = NotFoundError("missing")
+        manager = PhysicalDriveManager(mock_client, node_key=99)
+        try:
+            manager.list()
+            raised = False
+        except NotFoundError:
+            raised = True
+        assert raised
+
+    def test_default_fields_include_node_name(self) -> None:
+        manager = PhysicalDriveManager(MagicMock())
+        assert any("node_name" in f for f in manager._default_fields)
+
+    def test_node_name_property(self) -> None:
+        drive = PhysicalDrive({**SAMPLE_DRIVE, "node_name": "node1"}, MagicMock())
+        assert drive.node_name == "node1"
 
     def test_endpoint(self) -> None:
         mock_client = MagicMock()

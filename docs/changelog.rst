@@ -6,6 +6,20 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+-----------
+
+Fixed
+^^^^^
+
+- ``PhysicalDriveManager`` node scoping no longer filters on a nonexistent
+  ``node`` column (which silently returned ``[]`` for every node). It now
+  resolves ``nodes.machine`` → ``machine_drives`` → ``parent_drive`` filters,
+  raises ``NotFoundError`` for a missing node, and projects
+  ``parent_drive#machine#name as node_name`` in the default field set so
+  identical hardware across nodes is distinguishable. Verified against a live
+  VergeOS 26.1.8 lab. (#143)
+
 [1.6.1] - 2026-09-23
 --------------------
 
