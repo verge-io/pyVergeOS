@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+import pytest
+
+from pyvergeos.exceptions import FieldNotProjectedError
 from pyvergeos.resources.physical_drives import (
     PhysicalDrive,
     PhysicalDriveManager,
@@ -351,6 +354,16 @@ class TestPhysicalDriveManager:
     def test_node_name_property(self) -> None:
         drive = PhysicalDrive({**SAMPLE_DRIVE, "node_name": "node1"}, MagicMock())
         assert drive.node_name == "node1"
+
+    def test_node_name_null_is_empty(self) -> None:
+        drive = PhysicalDrive({**SAMPLE_DRIVE, "node_name": None}, MagicMock())
+        assert drive.node_name == ""
+
+    def test_node_name_unprojected_raises(self) -> None:
+        """A join: absent means unfetched, not empty (issue #117)."""
+        drive = PhysicalDrive(SAMPLE_DRIVE, MagicMock())
+        with pytest.raises(FieldNotProjectedError):
+            _ = drive.node_name
 
     def test_endpoint(self) -> None:
         mock_client = MagicMock()

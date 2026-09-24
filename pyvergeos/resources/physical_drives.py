@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -198,11 +198,13 @@ class PhysicalDrive(ResourceObject):
         """Whether there are any vSAN read or write errors."""
         return self.vsan_read_errors > 0 or self.vsan_write_errors > 0
 
-
-    @property
-    def node_name(self) -> str:
-        """Name of the node that owns this drive (via parent_drive join)."""
-        return str(self.get("node_name", "") or "")
+    node_name = Projected[str](
+        "parent_drive#machine#name as node_name",
+        str,
+        default="",
+        falsy="",
+        doc="Name of the node that owns this drive (via parent_drive join).",
+    )
 
     def __repr__(self) -> str:
         return (
@@ -277,7 +279,6 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
     def _to_model(self, data: dict[str, Any]) -> PhysicalDrive:
         return PhysicalDrive(data, self)
 
-
     def _parent_drive_filter_for_node(self, node_key: int) -> str | None:
         """Build a parent_drive filter that scopes phys drives to a node.
 
@@ -304,9 +305,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
 
         machine_key = node.get("machine")
         if machine_key is None:
-            raise ValidationError(
-                f"Node {node_key} ({node.get('name')!r}) has no machine binding"
-            )
+            raise ValidationError(f"Node {node_key} ({node.get('name')!r}) has no machine binding")
 
         machine_drives = self._client._request(
             "GET",
@@ -322,11 +321,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
         if not isinstance(machine_drives, list):
             machine_drives = [machine_drives]
 
-        keys = [
-            int(row["$key"])
-            for row in machine_drives
-            if row.get("$key") is not None
-        ]
+        keys = [int(row["$key"]) for row in machine_drives if row.get("$key") is not None]
         if not keys:
             return None
         if len(keys) == 1:
