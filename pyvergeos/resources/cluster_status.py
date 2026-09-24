@@ -123,12 +123,31 @@ class ClusterStatus(ResourceObject):
     def can_lose_one_node(self) -> bool:
         """Whether the cluster could still run its workloads down a node.
 
-        A conservative N-1 check: assumes an even spread, so one node's share
-        of the online capacity is ``online / online_nodes``, and asks whether
-        the remaining capacity still covers what is used. Returns False when
-        there are fewer than two online nodes, since there is no redundancy to
-        check. This is a helper, not a scheduler -- placement rules and uneven
-        node sizes can make the real answer stricter (issue #127).
+        An **optimistic, even-spread approximation**, not a guarantee. It
+        treats one node's share of the online capacity as
+        ``online / online_nodes`` and asks whether the remaining share still
+        covers what is used. Returns False when there are fewer than two
+        online nodes, since there is no redundancy to check.
+
+        On a cluster of equal nodes this is exact. On a cluster of unequal
+        nodes it errs toward True, in the unsafe direction, because the real
+        worst case is losing the *largest* node rather than an average one.
+        Two nodes of 68352 and 69120 MB give an even-spread ceiling of 68736
+        MB, but only 68352 MB survives losing the larger one, so any
+        ``used_ram`` in between reports True while the survivor could not in
+        fact hold the load (issue #135).
+
+        Do not use a True as a drain or maintenance gate on a cluster whose
+        nodes differ in size. ``cluster_status`` carries only aggregates, so
+        this method cannot see per-node sizes; a true N-1 check needs the
+        ``nodes`` table, where ``Node.vm_ram_mb`` gives each node's figure::
+
+            nodes = [n.vm_ram_mb for n in client.nodes.list() if n.is_online]
+            survives = sum(nodes) - max(nodes)
+            safe = status.used_ram <= survives
+
+        A helper, not a scheduler: placement rules can make the real answer
+        stricter still (issues #127, #135).
         """
         if self.online_nodes < 2:
             return False
@@ -150,6 +169,11 @@ class ClusterStatusManager(ResourceManager[ClusterStatus]):
             status = cluster.status.get()
             if not status.can_lose_one_node():
                 raise RuntimeError("draining a node would overcommit the cluster")
+
+        That check assumes equally sized nodes. A True is not an N-1
+        guarantee on a cluster whose nodes differ in size, so gate real
+        drains on per-node figures instead. See
+        :meth:`ClusterStatus.can_lose_one_node` (issue #135).
 
         Globally, or filtered to one cluster::
 
