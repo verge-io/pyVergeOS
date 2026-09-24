@@ -205,6 +205,92 @@ class TestAuthSourceCRUD:
 
 
 @pytest.mark.integration
+class TestAuthSourceSettingsSemantics:
+    """Settings write semantics for auth sources (#142).
+
+    Self-contained: uses the generic ``openid`` driver with the exact settings
+    shape from the issue reproduction, rather than the ``openid-well-known``
+    fixture the other classes share, so these stay meaningful independently of
+    that driver's required-field handling.
+    """
+
+    SETTINGS = {
+        "client_id": "probe-client",
+        "client_secret": "probe-secret",
+        "scope": "openid profile email",
+        "authorization_endpoint": "https://idp.invalid/auth",
+    }
+
+    @pytest.fixture
+    def probe_source(self, live_client: VergeClient):
+        """Create a scratch openid source with bogus endpoints; always deleted.
+
+        The endpoints are unroutable, so the source appears on the login page
+        for the life of the test but can never authenticate anyone.
+        """
+        source = live_client.auth_sources.create(
+            name="pytest_issue142_probe",
+            driver="openid",
+            settings=dict(self.SETTINGS),
+        )
+        yield source
+        with contextlib.suppress(NotFoundError):
+            live_client.auth_sources.delete(source.key)
+
+    def test_update_settings_replaces_not_merges(
+        self, probe_source, live_client: VergeClient
+    ) -> None:
+        """A partial settings write deletes the keys it omits (#142).
+
+        Pins the server behaviour the docstring used to get wrong. Measured on
+        VergeOS 26.1.8: the stored settings document is replaced wholesale, so
+        a one-key update destroys client_id/client_secret.
+        """
+        before = live_client.auth_sources.get(probe_source.key, include_settings=True).settings
+        assert before.get("client_id") == "probe-client"
+
+        live_client.auth_sources.update(probe_source.key, settings={"scope": "openid"})
+
+        after = live_client.auth_sources.get(probe_source.key, include_settings=True).settings
+        assert after.get("scope") == "openid"
+        assert "client_id" not in after, f"expected replace semantics, got {sorted(after)}"
+        assert "client_secret" not in after
+
+    def test_update_merge_settings_preserves_other_keys(
+        self, probe_source, live_client: VergeClient
+    ) -> None:
+        """merge_settings=True keeps the keys the caller did not mention (#142)."""
+        live_client.auth_sources.update(
+            probe_source.key,
+            settings={"scope": "openid"},
+            merge_settings=True,
+        )
+
+        after = live_client.auth_sources.get(probe_source.key, include_settings=True).settings
+        assert after.get("scope") == "openid"
+        assert after.get("client_id") == "probe-client"
+        assert after.get("client_secret") == "probe-secret"
+        assert after.get("authorization_endpoint") == "https://idp.invalid/auth"
+
+    def test_stored_settings_carry_server_injected_keys(
+        self, probe_source, live_client: VergeClient
+    ) -> None:
+        """The server adds keys we never sent, so round-trip diffs drift (#142).
+
+        Documented rather than asserted strictly: the point is that the stored
+        document is a superset of what was written, which is why callers must
+        ignore unknown keys when diffing.
+        """
+        stored = live_client.auth_sources.get(probe_source.key, include_settings=True).settings
+
+        for key, value in self.SETTINGS.items():
+            assert stored.get(key) == value
+
+        injected = set(stored) - set(self.SETTINGS)
+        assert injected, "expected the server to inject at least 'debug'"
+
+
+@pytest.mark.integration
 class TestAuthSourceProperties:
     """Integration tests for auth source property access."""
 

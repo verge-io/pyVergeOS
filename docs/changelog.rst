@@ -6,8 +6,8 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
-[Unreleased]
------------
+[1.7.0] - 2026-09-24
+--------------------
 
 Fixed
 ^^^^^
@@ -19,6 +19,43 @@ Fixed
   ``parent_drive#machine#name as node_name`` in the default field set so
   identical hardware across nodes is distinguishable. Verified against a live
   VergeOS 26.1.8 lab. (#143)
+
+- ``auth_sources.update()`` no longer claims that ``settings`` are "merged
+  with existing". They are not: the API replaces the stored settings document
+  wholesale, so a partial write deletes every key it omits. Measured on
+  VergeOS 26.1.8, updating a source with ``settings={"scope": "openid"}``
+  leaves exactly that one key behind -- ``client_id``, ``client_secret`` and
+  the endpoints are gone, no error is raised, and the next SSO login simply
+  fails. The client secret usually cannot be read back from the identity
+  provider, so the configuration has to be rebuilt by hand.
+
+  Anyone following the old docstring to change one field was destroying a
+  working SSO configuration. The docstring now says the document is replaced
+  in full and that omitted keys are deleted, and the manager and module
+  examples no longer demonstrate the partial write that causes it. Behaviour
+  is unchanged -- this was always what the API did. (#142)
+
+Added
+^^^^^
+
+- ``auth_sources.update(..., merge_settings=True)`` gives the merge semantics
+  the docstring used to promise: the SDK reads the current document with
+  ``get(key, include_settings=True)``, shallow-merges your keys on top, and
+  writes the result back, so changing ``scope`` alone keeps the client
+  credentials. It requires ``settings`` (raising ``ValueError`` otherwise),
+  costs one extra API call, and is read-modify-write rather than atomic -- a
+  concurrent write landing between the read and the write is lost. The default
+  remains ``False``, preserving replace semantics for existing callers. (#142)
+
+Docs
+^^^^
+
+- ``AuthSource.settings`` documents that the server injects a ``debug`` key
+  into the stored document that was never sent, so a round-trip comparison
+  against what you wrote reports drift that is not there, and that the
+  property is only populated when the source was fetched with
+  ``include_settings=True``. (#142)
+
 
 [1.6.1] - 2026-09-23
 --------------------

@@ -9,6 +9,13 @@ Key concepts:
     - **Settings**: Driver-specific configuration stored as JSON
     - **States**: Ephemeral OAuth state tokens during authentication flow
 
+.. warning::
+
+   Writing ``settings`` **replaces** the stored document; the API does not
+   merge. A partial write silently deletes the keys it omits, including
+   ``client_secret``, and breaks the next login. Send the complete document,
+   or use ``update(..., merge_settings=True)``.
+
 Supported drivers:
     - azure: Azure Active Directory
     - google: Google OAuth
@@ -329,6 +336,13 @@ class AuthSource(ResourceObject):
         - scope: OAuth scopes to request
         - redirect_uri: OAuth redirect URI
         - remote_user_fields: Fields to match users
+
+        The server injects a ``debug`` key into the stored document that was
+        never sent, so a naive round-trip comparison against what you wrote
+        reports phantom drift. Ignore keys the server adds when diffing.
+
+        Only populated when the source was fetched with
+        ``get(key, include_settings=True)``; otherwise this returns ``{}``.
         """
         settings = self.get("settings")
         if isinstance(settings, dict):
@@ -442,10 +456,12 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         ...     }
         ... )
 
-        >>> # Update settings
+        >>> # Update settings. The document is REPLACED, not merged: send
+        >>> # every key you want kept, or pass merge_settings=True.
         >>> source = client.auth_sources.update(
         ...     source.key,
-        ...     settings={"scope": "openid profile email groups"}
+        ...     settings={"scope": "openid profile email groups"},
+        ...     merge_settings=True,
         ... )
 
         >>> # Delete an auth source
@@ -714,6 +730,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         *,
         name: str | None = None,
         settings: dict[str, Any] | None = None,
+        merge_settings: bool = False,
         menu: bool | None = None,
         debug: bool | None = None,
         button_background_color: str | None = None,
@@ -725,10 +742,30 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
 
         Note: The driver cannot be changed after creation.
 
+        .. warning::
+
+           ``settings`` **replaces the stored settings document in full**;
+           keys you omit are deleted. Sending ``{"scope": "openid"}`` to
+           change only the scope destroys ``client_id``, ``client_secret``
+           and the endpoints, and the next login fails with no error raised
+           here. Always send the complete document, or pass
+           ``merge_settings=True`` to have the SDK read the current settings
+           and merge on top of them.
+
         Args:
             key: Auth source $key (row ID).
+            settings: Complete replacement settings document. Keys you omit
+                are deleted server-side (see the warning above); nothing is
+                carried over from the stored document unless you ask for it
+                with ``merge_settings``.
+            merge_settings: Read the current settings with
+                ``get(key, include_settings=True)`` and shallow-merge
+                ``settings`` on top before writing, giving merge semantics.
+                Requires ``settings``. Costs one extra API call, is not
+                atomic (a concurrent write landing between the read and the
+                write is lost), and writes back any key the server injected
+                into the stored document, such as ``debug``, unchanged.
             name: New display name.
-            settings: Updated settings (merged with existing).
             menu: Show in dropdown menu.
             debug: Enable/disable debug logging.
             button_background_color: Button background color.
@@ -739,23 +776,45 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         Returns:
             Updated AuthSource object.
 
+        Raises:
+            ValueError: If ``merge_settings`` is used without ``settings``.
+
         Example:
-            >>> # Update settings
+            >>> # Replace the settings document (every key you want kept)
             >>> source = client.auth_sources.update(
             ...     source.key,
-            ...     settings={"scope": "openid profile email groups"}
+            ...     settings={
+            ...         "client_id": "your-client-id",
+            ...         "client_secret": "your-client-secret",
+            ...         "authorization_endpoint": "https://idp.example.com/auth",
+            ...         "scope": "openid profile email groups",
+            ...     },
+            ... )
+
+            >>> # Change one key and keep the rest (read-modify-write)
+            >>> source = client.auth_sources.update(
+            ...     source.key,
+            ...     settings={"scope": "openid profile email groups"},
+            ...     merge_settings=True,
             ... )
 
             >>> # Enable debug mode
             >>> source = client.auth_sources.update(source.key, debug=True)
         """
+        if merge_settings and settings is None:
+            raise ValueError("merge_settings=True requires settings")
+
         body: dict[str, Any] = {}
 
         if name is not None:
             body["name"] = name
 
         if settings is not None:
-            body["settings"] = settings
+            if merge_settings:
+                current = self.get(key, include_settings=True).settings
+                body["settings"] = {**current, **settings}
+            else:
+                body["settings"] = settings
 
         if menu is not None:
             body["menu"] = menu
