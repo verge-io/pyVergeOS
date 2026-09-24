@@ -354,6 +354,62 @@ class TestAuthSourceManager:
         mock_client._request.assert_called_once()
         assert mock_client._request.call_args[0][0] == "GET"
 
+    def test_update_settings_sent_verbatim(self, mock_client: MagicMock) -> None:
+        """Settings are transmitted as given: the API replaces, never merges (#142)."""
+        mock_client._request.side_effect = [
+            None,  # PUT response
+            {"$key": 1, "name": "Test", "driver": "openid"},  # GET response
+        ]
+
+        manager = AuthSourceManager(mock_client)
+        manager.update(key=1, settings={"scope": "openid"})
+
+        # Exactly one PUT, no read-modify-write, body is the caller's document
+        # untouched — nothing is carried over from the stored settings.
+        put_call = mock_client._request.call_args_list[0]
+        assert put_call[0] == ("PUT", "auth_sources/1")
+        assert put_call[1]["json_data"]["settings"] == {"scope": "openid"}
+
+    def test_update_merge_settings(self, mock_client: MagicMock) -> None:
+        """merge_settings=True reads current settings and merges on top (#142)."""
+        mock_client._request.side_effect = [
+            {  # GET for the current settings
+                "$key": 1,
+                "name": "Test",
+                "driver": "openid",
+                "settings": {
+                    "client_id": "probe-client",
+                    "client_secret": "probe-secret",
+                    "scope": "openid profile email",
+                },
+            },
+            None,  # PUT response
+            {"$key": 1, "name": "Test", "driver": "openid"},  # GET after update
+        ]
+
+        manager = AuthSourceManager(mock_client)
+        manager.update(key=1, settings={"scope": "openid"}, merge_settings=True)
+
+        get_call = mock_client._request.call_args_list[0]
+        assert get_call[0] == ("GET", "auth_sources/1")
+        assert "settings" in get_call[1]["params"]["fields"]
+
+        put_call = mock_client._request.call_args_list[1]
+        assert put_call[0] == ("PUT", "auth_sources/1")
+        assert put_call[1]["json_data"]["settings"] == {
+            "client_id": "probe-client",
+            "client_secret": "probe-secret",
+            "scope": "openid",
+        }
+
+    def test_update_merge_settings_without_settings_raises(self, mock_client: MagicMock) -> None:
+        """merge_settings has nothing to merge without settings (#142)."""
+        manager = AuthSourceManager(mock_client)
+        with pytest.raises(ValueError, match="merge_settings"):
+            manager.update(key=1, name="Test", merge_settings=True)
+
+        mock_client._request.assert_not_called()
+
     def test_delete_auth_source(self, mock_client: MagicMock) -> None:
         """Test deleting an auth source."""
         mock_client._request.return_value = None
