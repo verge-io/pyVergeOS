@@ -149,6 +149,20 @@ class TestVMSnapshotManager:
         assert "expires" in body
         assert body["machine"] == 200
 
+    def test_create_snapshot_retention_zero_sends_expires_zero(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """retention=0 must send expires:0 (never), not omit the field (#146)."""
+        mock_session.request.return_value.json.return_value = {"$key": 5}
+
+        vm.snapshots.create(name="never-expires", retention=0)
+
+        call_args = mock_session.request.call_args
+        body = call_args.kwargs.get("json", {})
+        assert body["name"] == "never-expires"
+        assert "expires" in body
+        assert body["expires"] == 0
+
     def test_delete_snapshot(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
@@ -329,7 +343,7 @@ class TestVMSnapshot:
         mock_session: MagicMock,
         snapshot_data: dict[str, Any],
     ) -> None:
-        """Test restore method on snapshot object."""
+        """Object restore must post the snapshot VM key, not snap_machine (#147)."""
         vm = VM(
             {"$key": 100, "name": "test-vm", "machine": 200},
             mock_client.vms,
@@ -337,15 +351,19 @@ class TestVMSnapshot:
         manager = VMSnapshotManager(mock_client, vm)
         snapshot = VMSnapshot(snapshot_data, manager)
 
-        mock_session.request.return_value.json.return_value = {
-            "$key": 101,
-            "name": "Daily_20240101 restored",
-        }
+        mock_session.request.return_value.json.side_effect = [
+            # manager.restore: get snapshot by key
+            snapshot_data,
+            # resolve snap_machine (999) → snapshot VM
+            [{"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}],
+            # clone action
+            {"$key": 101, "name": "My Restored VM"},
+        ]
 
         snapshot.restore(name="My Restored VM")
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
         assert body["action"] == "clone"
-        assert body["vm"] == 999
+        assert body["vm"] == 888  # snapshot VM key, not machine key 999
         assert body["params"]["name"] == "My Restored VM"

@@ -88,34 +88,14 @@ class VMSnapshot(ResourceObject):
 
         Returns:
             Clone task information.
+
+        Notes:
+            Delegates to ``VMSnapshotManager.restore`` so the snap_machine
+            (machine key) is resolved to the snapshot VM key before posting
+            to ``vm_actions``. Posting the machine key as a VM key fails
+            with NotFound (or, if keys collide, can clone the wrong VM).
         """
-        snap_key = self.snap_machine_key
-        if snap_key is None:
-            raise ValueError("Snapshot does not have a valid snap_machine reference")
-
-        restored_name = name or f"{self.get('name', 'snapshot')} restored"
-
-        body: dict[str, Any] = {
-            "vm": snap_key,
-            "action": "clone",
-            "params": {"name": restored_name},
-        }
-
-        result = self._manager._client._request("POST", "vm_actions", json_data=body)
-
-        if power_on and result and isinstance(result, dict):
-            new_vm_key = result.get("$key") or result.get("key")
-            if new_vm_key:
-                import time
-
-                time.sleep(2)
-                self._manager._client._request(
-                    "POST",
-                    "vm_actions",
-                    json_data={"vm": new_vm_key, "action": "poweron"},
-                )
-
-        return result if isinstance(result, dict) else None
+        return self._manager.restore(self.key, name=name, power_on=power_on)
 
 
 class VMSnapshotManager(ResourceManager[VMSnapshot]):
@@ -270,8 +250,9 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             "quiesce": quiesce,
         }
 
-        if expires_timestamp > 0:
-            body["expires"] = expires_timestamp
+        # Always send expires: retention=0 must be expires:0 ("never"), not
+        # omitted — omitting lets the platform default to +72h (#146).
+        body["expires"] = expires_timestamp
 
         if description:
             body["description"] = description
