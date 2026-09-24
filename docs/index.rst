@@ -12,7 +12,7 @@ virtual machines, networks, storage, tenants, and more.
 
    with VergeClient(host="192.168.1.100", username="admin", password="secret") as client:
        # List all running VMs
-       for vm in client.vms.list(status="running"):
+       for vm in client.vms.list_running():
            print(f"{vm.name}: {vm.ram}MB RAM")
 
        # Create a new VM

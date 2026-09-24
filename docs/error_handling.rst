@@ -201,20 +201,35 @@ named ``key`` indiscriminately or remove foreign keys that are editable.
 Task Errors
 -----------
 
-Long-running operations return task references. Use ``tasks.wait()`` to wait for completion:
+``client.tasks`` is the VergeOS task scheduler. Waiting applies to a scheduled
+task you run, and raises on timeout or failure:
 
 .. code-block:: python
 
    from pyvergeos.exceptions import TaskError, TaskTimeoutError
 
+   task = client.tasks.get(name="Nightly backup")
+
    try:
-       # Wait for a snapshot to complete
-       result = vm.snapshot(name="backup")
-       task = client.tasks.wait(result["task"], timeout=300)
+       task.execute()
+       task.wait(timeout=300)
    except TaskTimeoutError as e:
-       print(f"Task {e.task_id} timed out after {e.timeout}s")
+       print(f"Task {e.task_id} did not finish in time")
    except TaskError as e:
        print(f"Task failed: {e}")
+
+Most VergeOS operations finish on the API call itself and never create a task
+row, so do not look for a task key in a response. Where an operation really is
+asynchronous, the manager takes its own ``wait`` argument:
+
+.. code-block:: python
+
+   from pyvergeos.exceptions import VergeTimeoutError
+
+   try:
+       snapshot = client.cloud_snapshots.create(name="nightly", wait=True, wait_timeout=600)
+   except VergeTimeoutError:
+       print("Snapshot did not settle within the timeout")
 
 Catching All Errors
 -------------------

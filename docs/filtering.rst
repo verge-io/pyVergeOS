@@ -10,11 +10,15 @@ The simplest way to filter is with keyword arguments:
 
 .. code-block:: python
 
-   # Filter by status
-   running_vms = client.vms.list(status="running")
+   # Filter by a single field
+   linux_vms = client.vms.list(os_family="linux")
 
    # Filter by multiple fields
-   linux_vms = client.vms.list(os_family="linux", status="running")
+   big_linux_vms = client.vms.list(os_family="linux", cpu_cores=8)
+
+   # Power state lives on a joined field that the API cannot filter on, so
+   # the SDK provides helpers that sort it out for you
+   running_vms = client.vms.list_running()
 
    # Wildcard matching (* = any run of characters, ? = one character).
    # VergeOS has no LIKE operator; the SDK translates wildcards to the
@@ -43,9 +47,9 @@ For complex queries, use OData filter syntax:
    vms = client.vms.list(filter="name ct 'web'")
    vms = client.vms.list(filter="name rx '^prod-[0-9]+$'")
 
-Supported operators (the platform grammar is "similar to OData", not OData —
-``like``, ``in`` and function calls such as ``startswith()`` are rejected
-with HTTP 422):
+Supported operators. The platform grammar is "similar to OData" rather than
+OData itself, so ``like``, ``in`` and function calls such as ``startswith()``
+are rejected with HTTP 422:
 
 - ``eq`` / ``ne`` - Equal / not equal
 - ``gt`` / ``ge`` / ``lt`` / ``le`` - Numeric comparisons
@@ -77,7 +81,7 @@ For programmatic filter construction, use the ``Filter`` class:
    vms = client.vms.list(filter=str(f))
 
    # Method chaining (AND is implicit between conditions)
-   f = Filter().eq("status", "running").bw("name", "prod-")
+   f = Filter().eq("os_family", "linux").bw("name", "prod-")
    vms = client.vms.list(filter=str(f))
 
    # Native operators: bw, ew, cs, ct, rx
@@ -122,7 +126,7 @@ Field Selection
 ---------------
 
 Limit returned fields for better performance. ``fields`` accepts a list of
-names or the API's native comma-separated string — both send the same
+names or the API's native comma-separated string, and both send the same
 request (previously the string form was joined character by character and
 silently returned empty rows, issue #101):
 
@@ -165,29 +169,27 @@ For large result sets, use ``iter_all()`` for automatic pagination:
 Sorting
 -------
 
-Sort results with the ``orderby`` parameter:
+``list()`` takes no sort argument. Any unrecognized keyword is treated as a
+filter condition, so passing something like ``orderby="name"`` quietly builds
+``orderby eq 'name'`` and the query fails or returns nothing.
+
+Where ordering matters, the SDK already applies it. Drives, NICs and firewall
+rules come back in configured order, and history endpoints come back newest
+first. For anything else, sort in Python:
 
 .. code-block:: python
 
-   # Sort by name ascending
-   vms = client.vms.list(orderby="name")
-
-   # Sort descending
-   vms = client.vms.list(orderby="name desc")
-
-   # Multiple sort fields
-   vms = client.vms.list(orderby="status,name")
+   vms = sorted(client.vms.list(), key=lambda vm: vm.name)
 
 Combining Options
 -----------------
 
-All filtering and pagination options can be combined:
+Filtering, field selection and pagination can be combined:
 
 .. code-block:: python
 
    vms = client.vms.list(
        filter="os_family eq 'linux'",
        fields=["name", "status", "ram"],
-       orderby="name",
        limit=100
    )

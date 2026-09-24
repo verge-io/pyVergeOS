@@ -28,7 +28,7 @@ uv lock --check                      # Verify lockfile is current
 **IMPORTANT: Reserved Networks**
 Never use "Core" or "DMZ" networks for workloads, services, VMs, or NAS. These are reserved for VergeOS. Always create a new network (e.g., "Internal") for test workloads and examples.
 
-**Build system:** Uses `hatchling` (not setuptools). Version must be updated in **both** `pyproject.toml` AND `pyvergeos/__version__.py` — they must stay in sync. Also run `uv lock` after bumping to update `uv.lock`.
+**Build system:** Uses `hatchling` (not setuptools). Version must be updated in **both** `pyproject.toml` AND `pyvergeos/__version__.py`, and they must stay in sync. Also run `uv lock` after bumping to update `uv.lock`.
 
 ## Architecture
 
@@ -44,16 +44,16 @@ VergeClient(host, username, password)
 
 ### Core Classes
 
-- **`VergeClient`** (`client.py`) — Main facade. Owns the connection and lazily exposes ~80 resource manager properties (`client.vms`, `client.tasks`, etc.). Not thread-safe. Supports context manager and `from_env()` factory.
-- **`VergeConnection`** (`connection.py`) — Manages HTTP session, auth (basic or token), retry with exponential backoff.
-- **`ResourceManager[T]`** (`resources/base.py`) — Generic base for CRUD operations. Subclasses override `_endpoint` and `_to_model()`. Supports OData filtering, pagination (`iter_all()`), field selection, and `action()` for custom operations.
-- **`ResourceObject`** (`resources/base.py`) — Dict subclass with attribute access, `refresh()`, `save()`, `delete()`. Holds a back-reference to its manager.
+- **`VergeClient`** (`client.py`) is the main facade. Owns the connection and lazily exposes ~80 resource manager properties (`client.vms`, `client.tasks`, etc.). Not thread-safe. Supports context manager and `from_env()` factory.
+- **`VergeConnection`** (`connection.py`) manages the HTTP session, auth (basic or token), retry with exponential backoff.
+- **`ResourceManager[T]`** (`resources/base.py`) is the generic base for CRUD operations. Subclasses override `_endpoint` and `_to_model()`. Supports OData filtering, pagination (`iter_all()`), field selection, and `action()` for custom operations.
+- **`ResourceObject`** (`resources/base.py`) is a dict subclass with attribute access, `refresh()`, `save()`, `delete()`. Holds a back-reference to its manager.
 
 ### Key Patterns
 
 **Lazy manager loading:** Client properties check `if self._manager is None:` before importing/instantiating. Reduces startup cost.
 
-**Nested scoped managers:** Resources like VMs expose child managers: `vm.drives`, `vm.nics`, `vm.snapshots`. These are scoped to the parent — `vm.drives.list()` auto-filters by `machine_key`.
+**Nested scoped managers:** Resources like VMs expose child managers: `vm.drives`, `vm.nics`, `vm.snapshots`. These are scoped to the parent, so `vm.drives.list()` auto-filters by `machine_key`.
 
 **OData filtering:** `list(filter="name eq 'test'")` or kwargs shorthand `list(name="test")` which gets converted via `build_filter()`.
 
@@ -86,5 +86,5 @@ Unit tests use `mock_client` fixture from `tests/conftest.py` (mocked HTTP sessi
 
 ## Reference Docs
 
-- `.claude/TESTENV.md` — Integration test environment setup
-- `examples/README.md` — Usage examples
+- `.claude/TESTENV.md` for integration test environment setup
+- `examples/README.md` for usage examples

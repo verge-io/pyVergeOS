@@ -59,7 +59,8 @@ Authentication
 
    # Or with context manager (recommended)
    with VergeClient.from_env() as client:
-       # Connection automatically closed
+       vms = client.vms.list()
+       # Connection automatically closed on exit
 
 Listing Resources
 ^^^^^^^^^^^^^^^^^
@@ -70,7 +71,7 @@ Listing Resources
 
    response = session.get(
        "https://192.168.1.100/api/v4/vms",
-       params={"filter": "status eq 'running'", "limit": 100}
+       params={"filter": "os_family eq 'linux'", "limit": 100}
    )
    vms = response.json()["data"]
 
@@ -79,7 +80,7 @@ Listing Resources
 .. code-block:: python
 
    # Simple list
-   vms = client.vms.list(status="running")
+   vms = client.vms.list_running()
 
    # With OData filter
    vms = client.vms.list(filter="ram gt 4096 and os_family eq 'linux'")
@@ -178,9 +179,11 @@ Performing Actions
    # Power on
    vm.power_on()
 
-   # With task waiting
-   result = vm.snapshot(name="backup")
-   task = client.tasks.wait(result["task"], timeout=300)
+   # Snapshot, which completes on the call itself
+   vm.snapshots.create(name="backup")
+
+   # System wide snapshots can block until they settle
+   client.cloud_snapshots.create(name="backup", wait=True)
 
 Error Handling
 ^^^^^^^^^^^^^^
@@ -242,7 +245,7 @@ Filtering
 .. code-block:: python
 
    # Keyword arguments (recommended for simple filters)
-   vms = client.vms.list(os_family="linux", status="running")
+   vms = client.vms.list(os_family="linux", cpu_cores=8)
 
    # OData string for complex filters
    vms = client.vms.list(filter="ram gt 2048 and cpu_cores ge 4")
@@ -283,20 +286,26 @@ Many resources have nested sub-resources accessible via properties:
 Task Waiting
 ^^^^^^^^^^^^
 
-Replace polling loops with built-in task waiting:
+Replace polling loops with built-in waiting. For a scheduled task, run it and
+wait on the task object:
 
 .. code-block:: python
 
-   # Snapshot with wait
-   result = vm.snapshot(name="backup", quiesce=True)
-   task = client.tasks.wait(result["task"], timeout=300)
+   task = client.tasks.get(name="Nightly backup")
+
+   task.execute()
+   task.wait(timeout=300)
 
    # Custom polling interval
-   task = client.tasks.wait(
-       result["task"],
-       timeout=600,
-       poll_interval=5  # Check every 5 seconds
-   )
+   task.wait(timeout=600, poll_interval=5)  # Check every 5 seconds
+
+For an operation that is asynchronous on the server, use the manager's own
+``wait`` argument rather than hunting for a task to poll:
+
+.. code-block:: python
+
+   snapshot = client.cloud_snapshots.create(name="backup", wait=True, wait_timeout=600)
+   print(snapshot.status)
 
 Environment Variables
 ^^^^^^^^^^^^^^^^^^^^^
@@ -326,7 +335,7 @@ When migrating your code:
 3. ☐ Replace manual JSON parsing with typed model objects
 4. ☐ Replace status code checks with exception handling
 5. ☐ Use keyword arguments for filtering instead of manual filter strings
-6. ☐ Replace polling loops with ``client.tasks.wait()``
+6. ☐ Replace polling loops with ``task.wait()`` or a manager's ``wait`` argument
 7. ☐ Access nested resources via properties (e.g., ``vm.drives``)
 8. ☐ Use ``iter_all()`` for paginated iteration
 9. ☐ Configure via environment variables with ``from_env()``
