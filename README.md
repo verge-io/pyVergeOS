@@ -7,9 +7,7 @@ Python SDK for the VergeOS REST API.
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://verge-io.github.io/pyVergeOS/)
 
-## Overview
-
-pyvergeos provides a Pythonic interface for managing VergeOS infrastructure. It abstracts the VergeOS REST API behind a clean, type-annotated SDK suitable for automation, tooling, and integration development.
+pyvergeos gives you a Pythonic way to drive VergeOS. It wraps the REST API in a typed, discoverable SDK so you can write automation and tooling without hand rolling HTTP calls and JSON payloads.
 
 **[Read the full documentation](https://verge-io.github.io/pyVergeOS/)**
 
@@ -22,73 +20,77 @@ pip install pyvergeos
 uv add pyvergeos
 ```
 
-## Quick Start
+## Quick start
 
 ```python
 from pyvergeos import VergeClient
 
-# Connect to VergeOS
 client = VergeClient(
     host="192.168.1.100",
     username="admin",
     password="secret",
-    verify_ssl=False  # For self-signed certificates
+    verify_ssl=False,  # For self signed certificates
 )
 
-# List all VMs
+# List VMs
 for vm in client.vms.list():
     print(f"{vm.name}: {vm.ram}MB RAM, {vm.cpu_cores} cores")
 
-# Get a specific VM
+# Fetch one, then act on it
 vm = client.vms.get(name="web-server")
-
-# Power operations
 vm.power_on()
-vm.power_off()
 
 # Create a VM
 new_vm = client.vms.create(
     name="test-vm",
     ram=2048,
     cpu_cores=2,
-    os_family="linux"
+    os_family="linux",
 )
 
-# Cleanup
 client.disconnect()
 ```
 
-## Context Manager
+## Connecting
 
-```python
-with VergeClient(host="192.168.1.100", token="api-token") as client:
-    vms = client.vms.list_running()
-```
+### Username and password
 
-## Authentication
-
-### Username/Password
 ```python
 client = VergeClient(
     host="192.168.1.100",
     username="admin",
-    password="secret"
+    password="secret",
 )
 ```
 
-### API Token
+### API token
+
 ```python
 client = VergeClient(
     host="192.168.1.100",
-    token="your-api-token"
+    token="your-api-token",
 )
 ```
 
-### Environment Variables
+### Context manager
+
+Preferred, since it always closes the session for you.
+
+```python
+with VergeClient(host="192.168.1.100", token="api-token") as client:
+    running = client.vms.list_running()
+```
+
+### Environment variables
+
 ```bash
 export VERGE_HOST=192.168.1.100
 export VERGE_USERNAME=admin
 export VERGE_PASSWORD=secret
+
+# Or authenticate with a token instead of a username and password
+export VERGE_TOKEN=your-api-token
+
 # Optional
 export VERGE_VERIFY_SSL=true
 export VERGE_TIMEOUT=30
@@ -100,77 +102,245 @@ export VERGE_RETRY_BACKOFF=1
 client = VergeClient.from_env()
 ```
 
-## Features
+### Bring your own session
 
-### Virtual Machines
+Hand the client an existing `requests.Session` when you need to share connection pooling, proxy settings, or custom TLS material with the rest of your application. pyvergeos will not mount its own adapter or change the session's TLS verification, and it leaves the session open on disconnect.
+
 ```python
-# List, filter, create, update, delete
-vms = client.vms.list(os_family="linux", name="web-*")
-vm = client.vms.create(name="test", ram=2048, cpu_cores=2)
+import requests
 
-# Power operations
+session = requests.Session()
+session.proxies = {"https": "http://proxy.internal:3128"}
+
+with VergeClient(host="192.168.1.100", token="api-token", session=session) as client:
+    vms = client.vms.list()
+```
+
+Do not share one session across several active clients. Pass `close_session=True` if you want pyvergeos to close it for you anyway.
+
+## Finding things
+
+Every manager exposes the same three ways to narrow a query.
+
+```python
+# Keyword shorthand, including wildcards
+vms = client.vms.list(os_family="linux", name="web-*")
+
+# A filter string
+vms = client.vms.list(filter="os_family eq 'linux' and ram gt 2048")
+
+# The filter builder, when you are assembling a query programmatically
+from pyvergeos import Filter
+
+query = Filter().eq("os_family", "linux").and_().gt("ram", 2048)
+vms = client.vms.list(filter=str(query))
+```
+
+A few helpers cover state the API cannot filter on directly, so reach for those instead of writing the filter yourself.
+
+```python
+client.vms.list_running()
+client.vms.list_stopped()
+client.networks.list_external()
+```
+
+Large tables page automatically with `iter_all()`, which yields objects instead of building one giant list.
+
+```python
+for vm in client.vms.iter_all(page_size=100):
+    print(vm.name)
+```
+
+### A note on get(name=...)
+
+Names are not unique in every VergeOS table. When you look something up by name and more than one row matches, `get()` returns the first match rather than raising. If a name might be ambiguous in your environment, use `list()` and decide for yourself, or look the object up by `$key`.
+
+## Field projections
+
+Managers request a curated set of fields by default, which keeps responses small. Narrow that set with `fields` when you want less, or ask for `"all"` when you want everything.
+
+```python
+names = client.vms.list(fields=["$key", "name"])
+everything = client.vms.get(name="web-server", fields="all")
+```
+
+One behavior is worth knowing about. If you narrow the projection and then read an accessor whose backing field you left out, the SDK raises instead of making up an answer.
+
+```python
+from pyvergeos import FieldNotProjectedError
+
+vm = client.vms.get(name="web-server", fields=["$key", "name"])
+
+vm.name    # "web-server"
+vm.status  # raises FieldNotProjectedError
+```
+
+That is deliberate. Guessing here once reported a running VM as stopped, and that is exactly the check people put in front of a destructive operation. To fix it, re-fetch with the manager's default fields or add the field you need to the `fields` argument.
+
+## Virtual machines
+
+```python
+vm = client.vms.get(name="web-server")
+
+# Power
 vm.power_on()
 vm.power_off()
 vm.reset()
+vm.guest_reboot()
+vm.guest_shutdown()
 
-# Snapshots
-vm.snapshots.create(retention=86400, quiesce=True)
+# Placement
+vm.migrate()
+vm.hibernate()
 
 # Clone
-clone = vm.clone(name="test-clone")
+clone = vm.clone(name="web-server-clone")
 
 # Drives and NICs
-vm.drives.add(name="data", size=50*1024*1024*1024)
-vm.nics.add(network=network.key)
+vm.drives.create(name="data", size_gb=50)
+vm.nics.create(network=network.key)
+
+# Hot plug into a running VM, which needs allow_hotplug enabled
+vm.hotplug_drive(name="scratch", size=100 * 1024**3)
+vm.hotplug_nic(name="nic2", network=network.key)
 ```
 
-### Networks
+Watch the units. `drives.create()` takes `size_gb` in gigabytes, while the hot plug action takes `size` in bytes.
+
+You can hand a VM its cloud-init config at create time.
+
 ```python
-# Create and manage virtual networks
+vm = client.vms.create(
+    name="web-server",
+    ram=4096,
+    cpu_cores=2,
+    cloud_init="#cloud-config\npackages:\n  - nginx",
+)
+```
+
+## Networks
+
+```python
 network = client.networks.create(
     name="app-network",
     network_address="10.10.1.0/24",
     ip_address="10.10.1.1",
-    dhcp_enabled=True
+    dhcp_enabled=True,
 )
 
 network.power_on()
+
+# Firewall rules. Ports are strings, so "22", "80,443" and "1024-65535" all work.
+network.rules.create(
+    name="Allow SSH",
+    direction="incoming",
+    action="accept",
+    protocol="tcp",
+    destination_ports="22",
+)
+
+# Rule and DNS changes need to be applied before they take effect
 network.apply_rules()
-
-# Firewall rules
-network.rules.create(name="Allow SSH", action="accept", protocol="tcp", dest_port=22)
+network.apply_dns()
 ```
 
-### Tenants
+Networks also carry DNS zones, static hosts, aliases, routing, IPSec, WireGuard, and a proxy, each on its own manager under the network object.
+
+> **Heads up:** the Core and DMZ networks are reserved for VergeOS. Create your own network for workloads.
+
+## Storage and NAS
+
 ```python
-tenant = client.tenants.create(name="customer-a")
+# vSAN tiers, which are numbered rather than named
+for tier in client.storage_tiers.list():
+    print(f"Tier {tier.tier}: {tier.used_percent:.1f}% of {tier.capacity_gb:.0f}GB used")
+
+# NAS volumes and shares
+volume = client.nas_volumes.create(name="share-data", service="nas1", size_gb=500)
+
+client.cifs_shares.create(name="data", volume=volume.key, browseable=True)
+client.nfs_shares.create(name="data", volume=volume.key)
+```
+
+## Snapshots
+
+VM snapshots are scoped to the VM.
+
+```python
+vm.snapshots.create(name="before-upgrade", retention=86400, quiesce=True)
+
+for snap in vm.snapshots.list():
+    print(snap.name, snap.expires_at)
+```
+
+System wide cloud snapshots live on the client. Snapshot creation is not backed by a task, so pass `wait=True` when you need the call to block until the snapshot settles.
+
+```python
+snapshot = client.cloud_snapshots.create(
+    name="nightly",
+    wait=True,
+    wait_timeout=600,
+)
+print(snapshot.status)
+```
+
+You can also scope a cloud snapshot to a set of tags, which captures only the VMs carrying them.
+
+```python
+client.cloud_snapshots.create(name="db-only", include_tags="database", wait=True)
+```
+
+## Tenants
+
+```python
+tenant = client.tenants.create(name="customer-a", password="initial-password")
 tenant.power_on()
+
+# Give the tenant a UI address on the external network
+tenant.set_ui_ip("192.168.1.150")
+
+# Resources
+tenant.nodes.list()
+tenant.network_blocks.list()
+tenant.snapshots.list()
 ```
 
-### Filtering
+## Scheduled tasks
+
+`client.tasks` is the VergeOS task scheduler. Use it to run and wait on scheduled work.
+
 ```python
-# Keyword arguments
-vms = client.vms.list(status="running", name="prod-*")
+task = client.tasks.get(name="Nightly backup")
 
-# OData filter string
-vms = client.vms.list(filter="os_family eq 'linux' and ram gt 2048")
-
-# Filter builder
-from pyvergeos.filters import Filter
-f = Filter().eq("os_family", "linux").and_().gt("ram", 2048)
-vms = client.vms.list(filter=str(f))
+task.execute()
+task.wait(timeout=300)
 ```
 
-### Task Waiting
-```python
-result = vm.snapshots.create(name="backup")
-task = client.tasks.wait(result["task"], timeout=300)
-```
+Most VergeOS operations complete on the API call itself and do not create a task row, so reach for a manager's own `wait` argument, such as `cloud_snapshots.create(wait=True)`, rather than expecting a task to poll.
 
-## Error Handling
+## What else is in here
+
+The client exposes more than eighty managers. The ones above are the common starting points. Beyond them you will find:
+
+- **Compute and infrastructure:** `nodes`, `clusters`, `cluster_status`, `physical_drives`, `machine_drive_stats`, `vgpu_profiles`
+- **Sites and replication:** `sites`, `site_syncs`, `site_syncs_incoming`, `site_sync_schedules`, `volume_syncs`
+- **Provisioning:** `catalogs`, `catalog_repositories`, `vm_recipes`, `tenant_recipes`, `vm_imports`, `volume_vm_exports`, `cloudinit_files`, `files`
+- **Identity and access:** `users`, `groups`, `permissions`, `api_keys`, `auth_sources`, `oidc_applications`
+- **Operations:** `update_settings`, `update_sources`, `update_packages`, `task_schedules`, `alarms`, `logs`, `billing`, `system_diagnostics`, `vsan_queries`, `certificates`, `tags`, `snapshot_profiles`
+
+Full reference for all of them is in the [API documentation](https://verge-io.github.io/pyVergeOS/).
+
+## Error handling
 
 ```python
-from pyvergeos.exceptions import NotFoundError, AuthenticationError, TaskTimeoutError
+from pyvergeos import (
+    AuthenticationError,
+    FieldNotProjectedError,
+    NotFoundError,
+    TaskTimeoutError,
+    ValidationError,
+    VergeTimeoutError,
+)
 
 try:
     vm = client.vms.get(name="nonexistent")
@@ -178,61 +348,58 @@ except NotFoundError:
     print("VM not found")
 
 try:
-    task = client.tasks.wait(task_id, timeout=60)
+    task.wait(timeout=60)
 except TaskTimeoutError as e:
     print(f"Task {e.task_id} timed out")
 ```
 
-## Retry Configuration
+Everything the SDK raises inherits from `VergeError`, so catch that if you just want one handler. `APIError` covers the HTTP failures underneath `AuthenticationError`, `NotFoundError`, `ValidationError`, and `ConflictError`.
 
-The client automatically retries failed requests for transient errors (429, 500, 502, 503, 504).
-You can customize the retry behavior:
+## Retries and timeouts
+
+The client retries transient failures automatically, which by default means 429, 500, 502, 503, and 504, three times, with exponential backoff.
 
 ```python
 from http import HTTPStatus
 
-# Custom retry configuration
 client = VergeClient(
     host="192.168.1.100",
     username="admin",
     password="secret",
-    retry_total=5,              # Number of retry attempts (default: 3)
-    retry_backoff_factor=2.0,   # Exponential backoff factor (default: 1)
-    retry_status_codes=frozenset({  # HTTP codes to retry (default: 429, 500, 502, 503, 504)
+    timeout=30,                 # Per request timeout in seconds (default: 30)
+    retry_total=5,              # Retry attempts (default: 3)
+    retry_backoff_factor=2.0,   # Backoff factor (default: 1)
+    retry_status_codes=frozenset({
         HTTPStatus.TOO_MANY_REQUESTS,
         HTTPStatus.SERVICE_UNAVAILABLE,
     }),
 )
-
-# Disable retries entirely
-client = VergeClient(
-    host="192.168.1.100",
-    username="admin",
-    password="secret",
-    retry_total=0,
-)
 ```
+
+Set `retry_total=0` to turn retries off entirely.
 
 ## Requirements
 
-- Python 3.9+
-- VergeOS 26.0+
-
-## License
-
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+- Python 3.9 or newer
+- VergeOS 26.0 or newer
 
 ## Contributing
 
-Contributions welcome! Please read the contributing guidelines before submitting PRs.
+Contributions are welcome. Start with the [contributing guide](docs/contributing.rst) for the development setup, test commands, and coding standards.
+
+All contributors must agree to the [Contributor License Agreement](CLA.md). Submitting a pull request counts as accepting it.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Resources
 
-- [VergeOS Documentation](https://docs.verge.io/) - Official VergeOS platform documentation
-- [VergeOS Website](https://www.verge.io/) - Learn more about VergeOS
-- [pyvergeos Documentation](https://verge-io.github.io/pyVergeOS/) - Full SDK documentation
+- [pyvergeos documentation](https://verge-io.github.io/pyVergeOS/) for the full SDK reference
+- [VergeOS documentation](https://docs.verge.io/) for the platform itself
+- [VergeOS website](https://www.verge.io/)
 
-## Related Projects
+## Related projects
 
-- [PSVergeOS](https://github.com/verge-io/PSVergeOS) - PowerShell module for VergeOS
-- [govergeos](https://github.com/verge-io/govergeos) - Go SDK for VergeOS
+- [PSVergeOS](https://github.com/verge-io/PSVergeOS), the PowerShell module for VergeOS
+- [govergeos](https://github.com/verge-io/govergeos), the Go SDK for VergeOS

@@ -77,6 +77,50 @@ class TestClusterStatusModel:
         assert s.used_ram == 0
         assert s.can_lose_one_node() is False
 
+    def test_even_spread_is_optimistic_with_uneven_nodes(
+        self, sample_status: dict[str, Any]
+    ) -> None:
+        """Pins the caveat the docstring now carries (issue #135).
+
+        ``cluster_status`` exposes only aggregates, so the helper divides
+        ``online_ram`` evenly and cannot see that losing the *largest* node
+        leaves less than that average. Two nodes of 68352 and 69120 MB give an
+        even-spread ceiling of 68736 MB while only 68352 MB really survives,
+        so the helper answers True across that window. This is not the
+        behaviour anyone should rely on, but it is the behaviour, and the
+        docstring says so; if the maths is ever tightened, this test should
+        fail and the docstring be corrected with it.
+        """
+        node_ram = [68352, 69120]
+        worst_case_survivor = sum(node_ram) - max(node_ram)  # 68352
+        even_spread_ceiling = sum(node_ram) / len(node_ram)  # 68736
+
+        # At the true worst case the helper and reality agree.
+        at_worst = dict(sample_status, online_ram=sum(node_ram), used_ram=worst_case_survivor)
+        assert ClusterStatus(at_worst, MagicMock()).can_lose_one_node() is True
+
+        # Between the two it reports True while the survivor could not cope.
+        optimistic = dict(sample_status, online_ram=sum(node_ram), used_ram=68500)
+        assert worst_case_survivor < 68500
+        assert ClusterStatus(optimistic, MagicMock()).can_lose_one_node() is True
+
+        # Past the even-spread ceiling it finally reports False.
+        beyond = dict(
+            sample_status, online_ram=sum(node_ram), used_ram=int(even_spread_ceiling) + 1
+        )
+        assert ClusterStatus(beyond, MagicMock()).can_lose_one_node() is False
+
+    def test_equal_nodes_make_the_approximation_exact(self, sample_status: dict[str, Any]) -> None:
+        """With equally sized nodes the even spread is the worst case."""
+        node_ram = [68736, 68736]
+        survivor = sum(node_ram) - max(node_ram)
+
+        exact = dict(sample_status, online_ram=sum(node_ram), used_ram=survivor)
+        assert ClusterStatus(exact, MagicMock()).can_lose_one_node() is True
+
+        over = dict(sample_status, online_ram=sum(node_ram), used_ram=survivor + 1)
+        assert ClusterStatus(over, MagicMock()).can_lose_one_node() is False
+
 
 class TestClusterStatusManager:
     def test_get_scoped_filters_by_cluster(

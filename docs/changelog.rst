@@ -24,6 +24,27 @@ Fixed
   returning the snapshot fetched fresh, so its ``status`` reflects reality.
   ``wait=False`` behaviour is unchanged. (#133)
 
+Docs
+^^^^
+
+- ``ClusterStatus.can_lose_one_node()`` no longer describes itself as
+  "conservative". It divides ``online_ram`` evenly across ``online_nodes``,
+  but the real worst case is losing the *largest* node, so on a cluster of
+  unequal nodes it errs toward True, in the unsafe direction, which is the
+  opposite of what "conservative" promises. Two nodes of 68352 and 69120 MB
+  give an even-spread ceiling of 68736 MB while only 68352 MB survives losing
+  the larger one, so any ``used_ram`` in between reported True for a load the
+  survivor could not hold.
+
+  This is a wording fix, not a logic change: ``cluster_status`` exposes only
+  aggregates, so the method cannot compute a worst case from its own data and
+  even-spread is the best available at that layer. The docstring now states
+  that it is an optimistic approximation, that a True is not an N-1 guarantee
+  on unevenly sized clusters, and shows the per-node recipe over
+  ``Node.vm_ram_mb`` for callers gating a real drain. Two tests pin the
+  optimistic window so the behaviour and the caveat cannot drift apart. The
+  1.5.0 entry above was corrected to match. (#135)
+
 [1.6.0] - 2026-09-23
 --------------------
 
@@ -50,8 +71,8 @@ Added
   ``cluster.cluster_status``) exposing the ``cluster_status`` table -- the
   live per-cluster node/RAM/core capacity figures behind an N-1 capacity
   pre-check. Previously reachable only through a private ``client._request()``.
-  ``ClusterStatus.can_lose_one_node()`` provides a conservative even-spread
-  check. (#127)
+  ``ClusterStatus.can_lose_one_node()`` provides an even-spread
+  approximation. (#127, wording corrected in 1.6.1 per #135)
 
 - ``machine_drive_stats`` manager (``client.machine_drive_stats`` and, scoped,
   ``drive.drive_stats``) exposing per-drive IO counters. It addresses rows by a

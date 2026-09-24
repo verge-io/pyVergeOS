@@ -293,11 +293,15 @@ Slow Responses
 
    .. code-block:: python
 
-      # Instead of filtering client-side
-      running_vms = [vm for vm in client.vms.list() if vm.status == "running"]
+      # Instead of pulling everything back and filtering client-side
+      linux_vms = [vm for vm in client.vms.list() if vm.os_family == "linux"]
 
       # Filter server-side
-      running_vms = client.vms.list(status="running")
+      linux_vms = client.vms.list(os_family="linux")
+
+   Power state is the exception. It lives on a joined field the API cannot
+   filter on, so ``list_running()`` and ``list_stopped()`` do that pass
+   client-side for you.
 
 Memory Usage
 ^^^^^^^^^^^^

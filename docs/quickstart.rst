@@ -67,7 +67,9 @@ List VMs
 
    # Filter VMs
    linux_vms = client.vms.list(os_family="linux")
-   running_vms = client.vms.list(status="running")
+
+   # Running state lives on a joined field, so use the helper
+   running_vms = client.vms.list_running()
 
 Get a Specific VM
 ^^^^^^^^^^^^^^^^^
@@ -108,7 +110,7 @@ Snapshots
 .. code-block:: python
 
    # Create a snapshot
-   vm.snapshot(name="before-upgrade", quiesce=True)
+   vm.snapshots.create(name="before-upgrade", quiesce=True)
 
    # List snapshots
    snapshots = vm.snapshots.list()
