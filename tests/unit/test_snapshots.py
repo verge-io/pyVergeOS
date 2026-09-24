@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -123,7 +123,8 @@ class TestVMSnapshotManager:
             "name": "my-snapshot",
         }
 
-        vm.snapshots.create(name="my-snapshot", retention=172800, quiesce=True)
+        with patch("time.time", return_value=1_700_000_000):
+            vm.snapshots.create(name="my-snapshot", retention=172800, quiesce=True)
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
@@ -132,7 +133,7 @@ class TestVMSnapshotManager:
         assert body["name"] == "my-snapshot"
         assert body["quiesce"] is True
         assert body["created_manually"] is True
-        assert "expires" in body
+        assert body["expires"] == 1_700_000_000 + 172800
 
     def test_create_snapshot_default_retention(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
@@ -140,13 +141,14 @@ class TestVMSnapshotManager:
         """Test creating snapshot with default retention."""
         mock_session.request.return_value.json.return_value = {"$key": 4}
 
-        vm.snapshots.create()
+        with patch("time.time", return_value=1_700_000_000):
+            vm.snapshots.create()
 
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
-        # Should have generated name and expires timestamp
+        # Omitted retention is 24h, not expires:0 and not the platform +72h default.
         assert "name" in body
-        assert "expires" in body
+        assert body["expires"] == 1_700_000_000 + 86400
         assert body["machine"] == 200
 
     def test_create_snapshot_retention_zero_sends_expires_zero(
@@ -162,6 +164,24 @@ class TestVMSnapshotManager:
         assert body["name"] == "never-expires"
         assert "expires" in body
         assert body["expires"] == 0
+
+    def test_create_snapshot_negative_retention_rejected(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """A negative retention must not be stored as never-expires (#146)."""
+        with pytest.raises(ValueError, match="non-negative"):
+            vm.snapshots.create(name="bad", retention=-1)
+
+        assert mock_session.request.call_count == 1  # connect only; no POST
+
+    def test_create_snapshot_none_retention_rejected(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Explicit None is not 'never' and not the 24h default."""
+        with pytest.raises(TypeError, match="retention"):
+            vm.snapshots.create(name="bad", retention=None)  # type: ignore[arg-type]
+
+        assert mock_session.request.call_count == 1  # connect only; no POST
 
     def test_delete_snapshot(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
@@ -217,6 +237,56 @@ class TestVMSnapshotManager:
         call_args = mock_session.request.call_args
         body = call_args.kwargs.get("json", {})
         assert body["params"]["name"] == "CustomName"
+
+    def test_restore_skips_key_collision_and_wrong_machine(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Clone the snapshot VM, not a VM whose $key equals snap_machine (#147)."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "Daily", "snap_machine": 999},
+            [
+                # Snapshot of a different machine must not win just by order.
+                {"$key": 777, "name": "other-snap", "machine": 1, "is_snapshot": True},
+                # VM key collision: $key == snap_machine, but it is not a snapshot.
+                {"$key": 999, "name": "unrelated", "machine": 999, "is_snapshot": False},
+                {"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True},
+            ],
+            {"$key": 101, "name": "Daily restored"},
+        ]
+
+        vm.snapshots.restore(1)
+
+        lookups = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "GET"
+            and str(call.kwargs.get("url", "")).rstrip("/").endswith("/vms")
+        ]
+        assert lookups
+        assert lookups[-1].kwargs["params"]["filter"] == "machine eq 999"
+
+        body = mock_session.request.call_args.kwargs.get("json", {})
+        assert body["action"] == "clone"
+        assert body["vm"] == 888
+
+    def test_restore_missing_snapshot_vm_does_not_clone(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Do not fall back to posting snap_machine as a VM key (#147)."""
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 1, "name": "Daily", "snap_machine": 999},
+            [],
+        ]
+
+        with pytest.raises(ValueError, match="Could not find snapshot VM"):
+            vm.snapshots.restore(1)
+
+        actions = [
+            call.kwargs.get("json", {})
+            for call in mock_session.request.call_args_list
+            if isinstance(call.kwargs.get("json"), dict) and call.kwargs["json"].get("action")
+        ]
+        assert actions == []
 
 
 class TestVMSnapshot:
@@ -354,16 +424,26 @@ class TestVMSnapshot:
         mock_session.request.return_value.json.side_effect = [
             # manager.restore: get snapshot by key
             snapshot_data,
-            # resolve snap_machine (999) → snapshot VM
-            [{"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}],
+            # resolve snap_machine (999) → snapshot VM, skipping a key collision
+            [
+                {"$key": 999, "name": "unrelated", "machine": 50, "is_snapshot": False},
+                {"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True},
+            ],
             # clone action
             {"$key": 101, "name": "My Restored VM"},
+            # power on the clone
+            {"$key": 101},
         ]
 
-        snapshot.restore(name="My Restored VM")
+        with patch("time.sleep"):
+            snapshot.restore(name="My Restored VM", power_on=True)
 
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
-        assert body["action"] == "clone"
-        assert body["vm"] == 888  # snapshot VM key, not machine key 999
-        assert body["params"]["name"] == "My Restored VM"
+        posts = [
+            call.kwargs.get("json", {})
+            for call in mock_session.request.call_args_list
+            if isinstance(call.kwargs.get("json"), dict) and call.kwargs["json"].get("action")
+        ]
+        assert posts[0]["action"] == "clone"
+        assert posts[0]["vm"] == 888  # snapshot VM key, not machine key 999
+        assert posts[0]["params"]["name"] == "My Restored VM"
+        assert posts[1] == {"vm": 101, "action": "poweron"}

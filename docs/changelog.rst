@@ -15,8 +15,12 @@ Fixed
 - ``VMSnapshotManager.create(retention=0)`` now sends ``expires: 0`` so the
   platform stores a never-expiring snapshot. Omitting ``expires`` previously
   let VergeOS default to +72 hours, contradicting the documented "use 0 for
-  never expires" behaviour (and ``VMSnapshot.never_expires()``, which already
+  never expires" behaviour (and ``VMSnapshot.never_expires``, which already
   treated ``expires == 0`` as never). Measured on VergeOS 26.1.8. (#146)
+
+- ``VMSnapshotManager.create()`` rejects a negative ``retention`` (and
+  ``None``) instead of storing ``expires: 0``. Omitting ``retention`` still
+  defaults to 24 hours. (#146)
 
 - ``VMSnapshot.restore()`` now delegates to ``VMSnapshotManager.restore()``,
   which resolves ``snap_machine`` (a machine key) to the snapshot VM before
