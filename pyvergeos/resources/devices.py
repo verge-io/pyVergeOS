@@ -36,6 +36,8 @@ from pyvergeos.resources.base import (
     ResourceManager,
     ResourceObject,
     display_map,
+    ensure_projection_field,
+    machine_key_matches,
 )
 
 if TYPE_CHECKING:
@@ -305,6 +307,10 @@ class DeviceManager(ResourceManager[Device]):
     def _to_model(self, data: dict[str, Any]) -> Device:
         return Device(data, self)
 
+    def _ensure_in_scope(self, key: int) -> None:
+        """Fetch the device and reject one that belongs to another VM (#182)."""
+        self.get(key)
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -406,20 +412,25 @@ class DeviceManager(ResourceManager[Device]):
             Device object.
 
         Raises:
-            NotFoundError: If device not found.
+            NotFoundError: If the device does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         if fields is None:
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            # list() is filtered by machine; a key is not. Ask for machine even
+            # when the caller narrowed fields, then refuse another VM's row (#182).
+            selected = ensure_projection_field(fields, "machine", defaults=self._default_fields)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
             if response is None:
                 raise NotFoundError(f"Device {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Device {key} returned invalid response")
+            if not machine_key_matches(response.get("machine"), self._machine_key):
+                raise NotFoundError(f"Device {key} does not belong to machine {self._machine_key}")
             return self._to_model(response)
 
         if name is not None:
@@ -798,12 +809,16 @@ class DeviceManager(ResourceManager[Device]):
         Returns:
             Updated Device object.
 
+        Raises:
+            NotFoundError: If the device does not exist or belongs to another VM.
+
         Example:
             >>> device = vm.devices.update(
             ...     device.key,
             ...     enabled=False,
             ... )
         """
+        self._ensure_in_scope(key)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)
@@ -817,7 +832,11 @@ class DeviceManager(ResourceManager[Device]):
         Args:
             key: Device $key (ID).
 
+        Raises:
+            NotFoundError: If the device does not exist or belongs to another VM.
+
         Note:
             Machine should typically be powered off before removing devices.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

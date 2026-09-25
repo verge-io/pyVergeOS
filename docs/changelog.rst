@@ -12,6 +12,14 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``DeviceManager`` and ``VMCloudInitFileManager`` require the row to
+  belong to the VM on by-key calls. Devices compare ``machine`` with the
+  VM machine key. Cloud-init files compare ``owner`` with ``vms/<vm key>``.
+  ``get(key)``, ``update(key)``, ``delete(key)``, and
+  ``get_content(key)`` raise ``NotFoundError`` when the key belongs to
+  another VM, before a write or before file contents are returned.
+  ``list()`` was already filtered. (#182)
+
 - ``VolumeAntivirusManager.create()`` no longer fails with
   ``ConflictError`` when the volume already has an antivirus row.
   VergeOS creates that row with the volume, and the table allows one

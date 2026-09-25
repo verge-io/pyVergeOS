@@ -157,7 +157,12 @@ class TestDeviceManager:
         """Test creating a device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 10, "name": "vGPU-1", "type": "node_nvidia_vgpu_devices"},
-            {"$key": 10, "name": "vGPU-1", "type": "node_nvidia_vgpu_devices"},
+            {
+                "$key": 10,
+                "name": "vGPU-1",
+                "type": "node_nvidia_vgpu_devices",
+                "machine": 100,
+            },
         ]
 
         device = device_manager.create(
@@ -175,7 +180,7 @@ class TestDeviceManager:
         """Test creating a device with settings."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 10, "name": "vGPU", "type": "node_nvidia_vgpu_devices"},
-            {"$key": 10, "name": "vGPU", "type": "node_nvidia_vgpu_devices"},
+            {"$key": 10, "name": "vGPU", "type": "node_nvidia_vgpu_devices", "machine": 100},
         ]
 
         device_manager.create(
@@ -197,7 +202,7 @@ class TestDeviceManager:
         """Test creating a vGPU device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 10, "type": "node_nvidia_vgpu_devices"},
-            {"$key": 10, "type": "node_nvidia_vgpu_devices"},
+            {"$key": 10, "type": "node_nvidia_vgpu_devices", "machine": 100},
         ]
 
         device_manager.create_vgpu(
@@ -220,7 +225,7 @@ class TestDeviceManager:
         """Test creating a host GPU passthrough device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 11, "type": "node_host_gpu_devices"},
-            {"$key": 11, "type": "node_host_gpu_devices"},
+            {"$key": 11, "type": "node_host_gpu_devices", "machine": 100},
         ]
 
         device_manager.create_host_gpu(resource_group=6, count=2)
@@ -238,7 +243,7 @@ class TestDeviceManager:
         """Test creating a USB passthrough device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 12, "type": "node_usb_devices"},
-            {"$key": 12, "type": "node_usb_devices"},
+            {"$key": 12, "type": "node_usb_devices", "machine": 100},
         ]
 
         device_manager.create_usb(
@@ -261,7 +266,7 @@ class TestDeviceManager:
         """Test creating a PCI passthrough device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 13, "type": "node_pci_devices"},
-            {"$key": 13, "type": "node_pci_devices"},
+            {"$key": 13, "type": "node_pci_devices", "machine": 100},
         ]
 
         device_manager.create_pci(resource_group=8, count=1)
@@ -278,7 +283,7 @@ class TestDeviceManager:
         """Test creating an SR-IOV NIC device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 14, "type": "node_sriov_nic_devices"},
-            {"$key": 14, "type": "node_sriov_nic_devices"},
+            {"$key": 14, "type": "node_sriov_nic_devices", "machine": 100},
         ]
 
         device_manager.create_sriov_nic(
@@ -301,7 +306,7 @@ class TestDeviceManager:
         """Test creating a TPM device."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 15, "type": "tpm"},
-            {"$key": 15, "type": "tpm"},
+            {"$key": 15, "type": "tpm", "machine": 100},
         ]
 
         device_manager.create_tpm(name="TPM")
@@ -321,6 +326,7 @@ class TestDeviceManager:
             "$key": 1,
             "name": "vGPU-1",
             "enabled": False,
+            "machine": 100,
         }
 
         device = device_manager.update(1, enabled=False)
@@ -334,9 +340,11 @@ class TestDeviceManager:
         assert device.get("enabled") is False
 
     def test_delete_device(self, device_manager: DeviceManager, mock_session: MagicMock) -> None:
-        """Test deleting a device."""
-        mock_session.request.return_value.status_code = 204
-        mock_session.request.return_value.text = ""
+        """Test deleting a device that belongs to this machine."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "machine": 100,
+        }
 
         device_manager.delete(1)
 
@@ -477,6 +485,7 @@ class TestDevice:
             "$key": 1,
             "name": "vGPU-1-updated",
             "type": "node_nvidia_vgpu_devices",
+            "machine": 100,
         }
 
         manager = DeviceManager(mock_client, machine_key=100)
@@ -492,6 +501,7 @@ class TestDevice:
             "$key": 1,
             "name": "vGPU-1",
             "description": "Updated description",
+            "machine": 100,
         }
 
         manager = DeviceManager(mock_client, machine_key=100)
@@ -503,8 +513,10 @@ class TestDevice:
 
     def test_device_delete(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test Device delete method."""
-        mock_session.request.return_value.status_code = 204
-        mock_session.request.return_value.text = ""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "machine": 100,
+        }
 
         manager = DeviceManager(mock_client, machine_key=100)
         device = Device({"$key": 1, "name": "vGPU-1"}, manager)
