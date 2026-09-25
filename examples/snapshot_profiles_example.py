@@ -177,14 +177,12 @@ def main() -> int:
         )
         print(f"  New description: {updated_profile.description}")
 
-        # Update the daily period to skip missed snapshots
+        # Update the daily period's minimum snapshot count
         print("Updating daily period...")
         updated_daily = client.snapshot_profiles.periods(profile.key).update(
             daily.key,
-            skip_missed=True,
             min_snapshots=3,
         )
-        print(f"  Skip Missed: {updated_daily.skip_missed}")
         print(f"  Min Snapshots: {updated_daily.min_snapshots}")
         print()
 

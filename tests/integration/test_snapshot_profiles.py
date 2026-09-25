@@ -425,26 +425,6 @@ class TestSnapshotProfilePeriodOptionsIntegration:
                 p.delete()
             live_client.snapshot_profiles.delete(profile.key)
 
-    def test_period_with_skip_missed(
-        self, live_client: VergeClient, test_profile_name: str
-    ) -> None:
-        """Test creating a period with skip_missed enabled."""
-        profile = live_client.snapshot_profiles.create(name=test_profile_name)
-
-        try:
-            period = profile.add_period(
-                name="SkipMissed",
-                frequency="hourly",
-                retention_seconds=86400,
-                skip_missed=True,
-            )
-
-            assert period.skip_missed is True
-        finally:
-            for p in live_client.snapshot_profiles.periods(profile.key).list():
-                p.delete()
-            live_client.snapshot_profiles.delete(profile.key)
-
     def test_period_with_max_tier(self, live_client: VergeClient, test_profile_name: str) -> None:
         """Test creating a period with max_tier set."""
         profile = live_client.snapshot_profiles.create(name=test_profile_name)

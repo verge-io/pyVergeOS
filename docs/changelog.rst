@@ -12,6 +12,16 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``SnapshotProfilePeriodManager.create()``, ``update()`` /
+  ``save()``, and ``SnapshotProfile.add_period()`` no longer accept
+  ``skip_missed``. ``snapshot_profile_periods`` has no such column;
+  VergeOS accepts the name and drops it, so the write looked
+  successful and ``SnapshotProfilePeriod.skip_missed`` always read
+  false. The property and the default field list drop it too.
+  Passing it to ``update()`` or ``save()`` raises ``ValueError``.
+  The other period write fields match columns measured on VergeOS
+  26.1.8. (#139)
+
 - ``VM.hotplug_drive()`` and ``VM.hotplug_nic()`` sent the create spec
   (``name``, ``disksize``, ``interface``, and so on) as the action params.
   VergeOS ``hotplugdrive`` and ``hotplugnic`` attach an existing device and
