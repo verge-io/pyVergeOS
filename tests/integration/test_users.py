@@ -117,7 +117,7 @@ class TestUserCRUD:
         """Test creating an API user."""
         user = live_client.users.create(
             name="pytest_api_test",
-            password="ApiTest123!",
+            password="ApiTest1234!",
             user_type="api",
         )
 

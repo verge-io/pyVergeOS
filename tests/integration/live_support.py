@@ -72,23 +72,51 @@ def start_disposable_network(
 
 
 def destroy_network(client: VergeClient, network: Network) -> None:
-    """Power off and delete a disposable network. Swallows cleanup errors."""
+    """Power off and delete a disposable network.
+
+    Deletion is retried briefly, because a network that is still stopping
+    rejects ``delete()``. A ``pytest-*`` network that is still present
+    afterwards raises, so a leaked test network is not silent.
+    """
+    name = str(network.get("name") or "")
     try:
         current = client.networks.get(network.key)
     except NotFoundError:
         return
     with suppress(VergeError):
         current.apply_rules()
-    if current.is_running:
-        with suppress(VergeError):
-            current.power_off()
-        time.sleep(3)
+
+    deadline = time.monotonic() + 20
+    last_error: BaseException | None = None
+    while True:
         try:
             current = client.networks.get(network.key)
         except NotFoundError:
             return
-    with suppress(VergeError):
-        current.delete()
+        if current.is_running:
+            with suppress(VergeError):
+                current.power_off()
+        try:
+            current.delete()
+        except NotFoundError:
+            return
+        except VergeError as exc:
+            last_error = exc
+        else:
+            try:
+                client.networks.get(network.key)
+            except NotFoundError:
+                return
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(2)
+
+    if name.startswith("pytest-"):
+        detail = f" ({last_error})" if last_error else ""
+        raise RuntimeError(
+            f"Disposable network {name!r} (key {network.key}) still exists "
+            f"after delete retries{detail}"
+        )
 
 
 def clear_group_members(group: Group) -> None:
