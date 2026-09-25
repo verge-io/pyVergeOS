@@ -72,7 +72,13 @@ def start_disposable_network(
 
 
 def destroy_network(client: VergeClient, network: Network) -> None:
-    """Power off and delete a disposable network. Swallows cleanup errors."""
+    """Power off and delete a disposable network.
+
+    Deletion is retried briefly, because a network that is still stopping
+    rejects ``delete()``. A ``pytest-*`` network that is still present
+    afterwards raises, so a leaked test network is not silent.
+    """
+    name = str(network.get("name") or "")
     try:
         current = client.networks.get(network.key)
     except NotFoundError:
@@ -82,13 +88,91 @@ def destroy_network(client: VergeClient, network: Network) -> None:
     if current.is_running:
         with suppress(VergeError):
             current.power_off()
-        time.sleep(3)
+
+    deadline = time.monotonic() + 20
+    last_error: BaseException | None = None
+    while True:
         try:
             current = client.networks.get(network.key)
         except NotFoundError:
             return
-    with suppress(VergeError):
-        current.delete()
+        if current.is_running:
+            with suppress(VergeError):
+                current.power_off()
+        try:
+            current.delete()
+        except NotFoundError:
+            return
+        except VergeError as exc:
+            last_error = exc
+        else:
+            try:
+                client.networks.get(network.key)
+            except NotFoundError:
+                return
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(2)
+
+    if name.startswith("pytest-"):
+        detail = f" ({last_error})" if last_error else ""
+        raise RuntimeError(
+            f"Disposable network {name!r} (key {network.key}) still exists "
+            f"after delete retries{detail}"
+        )
+
+
+def external_mutation_allowed() -> bool:
+    """True when tests may mutate the shared External network."""
+    return os.environ.get("VERGE_ALLOW_EXTERNAL_MUTATION") == "1"
+
+
+def create_disposable_external_network(client: VergeClient, *, prefix: str) -> Network:
+    """Create an external-type network that tests can mutate and then delete.
+
+    Does not attach an uplink, so a failed create does not stage changes on
+    External, Core, or DMZ. Raises ``VergeError`` when the platform will not
+    create one, or when the created network is not external.
+    """
+    second = 64 + secrets.randbelow(160)
+    third = secrets.randbelow(256)
+    address = f"10.{second}.{third}.0/24"
+    ip_address = f"10.{second}.{third}.1"
+    name = f"{prefix}-{secrets.token_hex(4)}"
+    network = client.networks.create(
+        name=name,
+        network_type="external",
+        network_address=address,
+        ip_address=ip_address,
+        description="Disposable external network for integration tests",
+    )
+    if str(network.get("type") or "") != "external":
+        destroy_network(client, network)
+        raise VergeError(
+            f"Network {network.name!r} was created with type {network.get('type')!r}, not external"
+        )
+    return network
+
+
+def settle_firewall_apply(client: VergeClient, network: Network, *, timeout: float = 15) -> None:
+    """Apply firewall rules and require ``need_fw_apply`` to be clear."""
+    current = client.networks.get(network.key)
+    deadline = time.monotonic() + timeout
+    last_error: BaseException | None = None
+    while True:
+        try:
+            current.apply_rules()
+        except VergeError as exc:
+            last_error = exc
+        current = client.networks.get(network.key)
+        if not current.needs_rule_apply:
+            return
+        if time.monotonic() >= deadline:
+            detail = f" ({last_error})" if last_error else ""
+            raise RuntimeError(
+                f"Network {current.name!r} still has need_fw_apply after apply_rules(){detail}"
+            )
+        time.sleep(1)
 
 
 def clear_group_members(group: Group) -> None:

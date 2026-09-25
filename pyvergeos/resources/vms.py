@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.exceptions import VergeError
 from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
     from pyvergeos.resources.snapshots import VMSnapshotManager
 
 logger = logging.getLogger(__name__)
+
+# VergeOS hotplugdrive accepts only these disk interfaces. ide, ahci, nvme,
+# and non-disk media are refused after the drive exists, which leaves an
+# offline drive on the VM (issue #169).
+_HOTPLUG_DRIVE_INTERFACES = frozenset({"virtio", "virtio-scsi"})
 
 # Plain own-columns. The computed entries live on the model below and are
 # appended when the full projection is assembled, so an accessor and the
@@ -422,42 +428,52 @@ class VM(ResourceObject):
         media: str = "disk",
         tier: int = 1,
     ) -> dict[str, Any] | None:
-        """Hot-add a drive to a running VM.
+        """Hot-add a disk to a running VM.
 
         VergeOS ``hotplugdrive`` attaches an existing drive and requires its
         key as ``device``. This method creates the drive from the given spec,
         then posts the action with that key.
 
+        Only ``virtio`` and ``virtio-scsi`` disks can be hot-plugged. Other
+        interfaces (``ide``, ``ahci``, ``nvme``, and so on) and non-disk media
+        are rejected before a drive is created.
+
         Args:
             name: Drive name.
-            size: Disk size in bytes. For ``media="disk"`` this must be a
-                positive whole number of GiB. The drive is created through
-                ``drives.create()``, which sizes disks in GiB.
-            interface: Drive interface type (default "virtio-scsi").
-                Options: virtio, virtio-scsi, ide, ahci, nvme, etc.
-            media: Media type (default "disk").
+            size: Disk size in bytes. This must be a positive whole number of
+                GiB. The drive is created through ``drives.create()``, which
+                sizes disks in GiB.
+            interface: Drive interface. ``virtio`` or ``virtio-scsi``
+                (default ``virtio-scsi``).
+            media: Media type. Must be ``disk`` (the default).
             tier: Preferred storage tier (1-5, default 1).
 
         Returns:
             Hotplug task information.
 
         Raises:
-            ValueError: If ``media`` is ``disk`` and ``size`` is not a
+            ValueError: If ``media`` is not ``disk``, if ``interface`` is not
+                ``virtio`` or ``virtio-scsi``, or if ``size`` is not a
                 positive multiple of 1 GiB.
+            VergeError: If the hotplug action is rejected (for example the VM
+                is not fully running). The drive created for the attempt is
+                deleted before the error is re-raised.
 
         Note:
-            The VM must be running and have allow_hotplug enabled. The drive
-            is created before the hotplug action; if the action is rejected,
-            the drive remains on the VM.
+            The VM must be running and have allow_hotplug enabled.
         """
+        if media != "disk" or interface not in _HOTPLUG_DRIVE_INTERFACES:
+            raise ValueError(
+                "Only virtio and virtio-scsi disks can be hot-plugged "
+                f"(got media={media!r}, interface={interface!r})"
+            )
+
         # drives.create() stores disksize as whole GiB. Refuse to truncate a
         # byte size that is not an exact multiple (issue #150).
-        size_gb: int | None = None
-        if media == "disk":
-            gib = 1024**3
-            if size <= 0 or size % gib != 0:
-                raise ValueError(f"size must be a positive whole number of GiB (got {size} bytes)")
-            size_gb = size // gib
+        gib = 1024**3
+        if size <= 0 or size % gib != 0:
+            raise ValueError(f"size must be a positive whole number of GiB (got {size} bytes)")
+        size_gb = size // gib
 
         drive = self.drives.create(
             name=name,
@@ -466,16 +482,7 @@ class VM(ResourceObject):
             media=media,
             tier=tier,
         )
-        result = self._manager._client._request(
-            "POST",
-            "vm_actions",
-            json_data={
-                "vm": self.key,
-                "action": "hotplugdrive",
-                "params": {"device": drive.key},
-            },
-        )
-        return result if isinstance(result, dict) else None
+        return self._post_hotplug("hotplugdrive", drive)
 
     def hotplug_nic(
         self,
@@ -498,21 +505,40 @@ class VM(ResourceObject):
         Returns:
             Hotplug task information.
 
+        Raises:
+            VergeError: If the hotplug action is rejected (for example the VM
+                is not fully running). The NIC created for the attempt is
+                deleted before the error is re-raised.
+
         Note:
-            The VM must be running and have allow_hotplug enabled. The NIC is
-            created before the hotplug action; if the action is rejected, the
-            NIC remains on the VM.
+            The VM must be running and have allow_hotplug enabled.
         """
         nic = self.nics.create(name=name, network=network, interface=interface)
-        result = self._manager._client._request(
-            "POST",
-            "vm_actions",
-            json_data={
-                "vm": self.key,
-                "action": "hotplugnic",
-                "params": {"device": nic.key},
-            },
-        )
+        return self._post_hotplug("hotplugnic", nic)
+
+    def _post_hotplug(self, action: str, created: ResourceObject) -> dict[str, Any] | None:
+        """Post a hotplug action, deleting ``created`` if the action is rejected."""
+        try:
+            result = self._manager._client._request(
+                "POST",
+                "vm_actions",
+                json_data={
+                    "vm": self.key,
+                    "action": action,
+                    "params": {"device": created.key},
+                },
+            )
+        except VergeError:
+            try:
+                created.delete()
+            except Exception:
+                logger.warning(
+                    "Failed to remove device %s after %s was rejected",
+                    created.key,
+                    action,
+                    exc_info=True,
+                )
+            raise
         return result if isinstance(result, dict) else None
 
     def tag(self, tag_key: int) -> None:

@@ -12,6 +12,19 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``VM.hotplug_drive()`` rejects ``media`` other than ``disk`` and
+  interfaces other than ``virtio`` and ``virtio-scsi`` before creating
+  a drive. If the hotplug action is still rejected, ``hotplug_drive()``
+  and ``hotplug_nic()`` delete the device they created and re-raise, so
+  a failed call does not leave an offline drive or NIC on the VM.
+  (#169)
+
+- ``VolumeAntivirusManager`` documents that VergeOS creates the
+  per-volume antivirus row with the volume. Examples lead with
+  ``get()`` and ``update()``. ``create()`` updates that row when one
+  already exists, and does the same if a POST hits the unique
+  constraint. (#170)
+
 - ``VMSnapshotManager.restore(..., power_on=True)`` and
   ``VMSnapshot.restore(power_on=True)`` power the restored VM on.
   Clone mode reads the new VM key from ``response.vmkey`` (VergeOS

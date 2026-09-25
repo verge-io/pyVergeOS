@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import ConflictError, NotFoundError
 from pyvergeos.resources.nas_antivirus import (
     NasServiceAntivirus,
     NasServiceAntivirusManager,
@@ -298,8 +298,9 @@ class TestVolumeAntivirusManager:
             volume_av_manager.get(key=999)
 
     def test_create(self, volume_av_manager, sample_volume_antivirus, mock_client):
-        """Test creating antivirus config."""
+        """POST only when the volume has no antivirus row yet."""
         mock_client._request.side_effect = [
+            [],  # lookup: no existing row
             {"$key": 1},  # POST response
             sample_volume_antivirus,  # GET response
         ]
@@ -312,12 +313,60 @@ class TestVolumeAntivirusManager:
 
         assert isinstance(result, VolumeAntivirus)
         assert result.key == 1
-        # Verify POST call
-        post_call = mock_client._request.call_args_list[0]
+        post_call = mock_client._request.call_args_list[1]
         assert post_call[0][0] == "POST"
         assert post_call[0][1] == "volume_antivirus"
         assert post_call[1]["json_data"]["enabled"] is True
         assert post_call[1]["json_data"]["on_access"] is True
+
+    def test_create_updates_existing_row(
+        self, volume_av_manager, sample_volume_antivirus, mock_client
+    ):
+        """An existing row is updated instead of POSTing a duplicate."""
+        updated = sample_volume_antivirus.copy()
+        updated["on_access"] = True
+        mock_client._request.side_effect = [
+            [sample_volume_antivirus],  # lookup finds the platform row
+            None,  # PUT
+            updated,  # GET after update
+        ]
+
+        result = volume_av_manager.create(
+            volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
+            enabled=True,
+            on_access=True,
+        )
+
+        assert isinstance(result, VolumeAntivirus)
+        assert result.key == 1
+        assert result.get("on_access") is True
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "PUT", "GET"]
+        put_call = mock_client._request.call_args_list[1]
+        assert put_call[0][1] == "volume_antivirus/1"
+        assert put_call[1]["json_data"]["enabled"] is True
+        assert put_call[1]["json_data"]["on_access"] is True
+
+    def test_create_updates_row_after_conflict(
+        self, volume_av_manager, sample_volume_antivirus, mock_client
+    ):
+        """A unique-constraint conflict updates the row that appeared."""
+        mock_client._request.side_effect = [
+            [],  # lookup misses
+            ConflictError("Validation error: unique constraint", status_code=409),
+            [sample_volume_antivirus],  # row exists after the conflict
+            None,  # PUT
+            sample_volume_antivirus,  # GET after update
+        ]
+
+        result = volume_av_manager.create(
+            volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
+            enabled=True,
+        )
+
+        assert result.key == 1
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "POST", "GET", "PUT", "GET"]
 
     def test_update(self, volume_av_manager, sample_volume_antivirus, mock_client):
         """Test updating antivirus config."""
