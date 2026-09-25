@@ -19,7 +19,7 @@ from collections.abc import Generator
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError, VergeError
+from pyvergeos.exceptions import NotFoundError, ValidationError, VergeError
 from pyvergeos.resources.networks import Network
 from pyvergeos.resources.wireguard import WireGuardInterface
 from tests.integration.live_support import create_disposable_network, destroy_network
@@ -42,7 +42,19 @@ def delete_wireguard_interface(network: Network, key: int, *, remove_peers: bool
             iface.peers.delete(peer.key)
     network.wireguard.update(key, enabled=False)
     network.apply_rules()
-    network.wireguard.delete(key)
+    # Apply is asynchronous. Deleting immediately is intermittently rejected
+    # with "must be disabled and applied" (issue #171).
+    deadline = time.monotonic() + 15
+    while True:
+        try:
+            network.wireguard.delete(key)
+            break
+        except ValidationError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(1)
+            with contextlib.suppress(VergeError):
+                network.apply_rules()
     network.apply_rules()
 
 
