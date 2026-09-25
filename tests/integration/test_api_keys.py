@@ -25,28 +25,23 @@ class TestAPIKeyOperations:
             assert "name" in api_key
             assert "user" in api_key
 
-    def test_list_api_keys_for_user(self, live_client: VergeClient) -> None:
+    def test_list_api_keys_for_user(self, live_client: VergeClient, authenticated_user) -> None:
         """Test listing API keys for a specific user."""
-        # Get admin user
-        admin = live_client.users.get(name="admin")
-
-        # List keys for admin
-        keys = live_client.api_keys.list(user="admin")
+        keys = live_client.api_keys.list(user=authenticated_user.name)
         assert isinstance(keys, list)
 
-        # All keys should belong to admin
         for key in keys:
-            assert key.user_key == admin.key
+            assert key.user_key == authenticated_user.key
 
-    def test_list_api_keys_for_user_by_key(self, live_client: VergeClient) -> None:
+    def test_list_api_keys_for_user_by_key(
+        self, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test listing API keys for a user by key."""
-        admin = live_client.users.get(name="admin")
-
-        keys = live_client.api_keys.list(user=admin.key)
+        keys = live_client.api_keys.list(user=authenticated_user.key)
         assert isinstance(keys, list)
 
         for key in keys:
-            assert key.user_key == admin.key
+            assert key.user_key == authenticated_user.key
 
     def test_get_api_key_by_key(self, live_client: VergeClient) -> None:
         """Test getting an API key by key."""
@@ -70,10 +65,10 @@ class TestAPIKeyCRUD:
     """Integration tests for API key CRUD operations."""
 
     @pytest.fixture
-    def test_api_key(self, live_client: VergeClient):
+    def test_api_key(self, live_client: VergeClient, authenticated_user):
         """Create a test API key for CRUD tests and cleanup afterwards."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_test_key",
             description="PyTest integration test key",
         )
@@ -82,10 +77,10 @@ class TestAPIKeyCRUD:
         with contextlib.suppress(NotFoundError):
             live_client.api_keys.delete(result.key)
 
-    def test_create_api_key(self, live_client: VergeClient) -> None:
+    def test_create_api_key(self, live_client: VergeClient, authenticated_user) -> None:
         """Test creating an API key."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_create_test",
             description="Created by pytest",
         )
@@ -93,7 +88,7 @@ class TestAPIKeyCRUD:
         try:
             assert isinstance(result, APIKeyCreated)
             assert result.name == "pytest_create_test"
-            assert result.user_name == "admin"
+            assert result.user_name == authenticated_user.name
             assert result.secret is not None
             assert len(result.secret) > 0
 
@@ -104,10 +99,12 @@ class TestAPIKeyCRUD:
         finally:
             live_client.api_keys.delete(result.key)
 
-    def test_create_api_key_with_expiration(self, live_client: VergeClient) -> None:
+    def test_create_api_key_with_expiration(
+        self, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test creating an API key with expiration."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_expire_test",
             expires_in="30d",
         )
@@ -120,27 +117,35 @@ class TestAPIKeyCRUD:
         finally:
             live_client.api_keys.delete(result.key)
 
-    def test_create_api_key_with_ip_restrictions(self, live_client: VergeClient) -> None:
-        """Test creating an API key with IP restrictions."""
+    def test_create_api_key_with_ip_restrictions(
+        self, live_client: VergeClient, authenticated_user
+    ) -> None:
+        """Test creating an API key with IP restrictions.
+
+        The deny entry must not sit inside an allow network. The platform
+        rejects that overlap.
+        """
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_ip_test",
             ip_allow_list=["10.0.0.0/8", "192.168.1.100"],
-            ip_deny_list=["10.0.0.1"],
+            ip_deny_list=["172.16.0.1"],
         )
 
         try:
             api_key = live_client.api_keys.get(result.key)
             assert "10.0.0.0/8" in api_key.ip_allow_list
             assert "192.168.1.100" in api_key.ip_allow_list
-            assert "10.0.0.1" in api_key.ip_deny_list
+            assert "172.16.0.1" in api_key.ip_deny_list
         finally:
             live_client.api_keys.delete(result.key)
 
-    def test_create_api_key_never_expires(self, live_client: VergeClient) -> None:
+    def test_create_api_key_never_expires(
+        self, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test creating an API key that never expires."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_never_expire_test",
             expires_in="never",
         )
@@ -152,34 +157,36 @@ class TestAPIKeyCRUD:
         finally:
             live_client.api_keys.delete(result.key)
 
-    def test_create_api_key_with_user_key(self, live_client: VergeClient) -> None:
+    def test_create_api_key_with_user_key(
+        self, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test creating an API key with user key instead of name."""
-        admin = live_client.users.get(name="admin")
-
         result = live_client.api_keys.create(
-            user=admin.key,
+            user=authenticated_user.key,
             name="pytest_user_key_test",
         )
 
         try:
             api_key = live_client.api_keys.get(result.key)
-            assert api_key.user_key == admin.key
+            assert api_key.user_key == authenticated_user.key
         finally:
             live_client.api_keys.delete(result.key)
 
-    def test_get_api_key_by_name(self, test_api_key, live_client: VergeClient) -> None:
+    def test_get_api_key_by_name(
+        self, test_api_key, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test getting an API key by name."""
         api_key = live_client.api_keys.get(
             name="pytest_test_key",
-            user="admin",
+            user=authenticated_user.name,
         )
         assert api_key.key == test_api_key.key
         assert api_key.name == "pytest_test_key"
 
-    def test_delete_api_key(self, live_client: VergeClient) -> None:
+    def test_delete_api_key(self, live_client: VergeClient, authenticated_user) -> None:
         """Test deleting an API key."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_delete_test",
         )
 
@@ -190,10 +197,10 @@ class TestAPIKeyCRUD:
         with pytest.raises(NotFoundError):
             live_client.api_keys.get(result.key)
 
-    def test_delete_via_object_method(self, live_client: VergeClient) -> None:
+    def test_delete_via_object_method(self, live_client: VergeClient, authenticated_user) -> None:
         """Test deleting via APIKey.delete() method."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_obj_delete_test",
         )
 
@@ -213,10 +220,10 @@ class TestAPIKeyProperties:
     """Integration tests for API key property access."""
 
     @pytest.fixture
-    def test_api_key(self, live_client: VergeClient):
+    def test_api_key(self, live_client: VergeClient, authenticated_user):
         """Create a test API key and cleanup afterwards."""
         result = live_client.api_keys.create(
-            user="admin",
+            user=authenticated_user.name,
             name="pytest_props_test",
             description="Property test key",
             expires_in="7d",
@@ -226,7 +233,9 @@ class TestAPIKeyProperties:
         with contextlib.suppress(NotFoundError):
             live_client.api_keys.delete(result.key)
 
-    def test_api_key_basic_properties(self, test_api_key, live_client: VergeClient) -> None:
+    def test_api_key_basic_properties(
+        self, test_api_key, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test accessing basic properties on API key."""
         api_key = live_client.api_keys.get(test_api_key.key)
 
@@ -235,7 +244,7 @@ class TestAPIKeyProperties:
         assert api_key.name == "pytest_props_test"
         assert api_key.description == "Property test key"
         assert api_key.user_key > 0
-        assert api_key.user_name == "admin"
+        assert api_key.user_name == authenticated_user.name
 
     def test_api_key_timestamp_properties(self, test_api_key, live_client: VergeClient) -> None:
         """Test timestamp properties on API key."""

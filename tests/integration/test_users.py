@@ -16,7 +16,7 @@ class TestUserOperations:
         """Test listing users."""
         users = live_client.users.list()
         assert isinstance(users, list)
-        assert len(users) >= 1  # At least admin user exists
+        assert len(users) >= 1  # At least one user exists
 
         # Each user should have expected fields
         user = users[0]
@@ -64,11 +64,12 @@ class TestUserOperations:
         assert user.name == users[0].name
         assert user.key == users[0].key
 
-    def test_get_admin_user(self, live_client: VergeClient) -> None:
-        """Test getting admin user by name."""
-        admin = live_client.users.get(name="admin")
-        assert admin.name == "admin"
-        assert admin.is_enabled is True
+    def test_get_authenticated_user(self, live_client: VergeClient, authenticated_user) -> None:
+        """Test getting the authenticated user by name."""
+        user = live_client.users.get(name=authenticated_user.name)
+        assert user.key == authenticated_user.key
+        assert user.name == authenticated_user.name
+        assert user.is_enabled is True
 
     def test_get_user_not_found(self, live_client: VergeClient) -> None:
         """Test getting a non-existent user."""
@@ -227,28 +228,28 @@ class TestUserCRUD:
 class TestUserProperties:
     """Integration tests for User property access."""
 
-    def test_admin_user_properties(self, live_client: VergeClient) -> None:
-        """Test accessing properties on admin user."""
-        admin = live_client.users.get(name="admin")
+    def test_authenticated_user_properties(self, authenticated_user) -> None:
+        """Test accessing properties on the authenticated user."""
+        user = authenticated_user
 
         # Basic properties
-        assert admin.key is not None
-        assert admin.name == "admin"
-        assert admin.user_type in ("normal", "api", "vdi")
-        assert admin.user_type_display in ("Normal", "API", "VDI")
+        assert user.key is not None
+        assert user.name
+        assert user.user_type in ("normal", "api", "vdi")
+        assert user.user_type_display in ("Normal", "API", "VDI")
 
         # Boolean properties
-        assert isinstance(admin.is_enabled, bool)
-        assert isinstance(admin.physical_access, bool)
-        assert isinstance(admin.two_factor_enabled, bool)
-        assert isinstance(admin.change_password, bool)
-        assert isinstance(admin.is_locked, bool)
+        assert isinstance(user.is_enabled, bool)
+        assert isinstance(user.physical_access, bool)
+        assert isinstance(user.two_factor_enabled, bool)
+        assert isinstance(user.change_password, bool)
+        assert isinstance(user.is_locked, bool)
 
         # Numeric properties
-        assert isinstance(admin.failed_attempts, int)
+        assert isinstance(user.failed_attempts, int)
 
         # Timestamp properties
-        assert admin.created is not None  # Admin should have creation time
+        assert user.created is not None
         # last_login might be None if never logged in interactively
 
     def test_user_type_display(self, live_client: VergeClient) -> None:

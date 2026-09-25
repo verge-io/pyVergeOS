@@ -1,6 +1,5 @@
 """Pytest fixtures for pyvergeos tests."""
 
-import os
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -9,6 +8,7 @@ import pytest
 from requests.structures import CaseInsensitiveDict
 
 from pyvergeos import VergeClient
+from tests.integration.live_support import open_live_client
 
 
 @pytest.fixture
@@ -104,19 +104,9 @@ def live_client() -> Generator[VergeClient, None, None]:
 
     Skip if not configured.
     """
-    host = os.environ.get("VERGE_HOST")
-    username = os.environ.get("VERGE_USERNAME")
-    password = os.environ.get("VERGE_PASSWORD")
-
-    if not all([host, username, password]):
+    client = open_live_client()
+    if client is None:
         pytest.skip("Live VergeOS credentials not configured")
-
-    client = VergeClient(
-        host=host,  # type: ignore[arg-type]
-        username=username,
-        password=password,
-        verify_ssl=False,
-    )
 
     yield client
 

@@ -2,13 +2,15 @@
 
 These tests require a live VergeOS system.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled).
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
+from collections.abc import Generator
 
 import pytest
 
@@ -16,41 +18,26 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.hosts import NetworkHost
 from pyvergeos.resources.networks import Network
+from tests.integration.live_support import create_disposable_network, destroy_network
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    # Check for required environment variables
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")
-def test_network(client: VergeClient) -> Network:
-    """Get a network to test hosts on.
-
-    Uses External network if available, otherwise first available network.
-    """
-    # Try to get External network
+def test_network(client: VergeClient) -> Generator[Network, None, None]:
+    """Disposable internal network. Do not mutate External."""
+    network = create_disposable_network(client, prefix="pytest-host")
     try:
-        return client.networks.get(name="External")
-    except NotFoundError:
-        pass
-
-    # Fall back to first available network
-    networks = client.networks.list()
-    if not networks:
-        pytest.skip("No networks available for testing")
-    return networks[0]
+        yield network
+    finally:
+        destroy_network(client, network)
 
 
 @pytest.fixture

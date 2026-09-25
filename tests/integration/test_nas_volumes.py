@@ -2,13 +2,14 @@
 
 These tests require a live VergeOS system with at least one NAS service.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled).
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
 
 import pytest
 
@@ -22,15 +23,9 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")

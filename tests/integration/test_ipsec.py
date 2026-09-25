@@ -2,67 +2,123 @@
 
 These tests require a live VergeOS system.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled) so
+self-signed lab certificates work.
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
+import time
+from collections.abc import Generator
+from typing import Any
 
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import NotFoundError, VergeError
 from pyvergeos.resources.ipsec import IPSecConnection
 from pyvergeos.resources.networks import Network
+from tests.integration.live_support import create_disposable_network, destroy_network
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
-
-
-@pytest.fixture(scope="module")
-def test_network(client: VergeClient) -> Network:
-    """Get an external network to test IPSec on.
-
-    IPSec is typically configured on external networks.
-    """
-    # Try to get External network
+def _ipsec_config_records(client: VergeClient, network: Network) -> list[dict[str, Any]]:
+    """Return vnet_ipsecs rows for a network. Empty when none exist."""
     try:
-        return client.networks.get(name="External")
-    except NotFoundError:
-        pass
+        response = client._request(
+            "GET",
+            "vnet_ipsecs",
+            params={"filter": f"vnet eq {network.key}", "fields": "$key"},
+        )
+    except VergeError:
+        return []
+    if isinstance(response, list):
+        return [row for row in response if isinstance(row, dict)]
+    if isinstance(response, dict):
+        return [response]
+    return []
 
-    # Fall back to first external network
-    networks = client.networks.list_external()
-    if not networks:
-        pytest.skip("No external networks available for IPSec testing")
-    return networks[0]
+
+def remove_ipsec_config(client: VergeClient, network: Network) -> None:
+    """Disable, apply, and delete connections plus any vnet_ipsecs row.
+
+    ``IPSecConnectionManager.create`` auto-creates and enables a vnet_ipsecs
+    config. Deleting connections leaves that config in place.
+    """
+    try:
+        connections = list(network.ipsec.list())
+    except VergeError:
+        connections = []
+    for conn in connections:
+        with contextlib.suppress(VergeError):
+            network.ipsec.update(conn.key, enabled=False)
+        with contextlib.suppress(VergeError):
+            network.ipsec.delete(conn.key)
+    with contextlib.suppress(VergeError):
+        network.apply_rules()
+
+    for record in _ipsec_config_records(client, network):
+        key = record.get("$key")
+        if key is None:
+            continue
+        ipsec_key = int(key)
+        with contextlib.suppress(VergeError):
+            client._request("PUT", f"vnet_ipsecs/{ipsec_key}", json_data={"enabled": False})
+        with contextlib.suppress(VergeError):
+            network.apply_rules()
+        with contextlib.suppress(VergeError):
+            client._request("DELETE", f"vnet_ipsecs/{ipsec_key}")
+    with contextlib.suppress(VergeError):
+        network.apply_rules()
+
+
+@pytest.fixture(scope="module")
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
+
+
+@pytest.fixture(scope="module")
+def test_network(client: VergeClient) -> Generator[Network, None, None]:
+    """Disposable internal network for IPSec tests.
+
+    External is often the management vnet. Creating a connection enables
+    vnet_ipsecs on that network, so these tests must not use it.
+    """
+    network = create_disposable_network(client, prefix="pytest-ipsec")
+    try:
+        try:
+            network.power_on()
+        except VergeError:
+            pass
+        else:
+            time.sleep(3)
+        yield client.networks.get(network.key)
+    finally:
+        remove_ipsec_config(client, network)
+        destroy_network(client, network)
 
 
 @pytest.fixture
-def cleanup_connections(test_network: Network):
-    """Fixture to track and cleanup test IPSec connections."""
+def cleanup_connections(test_network: Network, client: VergeClient):
+    """Fixture to track and cleanup test IPSec connections and vnet_ipsecs."""
     created_keys: list[int] = []
 
     yield created_keys
 
-    # Cleanup any connections we created (also removes policies)
+    # Cleanup any connections we created (also removes policies).
     for key in created_keys:
-        with contextlib.suppress(NotFoundError):
+        with contextlib.suppress(VergeError):
+            test_network.ipsec.update(key, enabled=False)
+        with contextlib.suppress(VergeError):
             test_network.ipsec.delete(key)
+    # Drop the auto-created vnet_ipsecs row so the network is not left enabled.
+    remove_ipsec_config(client, test_network)
 
 
 class TestIPSecConnectionManagerIntegration:

@@ -8,6 +8,14 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.auth_sources import AuthSource
 
+# The platform fetches this URL for the openid-well-known driver.
+# example.com does not publish a discovery document, and the settings key
+# is well_known_url (not server_url).
+WELL_KNOWN_URL = "https://accounts.google.com/.well-known/openid-configuration"
+WELL_KNOWN_URL_ALT = (
+    "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"
+)
+
 
 @pytest.mark.integration
 class TestAuthSourceOperations:
@@ -57,7 +65,7 @@ class TestAuthSourceCRUD:
             name="pytest_test_source",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "test-client-id",
                 "client_secret": "test-client-secret",
             },
@@ -73,7 +81,7 @@ class TestAuthSourceCRUD:
             name="pytest_create_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "test-client",
                 "client_secret": "test-secret",
             },
@@ -97,7 +105,7 @@ class TestAuthSourceCRUD:
             name="pytest_styled_source",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "test-client",
                 "client_secret": "test-secret",
             },
@@ -155,7 +163,7 @@ class TestAuthSourceCRUD:
         updated = live_client.auth_sources.update(
             test_auth_source.key,
             settings={
-                "server_url": "https://new-example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL_ALT,
                 "client_id": "updated-client-id",
                 "client_secret": "updated-secret",
             },
@@ -171,7 +179,7 @@ class TestAuthSourceCRUD:
             name="pytest_delete_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "test-client",
                 "client_secret": "test-secret",
             },
@@ -190,7 +198,7 @@ class TestAuthSourceCRUD:
             name="pytest_obj_delete_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "test-client",
                 "client_secret": "test-secret",
             },
@@ -301,7 +309,7 @@ class TestAuthSourceProperties:
             name="pytest_props_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "prop-test-client",
                 "client_secret": "prop-test-secret",
             },
@@ -364,7 +372,7 @@ class TestAuthSourceDebugMode:
             name="pytest_debug_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "debug-test-client",
                 "client_secret": "debug-test-secret",
             },
@@ -428,7 +436,7 @@ class TestAuthSourceStates:
             name="pytest_state_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "state-test-client",
                 "client_secret": "state-test-secret",
             },
@@ -453,7 +461,7 @@ class TestAuthSourceStates:
             name="pytest_scoped_state_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "scoped-test-client",
                 "client_secret": "scoped-test-secret",
             },
@@ -480,7 +488,7 @@ class TestAuthSourceRefresh:
             name="pytest_refresh_test",
             driver="openid-well-known",
             settings={
-                "server_url": "https://example.com/.well-known/openid-configuration",
+                "well_known_url": WELL_KNOWN_URL,
                 "client_id": "refresh-test-client",
                 "client_secret": "refresh-test-secret",
             },
