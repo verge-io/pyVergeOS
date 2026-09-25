@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    ResourceManager,
+    ResourceObject,
+    ensure_projection_field,
+    machine_key_matches,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -128,6 +133,10 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
     def _to_model(self, data: dict[str, Any]) -> VMSnapshot:
         return VMSnapshot(data, self)
 
+    def _ensure_in_scope(self, key: int) -> None:
+        """Fetch the snapshot and reject one that belongs to another VM (#168)."""
+        self.get(key)
+
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
@@ -194,23 +203,26 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             VMSnapshot object.
 
         Raises:
-            NotFoundError: If snapshot not found.
+            NotFoundError: If the snapshot does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         if fields is None:
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            from pyvergeos.exceptions import NotFoundError
+
+            # list() is filtered by machine; a key is not. Ask for machine even
+            # when the caller narrowed fields, then refuse another VM's row (#168).
+            selected = ensure_projection_field(fields, "machine", defaults=self._default_fields)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"Snapshot {key} not found")
             if not isinstance(response, dict):
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"Snapshot {key} returned invalid response")
+            if not machine_key_matches(response.get("machine"), self.machine_key):
+                raise NotFoundError(f"Snapshot {key} does not belong to machine {self.machine_key}")
             return self._to_model(response)
 
         if name is not None:
@@ -276,11 +288,15 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         return result if isinstance(result, dict) else None
 
     def delete(self, key: int) -> None:
-        """Delete a snapshot.
+        """Delete a snapshot belonging to this VM.
 
         Args:
             key: Snapshot $key (ID).
+
+        Raises:
+            NotFoundError: If the snapshot does not exist or belongs to another VM.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def restore(
@@ -301,7 +317,12 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
         Returns:
             Restore task information.
+
+        Raises:
+            NotFoundError: If the snapshot does not exist or belongs to another VM.
         """
+        # get() already fetched the row, and it rejects another VM's snapshot
+        # before the snap_machine lookup or any vm_actions post (#168).
         snapshot = self.get(key)
         snap_machine_key = snapshot.snap_machine_key
 

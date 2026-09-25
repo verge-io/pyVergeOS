@@ -75,6 +75,7 @@ class TestNICManager:
             "$key": 1,
             "name": "eth0",
             "interface": "virtio",
+            "machine": 200,
         }
 
         nic = vm.nics.get(1)
@@ -114,7 +115,7 @@ class TestNICManager:
         # First call is POST (create), second is GET (fetch full data)
         mock_session.request.return_value.json.side_effect = [
             {"$key": 3, "name": "eth2", "interface": "virtio", "vnet": 5},
-            {"$key": 3, "name": "eth2", "interface": "virtio", "vnet": 5},
+            {"$key": 3, "name": "eth2", "interface": "virtio", "vnet": 5, "machine": 200},
         ]
 
         nic = vm.nics.create(network=5, name="eth2")
@@ -139,7 +140,7 @@ class TestNICManager:
         mock_session.request.return_value.json.side_effect = [
             [{"$key": 10, "name": "Internal"}],  # Network lookup
             {"$key": 4, "name": "eth3", "vnet": 10},  # Created NIC (POST response)
-            {"$key": 4, "name": "eth3", "vnet": 10},  # GET full NIC data
+            {"$key": 4, "name": "eth3", "vnet": 10, "machine": 200},  # GET full NIC data
         ]
 
         nic = vm.nics.create(network="Internal", name="eth3")
@@ -156,7 +157,7 @@ class TestNICManager:
         # First call is POST (create), second is GET (fetch full data)
         mock_session.request.return_value.json.side_effect = [
             {"$key": 5, "name": "eth4", "macaddress": "aa:bb:cc:dd:ee:ff"},
-            {"$key": 5, "name": "eth4", "macaddress": "aa:bb:cc:dd:ee:ff"},
+            {"$key": 5, "name": "eth4", "macaddress": "aa:bb:cc:dd:ee:ff", "machine": 200},
         ]
 
         vm.nics.create(mac_address="AA:BB:CC:DD:EE:FF")
@@ -167,9 +168,11 @@ class TestNICManager:
         assert body["macaddress"] == "aa:bb:cc:dd:ee:ff"
 
     def test_delete_nic(self, mock_client: VergeClient, mock_session: MagicMock, vm: VM) -> None:
-        """Test deleting a NIC."""
-        mock_session.request.return_value.status_code = 204
-        mock_session.request.return_value.text = ""
+        """Test deleting a NIC that belongs to this VM."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "machine": 200,
+        }
 
         vm.nics.delete(1)
 
@@ -183,6 +186,7 @@ class TestNICManager:
             "$key": 1,
             "name": "eth0",
             "description": "Updated description",
+            "machine": 200,
         }
 
         nic = vm.nics.update(1, description="Updated description")
@@ -193,7 +197,7 @@ class TestNICManager:
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
         """update(network=key) must send the API's vnet field."""
-        mock_session.request.return_value.json.return_value = {"$key": 1, "vnet": 7}
+        mock_session.request.return_value.json.return_value = {"$key": 1, "vnet": 7, "machine": 200}
 
         vm.nics.update(1, network=7)
 
@@ -207,7 +211,7 @@ class TestNICManager:
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
         """nic.network = key; nic.save() must translate like update() (issue #97)."""
-        mock_session.request.return_value.json.return_value = {"$key": 1, "vnet": 7}
+        mock_session.request.return_value.json.return_value = {"$key": 1, "vnet": 7, "machine": 200}
 
         nic = NIC({"$key": 1, "name": "eth0", "vnet": 3}, vm.nics)
         nic.network = 7

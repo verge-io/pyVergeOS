@@ -255,6 +255,45 @@ def expand_projection(
     return names + extra if extra else fields
 
 
+def ensure_projection_field(
+    fields: str | builtins.list[str] | None,
+    field: str,
+    *,
+    defaults: builtins.list[str] | None = None,
+) -> str | builtins.list[str]:
+    """Return a projection that includes ``field``.
+
+    ``fields=None`` selects ``defaults``. When ``field`` is already present,
+    as a column or an alias, the original value is returned unchanged so a
+    default projection is not rebuilt. Otherwise ``field`` is appended. A
+    narrowed ``get(key, fields=...)`` then still returns the column a scope
+    check has to read.
+    """
+    selected = defaults if fields is None else fields
+    names = split_fields(selected)
+    if selected is not None and any(projection_alias(name) == field for name in names):
+        return selected
+    return [*names, field]
+
+
+def machine_key_matches(machine: Any, machine_key: int) -> bool:
+    """Return whether a row's ``machine`` value is ``machine_key``.
+
+    ``bool`` is an ``int`` subclass and is never a machine key. A numeric
+    string is accepted.
+    """
+    if isinstance(machine, bool):
+        return False
+    if isinstance(machine, int):
+        return machine == machine_key
+    if isinstance(machine, str):
+        try:
+            return int(machine) == machine_key
+        except ValueError:
+            return False
+    return False
+
+
 #: Sentinel for "nothing supplied here", distinct from a legitimate ``None``.
 _NO_VALUE: Any = object()
 
@@ -938,6 +977,18 @@ class ResourceManager(Generic[T]):
             raise ValueError("Create operation returned invalid response")
         return self._to_model_unprojected(response)
 
+    def _ensure_in_scope(self, key: int) -> None:
+        """Give a scoped manager a chance to reject ``key`` before a write.
+
+        Called at the start of :meth:`update` and :meth:`delete`. Managers
+        that reimplement those methods call this themselves. The default
+        allows every key. Override it to fetch the row and raise
+        ``NotFoundError`` when the row is outside the manager's scope, so
+        the write is not sent. ``ResourceObject.save`` reaches the base
+        :meth:`update`, which calls this before the PUT.
+        """
+        return None
+
     def update(self, key: int, **kwargs: Any) -> T:
         """Update an existing resource.
 
@@ -948,6 +999,7 @@ class ResourceManager(Generic[T]):
         Returns:
             Updated resource object.
         """
+        self._ensure_in_scope(key)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             # Fetch updated resource
@@ -962,6 +1014,7 @@ class ResourceManager(Generic[T]):
         Args:
             key: Resource $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def action(self, key: int, action_name: str, **kwargs: Any) -> dict[str, Any] | None:
