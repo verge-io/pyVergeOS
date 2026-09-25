@@ -205,7 +205,7 @@ vm.hotplug_drive(name="scratch", size=100 * 1024**3)
 vm.hotplug_nic(name="nic2", network=network.key)
 ```
 
-Watch the units. `drives.create()` takes `size_gb` in gigabytes, while the hot plug action takes `size` in bytes.
+Watch the units. `drives.create()` takes `size_gb` in gigabytes, while `hotplug_drive()` takes `size` in bytes and that value must be a positive whole number of GiB. Hot plug creates the drive or NIC, then attaches the existing device by key.
 
 You can hand a VM its cloud-init config at create time.
 

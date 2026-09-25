@@ -532,6 +532,7 @@ class TestVMHotplugOperations:
             cpu_cores=1,
             ram=1024,
             os_family="linux",
+            allow_hotplug=True,
         )
 
         try:
@@ -574,6 +575,7 @@ class TestVMHotplugOperations:
             cpu_cores=1,
             ram=1024,
             os_family="linux",
+            allow_hotplug=True,
         )
 
         try:
