@@ -205,7 +205,7 @@ vm.hotplug_drive(name="scratch", size=100 * 1024**3)
 vm.hotplug_nic(name="nic2", network=network.key)
 ```
 
-Watch the units. `drives.create()` takes `size_gb` in gigabytes, while `hotplug_drive()` takes `size` in bytes and that value must be a positive whole number of GiB. Hot plug creates the drive or NIC, then attaches the existing device by key.
+Watch the units. `drives.create()` takes `size_gb` in gigabytes, while `hotplug_drive()` takes `size` in bytes and that value must be a positive whole number of GiB. Hot plug creates the drive or NIC, then attaches the existing device by key. `hotplug_drive()` accepts only a `disk` on `virtio` or `virtio-scsi`. If the hotplug action is rejected, the drive or NIC created for that call is deleted and the error is re-raised.
 
 You can hand a VM its cloud-init config at create time.
 
