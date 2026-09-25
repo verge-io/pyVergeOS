@@ -6,7 +6,7 @@ This script demonstrates network management tasks:
 - Network power operations
 - Configuring DHCP host overrides
 - Creating and managing firewall rules
-- Managing IP aliases for firewall rules
+- Managing router IP aliases (extra addresses on the network router)
 - Managing DNS zones and records
 - Network diagnostics and statistics
 
@@ -352,9 +352,9 @@ def firewall_rule_examples(client: VergeClient) -> None:
 
 
 def ip_alias_examples(client: VergeClient) -> None:
-    """Demonstrate IP alias operations for firewall rules."""
+    """Demonstrate router IP alias operations (vnet_addresses type ipalias)."""
     print("\n" + "=" * 60)
-    print("IP ALIASES (for firewall rules)")
+    print("ROUTER IP ALIASES")
     print("=" * 60)
 
     # Get a network to work with
@@ -408,20 +408,14 @@ def ip_alias_examples(client: VergeClient) -> None:
     fetched_by_ip = network.aliases.get(ip="10.99.1.50")
     print(f"Found: {fetched_by_ip.hostname}")
 
-    # Show how to use alias in firewall rule
-    print("\n--- Using aliases in firewall rules ---")
-    print("""
-    # Create a rule using the alias
-    rule = network.rules.create(
-        name="Allow-SSH-Admins",
-        description="Allow SSH from admin workstations",
-        direction="incoming",
-        action="accept",
-        protocol="tcp",
-        source_ip="alias:example-admin-ws",  # Reference by alias name
-        destination_ports="22",
+    # These rows are router addresses, not firewall rule aliases.
+    print("\n--- Not firewall rule aliases ---")
+    print(
+        "network.aliases creates vnet_addresses rows with type ipalias\n"
+        "(extra IPs on the network router). A firewall rule's alias:<name>\n"
+        "syntax resolves against vnet_rule_aliases, which this SDK does not\n"
+        "manage yet."
     )
-    """)
 
     # Cleanup
     print("\n--- Cleanup test aliases ---")

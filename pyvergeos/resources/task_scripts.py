@@ -344,7 +344,6 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         """Delete a task script.
 
         Note:
-            Scripts with associated tasks cannot be deleted.
             The tasks will be cascade deleted.
 
         Args:
