@@ -851,25 +851,68 @@ class TestVMEnhancedActions:
         mock_session: MagicMock,
         vm_data: dict[str, Any],
     ) -> None:
-        """Test hot-adding a drive to a running VM."""
-        mock_session.request.return_value.json.return_value = {"task": 555}
+        """Hotplug creates the drive, then posts its key as device."""
+        drive_key = 77
+        size = 10 * 1024**3
+        # create POST, create GET, then the hotplug action
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": drive_key, "name": "data-drive", "disksize": size},
+            {"$key": drive_key, "name": "data-drive", "disksize": size},
+            {"task": 555},
+        ]
         vm = VM(vm_data, mock_client.vms)
 
         result = vm.hotplug_drive(
             name="data-drive",
-            size=10 * 1024 * 1024 * 1024,  # 10GB
+            size=size,
             interface="virtio-scsi",
             tier=2,
         )
 
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        create_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and "machine_drives" in call.kwargs.get("url", "")
+        ]
+        assert len(create_calls) == 1
+        create_body = create_calls[0].kwargs.get("json", {})
+        assert create_body["name"] == "data-drive"
+        assert create_body["disksize"] == size
+        assert create_body["interface"] == "virtio-scsi"
+        assert create_body["media"] == "disk"
+        assert create_body["preferred_tier"] == "2"
+
+        action_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "vm_actions" in call.kwargs.get("url", "")
+        ]
+        assert len(action_calls) == 1
+        body = action_calls[0].kwargs.get("json", {})
         assert body["action"] == "hotplugdrive"
-        assert body["params"]["name"] == "data-drive"
-        assert body["params"]["disksize"] == 10 * 1024 * 1024 * 1024
-        assert body["params"]["interface"] == "virtio-scsi"
-        assert body["params"]["preferred_tier"] == "2"
+        assert body["vm"] == 100
+        assert body["params"] == {"device": drive_key}
         assert result == {"task": 555}
+
+    def test_hotplug_drive_rejects_partial_gib(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """A byte size that is not a whole GiB must not be truncated."""
+        vm = VM(vm_data, mock_client.vms)
+
+        with pytest.raises(ValueError, match="whole number of GiB"):
+            vm.hotplug_drive(name="data-drive", size=512 * 1024**2)
+
+        action_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if "vm_actions" in call.kwargs.get("url", "")
+        ]
+        assert action_calls == []
 
     def test_hotplug_nic(
         self,
@@ -877,18 +920,39 @@ class TestVMEnhancedActions:
         mock_session: MagicMock,
         vm_data: dict[str, Any],
     ) -> None:
-        """Test hot-adding a NIC to a running VM."""
-        mock_session.request.return_value.json.return_value = {"task": 666}
+        """Hotplug creates the NIC, then posts its key as device."""
+        nic_key = 88
+        # create POST, create GET, then the hotplug action
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": nic_key, "name": "nic_1", "vnet": 10, "interface": "virtio"},
+            {"$key": nic_key, "name": "nic_1", "vnet": 10, "interface": "virtio"},
+            {"task": 666},
+        ]
         vm = VM(vm_data, mock_client.vms)
 
         result = vm.hotplug_nic(name="nic_1", network=10, interface="virtio")
 
-        call_args = mock_session.request.call_args
-        body = call_args.kwargs.get("json", {})
+        create_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "machine_nics" in call.kwargs.get("url", "")
+        ]
+        assert len(create_calls) == 1
+        create_body = create_calls[0].kwargs.get("json", {})
+        assert create_body["name"] == "nic_1"
+        assert create_body["vnet"] == 10
+        assert create_body["interface"] == "virtio"
+
+        action_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST" and "vm_actions" in call.kwargs.get("url", "")
+        ]
+        assert len(action_calls) == 1
+        body = action_calls[0].kwargs.get("json", {})
         assert body["action"] == "hotplugnic"
-        assert body["params"]["name"] == "nic_1"
-        assert body["params"]["vnet"] == 10
-        assert body["params"]["interface"] == "virtio"
+        assert body["vm"] == 100
+        assert body["params"] == {"device": nic_key}
         assert result == {"task": 666}
 
     def test_tag(

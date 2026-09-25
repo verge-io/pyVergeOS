@@ -12,6 +12,17 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``VM.hotplug_drive()`` and ``VM.hotplug_nic()`` sent the create spec
+  (``name``, ``disksize``, ``interface``, and so on) as the action params.
+  VergeOS ``hotplugdrive`` and ``hotplugnic`` attach an existing device and
+  require its key as ``device``, so both raised
+  ``ValidationError: Device is a required parameter``. Each method now
+  creates the drive or NIC, then posts the action with
+  ``params: {"device": <key>}``. ``hotplug_drive(size=...)`` still takes
+  bytes and must be a positive whole number of GiB, because the drive is
+  created through ``drives.create(size_gb=...)``. Measured on VergeOS
+  26.1.8. (#150)
+
 - ``ClusterTier.get_status()`` read ``capacity``, ``used``, ``used_pct``,
   ``redundant``, ``encrypted`` and ``working`` as the string ``'online'``.
   ``get_tier_status()`` expanded those columns through ``ClusterTier``'s

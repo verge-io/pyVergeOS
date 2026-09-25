@@ -424,9 +424,15 @@ class VM(ResourceObject):
     ) -> dict[str, Any] | None:
         """Hot-add a drive to a running VM.
 
+        VergeOS ``hotplugdrive`` attaches an existing drive and requires its
+        key as ``device``. This method creates the drive from the given spec,
+        then posts the action with that key.
+
         Args:
             name: Drive name.
-            size: Disk size in bytes.
+            size: Disk size in bytes. For ``media="disk"`` this must be a
+                positive whole number of GiB. The drive is created through
+                ``drives.create()``, which sizes disks in GiB.
             interface: Drive interface type (default "virtio-scsi").
                 Options: virtio, virtio-scsi, ide, ahci, nvme, etc.
             media: Media type (default "disk").
@@ -435,21 +441,39 @@ class VM(ResourceObject):
         Returns:
             Hotplug task information.
 
-        Note:
-            The VM must be running and have allow_hotplug enabled.
-        """
-        params: dict[str, Any] = {
-            "name": name,
-            "disksize": size,
-            "interface": interface,
-            "media": media,
-            "preferred_tier": str(tier),
-        }
+        Raises:
+            ValueError: If ``media`` is ``disk`` and ``size`` is not a
+                positive multiple of 1 GiB.
 
+        Note:
+            The VM must be running and have allow_hotplug enabled. The drive
+            is created before the hotplug action; if the action is rejected,
+            the drive remains on the VM.
+        """
+        # drives.create() stores disksize as whole GiB. Refuse to truncate a
+        # byte size that is not an exact multiple (issue #150).
+        size_gb: int | None = None
+        if media == "disk":
+            gib = 1024**3
+            if size <= 0 or size % gib != 0:
+                raise ValueError(f"size must be a positive whole number of GiB (got {size} bytes)")
+            size_gb = size // gib
+
+        drive = self.drives.create(
+            name=name,
+            size_gb=size_gb,
+            interface=interface,
+            media=media,
+            tier=tier,
+        )
         result = self._manager._client._request(
             "POST",
             "vm_actions",
-            json_data={"vm": self.key, "action": "hotplugdrive", "params": params},
+            json_data={
+                "vm": self.key,
+                "action": "hotplugdrive",
+                "params": {"device": drive.key},
+            },
         )
         return result if isinstance(result, dict) else None
 
@@ -461,6 +485,10 @@ class VM(ResourceObject):
     ) -> dict[str, Any] | None:
         """Hot-add a NIC to a running VM.
 
+        VergeOS ``hotplugnic`` attaches an existing NIC and requires its key
+        as ``device``. This method creates the NIC from the given spec, then
+        posts the action with that key.
+
         Args:
             name: NIC name.
             network: Network $key to connect to.
@@ -471,18 +499,19 @@ class VM(ResourceObject):
             Hotplug task information.
 
         Note:
-            The VM must be running and have allow_hotplug enabled.
+            The VM must be running and have allow_hotplug enabled. The NIC is
+            created before the hotplug action; if the action is rejected, the
+            NIC remains on the VM.
         """
-        params: dict[str, Any] = {
-            "name": name,
-            "vnet": network,
-            "interface": interface,
-        }
-
+        nic = self.nics.create(name=name, network=network, interface=interface)
         result = self._manager._client._request(
             "POST",
             "vm_actions",
-            json_data={"vm": self.key, "action": "hotplugnic", "params": params},
+            json_data={
+                "vm": self.key,
+                "action": "hotplugnic",
+                "params": {"device": nic.key},
+            },
         )
         return result if isinstance(result, dict) else None
 
