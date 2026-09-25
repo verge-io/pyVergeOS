@@ -13,6 +13,7 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import APIError, NotFoundError
+from pyvergeos.resources.files import File
 from pyvergeos.resources.system import (
     DIAG_STATUS_COMPLETE,
     DIAG_STATUS_ERROR,
@@ -316,10 +317,19 @@ class TestSettingsExtendedIntegration:
 # =============================================================================
 
 
+def _license_request_files(client: VergeClient) -> list[File]:
+    """Media-catalog ``.lrq`` rows.
+
+    ``files.list()`` requests ``filesize``. ``files.get(key)`` does not, so
+    ``size_bytes`` from a bare get is 0 on this platform.
+    """
+    files = client.files.list(name="*.lrq", limit=500)
+    return [file for file in files if file.name.endswith(".lrq")]
+
+
 def _license_request_keys(client: VergeClient) -> set[int]:
     """Keys of media-catalog license request files."""
-    files = client.files.list(name="*.lrq", limit=500)
-    return {file.key for file in files if file.name.endswith(".lrq")}
+    return {file.key for file in _license_request_files(client)}
 
 
 def _delete_new_license_requests(client: VergeClient, before: set[int]) -> None:
@@ -381,23 +391,23 @@ class TestLicenseExtendedIntegration:
 
         ``delete_catalog_file=False`` keeps the file long enough to compare
         bytes. The default call must not leave a new ``.lrq`` behind.
+        Size comes from ``files.list()`` ``filesize``, which matches the
+        downloaded body. A bare ``files.get(key)`` omits ``filesize``.
         """
         before = _license_request_keys(live_client)
         try:
             kept = _generate_or_skip(live_client, before, delete_catalog_file=False)
-            created = _license_request_keys(live_client) - before
+            created = [
+                file for file in _license_request_files(live_client) if file.key not in before
+            ]
             assert len(created) == 1
-            file_key = next(iter(created))
-            catalog = live_client.files.get(file_key)
+            catalog = created[0]
             assert catalog.name.endswith(".lrq")
-            raw = live_client.files.get_content(file_key, filename=catalog.name, as_bytes=True)
+            raw = live_client.files.get_content(catalog.key, filename=catalog.name, as_bytes=True)
             assert isinstance(kept, bytes)
             assert isinstance(raw, bytes)
             assert kept == raw
-            # Brand-new catalog rows sometimes report filesize 0 until later.
-            # Prefer the downloaded body length over metadata when filesize is unset.
-            if catalog.size_bytes:
-                assert catalog.size_bytes == len(raw)
+            assert catalog.size_bytes == len(kept) == len(raw)
             assert len(raw) > 1000
             assert not _is_catalog_file_reference(kept)
         finally:
