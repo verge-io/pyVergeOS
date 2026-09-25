@@ -12,6 +12,15 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``VM.hotplug_drive()`` rejects ``media`` other than ``disk`` and
+  interfaces other than ``virtio`` and ``virtio-scsi`` before creating
+  a drive. VergeOS hot-plugs only those disks; other values were
+  created and then refused, leaving an offline drive that comes online
+  on the next boot. If the hotplug action is still rejected after the
+  drive or NIC is created (for example the VM is still initializing),
+  ``hotplug_drive()`` and ``hotplug_nic()`` delete that device and
+  re-raise. (#169)
+
 - ``VMSnapshotManager.restore(..., power_on=True)`` and
   ``VMSnapshot.restore(power_on=True)`` power the restored VM on.
   Clone mode reads the new VM key from ``response.vmkey`` (VergeOS

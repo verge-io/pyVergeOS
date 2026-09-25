@@ -6,6 +6,7 @@ import builtins
 import logging
 from typing import TYPE_CHECKING, Any
 
+from pyvergeos.exceptions import APIError
 from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
@@ -48,6 +49,9 @@ _VM_COLUMNS = [
     "machine#ha_group as ha_group",
     "cloudinit_datasource",
 ]
+
+# VergeOS hotplugdrive accepts only these disk interfaces (issue #169).
+_HOTPLUG_DRIVE_INTERFACES = frozenset({"virtio", "virtio-scsi"})
 
 
 class VM(ResourceObject):
@@ -414,6 +418,18 @@ class VM(ResourceObject):
         )
         return result if isinstance(result, dict) else None
 
+    def _delete_rejected_hotplug(self, resource: ResourceObject) -> None:
+        """Delete a device created for a hotplug the API then rejected."""
+        try:
+            resource.delete()
+        except Exception:
+            logger.warning(
+                "Failed to delete %s %s after hotplug was rejected",
+                type(resource).__name__,
+                resource.get("$key"),
+                exc_info=True,
+            )
+
     def hotplug_drive(
         self,
         name: str,
@@ -422,42 +438,50 @@ class VM(ResourceObject):
         media: str = "disk",
         tier: int = 1,
     ) -> dict[str, Any] | None:
-        """Hot-add a drive to a running VM.
+        """Hot-add a disk to a running VM.
 
         VergeOS ``hotplugdrive`` attaches an existing drive and requires its
         key as ``device``. This method creates the drive from the given spec,
-        then posts the action with that key.
+        then posts the action with that key. Only a ``disk`` on ``virtio`` or
+        ``virtio-scsi`` can be hot-plugged. Other interfaces and media are
+        rejected before anything is created.
 
         Args:
             name: Drive name.
-            size: Disk size in bytes. For ``media="disk"`` this must be a
-                positive whole number of GiB. The drive is created through
-                ``drives.create()``, which sizes disks in GiB.
-            interface: Drive interface type (default "virtio-scsi").
-                Options: virtio, virtio-scsi, ide, ahci, nvme, etc.
-            media: Media type (default "disk").
+            size: Disk size in bytes. Must be a positive whole number of GiB.
+                The drive is created through ``drives.create()``, which sizes
+                disks in GiB.
+            interface: Disk interface (default "virtio-scsi"). Only ``virtio``
+                and ``virtio-scsi`` are accepted.
+            media: Media type (default "disk"). Only ``disk`` is accepted.
             tier: Preferred storage tier (1-5, default 1).
 
         Returns:
             Hotplug task information.
 
         Raises:
-            ValueError: If ``media`` is ``disk`` and ``size`` is not a
-                positive multiple of 1 GiB.
+            ValueError: If ``media`` is not ``disk``, ``interface`` is not
+                ``virtio`` or ``virtio-scsi``, or ``size`` is not a positive
+                multiple of 1 GiB.
+            APIError: If the hotplug action is rejected. The drive created
+                for the attempt is deleted before the error is re-raised.
 
         Note:
-            The VM must be running and have allow_hotplug enabled. The drive
-            is created before the hotplug action; if the action is rejected,
-            the drive remains on the VM.
+            The VM must be running and have allow_hotplug enabled.
         """
+        if media != "disk":
+            raise ValueError(f"only disk media can be hot-plugged (got {media!r})")
+        if interface not in _HOTPLUG_DRIVE_INTERFACES:
+            raise ValueError(
+                f"only virtio and virtio-scsi interfaces can be hot-plugged (got {interface!r})"
+            )
+
         # drives.create() stores disksize as whole GiB. Refuse to truncate a
         # byte size that is not an exact multiple (issue #150).
-        size_gb: int | None = None
-        if media == "disk":
-            gib = 1024**3
-            if size <= 0 or size % gib != 0:
-                raise ValueError(f"size must be a positive whole number of GiB (got {size} bytes)")
-            size_gb = size // gib
+        gib = 1024**3
+        if size <= 0 or size % gib != 0:
+            raise ValueError(f"size must be a positive whole number of GiB (got {size} bytes)")
+        size_gb = size // gib
 
         drive = self.drives.create(
             name=name,
@@ -466,15 +490,19 @@ class VM(ResourceObject):
             media=media,
             tier=tier,
         )
-        result = self._manager._client._request(
-            "POST",
-            "vm_actions",
-            json_data={
-                "vm": self.key,
-                "action": "hotplugdrive",
-                "params": {"device": drive.key},
-            },
-        )
+        try:
+            result = self._manager._client._request(
+                "POST",
+                "vm_actions",
+                json_data={
+                    "vm": self.key,
+                    "action": "hotplugdrive",
+                    "params": {"device": drive.key},
+                },
+            )
+        except APIError:
+            self._delete_rejected_hotplug(drive)
+            raise
         return result if isinstance(result, dict) else None
 
     def hotplug_nic(
@@ -498,21 +526,27 @@ class VM(ResourceObject):
         Returns:
             Hotplug task information.
 
+        Raises:
+            APIError: If the hotplug action is rejected. The NIC created for
+                the attempt is deleted before the error is re-raised.
+
         Note:
-            The VM must be running and have allow_hotplug enabled. The NIC is
-            created before the hotplug action; if the action is rejected, the
-            NIC remains on the VM.
+            The VM must be running and have allow_hotplug enabled.
         """
         nic = self.nics.create(name=name, network=network, interface=interface)
-        result = self._manager._client._request(
-            "POST",
-            "vm_actions",
-            json_data={
-                "vm": self.key,
-                "action": "hotplugnic",
-                "params": {"device": nic.key},
-            },
-        )
+        try:
+            result = self._manager._client._request(
+                "POST",
+                "vm_actions",
+                json_data={
+                    "vm": self.key,
+                    "action": "hotplugnic",
+                    "params": {"device": nic.key},
+                },
+            )
+        except APIError:
+            self._delete_rejected_hotplug(nic)
+            raise
         return result if isinstance(result, dict) else None
 
     def tag(self, tag_key: int) -> None:
