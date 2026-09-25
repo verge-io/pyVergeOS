@@ -475,6 +475,42 @@ class TestNasServiceAntivirus:
 class TestNasServiceAntivirusManager:
     """Tests for NasServiceAntivirusManager."""
 
+    def test_list_scoped_filters_by_service(self, mock_client, sample_service_antivirus):
+        """Scoped list() requests only the parent service's antivirus config."""
+        manager = NasServiceAntivirusManager(mock_client, service_key=2)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list()
+
+        assert len(result) == 1
+        assert isinstance(result[0], NasServiceAntivirus)
+        mock_client._request.assert_called_once()
+        call_args = mock_client._request.call_args
+        assert call_args[0][0] == "GET"
+        assert call_args[0][1] == "vm_service_antivirus"
+        assert call_args[1]["params"]["filter"] == "service eq 2"
+
+    def test_list_unscoped_omits_service_filter(self, mock_client, sample_service_antivirus):
+        """Unscoped list() does not add a service filter."""
+        manager = NasServiceAntivirusManager(mock_client)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list()
+
+        assert len(result) == 1
+        params = mock_client._request.call_args[1]["params"]
+        assert "filter" not in params
+
+    def test_list_scoped_combines_caller_filter(self, mock_client, sample_service_antivirus):
+        """Scoped list() ANDs the service scope with the caller's filter."""
+        manager = NasServiceAntivirusManager(mock_client, service_key=2)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        manager.list(filter="enabled eq 1")
+
+        filter_value = mock_client._request.call_args[1]["params"]["filter"]
+        assert filter_value == "enabled eq 1 and service eq 2"
+
     def test_get_by_key(self, mock_client, sample_service_antivirus):
         """Test get service antivirus by key."""
         manager = NasServiceAntivirusManager(mock_client)

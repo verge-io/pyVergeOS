@@ -23,7 +23,6 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_antivirus import (
     NasServiceAntivirus,
-    NasServiceAntivirusManager,
     VolumeAntivirusInfection,
     VolumeAntivirusLog,
     VolumeAntivirusStats,
@@ -339,16 +338,15 @@ class TestNasServiceAntivirusIntegration:
         # Restore original value
         test_service.antivirus.update(key=svc_av.key, max_recursion=original_recursion)
 
-    def test_list_service_antivirus_configs(self, client: VergeClient) -> None:
-        """Test listing all service-level antivirus configurations."""
-        # List all configs
-        configs = NasServiceAntivirusManager(client).list()
+    def test_list_service_antivirus_configs(self, test_service: NASService) -> None:
+        """Test listing antivirus configurations scoped to a NAS service."""
+        configs = test_service.antivirus.list()
 
         assert isinstance(configs, list)
         for config in configs:
             assert isinstance(config, NasServiceAntivirus)
             assert config.key is not None
-            assert config.service_key is not None
+            assert config.service_key == test_service.key
 
 
 class TestAntivirusIntegrationWorkflow:
