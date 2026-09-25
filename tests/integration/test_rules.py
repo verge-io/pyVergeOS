@@ -18,7 +18,11 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.resources.networks import Network
 from pyvergeos.resources.rules import NetworkRule
-from tests.integration.live_support import create_disposable_network, destroy_network
+from tests.integration.live_support import (
+    create_disposable_network,
+    destroy_network,
+    start_disposable_network,
+)
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
@@ -32,10 +36,14 @@ def client(live_client_module: VergeClient) -> VergeClient:
 
 @pytest.fixture(scope="module")
 def test_network(client: VergeClient) -> Generator[Network, None, None]:
-    """Disposable internal network. Do not mutate External."""
+    """Disposable internal network, powered on before tests.
+
+    ``apply_rules`` is rejected while the vNet is stopped. External is not
+    used.
+    """
     network = create_disposable_network(client, prefix="pytest-rule")
     try:
-        yield network
+        yield start_disposable_network(client, network)
     finally:
         destroy_network(client, network)
 

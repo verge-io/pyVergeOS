@@ -51,6 +51,26 @@ def create_disposable_network(client: VergeClient, *, prefix: str) -> Network:
     )
 
 
+def start_disposable_network(
+    client: VergeClient, network: Network, *, timeout: float = 30
+) -> Network:
+    """Power on a disposable network and wait until it is running.
+
+    ``Network.apply_rules`` is rejected with "vNet is not running" until
+    power-on has finished. Returns a refreshed network object.
+    """
+    network.power_on()
+    deadline = time.monotonic() + timeout
+    while True:
+        current = client.networks.get(network.key)
+        if current.is_running:
+            return current
+        if time.monotonic() >= deadline:
+            name = network.name
+            raise RuntimeError(f"Network {name!r} was not running within {timeout:.0f}s")
+        time.sleep(1)
+
+
 def destroy_network(client: VergeClient, network: Network) -> None:
     """Power off and delete a disposable network. Swallows cleanup errors."""
     try:
