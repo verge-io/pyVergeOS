@@ -885,10 +885,10 @@ class ResourceRule(ResourceObject):
     """
 
     @property
-    def resource_group_key(self) -> int | None:
-        """Parent resource group key."""
+    def resource_group_key(self) -> str | None:
+        """Parent resource group key (UUID)."""
         rg = self.get("resource_group")
-        return int(rg) if rg else None
+        return str(rg) if rg else None
 
     resource_group_name = Projected[str](
         "display(resource_group) as resource_group_display",

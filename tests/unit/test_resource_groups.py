@@ -803,7 +803,7 @@ class TestResourceRuleManager:
         mock_session.request.return_value.json.return_value = [
             {
                 "$key": 1,
-                "resource_group": 10,
+                "resource_group": "24122fab-e8fa-c4a5-dcf5-b52bf1efa474",
                 "resource_group_display": "GPU Pool",
                 "name": "Intel GPUs",
                 "enabled": True,
@@ -817,6 +817,7 @@ class TestResourceRuleManager:
 
         assert len(rules) == 1
         assert rules[0].name == "Intel GPUs"
+        assert rules[0].resource_group_key == "24122fab-e8fa-c4a5-dcf5-b52bf1efa474"
         assert rules[0].filter_expression == "vendor ct 'Intel'"
         assert rules[0].resource_count == 2
 
@@ -958,7 +959,7 @@ class TestResourceRuleModel:
 
         data = {
             "$key": 1,
-            "resource_group": 10,
+            "resource_group": "24122fab-e8fa-c4a5-dcf5-b52bf1efa474",
             "resource_group_display": "GPU Pool",
             "name": "Intel Rule",
             "enabled": True,
@@ -976,7 +977,7 @@ class TestResourceRuleModel:
         rule = ResourceRule(data, manager)
 
         assert rule.key == 1
-        assert rule.resource_group_key == 10
+        assert rule.resource_group_key == "24122fab-e8fa-c4a5-dcf5-b52bf1efa474"
         assert rule.resource_group_name == "GPU Pool"
         assert rule.name == "Intel Rule"
         assert rule.is_enabled is True
