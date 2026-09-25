@@ -646,6 +646,8 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
                 - client_id: OAuth client ID
                 - client_secret: OAuth client secret
                 - tenant_id: Azure tenant ID (Azure only)
+                - well_known_url: OpenID discovery URL (openid-well-known).
+                  The platform fetches this URL when the source is saved.
                 - scope: OAuth scopes (default: "openid profile email")
                 - remote_user_fields: Fields to match users
                 - auto_create_users: Pattern for auto-creating users

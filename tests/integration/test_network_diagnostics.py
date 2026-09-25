@@ -2,6 +2,8 @@
 
 Tests against the dev environment defined in .claude/TESTENV.md.
 Run with: uv run python tests/integration/test_network_diagnostics.py
+
+Functions are named check_* so pytest does not collect this standalone script.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ def get_client() -> VergeClient:
     )
 
 
-def test_connection(client: VergeClient) -> bool:
+def check_connection(client: VergeClient) -> bool:
     """Verify basic connection works."""
     print(f"  Connected to: {client.cloud_name}")
     print(f"  Version: {client.version}")
@@ -34,7 +36,7 @@ def test_connection(client: VergeClient) -> bool:
 # =============================================================================
 
 
-def test_vnet_query_list(client: VergeClient) -> bool:
+def check_vnet_query_list(client: VergeClient) -> bool:
     """Test listing networks and accessing query manager."""
     networks = client.networks.list(limit=5)
     print(f"  Found {len(networks)} networks")
@@ -62,7 +64,7 @@ def test_vnet_query_list(client: VergeClient) -> bool:
     return True
 
 
-def test_vnet_query_ping(client: VergeClient) -> bool:
+def check_vnet_query_ping(client: VergeClient) -> bool:
     """Test running a ping query on a network."""
     running = client.networks.list_running()
     if not running:
@@ -86,7 +88,7 @@ def test_vnet_query_ping(client: VergeClient) -> bool:
         return True  # Not a test failure - some networks can't ping
 
 
-def test_vnet_query_arp(client: VergeClient) -> bool:
+def check_vnet_query_arp(client: VergeClient) -> bool:
     """Test running an ARP query on a network."""
     running = client.networks.list_running()
     if not running:
@@ -108,7 +110,7 @@ def test_vnet_query_arp(client: VergeClient) -> bool:
         return True
 
 
-def test_node_query_list(client: VergeClient) -> bool:
+def check_node_query_list(client: VergeClient) -> bool:
     """Test listing nodes and accessing query manager."""
     nodes = client.nodes.list(limit=5)
     print(f"  Found {len(nodes)} nodes")
@@ -124,7 +126,7 @@ def test_node_query_list(client: VergeClient) -> bool:
     return True
 
 
-def test_node_query_lsblk(client: VergeClient) -> bool:
+def check_node_query_lsblk(client: VergeClient) -> bool:
     """Test running lsblk query on a node."""
     nodes = client.nodes.list(limit=1)
     if not nodes:
@@ -151,7 +153,7 @@ def test_node_query_lsblk(client: VergeClient) -> bool:
 # =============================================================================
 
 
-def test_machine_nic_stats_global(client: VergeClient) -> bool:
+def check_machine_nic_stats_global(client: VergeClient) -> bool:
     """Test global NIC stats listing."""
     stats = client.machine_nic_stats.list(limit=5)
     print(f"  Found {len(stats)} NIC stats records")
@@ -164,7 +166,7 @@ def test_machine_nic_stats_global(client: VergeClient) -> bool:
     return True
 
 
-def test_machine_nic_status_global(client: VergeClient) -> bool:
+def check_machine_nic_status_global(client: VergeClient) -> bool:
     """Test global NIC status listing."""
     statuses = client.machine_nic_status.list(limit=5)
     print(f"  Found {len(statuses)} NIC status records")
@@ -177,7 +179,7 @@ def test_machine_nic_status_global(client: VergeClient) -> bool:
     return True
 
 
-def test_machine_nic_fabric_status_global(client: VergeClient) -> bool:
+def check_machine_nic_fabric_status_global(client: VergeClient) -> bool:
     """Test global NIC fabric status listing."""
     fabrics = client.machine_nic_fabric_status.list(limit=5)
     print(f"  Found {len(fabrics)} NIC fabric status records")
@@ -191,7 +193,7 @@ def test_machine_nic_fabric_status_global(client: VergeClient) -> bool:
     return True
 
 
-def test_nic_stats_scoped(client: VergeClient) -> bool:
+def check_nic_stats_scoped(client: VergeClient) -> bool:
     """Test NIC stats through scoped manager on a VM NIC."""
     vms = client.vms.list(limit=3)
     if not vms:
@@ -233,7 +235,7 @@ def test_nic_stats_scoped(client: VergeClient) -> bool:
 # =============================================================================
 
 
-def test_lldp_neighbors_global(client: VergeClient) -> bool:
+def check_lldp_neighbors_global(client: VergeClient) -> bool:
     """Test global LLDP neighbor listing."""
     neighbors = client.node_lldp_neighbors.list(limit=10)
     print(f"  Found {len(neighbors)} LLDP neighbors")
@@ -248,7 +250,7 @@ def test_lldp_neighbors_global(client: VergeClient) -> bool:
     return True
 
 
-def test_lldp_neighbors_scoped(client: VergeClient) -> bool:
+def check_lldp_neighbors_scoped(client: VergeClient) -> bool:
     """Test LLDP neighbors scoped to a node."""
     nodes = client.nodes.list(limit=1)
     if not nodes:
@@ -270,7 +272,7 @@ def test_lldp_neighbors_scoped(client: VergeClient) -> bool:
 # =============================================================================
 
 
-def test_system_diagnostics_list(client: VergeClient) -> bool:
+def check_system_diagnostics_list(client: VergeClient) -> bool:
     """Test listing system diagnostics."""
     diags = client.system_diagnostics.list()
     print(f"  Found {len(diags)} existing diagnostics")
@@ -279,7 +281,7 @@ def test_system_diagnostics_list(client: VergeClient) -> bool:
     return True
 
 
-def test_system_diagnostics_create(client: VergeClient) -> bool:
+def check_system_diagnostics_create(client: VergeClient) -> bool:
     """Test creating a system diagnostic (and clean up after)."""
     import time
 
@@ -331,20 +333,20 @@ def run_tests() -> None:
         sys.exit(1)
 
     tests = [
-        ("Connection", test_connection),
-        ("VNet Query - List", test_vnet_query_list),
-        ("VNet Query - Ping", test_vnet_query_ping),
-        ("VNet Query - ARP", test_vnet_query_arp),
-        ("Node Query - List", test_node_query_list),
-        ("Node Query - lsblk", test_node_query_lsblk),
-        ("NIC Stats - Global", test_machine_nic_stats_global),
-        ("NIC Status - Global", test_machine_nic_status_global),
-        ("NIC Fabric Status - Global", test_machine_nic_fabric_status_global),
-        ("NIC Stats - Scoped", test_nic_stats_scoped),
-        ("LLDP Neighbors - Global", test_lldp_neighbors_global),
-        ("LLDP Neighbors - Scoped", test_lldp_neighbors_scoped),
-        ("System Diagnostics - List", test_system_diagnostics_list),
-        ("System Diagnostics - Create/Wait/Delete", test_system_diagnostics_create),
+        ("Connection", check_connection),
+        ("VNet Query - List", check_vnet_query_list),
+        ("VNet Query - Ping", check_vnet_query_ping),
+        ("VNet Query - ARP", check_vnet_query_arp),
+        ("Node Query - List", check_node_query_list),
+        ("Node Query - lsblk", check_node_query_lsblk),
+        ("NIC Stats - Global", check_machine_nic_stats_global),
+        ("NIC Status - Global", check_machine_nic_status_global),
+        ("NIC Fabric Status - Global", check_machine_nic_fabric_status_global),
+        ("NIC Stats - Scoped", check_nic_stats_scoped),
+        ("LLDP Neighbors - Global", check_lldp_neighbors_global),
+        ("LLDP Neighbors - Scoped", check_lldp_neighbors_scoped),
+        ("System Diagnostics - List", check_system_diagnostics_list),
+        ("System Diagnostics - Create/Wait/Delete", check_system_diagnostics_create),
     ]
 
     passed = 0

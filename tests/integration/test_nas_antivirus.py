@@ -5,13 +5,16 @@ These tests require a live VergeOS system with:
 - At least one NAS volume (or permission to create test volumes)
 
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled).
+Antivirus configuration is reached through volume.antivirus and
+service.antivirus.
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
 import time
 
 import pytest
@@ -20,6 +23,7 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_antivirus import (
     NasServiceAntivirus,
+    NasServiceAntivirusManager,
     VolumeAntivirusInfection,
     VolumeAntivirusLog,
     VolumeAntivirusStats,
@@ -33,15 +37,9 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")
@@ -88,7 +86,7 @@ def cleanup_antivirus(client: VergeClient, test_volume: NASVolume):
     # Cleanup any antivirus configs we created
     for key in created_keys:
         with contextlib.suppress(NotFoundError):
-            client.volume_antivirus.delete(key)
+            test_volume.antivirus.delete(key)
 
 
 class TestVolumeAntivirusIntegration:
@@ -99,7 +97,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test creating a volume antivirus configuration."""
         # Create antivirus config
-        av = client.volume_antivirus.create(
+        av = test_volume.antivirus.create(
             volume=test_volume.key,
             enabled=False,
             infected_action="move",
@@ -120,11 +118,11 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test retrieving antivirus config by key."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # Get by key
-        retrieved = client.volume_antivirus.get(key=av.key)
+        retrieved = test_volume.antivirus.get(key=av.key)
         assert retrieved.key == av.key
         assert retrieved.volume_key == test_volume.key
 
@@ -133,11 +131,11 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test retrieving antivirus config by volume."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # Get by volume key
-        retrieved = client.volume_antivirus.get(volume=test_volume.key)
+        retrieved = test_volume.antivirus.get(volume=test_volume.key)
         assert retrieved.key == av.key
         assert retrieved.volume_key == test_volume.key
 
@@ -146,11 +144,11 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test updating antivirus configuration."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key, enabled=False, on_access=False)
+        av = test_volume.antivirus.create(volume=test_volume.key, enabled=False, on_access=False)
         cleanup_antivirus.append(av.key)
 
         # Update config
-        updated = client.volume_antivirus.update(
+        updated = test_volume.antivirus.update(
             av.key,
             on_access=True,
             quarantine_location="/custom_quarantine",
@@ -167,16 +165,16 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test listing antivirus configurations."""
         # Create a config
-        av = client.volume_antivirus.create(volume=test_volume.key, enabled=True)
+        av = test_volume.antivirus.create(volume=test_volume.key, enabled=True)
         cleanup_antivirus.append(av.key)
 
         # List all configs
-        configs = client.volume_antivirus.list()
+        configs = test_volume.antivirus.list()
         assert len(configs) >= 1
         assert any(c.key == av.key for c in configs)
 
         # List enabled only
-        enabled_configs = client.volume_antivirus.list(enabled=True)
+        enabled_configs = test_volume.antivirus.list(enabled=True)
         assert any(c.key == av.key for c in enabled_configs)
 
     def test_volume_antivirus_property(
@@ -184,7 +182,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test accessing antivirus via volume.antivirus property."""
         # Create config directly
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # Access via volume property
@@ -199,7 +197,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test antivirus enable/disable/start/stop actions."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key, enabled=False)
+        av = test_volume.antivirus.create(volume=test_volume.key, enabled=False)
         cleanup_antivirus.append(av.key)
 
         # Test enable action
@@ -221,7 +219,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test retrieving antivirus status."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # Get status
@@ -242,7 +240,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test retrieving antivirus statistics."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # Get stats
@@ -261,7 +259,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test listing antivirus infection records."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # List infections (should be empty initially)
@@ -278,7 +276,7 @@ class TestVolumeAntivirusIntegration:
     ) -> None:
         """Test listing antivirus scan activity logs."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
         cleanup_antivirus.append(av.key)
 
         # List logs
@@ -297,14 +295,14 @@ class TestVolumeAntivirusIntegration:
     def test_delete_antivirus_config(self, client: VergeClient, test_volume: NASVolume) -> None:
         """Test deleting antivirus configuration."""
         # Create config
-        av = client.volume_antivirus.create(volume=test_volume.key)
+        av = test_volume.antivirus.create(volume=test_volume.key)
 
         # Delete it
-        client.volume_antivirus.delete(av.key)
+        test_volume.antivirus.delete(av.key)
 
         # Verify it's gone
         with pytest.raises(NotFoundError):
-            client.volume_antivirus.get(key=av.key)
+            test_volume.antivirus.get(key=av.key)
 
 
 class TestNasServiceAntivirusIntegration:
@@ -344,7 +342,7 @@ class TestNasServiceAntivirusIntegration:
     def test_list_service_antivirus_configs(self, client: VergeClient) -> None:
         """Test listing all service-level antivirus configurations."""
         # List all configs
-        configs = client.nas_service_antivirus.list()
+        configs = NasServiceAntivirusManager(client).list()
 
         assert isinstance(configs, list)
         for config in configs:
@@ -361,12 +359,7 @@ class TestAntivirusIntegrationWorkflow:
     ) -> None:
         """Test a complete antivirus configuration and monitoring workflow."""
         # Step 1: Create antivirus configuration
-        av = test_volume.antivirus.get_or_create = lambda: (
-            test_volume.antivirus.get()
-            if test_volume.antivirus.list()
-            else client.volume_antivirus.create(test_volume.key)
-        )
-        av = client.volume_antivirus.create(
+        av = test_volume.antivirus.create(
             volume=test_volume.key,
             enabled=False,
             infected_action="move",
@@ -377,7 +370,7 @@ class TestAntivirusIntegrationWorkflow:
         cleanup_antivirus.append(av.key)
 
         # Step 2: Update configuration
-        av_updated = client.volume_antivirus.update(
+        av_updated = test_volume.antivirus.update(
             av.key, enabled=True, quarantine_location=".quarantine"
         )
         assert av_updated.get("enabled") is True
@@ -404,5 +397,5 @@ class TestAntivirusIntegrationWorkflow:
         av_updated.disable()
 
         # Step 8: Cleanup (delete config)
-        client.volume_antivirus.delete(av_updated.key)
+        test_volume.antivirus.delete(av_updated.key)
         cleanup_antivirus.remove(av_updated.key)

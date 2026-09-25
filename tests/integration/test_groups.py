@@ -1,5 +1,6 @@
 """Integration tests for group and group member operations."""
 
+import os
 import uuid
 from contextlib import suppress
 
@@ -7,11 +8,24 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
+from tests.integration.live_support import clear_group_members
 
 
 def unique_name(prefix: str) -> str:
     """Generate a unique name for test resources."""
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+def _require_reserved_groups(reserved_membership_groups):
+    """Return the session-reserved parent and child, or skip/fail."""
+    if reserved_membership_groups is None:
+        if os.environ.get("VERGE_HOST") and os.environ.get("VERGE_USERNAME"):
+            pytest.fail(
+                "Membership groups were not reserved. A group created after "
+                "another group is deleted cannot be a membership parent."
+            )
+        pytest.skip("Live VergeOS credentials not configured")
+    return reserved_membership_groups
 
 
 @pytest.mark.integration
@@ -22,7 +36,7 @@ class TestGroupOperations:
         """Test listing groups."""
         groups = live_client.groups.list()
         assert isinstance(groups, list)
-        assert len(groups) >= 1  # At least default admin group exists
+        assert len(groups) >= 1  # At least one group exists
 
         # Each group should have expected fields
         group = groups[0]
@@ -194,30 +208,23 @@ class TestGroupMemberOperations:
     """Integration tests for Group Member operations against live VergeOS."""
 
     @pytest.fixture
-    def test_group(self, live_client: VergeClient):
-        """Create a test group for member tests and cleanup afterwards."""
-        name = unique_name("pytest_member")
-        group = live_client.groups.create(
-            name=name,
-            description="Group for member tests",
-        )
-        yield group
-        # Cleanup
-        with suppress(NotFoundError):
-            live_client.groups.delete(group.key)
+    def test_group(self, reserved_membership_groups):
+        """Parent group created before any test deletes a group.
+
+        A group created after another group is deleted reuses that identity
+        and cannot be a membership parent. This fixture reuses the session
+        reservation and only clears members between tests.
+        """
+        parent, _child = _require_reserved_groups(reserved_membership_groups)
+        clear_group_members(parent)
+        yield parent
+        clear_group_members(parent)
 
     @pytest.fixture
-    def test_child_group(self, live_client: VergeClient):
-        """Create a child group for nested membership tests."""
-        name = unique_name("pytest_child")
-        group = live_client.groups.create(
-            name=name,
-            description="Child group for nesting",
-        )
-        yield group
-        # Cleanup
-        with suppress(NotFoundError):
-            live_client.groups.delete(group.key)
+    def test_child_group(self, reserved_membership_groups):
+        """Nested group created before any test deletes a group."""
+        _parent, child = _require_reserved_groups(reserved_membership_groups)
+        yield child
 
     def test_list_members_empty(self, test_group, live_client: VergeClient) -> None:
         """Test listing members of a new group (should be empty)."""
@@ -225,19 +232,22 @@ class TestGroupMemberOperations:
         assert isinstance(members, list)
         assert len(members) == 0
 
-    def test_add_user_to_group(self, test_group, live_client: VergeClient) -> None:
+    def test_add_user_to_group(
+        self, test_group, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test adding a user to a group."""
-        # Get admin user to add
-        admin = live_client.users.get(name="admin")
-
-        member = test_group.members.add_user(admin.key)
+        member = test_group.members.add_user(authenticated_user.key)
 
         assert member.member_type == "User"
-        assert member.member_key == admin.key
-        assert member.member_name == "admin"
+        assert member.member_key == authenticated_user.key
+        display = authenticated_user.get("displayname")
+        expected_names = {authenticated_user.name}
+        if display:
+            expected_names.add(display)
+        assert member.member_name in expected_names
 
         # Cleanup
-        test_group.members.remove_user(admin.key)
+        test_group.members.remove_user(authenticated_user.key)
 
     def test_add_group_to_group(
         self, test_group, test_child_group, live_client: VergeClient
@@ -252,24 +262,26 @@ class TestGroupMemberOperations:
         # Cleanup
         test_group.members.remove_group(test_child_group.key)
 
-    def test_list_members_with_user(self, test_group, live_client: VergeClient) -> None:
+    def test_list_members_with_user(
+        self, test_group, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test listing members includes added user."""
-        admin = live_client.users.get(name="admin")
-        test_group.members.add_user(admin.key)
+        test_group.members.add_user(authenticated_user.key)
 
         members = test_group.members.list()
 
         assert len(members) == 1
         assert members[0].member_type == "User"
-        assert members[0].member_key == admin.key
+        assert members[0].member_key == authenticated_user.key
 
         # Cleanup
-        test_group.members.remove_user(admin.key)
+        test_group.members.remove_user(authenticated_user.key)
 
-    def test_remove_user_by_key(self, test_group, live_client: VergeClient) -> None:
+    def test_remove_user_by_key(
+        self, test_group, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test removing user by membership key."""
-        admin = live_client.users.get(name="admin")
-        member = test_group.members.add_user(admin.key)
+        member = test_group.members.add_user(authenticated_user.key)
 
         test_group.members.remove(member.key)
 
@@ -278,11 +290,10 @@ class TestGroupMemberOperations:
 
     @pytest.mark.parametrize("prefix", ["", "/v4/"])
     def test_remove_user_by_user_key(
-        self, test_group, live_client: VergeClient, prefix: str
+        self, test_group, live_client: VergeClient, authenticated_user, prefix: str
     ) -> None:
         """Remove users from both native and SDK membership references."""
-        admin = live_client.users.get(name="admin")
-        ref = f"{prefix}users/{admin.key}"
+        ref = f"{prefix}users/{authenticated_user.key}"
         live_client._request(
             "POST", "members", json_data={"parent_group": test_group.key, "member": ref}
         )
@@ -290,9 +301,9 @@ class TestGroupMemberOperations:
         member = test_group.members.list()[0]
         assert member.member_ref == ref
         assert member.member_type == "User"
-        assert member.member_key == admin.key
+        assert member.member_key == authenticated_user.key
 
-        test_group.members.remove_user(admin.key)
+        test_group.members.remove_user(authenticated_user.key)
 
         members = test_group.members.list()
         assert len(members) == 0
@@ -317,35 +328,36 @@ class TestGroupMemberOperations:
         members = test_group.members.list()
         assert len(members) == 0
 
-    def test_remove_user_not_member(self, test_group, live_client: VergeClient) -> None:
+    def test_remove_user_not_member(
+        self, test_group, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test removing a user that is not a member raises NotFoundError."""
-        admin = live_client.users.get(name="admin")
-
         with pytest.raises(NotFoundError, match="not a member"):
-            test_group.members.remove_user(admin.key)
+            test_group.members.remove_user(authenticated_user.key)
 
-    def test_member_object_remove(self, test_group, live_client: VergeClient) -> None:
+    def test_member_object_remove(
+        self, test_group, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test removing member via member object method."""
-        admin = live_client.users.get(name="admin")
-        member = test_group.members.add_user(admin.key)
+        member = test_group.members.add_user(authenticated_user.key)
 
         member.remove()
 
         members = test_group.members.list()
         assert len(members) == 0
 
-    def test_manager_members_method(self, test_group, live_client: VergeClient) -> None:
+    def test_manager_members_method(
+        self, test_group, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test accessing members via client.groups.members()."""
-        admin = live_client.users.get(name="admin")
-
         # Add via manager method
-        live_client.groups.members(test_group.key).add_user(admin.key)
+        live_client.groups.members(test_group.key).add_user(authenticated_user.key)
 
         # List via manager method
         members = live_client.groups.members(test_group.key).list()
         assert len(members) == 1
 
         # Remove via manager method
-        live_client.groups.members(test_group.key).remove_user(admin.key)
+        live_client.groups.members(test_group.key).remove_user(authenticated_user.key)
         members = live_client.groups.members(test_group.key).list()
         assert len(members) == 0

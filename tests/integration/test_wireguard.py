@@ -2,56 +2,86 @@
 
 These tests require a live VergeOS system.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled) so
+self-signed lab certificates work.
 """
 
 from __future__ import annotations
 
 import base64
 import contextlib
-import os
 import secrets
+import time
+from collections.abc import Generator
 
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import NotFoundError, VergeError
 from pyvergeos.resources.networks import Network
 from pyvergeos.resources.wireguard import WireGuardInterface
+from tests.integration.live_support import create_disposable_network, destroy_network
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
+def delete_wireguard_interface(network: Network, key: int, *, remove_peers: bool = True) -> None:
+    """Disable, apply, and delete a WireGuard interface.
 
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
-
-
-@pytest.fixture(scope="module")
-def test_network(client: VergeClient) -> Network:
-    """Get an external network to test WireGuard on.
-
-    WireGuard is typically configured on external networks.
+    The platform rejects deletion until the interface is disabled and
+    firewall rules are applied. Deleting peers first drops the staged
+    accept rules those peers create. ``remove_peers=False`` leaves peers
+    in place so interface deletion can be checked for cascade.
     """
-    # Try to get External network
-    try:
-        return client.networks.get(name="External")
-    except NotFoundError:
-        pass
+    iface = network.wireguard.get(key)
+    if remove_peers:
+        for peer in list(iface.peers.list()):
+            iface.peers.delete(peer.key)
+    network.wireguard.update(key, enabled=False)
+    network.apply_rules()
+    network.wireguard.delete(key)
+    network.apply_rules()
 
-    # Fall back to first external network
-    networks = client.networks.list_external()
-    if not networks:
-        pytest.skip("No external networks available for WireGuard testing")
-    return networks[0]
+
+def _cleanup_wireguard_interfaces(network: Network) -> None:
+    """Best-effort removal of every WireGuard interface on a test network."""
+    try:
+        interfaces = list(network.wireguard.list())
+    except VergeError:
+        return
+    for iface in interfaces:
+        with contextlib.suppress(VergeError):
+            delete_wireguard_interface(network, iface.key)
+
+
+@pytest.fixture(scope="module")
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
+
+
+@pytest.fixture(scope="module")
+def test_network(client: VergeClient) -> Generator[Network, None, None]:
+    """Disposable internal network for WireGuard tests.
+
+    External is often the management vnet. These tests must not leave
+    interfaces, peers, or staged firewall rules on it.
+    """
+    network = create_disposable_network(client, prefix="pytest-wg")
+    try:
+        try:
+            network.power_on()
+        except VergeError:
+            pass
+        else:
+            time.sleep(3)
+        yield client.networks.get(network.key)
+    finally:
+        _cleanup_wireguard_interfaces(network)
+        destroy_network(client, network)
 
 
 def generate_fake_pubkey() -> str:
@@ -66,10 +96,10 @@ def cleanup_interfaces(test_network: Network):
 
     yield created_keys
 
-    # Cleanup any interfaces we created (also removes peers)
+    # Disable, apply, and delete. A plain delete is rejected while enabled.
     for key in created_keys:
-        with contextlib.suppress(NotFoundError):
-            test_network.wireguard.delete(key)
+        with contextlib.suppress(VergeError):
+            delete_wireguard_interface(test_network, key)
 
 
 class TestWireGuardManagerIntegration:
@@ -106,8 +136,8 @@ class TestWireGuardManagerIntegration:
         assert iface.is_enabled is True
         assert iface.public_key  # Should have auto-generated public key
 
-        # Delete the interface
-        test_network.wireguard.delete(iface.key)
+        # Disable and apply before delete; the platform rejects otherwise.
+        delete_wireguard_interface(test_network, iface.key)
         cleanup_interfaces.remove(iface.key)
 
         # Verify it's gone
@@ -449,8 +479,8 @@ class TestWireGuardPeerManagerIntegration:
         peers = iface.peers.list()
         assert len(peers) == 2
 
-        # Delete the interface
-        test_network.wireguard.delete(iface.key)
+        # Disable and apply, but leave peers so deletion can cascade.
+        delete_wireguard_interface(test_network, iface.key, remove_peers=False)
         cleanup_interfaces.remove(iface.key)
 
         # Interface should be gone
