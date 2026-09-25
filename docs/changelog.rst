@@ -12,6 +12,14 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``VolumeAntivirusManager.create()`` no longer fails with
+  ``ConflictError`` when the volume already has an antivirus row.
+  VergeOS creates that row with the volume, and the table allows one
+  row per volume, so a POST always hit the unique constraint.
+  ``create()`` updates the existing row, including when a POST races
+  and returns 409. Examples lead with ``get()`` and ``update()``.
+  Measured on VergeOS 26.1.8. (#170)
+
 - ``VM.hotplug_drive()`` raises ``ValueError`` before creating a drive
   when ``media`` is not ``disk`` or ``interface`` is not ``virtio`` or
   ``virtio-scsi``. VergeOS hot plugs only those disks. ide, ahci, nvme,

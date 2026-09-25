@@ -170,6 +170,9 @@ class NASVolume(ResourceObject):
     def antivirus(self) -> VolumeAntivirusManager:
         """Get antivirus manager for this volume.
 
+        VergeOS creates the antivirus configuration with the volume. Read it
+        with ``get()`` and change it with ``update()``.
+
         Returns:
             VolumeAntivirusManager scoped to this volume.
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import ConflictError, NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -283,10 +283,15 @@ class NasServiceAntivirus(ResourceObject):
 class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
     """Manager for volume antivirus configuration operations.
 
+    VergeOS creates the per-volume antivirus row when the volume is created,
+    and the table allows one row per volume. Read it with ``get()`` and
+    change it with ``update()``. ``create()`` updates that row when one is
+    already present.
+
     Can be used standalone or scoped to a specific volume.
 
     Example:
-        >>> # Get antivirus config for a volume
+        >>> # The config exists as soon as the volume does
         >>> av = volume.antivirus.get()
 
         >>> # Update configuration
@@ -514,7 +519,21 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         quarantine_location: str = ".quarantine",
         start_time_profile: int | None = None,
     ) -> VolumeAntivirus:
-        """Create a new volume antivirus configuration.
+        """Return this volume's antivirus row, applying the given settings.
+
+        VergeOS creates one ``volume_antivirus`` row when the volume is
+        created. A POST for a volume that already has that row fails with
+        ``ConflictError`` (unique constraint). Prefer ``get()`` and then
+        ``update()``.
+
+        When the row already exists, this updates it and returns it. A POST
+        is sent only when no row is present. If that POST conflicts, the row
+        that appeared is updated instead.
+
+        Arguments that have defaults (``enabled``, ``infected_action``,
+        ``on_access``, ``scan``, ``quarantine_location``) are written onto
+        an existing row. ``include``, ``exclude``, and ``start_time_profile``
+        are written only when passed.
 
         Args:
             volume: Volume key (40-char hex string).
@@ -528,20 +547,47 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             start_time_profile: Scan schedule profile key.
 
         Returns:
-            Created VolumeAntivirus object.
+            VolumeAntivirus object for the volume.
+
+        Raises:
+            ConflictError: If creating a missing row conflicts and the row
+                still cannot be found.
 
         Example:
-            >>> # Create with defaults
-            >>> av = volume.antivirus.create(volume.key)
+            >>> # The config exists as soon as the volume does
+            >>> av = volume.antivirus.get()
+            >>> av = volume.antivirus.update(
+            ...     av.key,
+            ...     enabled=True,
+            ...     on_access=True,
+            ...     exclude="/temp\\n/cache",
+            ... )
 
-            >>> # Create with custom settings
+            >>> # create() updates the existing row when one is already present
             >>> av = volume.antivirus.create(
             ...     volume.key,
             ...     enabled=True,
             ...     on_access=True,
-            ...     exclude="/temp\n/cache"
             ... )
         """
+
+        def apply(key: int) -> VolumeAntivirus:
+            return self.update(
+                key,
+                enabled=enabled,
+                infected_action=infected_action,
+                on_access=on_access,
+                scan=scan,
+                include=include,
+                exclude=exclude,
+                quarantine_location=quarantine_location,
+                start_time_profile=start_time_profile,
+            )
+
+        existing = self._find_for_volume(volume)
+        if existing is not None:
+            return apply(existing.key)
+
         body: dict[str, Any] = {
             "volume": volume,
             "enabled": enabled,
@@ -560,7 +606,13 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         if start_time_profile is not None:
             body["start_time_profile"] = start_time_profile
 
-        response = self._client._request("POST", self._endpoint, json_data=body)
+        try:
+            response = self._client._request("POST", self._endpoint, json_data=body)
+        except ConflictError:
+            raced = self._find_for_volume(volume)
+            if raced is None:
+                raise
+            return apply(raced.key)
 
         # Get the created config
         if response and isinstance(response, dict):
@@ -570,6 +622,13 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         # Fallback: search by volume
         return self.get(volume=volume)
+
+    def _find_for_volume(self, volume: str) -> VolumeAntivirus | None:
+        """Return the antivirus row for ``volume``, or None when it is absent."""
+        try:
+            return self.get(volume=volume)
+        except NotFoundError:
+            return None
 
     def update(  # type: ignore[override]
         self,
@@ -641,6 +700,9 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
     def delete(self, key: int) -> None:
         """Delete a volume antivirus configuration.
+
+        VergeOS creates this row with the volume. Deleting it does not turn
+        antivirus off; use ``update(..., enabled=False)`` or ``disable()``.
 
         Args:
             key: Antivirus config $key (ID).
