@@ -360,7 +360,7 @@ class TestDevice:
             "machine_name": "test-vm",
             "enabled": True,
             "optional": False,
-            "resource_group": 5,
+            "resource_group": "24122fab-e8fa-c4a5-dcf5-b52bf1efa474",
             "resource_group_name": "vGPU Pool",
             "device_status": "online",
             "status_info": "Active",
@@ -390,7 +390,7 @@ class TestDevice:
         assert device.machine_name == "test-vm"
         assert device.is_enabled is True
         assert device.is_optional is False
-        assert device.resource_group_key == 5
+        assert device.resource_group_key == "24122fab-e8fa-c4a5-dcf5-b52bf1efa474"
         assert device.resource_group_name == "vGPU Pool"
         assert device.status_raw == "online"
         assert device.status == "Online"
