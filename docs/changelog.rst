@@ -12,6 +12,21 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``LicenseManager.generate_payload()`` returns the license request as
+  bytes. ``license_actions`` ``generate`` writes a binary ``.lrq`` into
+  the media catalog and returns a file reference (``filekey``,
+  ``filename``); the method used to ``json.dumps`` that reference
+  (~155 characters) and leave a new catalog file on every call. The
+  method now downloads the ``.lrq`` through the files manager and returns
+  the raw bytes. Lab files are not UTF-8 text (they start with
+  ``8a3a0000``), so decoding them raised ``APIError`` and skipped the
+  catalog delete. By default the catalog copy is deleted after a
+  successful read. Pass ``delete_catalog_file=False`` to keep the file.
+  An empty or missing file is still an error and is left in the catalog.
+  On VergeOS 26.1.8 the reference looks like
+  ``{"response": {"filekey": "files/76", "filename": "license-request-….lrq", ...}}``.
+  (#184)
+
 - ``DeviceManager`` and ``VMCloudInitFileManager`` require the row to
   belong to the VM on by-key calls. Devices compare ``machine`` with the
   VM machine key. Cloud-init files compare ``owner`` with ``vms/<vm key>``.
