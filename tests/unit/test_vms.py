@@ -8,8 +8,21 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import NotFoundError, ValidationError
 from pyvergeos.resources.vms import VM, VMManager
+
+
+def _api_response(status_code: int, body: Any | None = None) -> MagicMock:
+    """Build a mock HTTP response for sequenced session.request side effects."""
+    response = MagicMock()
+    response.status_code = status_code
+    if body is None:
+        response.text = ""
+        response.json.return_value = None
+    else:
+        response.text = "{}"
+        response.json.return_value = body
+    return response
 
 
 class TestVMManager:
@@ -845,11 +858,13 @@ class TestVMEnhancedActions:
         assert body["params"]["preserve_macs"] is True
         assert result == {"task": 444}
 
+    @pytest.mark.parametrize("interface", ["virtio", "virtio-scsi"])
     def test_hotplug_drive(
         self,
         mock_client: VergeClient,
         mock_session: MagicMock,
         vm_data: dict[str, Any],
+        interface: str,
     ) -> None:
         """Hotplug creates the drive, then posts its key as device."""
         drive_key = 77
@@ -865,7 +880,7 @@ class TestVMEnhancedActions:
         result = vm.hotplug_drive(
             name="data-drive",
             size=size,
-            interface="virtio-scsi",
+            interface=interface,
             tier=2,
         )
 
@@ -879,7 +894,7 @@ class TestVMEnhancedActions:
         create_body = create_calls[0].kwargs.get("json", {})
         assert create_body["name"] == "data-drive"
         assert create_body["disksize"] == size
-        assert create_body["interface"] == "virtio-scsi"
+        assert create_body["interface"] == interface
         assert create_body["media"] == "disk"
         assert create_body["preferred_tier"] == "2"
 
@@ -894,6 +909,101 @@ class TestVMEnhancedActions:
         assert body["vm"] == 100
         assert body["params"] == {"device": drive_key}
         assert result == {"task": 555}
+        deletes = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "DELETE"
+        ]
+        assert deletes == []
+
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"interface": "ide"}, "interfaces can be hot-plugged"),
+            ({"interface": "ahci"}, "interfaces can be hot-plugged"),
+            ({"interface": "nvme"}, "interfaces can be hot-plugged"),
+            ({"interface": "scsi"}, "interfaces can be hot-plugged"),
+            ({"media": "cdrom"}, "disk media can be hot-plugged"),
+            ({"media": "efidisk"}, "disk media can be hot-plugged"),
+        ],
+    )
+    def test_hotplug_drive_rejects_unsupported_before_create(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+        kwargs: dict[str, str],
+        match: str,
+    ) -> None:
+        """Unsupported media and interfaces must not create a drive."""
+        vm = VM(vm_data, mock_client.vms)
+        before = len(mock_session.request.call_args_list)
+
+        with pytest.raises(ValueError, match=match):
+            vm.hotplug_drive(name="data-drive", size=1024**3, **kwargs)
+
+        assert mock_session.request.call_args_list[before:] == []
+
+    def test_hotplug_drive_deletes_drive_when_action_rejected(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """A rejected hotplug deletes the drive this call created and re-raises."""
+        drive_key = 77
+        size = 1024**3
+        created = {
+            "$key": drive_key,
+            "name": "data-drive",
+            "disksize": size,
+            "machine": 200,
+        }
+        mock_session.request.side_effect = [
+            _api_response(200, {"$key": drive_key, "name": "data-drive", "disksize": size}),
+            _api_response(200, created),
+            _api_response(422, {"err": "Machine must be in running state to hotplug"}),
+            _api_response(200, created),
+            _api_response(204),
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        with pytest.raises(ValidationError, match="running state to hotplug"):
+            vm.hotplug_drive(name="data-drive", size=size, interface="virtio")
+
+        deletes = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "DELETE"
+            and f"machine_drives/{drive_key}" in call.kwargs.get("url", "")
+        ]
+        assert len(deletes) == 1
+
+    def test_hotplug_drive_reraises_when_cleanup_fails(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """Cleanup failure must not hide the hotplug rejection."""
+        drive_key = 77
+        size = 1024**3
+        created = {
+            "$key": drive_key,
+            "name": "data-drive",
+            "disksize": size,
+            "machine": 200,
+        }
+        mock_session.request.side_effect = [
+            _api_response(200, {"$key": drive_key, "name": "data-drive", "disksize": size}),
+            _api_response(200, created),
+            _api_response(422, {"err": "Machine must be in running state to hotplug"}),
+            _api_response(404, {"err": "Drive not found"}),
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        with pytest.raises(ValidationError, match="running state to hotplug"):
+            vm.hotplug_drive(name="data-drive", size=size)
 
     def test_hotplug_drive_rejects_partial_gib(
         self,
@@ -954,6 +1064,41 @@ class TestVMEnhancedActions:
         assert body["vm"] == 100
         assert body["params"] == {"device": nic_key}
         assert result == {"task": 666}
+
+    def test_hotplug_nic_deletes_nic_when_action_rejected(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        vm_data: dict[str, Any],
+    ) -> None:
+        """A rejected NIC hotplug deletes the NIC this call created and re-raises."""
+        nic_key = 88
+        created = {
+            "$key": nic_key,
+            "name": "nic_1",
+            "vnet": 10,
+            "interface": "virtio",
+            "machine": 200,
+        }
+        mock_session.request.side_effect = [
+            _api_response(200, {"$key": nic_key, "name": "nic_1", "vnet": 10}),
+            _api_response(200, created),
+            _api_response(422, {"err": "Machine must be in running state to hotplug"}),
+            _api_response(200, created),
+            _api_response(204),
+        ]
+        vm = VM(vm_data, mock_client.vms)
+
+        with pytest.raises(ValidationError, match="running state to hotplug"):
+            vm.hotplug_nic(name="nic_1", network=10, interface="virtio")
+
+        deletes = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "DELETE"
+            and f"machine_nics/{nic_key}" in call.kwargs.get("url", "")
+        ]
+        assert len(deletes) == 1
 
     def test_tag(
         self,
