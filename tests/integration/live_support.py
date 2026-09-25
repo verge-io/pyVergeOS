@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import time
 from contextlib import suppress
@@ -11,10 +12,21 @@ from dataclasses import dataclass
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import APIError, NotFoundError, VergeError
 from pyvergeos.resources.groups import Group
+from pyvergeos.resources.nas_volumes import NASVolume
 from pyvergeos.resources.networks import Network
 
 # Core and DMZ are reserved for the platform. Tests must not mutate them.
 _RESERVED_NETWORK_NAMES = frozenset({"Core", "DMZ"})
+
+# A mounted volume refuses deletion with "Unable to delete online drive".
+# Disabling it does not clear that state immediately: on 26.1.8 the drive was
+# still online about a second later, and the next delete succeeded. Same
+# sequence as the Ansible collection's nas_volume module.
+_ONLINE_DRIVE_MARKER = "online drive"
+_VOLUME_DELETE_TIMEOUT = 30.0
+_VOLUME_DELETE_INTERVAL = 2.0
+_LEGACY_AV_VOLUME = "pstest-antivirus"
+_LEFTOVER_AV_VOLUME = re.compile(r"^pstest-av-[0-9a-f]+$")
 
 
 def open_live_client() -> VergeClient | None:
@@ -236,6 +248,91 @@ def lease_tenant_external_network(client: VergeClient, *, prefix: str) -> Extern
     if chosen is None:
         raise ExternalNetworkUnavailable("No external network available")
     return ExternalNetworkLease(network=chosen, disposable=False)
+
+
+def _volume_key(volume: NASVolume | str) -> str:
+    if isinstance(volume, str):
+        return volume
+    return str(volume.key)
+
+
+def is_leftover_antivirus_volume(name: str) -> bool:
+    """True for antivirus volumes this suite is allowed to remove.
+
+    Matches the old shared ``pstest-antivirus`` volume and disposable
+    ``pstest-av-<hex>`` volumes. Other names are left alone.
+    """
+    return name == _LEGACY_AV_VOLUME or _LEFTOVER_AV_VOLUME.fullmatch(name) is not None
+
+
+def destroy_volume(
+    client: VergeClient,
+    volume: NASVolume | str,
+    *,
+    timeout: float = _VOLUME_DELETE_TIMEOUT,
+    interval: float = _VOLUME_DELETE_INTERVAL,
+) -> None:
+    """Disable a NAS volume, then retry delete while its drive is online.
+
+    VergeOS rejects ``delete`` of a mounted volume. The volume is disabled
+    first, then delete is retried for ``timeout`` seconds when the error
+    still says the drive is online. ``NotFoundError`` means it is already
+    gone. Any other API error is raised immediately.
+
+    Raises:
+        RuntimeError: The drive was still online when ``timeout`` elapsed.
+        APIError: Delete failed for a reason other than an online drive.
+    """
+    key = _volume_key(volume)
+    try:
+        current = client.nas_volumes.get(key)
+    except NotFoundError:
+        return
+
+    name = str(current.get("name") or "")
+    try:
+        client.nas_volumes.update(key, enabled=False)
+    except NotFoundError:
+        return
+
+    deadline = time.monotonic() + timeout
+    last_error: BaseException | None = None
+    while True:
+        try:
+            client.nas_volumes.delete(key)
+        except NotFoundError:
+            return
+        except APIError as exc:
+            if _ONLINE_DRIVE_MARKER not in str(exc):
+                raise
+            last_error = exc
+        else:
+            return
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(interval)
+
+    detail = f" ({last_error})" if last_error else ""
+    label = name or key
+    raise RuntimeError(
+        f"NAS volume {label!r} (key {key}) was still online after disable "
+        f"and could not be deleted{detail}"
+    )
+
+
+def destroy_leftover_antivirus_volumes(client: VergeClient, *, keep_key: str | None = None) -> None:
+    """Delete leftover ``pstest-antivirus`` and ``pstest-av-*`` volumes.
+
+    Only those names are removed. ``keep_key`` is skipped so a fixture can
+    sweep earlier runs without deleting the volume it is using.
+    """
+    for volume in client.nas_volumes.list():
+        key = str(volume.key)
+        if keep_key is not None and key == keep_key:
+            continue
+        name = str(volume.get("name") or "")
+        if is_leftover_antivirus_volume(name):
+            destroy_volume(client, volume)
 
 
 def clear_group_members(group: Group) -> None:

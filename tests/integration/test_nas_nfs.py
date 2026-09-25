@@ -18,6 +18,7 @@ from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_nfs import NASNFSShare
 from pyvergeos.resources.nas_services import NASService
 from pyvergeos.resources.nas_volumes import NASVolume
+from tests.integration.live_support import destroy_volume
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
@@ -57,9 +58,8 @@ def test_volume(client: VergeClient, test_service: NASService) -> NASVolume:
         description="Volume for NFS share integration tests",
     )
     yield vol
-    # Cleanup
-    with contextlib.suppress(NotFoundError):
-        client.nas_volumes.delete(vol.key)
+    # A module-scoped volume is mounted by teardown, so disable it first.
+    destroy_volume(client, vol)
 
 
 @pytest.fixture
