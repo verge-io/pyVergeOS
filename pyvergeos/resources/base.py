@@ -752,7 +752,12 @@ class ResourceManager(Generic[T]):
     def __init__(self, client: VergeClient) -> None:
         self._client = client
 
-    def _projection(self, fields: str | builtins.list[str] | None) -> str | None:
+    def _projection(
+        self,
+        fields: str | builtins.list[str] | None,
+        *,
+        defaults: builtins.list[str] | None = None,
+    ) -> str | None:
         """Serialize a caller-supplied ``fields`` argument for the wire.
 
         The single place a projection becomes a request parameter, so that
@@ -761,13 +766,25 @@ class ResourceManager(Generic[T]):
         Managers that assemble ``params`` themselves must use this rather
         than calling ``normalize_fields()`` directly; a tripwire enforces it.
 
+        ``defaults`` is the projection that bare names and ``all`` expand
+        against. Omit it to use this manager's ``_default_fields``. A query
+        for a different endpoint must pass that endpoint's own columns
+        (often ``Model.projected_entries()``). Expanding ``capacity``
+        against ``ClusterTier`` rewrites it to ``status#capacity``, and on
+        ``cluster_tier_status`` ``status`` is a string, so the alias comes
+        back as ``'online'`` (issue #149). Pass ``[]`` when the names are
+        already the columns to send and must not be rewritten.
+
         Args:
             fields: The caller's projection.
+            defaults: Projection to expand against. None uses this
+                manager's defaults.
 
         Returns:
             The wire-format ``fields`` value, or None.
         """
-        resolved = expand_projection(fields, self._default_fields)
+        basis = self._default_fields if defaults is None else defaults
+        resolved = expand_projection(fields, basis)
         # Record the names this request asks the server for, so that objects
         # built from the response can tell "you never asked for this" from
         # "you asked, and the server had nothing to say" (issue #117).

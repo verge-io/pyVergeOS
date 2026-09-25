@@ -6,6 +6,22 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- ``ClusterTier.get_status()`` read ``capacity``, ``used``, ``used_pct``,
+  ``redundant``, ``encrypted`` and ``working`` as the string ``'online'``.
+  ``get_tier_status()`` expanded those columns through ``ClusterTier``'s
+  ``status#`` joins, and on ``cluster_tier_status`` ``status`` is a plain
+  string, so every join came back as ``'online'``. ``capacity_bytes``,
+  ``used_bytes`` and ``used_percent`` then raised ``ValueError``, and the
+  redundancy flags were truthy strings. Status, stats and history queries
+  now project the columns of the endpoint they call. (#149)
+
+
 [1.7.1] - 2026-09-24
 --------------------
 
