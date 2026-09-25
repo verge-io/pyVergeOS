@@ -12,6 +12,13 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``TagCategory.delete()`` and ``TagCategoryManager.delete()`` document
+  that deleting a category also deletes every tag in it and every
+  assignment of those tags. VergeOS does not require the category to be
+  empty; ``DELETE tag_categories/<key>`` cascades. The previous notes
+  said to delete tags first, which read as a refusal the platform does
+  not enforce. Measured on VergeOS 26.1.8. (#154)
+
 - ``ResourceRule.resource_group_key`` and ``Device.resource_group_key``
   return the resource group UUID as ``str | None``. Both properties
   called ``int()`` on ``resource_group``, which raised ``ValueError``
