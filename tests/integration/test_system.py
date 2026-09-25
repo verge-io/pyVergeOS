@@ -7,11 +7,12 @@ if the environment variables are not set.
 from __future__ import annotations
 
 import contextlib
+import json
 
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import APIError, NotFoundError
 from pyvergeos.resources.system import (
     DIAG_STATUS_COMPLETE,
     DIAG_STATUS_ERROR,
@@ -315,24 +316,90 @@ class TestSettingsExtendedIntegration:
 # =============================================================================
 
 
+def _license_request_keys(client: VergeClient) -> set[int]:
+    """Keys of media-catalog license request files."""
+    files = client.files.list(name="*.lrq", limit=500)
+    return {file.key for file in files if file.name.endswith(".lrq")}
+
+
+def _delete_new_license_requests(client: VergeClient, before: set[int]) -> None:
+    """Remove .lrq files created after ``before`` was captured."""
+    for key in _license_request_keys(client) - before:
+        with contextlib.suppress(Exception):
+            client.files.delete(key)
+
+
+def _is_catalog_file_reference(payload: str) -> bool:
+    """True when ``payload`` is the platform's file-reference JSON."""
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    bodies = [data]
+    nested = data.get("response")
+    if isinstance(nested, dict):
+        bodies.append(nested)
+    for body in bodies:
+        filename = body.get("filename")
+        if body.get("filekey") and isinstance(filename, str) and filename.endswith(".lrq"):
+            return True
+    return False
+
+
+def _generate_or_skip(
+    client: VergeClient, before: set[int], *, delete_catalog_file: bool = True
+) -> str:
+    """Generate a payload, skipping only when the platform refuses the action.
+
+    A failure after a new ``.lrq`` has been created is a real error: the
+    request was stored and this test failed to read it.
+    """
+    try:
+        payload = client.system.licenses.generate_payload(delete_catalog_file=delete_catalog_file)
+    except APIError as exc:
+        if _license_request_keys(client) == before:
+            pytest.skip(f"License payload generation not supported: {exc}")
+        raise
+    return payload
+
+
 @pytest.mark.integration
 class TestLicenseExtendedIntegration:
     """Integration tests for LicenseManager extended functionality."""
 
     def test_generate_payload(self, live_client: VergeClient) -> None:
-        """Test generating license request payload.
+        """The return value is the .lrq body, and the catalog file is removed.
 
-        Note: This test may fail on systems that don't support air-gapped licensing.
+        ``delete_catalog_file=False`` keeps the file long enough to compare
+        bytes. The default call must not leave a new ``.lrq`` behind.
         """
+        before = _license_request_keys(live_client)
         try:
-            payload = live_client.system.licenses.generate_payload()
+            kept = _generate_or_skip(live_client, before, delete_catalog_file=False)
+            created = _license_request_keys(live_client) - before
+            assert len(created) == 1
+            file_key = next(iter(created))
+            catalog = live_client.files.get(file_key)
+            assert catalog.name.endswith(".lrq")
+            raw = live_client.files.get_content(file_key, filename=catalog.name, as_bytes=True)
+            assert isinstance(raw, bytes)
+            assert kept.encode("utf-8") == raw
+            assert catalog.size_bytes == len(raw)
+            assert len(raw) > 1000
+            assert not _is_catalog_file_reference(kept)
+        finally:
+            _delete_new_license_requests(live_client, before)
 
-            # Should return a non-empty string
+        try:
+            payload = _generate_or_skip(live_client, before)
             assert isinstance(payload, str)
-            assert len(payload) > 0
-        except Exception as e:
-            # Some systems may not support this feature
-            pytest.skip(f"License payload generation not supported: {e}")
+            assert len(payload.encode("utf-8")) > 1000
+            assert not _is_catalog_file_reference(payload)
+            assert _license_request_keys(live_client) - before == set()
+        finally:
+            _delete_new_license_requests(live_client, before)
 
 
 # =============================================================================

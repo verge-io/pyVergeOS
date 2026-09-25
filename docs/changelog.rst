@@ -12,6 +12,17 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``LicenseManager.generate_payload()`` returns the license request file
+  contents. ``license_actions`` ``generate`` writes a ``.lrq`` into the
+  media catalog and returns a file reference (``filekey``, ``filename``);
+  the method used to ``json.dumps`` that reference (~155 characters) and
+  leave a new catalog file on every call. The method now downloads the
+  ``.lrq`` through the files manager and, by default, deletes the catalog
+  copy after reading it. Pass ``delete_catalog_file=False`` to keep the
+  file. On VergeOS 26.1.8 the reference looks like
+  ``{"response": {"filekey": "files/76", "filename": "license-request-….lrq", ...}}``.
+  (#184)
+
 - ``DeviceManager`` and ``VMCloudInitFileManager`` require the row to
   belong to the VM on by-key calls. Devices compare ``machine`` with the
   VM machine key. Cloud-init files compare ``owner`` with ``vms/<vm key>``.

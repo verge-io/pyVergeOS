@@ -394,6 +394,37 @@ class License(ResourceObject):
         return f"<License {self.name!r} ({status})>"
 
 
+def _catalog_file_key(value: Any) -> int | None:
+    """Parse a media catalog $key from ``76`` or ``files/76``."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    prefix = "files/"
+    if text.startswith(prefix):
+        text = text[len(prefix) :]
+    if not text.isdigit():
+        return None
+    key = int(text)
+    return key if key > 0 else None
+
+
+def _license_action_body(response: dict[str, Any]) -> dict[str, Any]:
+    """Return the generate-action object, unwrapping ``{"response": {...}}``.
+
+    VergeOS wraps ``license_actions`` results as
+    ``{"response": {"filekey": "files/76", ...}}``. A top-level ``filekey``
+    is accepted when the nested object does not carry one.
+    """
+    nested = response.get("response")
+    if isinstance(nested, dict) and ("filekey" in nested or "filekey" not in response):
+        return nested
+    return response
+
+
 class LicenseManager(ResourceManager[License]):
     """Manages licenses in VergeOS.
 
@@ -525,23 +556,40 @@ class LicenseManager(ResourceManager[License]):
 
         raise ValueError("Either key or name must be provided")
 
-    def generate_payload(self) -> str:
+    def generate_payload(self, *, delete_catalog_file: bool = True) -> str:
         """Generate a license request payload for air-gapped systems.
 
-        For systems without internet connectivity, this generates a payload
-        that can be sent to Verge.io support to obtain a license file.
+        For systems without internet connectivity, this generates a request
+        that can be sent to Verge.io support (license@verge.io) to obtain a
+        license file.
+
+        VergeOS does not return the request inline. ``license_actions``
+        ``generate`` writes a ``.lrq`` file into the media catalog and returns
+        a reference (``filekey``, ``filename``, ``filesize``, and ``email``).
+        This method downloads that file and returns its contents. The catalog
+        copy is deleted after a successful read unless ``delete_catalog_file``
+        is False.
+
+        Args:
+            delete_catalog_file: Delete the media catalog ``.lrq`` after
+                reading it. Defaults to True so repeated calls do not leave
+                a new catalog file each time. A failed delete is logged and
+                the payload is still returned.
 
         Returns:
-            License request payload as a string.
+            License request payload (the ``.lrq`` file contents).
 
         Raises:
-            APIError: If payload generation fails.
+            APIError: If generation fails, the catalog reference cannot be
+                read, or the file is empty or not UTF-8 text. A file that is
+                not UTF-8 is left in the catalog.
+            NotFoundError: If the catalog file cannot be downloaded.
 
         Example:
             >>> payload = client.system.licenses.generate_payload()
-            >>> # Save payload to a file and send to support
-            >>> with open("license_request.txt", "w") as f:
-            ...     f.write(payload)
+            >>> # Save the request and send it to support
+            >>> with open("license-request.lrq", "w", encoding="utf-8") as request:
+            ...     request.write(payload)
         """
         response = self._client._request(
             "POST",
@@ -554,18 +602,59 @@ class LicenseManager(ResourceManager[License]):
 
             raise APIError("License payload generation returned no response")
 
-        # Response may contain the payload directly or wrapped
-        if isinstance(response, dict):
-            # Try common response fields
-            payload = response.get("payload") or response.get("result") or response.get("data")
-            if payload:
-                return str(payload)
-            # If no specific field, return the whole response as JSON
-            import json
+        if not isinstance(response, dict):
+            return str(response)
 
-            return json.dumps(response)
+        body = _license_action_body(response)
+        if "filekey" in body:
+            return self._payload_from_catalog_file(body, delete_catalog_file=delete_catalog_file)
 
-        return str(response)
+        # Older or non-platform payloads that already carry the request.
+        direct = body.get("payload") or body.get("result") or body.get("data")
+        if direct:
+            return str(direct)
+
+        import json
+
+        return json.dumps(response)
+
+    def _payload_from_catalog_file(self, body: dict[str, Any], *, delete_catalog_file: bool) -> str:
+        """Download the ``.lrq`` named by a generate file reference."""
+        from pyvergeos.exceptions import APIError, VergeError
+
+        file_key = _catalog_file_key(body.get("filekey"))
+        if file_key is None:
+            raise APIError(
+                "License request generation returned a media catalog reference "
+                f"with an unreadable file key: {body.get('filekey')!r}"
+            )
+
+        raw_name = body.get("filename")
+        filename = raw_name if isinstance(raw_name, str) and raw_name else None
+        label = filename or str(file_key)
+        downloaded = self._client.files.get_content(file_key, filename=filename, as_bytes=True)
+        if not isinstance(downloaded, bytes) or downloaded == b"":
+            raise APIError(f"License request file {label} was empty")
+
+        try:
+            payload = downloaded.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise APIError(
+                f"License request file {label} is not UTF-8 text. "
+                "The media catalog copy was left in place."
+            ) from exc
+
+        if delete_catalog_file:
+            try:
+                self._client.files.delete(file_key)
+            except VergeError:
+                logger.warning(
+                    "Read license request %s (file %s) but could not delete the media catalog copy",
+                    label,
+                    file_key,
+                    exc_info=True,
+                )
+        return payload
 
     def add(self, license_text: str) -> License:
         """Add a new license to the system.
@@ -2023,7 +2112,8 @@ class SystemManager:
             >>> for lic in client.system.licenses.list():
             ...     print(f"{lic.name}: {'valid' if lic.is_valid else 'invalid'}")
 
-            >>> # Generate payload for air-gapped licensing
+            >>> # Air-gap request (.lrq contents). VergeOS stores the request
+            >>> # in the media catalog; the copy is deleted after it is read.
             >>> payload = client.system.licenses.generate_payload()
         """
         if self._licenses is None:
