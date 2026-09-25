@@ -12,6 +12,16 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``VM.hotplug_drive()`` raises ``ValueError`` before creating a drive
+  when ``media`` is not ``disk`` or ``interface`` is not ``virtio`` or
+  ``virtio-scsi``. VergeOS hot plugs only those disks. ide, ahci, nvme,
+  and media that is not a disk were created and then refused, leaving an offline
+  drive that came online on the next boot. If ``hotplugdrive`` or
+  ``hotplugnic`` is still rejected after the device is created (for
+  example the VM is not running yet), the drive or NIC from that call
+  is deleted and the API error is raised again. Measured on VergeOS
+  26.1.8. (#169)
+
 - ``VMSnapshotManager.restore(..., power_on=True)`` and
   ``VMSnapshot.restore(power_on=True)`` power the restored VM on.
   Clone mode reads the new VM key from ``response.vmkey`` (VergeOS
