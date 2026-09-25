@@ -12,6 +12,16 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``NetworkAlias`` and ``NetworkAliasManager`` (``network.aliases``) are
+  documented as router IP aliases: ``vnet_addresses`` rows with type
+  ``ipalias``. They are not the ``vnet_rule_aliases`` rows a firewall
+  rule's ``alias:<name>`` reference resolves, and the SDK has no
+  ``rule_aliases`` manager yet. Measured on VergeOS 26.1.8. (#155)
+
+- ``TaskScriptManager.delete()`` no longer says a script with associated
+  tasks cannot be deleted. Delete is accepted and those tasks are
+  cascade deleted. Measured on VergeOS 26.1.8. (#155)
+
 - ``TagCategory.delete()`` and ``TagCategoryManager.delete()`` document
   that deleting a category also deletes every tag in it and every
   assignment of those tags. VergeOS does not require the category to be

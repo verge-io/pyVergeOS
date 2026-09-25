@@ -343,12 +343,11 @@ class TaskScriptManager(ResourceManager[TaskScript]):
     def delete(self, key: int) -> None:
         """Delete a task script.
 
-        Note:
-            Scripts with associated tasks cannot be deleted.
-            The tasks will be cascade deleted.
-
         Args:
             key: Script $key (ID).
+
+        Note:
+            Tasks associated with the script are cascade deleted.
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 

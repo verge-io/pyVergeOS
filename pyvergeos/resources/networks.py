@@ -272,7 +272,11 @@ class Network(ResourceObject):
 
     @property
     def aliases(self) -> NetworkAliasManager:
-        """Access IP aliases for this network.
+        """Access router IP aliases for this network.
+
+        These are extra addresses on the network router, not firewall
+        rule aliases. ``alias:<name>`` in a rule resolves against
+        ``vnet_rule_aliases``, which this SDK does not manage yet.
 
         Returns:
             NetworkAliasManager for this network.

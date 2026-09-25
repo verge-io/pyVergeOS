@@ -6,7 +6,7 @@ This script demonstrates network management tasks:
 - Network power operations
 - Configuring DHCP host overrides
 - Creating and managing firewall rules
-- Managing IP aliases for firewall rules
+- Managing router IP aliases
 - Managing DNS zones and records
 - Network diagnostics and statistics
 
@@ -347,14 +347,18 @@ def firewall_rule_examples(client: VergeClient) -> None:
 
 
 # =============================================================================
-# IP ALIASES
+# ROUTER IP ALIASES
 # =============================================================================
 
 
 def ip_alias_examples(client: VergeClient) -> None:
-    """Demonstrate IP alias operations for firewall rules."""
+    """Demonstrate router IP alias operations.
+
+    These are extra addresses on the network router. They are not the named
+    values a firewall rule's alias:<name> reference resolves.
+    """
     print("\n" + "=" * 60)
-    print("IP ALIASES (for firewall rules)")
+    print("ROUTER IP ALIASES")
     print("=" * 60)
 
     # Get a network to work with
@@ -408,20 +412,11 @@ def ip_alias_examples(client: VergeClient) -> None:
     fetched_by_ip = network.aliases.get(ip="10.99.1.50")
     print(f"Found: {fetched_by_ip.hostname}")
 
-    # Show how to use alias in firewall rule
-    print("\n--- Using aliases in firewall rules ---")
-    print("""
-    # Create a rule using the alias
-    rule = network.rules.create(
-        name="Allow-SSH-Admins",
-        description="Allow SSH from admin workstations",
-        direction="incoming",
-        action="accept",
-        protocol="tcp",
-        source_ip="alias:example-admin-ws",  # Reference by alias name
-        destination_ports="22",
-    )
-    """)
+    # Router IP aliases are not firewall rule aliases
+    print("\n--- Not a firewall rule alias ---")
+    print("network.aliases creates extra router IPs (vnet_addresses, type ipalias).")
+    print("A firewall rule's alias:<name> looks up vnet_rule_aliases, which")
+    print("this SDK does not manage yet.")
 
     # Cleanup
     print("\n--- Cleanup test aliases ---")

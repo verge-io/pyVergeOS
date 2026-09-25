@@ -1,4 +1,10 @@
-"""Network IP alias resource manager."""
+"""Router IP alias resource manager.
+
+These are extra IP addresses on a network's router (``vnet_addresses`` rows
+with type ``ipalias``). They are not firewall rule aliases. A rule's
+``alias:<name>`` reference resolves against ``vnet_rule_aliases``, which this
+SDK does not manage yet.
+"""
 
 from __future__ import annotations
 
@@ -28,9 +34,12 @@ _ALIAS_COLUMNS = [
 
 
 class NetworkAlias(ResourceObject):
-    """Network IP alias resource object.
+    """Router IP alias on a network.
 
-    IP aliases can be referenced in firewall rules using alias:name syntax.
+    An extra IP address on the network router (a ``vnet_addresses`` row of
+    type ``ipalias``). This is not a firewall rule alias. ``alias:<name>``
+    in a rule resolves against ``vnet_rule_aliases``, which has no SDK
+    manager yet.
     """
 
     @property
@@ -87,10 +96,13 @@ ALIAS_DEFAULT_FIELDS = [
 
 
 class NetworkAliasManager(ResourceManager[NetworkAlias]):
-    """Manager for Network IP alias operations.
+    """Manager for router IP aliases on a network.
 
-    This manager is accessed through a Network object's aliases property.
-    IP aliases are used in firewall rules to reference groups of IP addresses.
+    Accessed through a Network object's aliases property. Each alias is an
+    extra IP on that network's router (``vnet_addresses`` with type
+    ``ipalias``), not a named value for firewall rules. ``alias:<name>`` in
+    a rule looks up ``vnet_rule_aliases``. This SDK has no ``rule_aliases``
+    manager yet.
 
     Examples:
         List all aliases for a network::
@@ -257,11 +269,15 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
         name: str,
         description: str = "",
     ) -> NetworkAlias:
-        """Create a new IP alias.
+        """Create a router IP alias on this network.
+
+        The alias is an extra address on the network router. ``name`` is
+        stored as the hostname. It is not a firewall rule alias, so a rule
+        cannot refer to it with ``alias:<name>``.
 
         Args:
             ip: IP address for the alias. Can be a single IP or CIDR notation.
-            name: Name/hostname for the alias (used in firewall rules as alias:name).
+            name: Hostname stored on the alias.
             description: Optional description.
 
         Returns:
@@ -294,13 +310,9 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
         return self.get(int(key))
 
     def delete(self, key: int) -> None:
-        """Delete an IP alias.
+        """Delete a router IP alias.
 
         Args:
             key: Alias $key (ID).
-
-        Note:
-            Aliases referenced by firewall rules cannot be deleted
-            until the rules are removed.
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
