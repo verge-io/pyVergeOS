@@ -1044,6 +1044,13 @@ class TestNASVolumeManagerDelete:
         assert delete_call[0][0] == "DELETE"
         assert "8f73f8bcc9c9f1aaba32f733bfc295acaf548554" in delete_call[0][1]
 
+    def test_delete_documents_online_drive(self, nas_volume_manager):
+        """Callers must disable a mounted volume and retry delete."""
+        doc = nas_volume_manager.delete.__doc__ or ""
+        assert "Unable to delete online drive" in doc
+        assert "disable(key)" in doc
+        assert "retry" in doc
+
 
 class TestNASVolumeManagerEnableDisable:
     """Tests for enable/disable operations."""

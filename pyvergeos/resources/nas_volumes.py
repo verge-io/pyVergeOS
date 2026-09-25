@@ -80,7 +80,11 @@ class NASVolume(ResourceObject):
         return cast("NASVolume", self._save(**kwargs))
 
     def delete(self) -> None:
-        """Delete this volume."""
+        """Delete this volume.
+
+        A mounted volume cannot be deleted until it is disabled and its
+        drive is offline. See ``NASVolumeManager.delete``.
+        """
         from typing import cast
 
         manager = cast("NASVolumeManager", self._manager)
@@ -651,13 +655,23 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         This operation is destructive and cannot be undone. All data on
         the volume will be permanently deleted.
 
+        A mounted volume cannot be deleted. VergeOS returns an error
+        containing "Unable to delete online drive" until the volume is
+        disabled and the drive has gone offline. Call ``disable(key)``
+        (or ``update(key, enabled=False)``) first, then retry ``delete``
+        for a short time. Disabling the volume does not take the drive
+        offline immediately.
+
         Args:
             key: Volume $key (40-character hex string).
 
         Raises:
             NotFoundError: If volume not found.
+            APIError: If the volume is still online, or the API rejects
+                the delete.
 
         Example:
+            >>> client.nas_volumes.disable(vol.key)
             >>> client.nas_volumes.delete(vol.key)
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")

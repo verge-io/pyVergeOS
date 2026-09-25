@@ -17,6 +17,7 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_services import NASService
 from pyvergeos.resources.nas_volumes import NASVolume
+from tests.integration.live_support import destroy_volume
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
@@ -55,8 +56,9 @@ def cleanup_volumes(client: VergeClient):
             for snap in snap_mgr.list():
                 with contextlib.suppress(NotFoundError):
                     snap_mgr.delete(snap.key)
-            # Then delete the volume
-            client.nas_volumes.delete(key)
+            # Disable first: a volume that lived long enough to mount
+            # cannot be deleted while its drive is still online.
+            destroy_volume(client, key)
         except NotFoundError:
             pass  # Already deleted
 

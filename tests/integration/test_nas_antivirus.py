@@ -13,13 +13,14 @@ service.antivirus.
 
 VergeOS creates the volume antivirus row with the volume. These tests
 read that row, update it, and restore the original settings. They do
-not delete the platform row. The disposable volume is deleted afterwards
-so a shared ``pstest-antivirus`` volume is not left on the lab.
+not delete the platform row. The disposable volume is disabled and then
+deleted, because a mounted volume cannot be removed while its drive is
+still online. Leftover ``pstest-antivirus`` and ``pstest-av-*`` volumes
+from earlier runs are removed first.
 """
 
 from __future__ import annotations
 
-import contextlib
 import secrets
 import time
 from collections.abc import Generator
@@ -40,6 +41,10 @@ from pyvergeos.resources.nas_antivirus import (
 )
 from pyvergeos.resources.nas_services import NASService
 from pyvergeos.resources.nas_volumes import NASVolume
+from tests.integration.live_support import (
+    destroy_leftover_antivirus_volumes,
+    destroy_volume,
+)
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
@@ -67,9 +72,11 @@ def test_service(client: VergeClient) -> NASService:
 def test_volume(client: VergeClient, test_service: NASService) -> Generator[NASVolume, None, None]:
     """Create a disposable NAS volume and delete it afterwards.
 
-    VergeOS creates the antivirus row with the volume. Reusing a shared
-    ``pstest-antivirus`` volume left that volume on the lab.
+    The volume is disabled before delete. A mounted volume stays online
+    briefly after disable, so delete is retried. Earlier
+    ``pstest-antivirus`` and ``pstest-av-*`` leftovers are removed first.
     """
+    destroy_leftover_antivirus_volumes(client)
     vol = client.nas_volumes.create(
         name=f"pstest-av-{secrets.token_hex(4)}",
         service=test_service.key,
@@ -79,8 +86,7 @@ def test_volume(client: VergeClient, test_service: NASService) -> Generator[NASV
     try:
         yield vol
     finally:
-        with contextlib.suppress(NotFoundError):
-            client.nas_volumes.delete(vol.key)
+        destroy_volume(client, vol)
 
 
 def _wait_for_volume_antivirus(volume: NASVolume, timeout: float = 15) -> VolumeAntivirus:
