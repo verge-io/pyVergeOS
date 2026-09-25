@@ -9,9 +9,54 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import APIError, NotFoundError
 from pyvergeos.resources.snapshots import VMSnapshot, VMSnapshotManager
 from pyvergeos.resources.vms import VM
+
+
+def _json_response(payload: Any) -> MagicMock:
+    """HTTP 200 whose body is ``payload``."""
+    response = MagicMock()
+    response.status_code = 200
+    response.text = "{}"
+    response.json.return_value = payload
+    return response
+
+
+def _empty_response() -> MagicMock:
+    """HTTP 200 with an empty body. The client returns None."""
+    response = MagicMock()
+    response.status_code = 200
+    response.text = ""
+    return response
+
+
+def _error_response(message: str, status: int = 500) -> MagicMock:
+    response = MagicMock()
+    response.status_code = status
+    response.text = message
+    response.json.return_value = {"err": message}
+    return response
+
+
+def _action_posts(mock_session: MagicMock) -> list[dict[str, Any]]:
+    return [
+        call.kwargs.get("json", {})
+        for call in mock_session.request.call_args_list
+        if isinstance(call.kwargs.get("json"), dict) and call.kwargs["json"].get("action")
+    ]
+
+
+# machine is included so a scoped get() (#168) still accepts this row.
+_SNAPSHOT_ROW: dict[str, Any] = {
+    "$key": 1,
+    "name": "Daily_20240101",
+    "snap_machine": 999,
+    "machine": 200,
+}
+_SNAP_VMS: list[dict[str, Any]] = [
+    {"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}
+]
 
 
 class TestVMSnapshotManager:
@@ -292,6 +337,160 @@ class TestVMSnapshotManager:
         ]
         assert actions == []
 
+    def test_restore_clone_power_on_reads_response_vmkey(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """Clone power-on uses response.vmkey, which is what VergeOS returns (#172)."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _json_response(
+                {
+                    "response": {
+                        "vmkey": "52",
+                        "machinekey": "68",
+                        "machinestatuskey": "75",
+                        "clusterkey": "1",
+                    }
+                }
+            ),
+            _json_response({}),
+        ]
+
+        with patch("time.sleep") as sleep:
+            result = vm.snapshots.restore(1, name="qa-p-clone2", power_on=True)
+
+        assert result is not None
+        assert result["response"]["vmkey"] == "52"
+        sleep.assert_called_once_with(2)
+        posts = _action_posts(mock_session)
+        assert posts[0]["action"] == "clone"
+        assert posts[0]["vm"] == 888
+        assert posts[0]["params"]["name"] == "qa-p-clone2"
+        assert posts[1] == {"vm": 52, "action": "poweron"}
+
+    def test_restore_clone_power_on_prefers_vmkey_over_dollar_key(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """response.vmkey wins when a top-level $key is also present."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _json_response({"$key": 77, "response": {"vmkey": "52"}}),
+            _json_response({}),
+        ]
+
+        with patch("time.sleep"):
+            vm.snapshots.restore(1, power_on=True)
+
+        posts = _action_posts(mock_session)
+        assert posts[1] == {"vm": 52, "action": "poweron"}
+
+    def test_restore_clone_power_on_falls_back_to_key(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """A top-level key is used when response.vmkey and $key are absent."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _json_response({"key": 77, "name": "restored"}),
+            _json_response({}),
+        ]
+
+        with patch("time.sleep"):
+            vm.snapshots.restore(1, power_on=True)
+
+        posts = _action_posts(mock_session)
+        assert posts[1] == {"vm": 77, "action": "poweron"}
+
+    def test_restore_clone_power_on_missing_key_raises(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """power_on does not silently skip when the clone body has no VM key."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _empty_response(),
+        ]
+
+        with pytest.raises(ValueError, match="VM key"):
+            vm.snapshots.restore(1, power_on=True)
+
+        posts = _action_posts(mock_session)
+        assert [post["action"] for post in posts] == ["clone"]
+
+    def test_restore_clone_power_on_post_failure_raises(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """A failed power-on POST is raised, not swallowed (#172)."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _json_response({"response": {"vmkey": "52", "machinekey": "68"}}),
+            _error_response("power on failed"),
+        ]
+
+        with patch("time.sleep"), pytest.raises(APIError, match="power on failed"):
+            vm.snapshots.restore(1, power_on=True)
+
+        posts = _action_posts(mock_session)
+        assert posts[0]["action"] == "clone"
+        assert posts[1] == {"vm": 52, "action": "poweron"}
+
+    def test_restore_inplace_power_on_empty_body(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """In-place power_on posts poweron for this VM when restore returns nothing (#172)."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _empty_response(),
+            _json_response({}),
+        ]
+
+        with patch("time.sleep") as sleep:
+            result = vm.snapshots.restore(1, replace_original=True, power_on=True)
+
+        assert result is None
+        sleep.assert_called_once_with(2)
+        posts = _action_posts(mock_session)
+        assert posts[0] == {"vm": 888, "action": "restore"}
+        assert posts[1] == {"vm": vm.key, "action": "poweron"}
+
+    def test_restore_inplace_without_power_on_skips_poweron(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """An empty in-place restore does not power on unless asked."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _empty_response(),
+        ]
+
+        result = vm.snapshots.restore(1, replace_original=True, power_on=False)
+
+        assert result is None
+        posts = _action_posts(mock_session)
+        assert posts == [{"vm": 888, "action": "restore"}]
+
+    def test_restore_inplace_power_on_post_failure_raises(
+        self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
+    ) -> None:
+        """A failed in-place power-on POST is raised, not swallowed (#172)."""
+        mock_session.request.side_effect = [
+            _json_response(_SNAPSHOT_ROW),
+            _json_response(_SNAP_VMS),
+            _empty_response(),
+            _error_response("power on failed"),
+        ]
+
+        with patch("time.sleep"), pytest.raises(APIError, match="power on failed"):
+            vm.snapshots.restore(1, replace_original=True, power_on=True)
+
+        posts = _action_posts(mock_session)
+        assert posts[0] == {"vm": 888, "action": "restore"}
+        assert posts[1] == {"vm": vm.key, "action": "poweron"}
+
 
 class TestVMSnapshot:
     """Unit tests for VMSnapshot object."""
@@ -451,3 +650,48 @@ class TestVMSnapshot:
         assert posts[0]["vm"] == 888  # snapshot VM key, not machine key 999
         assert posts[0]["params"]["name"] == "My Restored VM"
         assert posts[1] == {"vm": 101, "action": "poweron"}
+
+    def test_restore_method_power_on_reads_response_vmkey(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        snapshot_data: dict[str, Any],
+    ) -> None:
+        """Object restore delegates and powers on response.vmkey (#172)."""
+        vm = VM(
+            {"$key": 100, "name": "test-vm", "machine": 200, "running": False},
+            mock_client.vms,
+        )
+        manager = VMSnapshotManager(mock_client, vm)
+        snapshot = VMSnapshot(snapshot_data, manager)
+
+        mock_session.request.side_effect = [
+            _json_response(snapshot_data),
+            _json_response(
+                [
+                    {"$key": 999, "name": "unrelated", "machine": 50, "is_snapshot": False},
+                    {"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True},
+                ]
+            ),
+            _json_response(
+                {
+                    "response": {
+                        "vmkey": "52",
+                        "machinekey": "68",
+                        "machinestatuskey": "75",
+                        "clusterkey": "1",
+                    }
+                }
+            ),
+            _json_response({}),
+        ]
+
+        with patch("time.sleep"):
+            result = snapshot.restore(name="qa-p-clone2", power_on=True)
+
+        assert result is not None
+        assert result["response"]["vmkey"] == "52"
+        posts = _action_posts(mock_session)
+        assert posts[0]["action"] == "clone"
+        assert posts[0]["vm"] == 888
+        assert posts[1] == {"vm": 52, "action": "poweron"}

@@ -21,6 +21,28 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _clone_restore_vm_key(result: Any) -> int:
+    """Return the new VM key from a clone-restore response.
+
+    VergeOS returns ``{"response": {"vmkey": "52", ...}}``. ``$key`` and
+    ``key`` stay as fallbacks for payloads that put the key at the top level.
+    """
+    raw: Any = None
+    if isinstance(result, dict):
+        response = result.get("response")
+        if isinstance(response, dict):
+            raw = response.get("vmkey")
+        if not raw:
+            raw = result.get("$key") or result.get("key")
+    if isinstance(raw, bool) or not raw:
+        raise ValueError("Clone restore did not return a VM key to power on")
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Clone restore did not return a VM key to power on") from exc
+
+
 # Default fields for snapshots
 SNAPSHOT_DEFAULT_FIELDS = [
     "$key",
@@ -95,9 +117,13 @@ class VMSnapshot(ResourceObject):
             Clone task information.
 
         Raises:
-            ValueError: If the snapshot has no snap_machine, or no snapshot
-                VM exists for that machine.
-            NotFoundError: If this snapshot key no longer exists.
+            ValueError: If the snapshot has no snap_machine, no snapshot VM
+                exists for that machine, or ``power_on`` is set and the clone
+                response has no VM key.
+            NotFoundError: If this snapshot key no longer exists or belongs
+                to another VM.
+            APIError: If the clone or power-on request fails. The power-on
+                error is not swallowed.
 
         Notes:
             Delegates to ``VMSnapshotManager.restore`` so the snap_machine
@@ -316,10 +342,16 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             power_on: Power on VM after restoration.
 
         Returns:
-            Restore task information.
+            Restore task information. An in-place restore often returns None
+            because the action body is empty.
 
         Raises:
+            ValueError: If the snapshot has no snap_machine, no snapshot VM
+                exists, the VM is running for an in-place restore, or
+                ``power_on`` is set and a clone response has no VM key.
             NotFoundError: If the snapshot does not exist or belongs to another VM.
+            APIError: If the restore or power-on request fails. The power-on
+                error is not swallowed.
         """
         # get() already fetched the row, and it rejects another VM's snapshot
         # before the snap_machine lookup or any vm_actions post (#168).
@@ -378,15 +410,10 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
             result = self._client._request("POST", "vm_actions", json_data=body)
 
-            if power_on and result:
-                import time
-
-                time.sleep(2)
-                self._client._request(
-                    "POST",
-                    "vm_actions",
-                    json_data={"vm": self._vm.key, "action": "poweron"},
-                )
+            # The restore action returns an empty body, so result is None.
+            # Power on the original VM whenever requested (#172).
+            if power_on:
+                self._power_on_vm(self._vm.key)
 
             return result if isinstance(result, dict) else None
         else:
@@ -401,16 +428,23 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
             result = self._client._request("POST", "vm_actions", json_data=body)
 
-            if power_on and result and isinstance(result, dict):
-                new_vm_key = result.get("$key") or result.get("key")
-                if new_vm_key:
-                    import time
-
-                    time.sleep(2)
-                    self._client._request(
-                        "POST",
-                        "vm_actions",
-                        json_data={"vm": new_vm_key, "action": "poweron"},
-                    )
+            if power_on:
+                # Platform shape is {"response": {"vmkey": "..."}}; $key / key
+                # remain fallbacks. A failed power-on POST propagates (#172).
+                self._power_on_vm(_clone_restore_vm_key(result))
 
             return result if isinstance(result, dict) else None
+
+    def _power_on_vm(self, vm_key: int) -> None:
+        """Power on a VM after restore.
+
+        The POST is not caught: an API error reaches the caller.
+        """
+        import time
+
+        time.sleep(2)
+        self._client._request(
+            "POST",
+            "vm_actions",
+            json_data={"vm": vm_key, "action": "poweron"},
+        )
