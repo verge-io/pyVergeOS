@@ -136,10 +136,10 @@ class Device(ResourceObject):
         return bool(self.get("optional", False))
 
     @property
-    def resource_group_key(self) -> int | None:
-        """Associated resource group key."""
+    def resource_group_key(self) -> str | None:
+        """Associated resource group key (UUID)."""
         rg = self.get("resource_group")
-        return int(rg) if rg else None
+        return str(rg) if rg else None
 
     resource_group_name = Projected[str](
         "resource_group#name as resource_group_name",

@@ -800,10 +800,11 @@ class TestResourceRuleManager:
 
     def test_list_rules(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test listing resource rules."""
+        rg_uuid = "24122fab-e8fa-c4a5-dcf5-b52bf1efa474"
         mock_session.request.return_value.json.return_value = [
             {
                 "$key": 1,
-                "resource_group": 10,
+                "resource_group": rg_uuid,
                 "resource_group_display": "GPU Pool",
                 "name": "Intel GPUs",
                 "enabled": True,
@@ -819,6 +820,7 @@ class TestResourceRuleManager:
         assert rules[0].name == "Intel GPUs"
         assert rules[0].filter_expression == "vendor ct 'Intel'"
         assert rules[0].resource_count == 2
+        assert rules[0].resource_group_key == rg_uuid
 
     def test_list_rules_scoped_to_group(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -956,9 +958,10 @@ class TestResourceRuleModel:
         """Test ResourceRule property accessors."""
         from pyvergeos.resources.resource_groups import ResourceRule, ResourceRuleManager
 
+        rg_uuid = "24122fab-e8fa-c4a5-dcf5-b52bf1efa474"
         data = {
             "$key": 1,
-            "resource_group": 10,
+            "resource_group": rg_uuid,
             "resource_group_display": "GPU Pool",
             "name": "Intel Rule",
             "enabled": True,
@@ -976,7 +979,7 @@ class TestResourceRuleModel:
         rule = ResourceRule(data, manager)
 
         assert rule.key == 1
-        assert rule.resource_group_key == 10
+        assert rule.resource_group_key == rg_uuid
         assert rule.resource_group_name == "GPU Pool"
         assert rule.name == "Intel Rule"
         assert rule.is_enabled is True
@@ -1003,6 +1006,8 @@ class TestResourceRuleModel:
         }
         manager = ResourceRuleManager(mock_client)
         rule = ResourceRule(data, manager)
+
+        assert rule.resource_group_key is None
 
         repr_str = repr(rule)
         assert "ResourceRule" in repr_str

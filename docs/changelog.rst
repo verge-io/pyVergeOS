@@ -12,6 +12,11 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``ResourceRule.resource_group_key`` and ``Device.resource_group_key``
+  return the resource group UUID as ``str | None``. Both properties
+  called ``int()`` on the reference, which raised ``ValueError`` for
+  every real rule because resource groups are keyed by UUID. (#151)
+
 - ``SnapshotProfilePeriodManager.create()``, ``update()`` /
   ``save()``, and ``SnapshotProfile.add_period()`` no longer accept
   ``skip_missed``. ``snapshot_profile_periods`` has no such column;
