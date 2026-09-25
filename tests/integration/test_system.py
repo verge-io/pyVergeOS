@@ -329,10 +329,17 @@ def _delete_new_license_requests(client: VergeClient, before: set[int]) -> None:
             client.files.delete(key)
 
 
-def _is_catalog_file_reference(payload: str) -> bool:
+def _is_catalog_file_reference(payload: str | bytes) -> bool:
     """True when ``payload`` is the platform's file-reference JSON."""
+    if isinstance(payload, bytes):
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError:
+            return False
+    else:
+        text = payload
     try:
-        data = json.loads(payload)
+        data = json.loads(text)
     except json.JSONDecodeError:
         return False
     if not isinstance(data, dict):
@@ -350,7 +357,7 @@ def _is_catalog_file_reference(payload: str) -> bool:
 
 def _generate_or_skip(
     client: VergeClient, before: set[int], *, delete_catalog_file: bool = True
-) -> str:
+) -> bytes:
     """Generate a payload, skipping only when the platform refuses the action.
 
     A failure after a new ``.lrq`` has been created is a real error: the
@@ -384,8 +391,9 @@ class TestLicenseExtendedIntegration:
             catalog = live_client.files.get(file_key)
             assert catalog.name.endswith(".lrq")
             raw = live_client.files.get_content(file_key, filename=catalog.name, as_bytes=True)
+            assert isinstance(kept, bytes)
             assert isinstance(raw, bytes)
-            assert kept.encode("utf-8") == raw
+            assert kept == raw
             assert catalog.size_bytes == len(raw)
             assert len(raw) > 1000
             assert not _is_catalog_file_reference(kept)
@@ -394,8 +402,8 @@ class TestLicenseExtendedIntegration:
 
         try:
             payload = _generate_or_skip(live_client, before)
-            assert isinstance(payload, str)
-            assert len(payload.encode("utf-8")) > 1000
+            assert isinstance(payload, bytes)
+            assert len(payload) > 1000
             assert not _is_catalog_file_reference(payload)
             assert _license_request_keys(live_client) - before == set()
         finally:

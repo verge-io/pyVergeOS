@@ -977,6 +977,15 @@ def _bytes_http(payload: bytes) -> MagicMock:
     return response
 
 
+# Prefix observed on VergeOS lab .lrq files. 0x8A is not a valid UTF-8 start byte.
+_LRQ_PREFIX = bytes.fromhex("8a3a0000")
+
+
+def _binary_lrq(suffix: bytes = b"") -> bytes:
+    """Build a non-UTF-8 license request body like a lab catalog ``.lrq``."""
+    return _LRQ_PREFIX + suffix
+
+
 def _empty_http() -> MagicMock:
     """Mock an empty success response."""
     response = MagicMock()
@@ -1002,7 +1011,7 @@ class TestLicenseManagerExtended:
 
         payload = mock_client.system.licenses.generate_payload()
 
-        assert payload == "BASE64_ENCODED_PAYLOAD_DATA"
+        assert payload == b"BASE64_ENCODED_PAYLOAD_DATA"
         # Verify correct endpoint was called
         call_args = mock_session.request.call_args
         assert "license_actions" in str(call_args)
@@ -1018,9 +1027,10 @@ class TestLicenseManagerExtended:
 
         payload = mock_client.system.licenses.generate_payload()
 
-        # Should return JSON-serialized response
-        assert "system_id" in payload
-        assert "12345" in payload
+        # Should return JSON-serialized response as bytes
+        assert isinstance(payload, bytes)
+        assert b"system_id" in payload
+        assert b"12345" in payload
 
     def test_generate_payload_no_response(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -1034,8 +1044,8 @@ class TestLicenseManagerExtended:
     def test_generate_payload_reads_catalog_file(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
-        """Download the .lrq named by the platform file reference and delete it."""
-        request_body = b"LICENSE-REQUEST\n" + b"fingerprint-bytes-" * 40
+        """Download the binary .lrq named by the platform file reference and delete it."""
+        request_body = _binary_lrq(b"fingerprint-bytes-" * 40)
         filename = "license-request-20260925-141117.lrq"
         reference = {
             "response": {
@@ -1063,8 +1073,8 @@ class TestLicenseManagerExtended:
 
         payload = mock_client.system.licenses.generate_payload()
 
-        assert payload == request_body.decode("utf-8")
-        assert "filekey" not in payload
+        assert payload == request_body
+        assert b"filekey" not in payload
         assert len(payload) > 155
         assert _called_methods(mock_session) == ["POST", "GET", "DELETE"]
 
@@ -1072,7 +1082,7 @@ class TestLicenseManagerExtended:
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """A filekey at the top level is downloaded the same way."""
-        request_body = b"TOP-LEVEL-LICENSE-REQUEST"
+        request_body = _binary_lrq(b"TOP-LEVEL-LICENSE-REQUEST")
         reference = {"filekey": 76, "filename": "request.lrq", "filesize": len(request_body)}
         mock_session.request.reset_mock()
 
@@ -1090,13 +1100,13 @@ class TestLicenseManagerExtended:
 
         payload = mock_client.system.licenses.generate_payload()
 
-        assert payload == "TOP-LEVEL-LICENSE-REQUEST"
+        assert payload == request_body
 
     def test_generate_payload_string_filekey(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """``filekey`` may be the bare key as a string."""
-        request_body = b"STRING-KEY-REQUEST"
+        request_body = _binary_lrq(b"STRING-KEY-REQUEST")
         mock_session.request.reset_mock()
 
         def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
@@ -1110,13 +1120,13 @@ class TestLicenseManagerExtended:
 
         mock_session.request.side_effect = fake_request
 
-        assert mock_client.system.licenses.generate_payload() == "STRING-KEY-REQUEST"
+        assert mock_client.system.licenses.generate_payload() == request_body
 
     def test_generate_payload_keeps_catalog_file(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
-        """delete_catalog_file=False reads the .lrq and leaves the catalog row."""
-        request_body = b"KEEP-CATALOG-FILE"
+        """delete_catalog_file=False reads the binary .lrq and leaves the catalog row."""
+        request_body = _binary_lrq(b"KEEP-CATALOG-FILE")
         mock_session.request.reset_mock()
 
         def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
@@ -1130,7 +1140,7 @@ class TestLicenseManagerExtended:
 
         payload = mock_client.system.licenses.generate_payload(delete_catalog_file=False)
 
-        assert payload == "KEEP-CATALOG-FILE"
+        assert payload == request_body
         assert _called_methods(mock_session) == ["POST", "GET"]
 
     def test_generate_payload_unreadable_filekey(
@@ -1165,29 +1175,34 @@ class TestLicenseManagerExtended:
         with pytest.raises(APIError, match="empty"):
             mock_client.system.licenses.generate_payload()
 
-    def test_generate_payload_non_utf8_leaves_catalog_file(
+    def test_generate_payload_binary_catalog_file_is_deleted(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
-        """Binary catalog contents are rejected and the file is left in place."""
+        """A non-UTF-8 .lrq is returned as bytes and the catalog copy is deleted."""
+        request_body = bytes.fromhex("8a3a0000") + b"\xff\xfe\x00\x01"
         mock_session.request.reset_mock()
 
         def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
             if method == "POST":
                 return _json_http({"response": {"filekey": "files/76", "filename": "bin.lrq"}})
             if method == "GET":
-                return _bytes_http(b"\xff\xfe not utf-8")
+                return _bytes_http(request_body)
+            if method == "DELETE" and url.endswith("/files/76"):
+                return _empty_http()
             raise AssertionError(method)
 
         mock_session.request.side_effect = fake_request
 
-        with pytest.raises(APIError, match="not UTF-8"):
-            mock_client.system.licenses.generate_payload()
+        payload = mock_client.system.licenses.generate_payload()
+
+        assert payload == request_body
+        assert _called_methods(mock_session) == ["POST", "GET", "DELETE"]
 
     def test_generate_payload_delete_failure_still_returns_request(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """A failed catalog delete does not discard the request that was read."""
-        request_body = b"REQUEST-AFTER-DELETE-FAILURE"
+        request_body = _binary_lrq(b"REQUEST-AFTER-DELETE-FAILURE")
         mock_session.request.reset_mock()
 
         def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
@@ -1207,22 +1222,22 @@ class TestLicenseManagerExtended:
 
         payload = mock_client.system.licenses.generate_payload()
 
-        assert payload == "REQUEST-AFTER-DELETE-FAILURE"
+        assert payload == request_body
 
     def test_generate_payload_non_dict_response(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
-        """A bare string body is returned as text."""
+        """A bare string body is returned as UTF-8 bytes."""
         mock_session.request.return_value.json.return_value = "RAW-REQUEST"
         mock_session.request.return_value.text = '"RAW-REQUEST"'
 
-        assert mock_client.system.licenses.generate_payload() == "RAW-REQUEST"
+        assert mock_client.system.licenses.generate_payload() == b"RAW-REQUEST"
 
     def test_generate_payload_outer_filekey_when_nested_lacks_it(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """A top-level filekey is used when the nested response has none."""
-        request_body = b"OUTER-FILEKEY"
+        request_body = _binary_lrq(b"OUTER-FILEKEY")
         mock_session.request.reset_mock()
 
         def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
@@ -1242,13 +1257,13 @@ class TestLicenseManagerExtended:
 
         mock_session.request.side_effect = fake_request
 
-        assert mock_client.system.licenses.generate_payload() == "OUTER-FILEKEY"
+        assert mock_client.system.licenses.generate_payload() == request_body
 
     def test_generate_payload_without_filename(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         """A reference with only filekey still downloads that catalog file."""
-        request_body = b"NO-FILENAME"
+        request_body = _binary_lrq(b"NO-FILENAME")
         mock_session.request.reset_mock()
 
         def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
@@ -1266,7 +1281,7 @@ class TestLicenseManagerExtended:
 
         mock_session.request.side_effect = fake_request
 
-        assert mock_client.system.licenses.generate_payload() == "NO-FILENAME"
+        assert mock_client.system.licenses.generate_payload() == request_body
 
     def test_generate_payload_rejects_bool_and_zero_filekey(
         self, mock_client: VergeClient, mock_session: MagicMock
