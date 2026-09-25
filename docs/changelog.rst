@@ -6,6 +6,29 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.7.1] - 2026-09-24
+--------------------
+
+Fixed
+^^^^^
+
+- ``VMSnapshotManager.create(retention=0)`` now sends ``expires: 0`` so the
+  platform stores a never-expiring snapshot. Omitting ``expires`` previously
+  let VergeOS default to +72 hours, contradicting the documented "use 0 for
+  never expires" behaviour (and ``VMSnapshot.never_expires``, which already
+  treated ``expires == 0`` as never). Measured on VergeOS 26.1.8. (#146)
+
+- ``VMSnapshotManager.create()`` rejects a negative ``retention`` (and
+  ``None``) instead of storing ``expires: 0``. Omitting ``retention`` still
+  defaults to 24 hours. (#146)
+
+- ``VMSnapshot.restore()`` now delegates to ``VMSnapshotManager.restore()``,
+  which resolves ``snap_machine`` (a machine key) to the snapshot VM before
+  posting to ``vm_actions``. The object method previously posted the machine
+  key as a VM key, which raised ``NotFoundError`` and could clone the wrong
+  VM if keys later collided. (#147)
+
+
 [1.7.0] - 2026-09-24
 --------------------
 
