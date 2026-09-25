@@ -12,6 +12,12 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``VMSnapshotManager``, ``DriveManager``, and ``NICManager`` require the
+  row's ``machine`` to equal the VM in ``get(key)``. ``update(key)``,
+  ``delete(key)``, and ``VMSnapshotManager.restore(key)`` use that check
+  and raise ``NotFoundError`` when the key belongs to another VM, before
+  sending a write. ``list()`` was already filtered by machine. (#168)
+
 - ``NetworkAlias``, ``NetworkAliasManager``, and
   ``NetworkAliasManager.create()`` describe router IP aliases
   (``vnet_addresses`` rows with ``type: ipalias``): extra addresses on

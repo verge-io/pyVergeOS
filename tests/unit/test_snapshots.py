@@ -82,6 +82,7 @@ class TestVMSnapshotManager:
             "$key": 1,
             "name": "Daily_20240101",
             "created": 1704067200,
+            "machine": 200,
         }
 
         snapshot = vm.snapshots.get(1)
@@ -186,9 +187,11 @@ class TestVMSnapshotManager:
     def test_delete_snapshot(
         self, mock_client: VergeClient, mock_session: MagicMock, vm: VM
     ) -> None:
-        """Test deleting a snapshot."""
-        mock_session.request.return_value.status_code = 204
-        mock_session.request.return_value.text = ""
+        """Test deleting a snapshot that belongs to this VM."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "machine": 200,
+        }
 
         vm.snapshots.delete(1)
 
@@ -206,6 +209,7 @@ class TestVMSnapshotManager:
                 "$key": 1,
                 "name": "Daily_20240101",
                 "snap_machine": 999,
+                "machine": 200,
             },
             # Second call: find snapshot VM by machine key
             [{"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}],
@@ -226,7 +230,7 @@ class TestVMSnapshotManager:
     ) -> None:
         """Test restoring snapshot with custom name."""
         mock_session.request.return_value.json.side_effect = [
-            {"$key": 1, "name": "Daily", "snap_machine": 999},
+            {"$key": 1, "name": "Daily", "snap_machine": 999, "machine": 200},
             # Second call: find snapshot VM by machine key
             [{"$key": 888, "name": "snap_vm", "machine": 999, "is_snapshot": True}],
             {"$key": 102, "name": "CustomName"},
@@ -243,7 +247,7 @@ class TestVMSnapshotManager:
     ) -> None:
         """Clone the snapshot VM, not a VM whose $key equals snap_machine (#147)."""
         mock_session.request.return_value.json.side_effect = [
-            {"$key": 1, "name": "Daily", "snap_machine": 999},
+            {"$key": 1, "name": "Daily", "snap_machine": 999, "machine": 200},
             [
                 # Snapshot of a different machine must not win just by order.
                 {"$key": 777, "name": "other-snap", "machine": 1, "is_snapshot": True},
@@ -274,7 +278,7 @@ class TestVMSnapshotManager:
     ) -> None:
         """Do not fall back to posting snap_machine as a VM key (#147)."""
         mock_session.request.return_value.json.side_effect = [
-            {"$key": 1, "name": "Daily", "snap_machine": 999},
+            {"$key": 1, "name": "Daily", "snap_machine": 999, "machine": 200},
             [],
         ]
 

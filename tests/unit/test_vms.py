@@ -857,7 +857,7 @@ class TestVMEnhancedActions:
         # create POST, create GET, then the hotplug action
         mock_session.request.return_value.json.side_effect = [
             {"$key": drive_key, "name": "data-drive", "disksize": size},
-            {"$key": drive_key, "name": "data-drive", "disksize": size},
+            {"$key": drive_key, "name": "data-drive", "disksize": size, "machine": 200},
             {"task": 555},
         ]
         vm = VM(vm_data, mock_client.vms)
@@ -925,7 +925,7 @@ class TestVMEnhancedActions:
         # create POST, create GET, then the hotplug action
         mock_session.request.return_value.json.side_effect = [
             {"$key": nic_key, "name": "nic_1", "vnet": 10, "interface": "virtio"},
-            {"$key": nic_key, "name": "nic_1", "vnet": 10, "interface": "virtio"},
+            {"$key": nic_key, "name": "nic_1", "vnet": 10, "interface": "virtio", "machine": 200},
             {"task": 666},
         ]
         vm = VM(vm_data, mock_client.vms)

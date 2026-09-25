@@ -7,7 +7,13 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
+from pyvergeos.resources.base import (
+    Projected,
+    ResourceManager,
+    ResourceObject,
+    ensure_projection_field,
+    machine_key_matches,
+)
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -343,6 +349,10 @@ class NICManager(ResourceManager[NIC]):
     def _to_model(self, data: dict[str, Any]) -> NIC:
         return NIC(data, self)
 
+    def _ensure_in_scope(self, key: int) -> None:
+        """Fetch the NIC and reject one that belongs to another VM (#168)."""
+        self.get(key)
+
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
@@ -409,23 +419,26 @@ class NICManager(ResourceManager[NIC]):
             NIC object.
 
         Raises:
-            NotFoundError: If NIC not found.
+            NotFoundError: If the NIC does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         if fields is None:
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            from pyvergeos.exceptions import NotFoundError
+
+            # list() is filtered by machine; a key is not. Ask for machine even
+            # when the caller narrowed fields, then refuse another VM's row (#168).
+            selected = ensure_projection_field(fields, "machine", defaults=self._default_fields)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"NIC {key} not found")
             if not isinstance(response, dict):
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"NIC {key} returned invalid response")
+            if not machine_key_matches(response.get("machine"), self.machine_key):
+                raise NotFoundError(f"NIC {key} does not belong to machine {self.machine_key}")
             return self._to_model(response)
 
         if name is not None:
@@ -509,14 +522,18 @@ class NICManager(ResourceManager[NIC]):
         return self.get(nic.key)
 
     def delete(self, key: int) -> None:
-        """Delete a NIC.
+        """Delete a NIC belonging to this VM.
 
         Args:
             key: NIC $key (ID).
 
+        Raises:
+            NotFoundError: If the NIC does not exist or belongs to another VM.
+
         Note:
             VM should typically be powered off before removing NICs.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def update(self, key: int, **kwargs: Any) -> NIC:
@@ -528,7 +545,11 @@ class NICManager(ResourceManager[NIC]):
 
         Returns:
             Updated NIC object.
+
+        Raises:
+            NotFoundError: If the NIC does not exist or belongs to another VM.
         """
+        self._ensure_in_scope(key)
         kwargs = self._prepare_write_fields(kwargs)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
