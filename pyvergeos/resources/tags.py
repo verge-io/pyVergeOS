@@ -976,7 +976,8 @@ class TagCategory(ResourceObject):
         """Delete this category.
 
         Note:
-            Category must not contain any tags. Delete tags first.
+            Tags in the category and their tag_members are deleted with
+            it. The category does not have to be empty first.
         """
         from typing import cast
 
@@ -1365,7 +1366,8 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             key: Category $key (ID).
 
         Note:
-            The category must not contain any tags. Delete all tags first.
+            Tags in the category and their tag_members are deleted with
+            it. The category does not have to be empty first.
 
         Example:
             >>> client.tag_categories.delete(category.key)

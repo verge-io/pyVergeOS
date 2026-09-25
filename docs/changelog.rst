@@ -12,6 +12,11 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``TagCategory.delete()`` and ``TagCategoryManager.delete()`` no longer
+  say the category must be empty. ``DELETE tag_categories/<key>`` succeeds
+  when the category still holds tags and cascades, removing those tags and
+  their ``tag_members``. Measured on VergeOS 26.1.8. (#154)
+
 - ``ResourceRule.resource_group_key`` and ``Device.resource_group_key``
   return the resource group UUID as ``str | None``. Both properties
   called ``int()`` on ``resource_group``, which raised ``ValueError``

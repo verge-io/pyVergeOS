@@ -252,7 +252,8 @@ class TestTagCRUDIntegration:
 
         # Cleanup
         with contextlib.suppress(Exception):
-            # Delete any tags in the category first
+            # Remove tags explicitly. Category delete also cascades to
+            # remaining tags and their tag_members.
             for tag in live_client.tags.list(category_key=category.key):
                 with contextlib.suppress(Exception):
                     live_client.tags.delete(tag.key)
