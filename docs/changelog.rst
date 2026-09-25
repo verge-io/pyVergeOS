@@ -16,9 +16,9 @@ Fixed
   ``VMSnapshot.restore(power_on=True)`` power the restored VM on.
   Clone mode reads the new VM key from ``response.vmkey`` (VergeOS
   returns ``{"response": {"vmkey": "..."}}``) and still accepts
-  top-level ``$key`` or ``key``. In-place restore
+  top level ``$key`` or ``key``. In place restore
   (``replace_original=True``) powers on the original VM even when the
-  action body is empty. A failed power-on POST is raised instead of
+  action body is empty. A failed power on POST is raised instead of
   ignored. (#172)
 
 - ``VMSnapshotManager``, ``DriveManager``, and ``NICManager`` require the
