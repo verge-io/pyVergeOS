@@ -354,11 +354,11 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             List of VolumeAntivirus objects.
 
         Example:
-            >>> # List all antivirus configs
-            >>> configs = client.volume_antivirus.list()
+            >>> # List this volume's antivirus config
+            >>> configs = volume.antivirus.list()
 
             >>> # List enabled configs only
-            >>> enabled = client.volume_antivirus.list(enabled=True)
+            >>> enabled = volume.antivirus.list(enabled=True)
         """
         params: dict[str, Any] = {}
 
@@ -446,12 +446,12 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         Example:
             >>> # Get by key
-            >>> av = client.volume_antivirus.get(1)
+            >>> av = volume.antivirus.get(1)
 
             >>> # Get by volume name
-            >>> av = client.volume_antivirus.get(volume="FileShare")
+            >>> av = volume.antivirus.get(volume="FileShare")
 
-            >>> # Get from scoped manager
+            >>> # Get from the scoped manager
             >>> av = volume.antivirus.get()
         """
         if key is not None:
@@ -532,11 +532,11 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         Example:
             >>> # Create with defaults
-            >>> av = client.volume_antivirus.create(vol.key)
+            >>> av = volume.antivirus.create(volume.key)
 
             >>> # Create with custom settings
-            >>> av = client.volume_antivirus.create(
-            ...     vol.key,
+            >>> av = volume.antivirus.create(
+            ...     volume.key,
             ...     enabled=True,
             ...     on_access=True,
             ...     exclude="/temp\n/cache"
@@ -602,10 +602,10 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         Example:
             >>> # Enable on-access scanning
-            >>> av = client.volume_antivirus.update(1, on_access=True)
+            >>> av = volume.antivirus.update(1, on_access=True)
 
             >>> # Change quarantine location
-            >>> av = client.volume_antivirus.update(1, quarantine_location="/quarantine")
+            >>> av = volume.antivirus.update(1, quarantine_location="/quarantine")
         """
         body: dict[str, Any] = {}
 
@@ -646,7 +646,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             key: Antivirus config $key (ID).
 
         Example:
-            >>> client.volume_antivirus.delete(1)
+            >>> volume.antivirus.delete(1)
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
@@ -1170,9 +1170,9 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
                 )
             return self._to_model(response)
 
-        # Look up by service_key (unique constraint)
+        # Look up by service_key (unique constraint). list() applies the scope.
         if self._service_key is not None:
-            results = self.list(filter=f"service eq {self._service_key}", fields=None, limit=1)
+            results = self.list(fields=None, limit=1)
             if not results:
                 raise NotFoundError(
                     f"NAS service antivirus config not found for service {self._service_key}"
@@ -1191,6 +1191,10 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
     ) -> builtins.list[NasServiceAntivirus]:
         """List NAS service antivirus configurations.
 
+        When the manager is scoped to a NAS service, results are limited to
+        that service (``service eq <service_key>``). An unscoped manager
+        returns every service's config.
+
         Args:
             filter: OData filter string.
             fields: List of fields to return.
@@ -1200,6 +1204,9 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
 
         Returns:
             List of NasServiceAntivirus objects.
+
+        Example:
+            >>> configs = nas_service.antivirus.list()
         """
         params: dict[str, Any] = {}
 
@@ -1208,6 +1215,10 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
+
+        # Scope to this NAS service, as VolumeAntivirusManager does for volume.
+        if self._service_key is not None:
+            filters.append(f"service eq {self._service_key}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1256,7 +1267,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             Updated NasServiceAntivirus object.
 
         Example:
-            >>> svc_av = client.nas_service_antivirus.update(1, max_recursion=20)
+            >>> svc_av = nas_service.antivirus.update(1, max_recursion=20)
         """
         body: dict[str, Any] = {}
 

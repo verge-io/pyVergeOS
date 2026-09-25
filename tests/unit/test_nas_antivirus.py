@@ -494,6 +494,43 @@ class TestNasServiceAntivirusManager:
 
         assert isinstance(result, NasServiceAntivirus)
         assert result.key == 1
+        call_args = mock_client._request.call_args
+        assert call_args[0] == ("GET", "vm_service_antivirus")
+        assert call_args[1]["params"]["filter"] == "service eq 1"
+
+    def test_list_unscoped_omits_service_filter(self, mock_client, sample_service_antivirus):
+        """An unscoped manager lists every service's antivirus config."""
+        manager = NasServiceAntivirusManager(mock_client)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list()
+
+        assert len(result) == 1
+        call_args = mock_client._request.call_args
+        assert "filter" not in call_args[1]["params"]
+
+    def test_list_scoped_filters_by_service(self, mock_client, sample_service_antivirus):
+        """A scoped manager requests only that service's antivirus config."""
+        manager = NasServiceAntivirusManager(mock_client, service_key=2)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list()
+
+        assert len(result) == 1
+        call_args = mock_client._request.call_args
+        assert call_args[0] == ("GET", "vm_service_antivirus")
+        assert call_args[1]["params"]["filter"] == "service eq 2"
+
+    def test_list_scoped_combines_caller_filter(self, mock_client, sample_service_antivirus):
+        """Scope is applied even when the caller passes another filter."""
+        manager = NasServiceAntivirusManager(mock_client, service_key=2)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list(filter="enabled eq 1")
+
+        assert len(result) == 1
+        call_args = mock_client._request.call_args
+        assert call_args[1]["params"]["filter"] == "enabled eq 1 and service eq 2"
 
     def test_update(self, mock_client, sample_service_antivirus):
         """Test updating service antivirus config."""

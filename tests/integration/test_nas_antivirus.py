@@ -339,9 +339,10 @@ class TestNasServiceAntivirusIntegration:
         # Restore original value
         test_service.antivirus.update(key=svc_av.key, max_recursion=original_recursion)
 
-    def test_list_service_antivirus_configs(self, client: VergeClient) -> None:
-        """Test listing all service-level antivirus configurations."""
-        # List all configs
+    def test_list_service_antivirus_configs(
+        self, client: VergeClient, test_service: NASService
+    ) -> None:
+        """Unscoped list returns every service; scoped list stays on one."""
         configs = NasServiceAntivirusManager(client).list()
 
         assert isinstance(configs, list)
@@ -349,6 +350,10 @@ class TestNasServiceAntivirusIntegration:
             assert isinstance(config, NasServiceAntivirus)
             assert config.key is not None
             assert config.service_key is not None
+
+        scoped = test_service.antivirus.list()
+        assert scoped
+        assert all(config.service_key == test_service.key for config in scoped)
 
 
 class TestAntivirusIntegrationWorkflow:
