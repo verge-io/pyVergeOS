@@ -204,6 +204,18 @@ class TaskEventManager(ResourceManager[TaskEvent]):
     def _to_model(self, data: dict[str, Any]) -> TaskEvent:
         return TaskEvent(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Task event"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Bind to the task and owner when those keys are set (#188)."""
+        bindings: list[tuple[str, Any]] = []
+        if self._task_key is not None:
+            bindings.append(("task", self._task_key))
+        if self._owner_key is not None:
+            bindings.append(("owner", self._owner_key))
+        return bindings
+
     def list(
         self,
         filter: str | None = None,
@@ -319,17 +331,15 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         if key is None:
             raise ValueError("Key must be provided")
 
-        params: dict[str, Any] = {}
-        if fields:
-            params["fields"] = self._projection(fields)
-        else:
-            params["fields"] = self._projection(self._default_fields)
+        selected = fields if fields else self._default_fields
+        params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(selected))}
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"Task event {key} not found")
         if not isinstance(response, dict):
             raise NotFoundError(f"Task event {key} returned invalid response")
+        self._assert_row_in_scope(key, response)
         return self._to_model(response)
 
     def create(  # type: ignore[override]
@@ -419,6 +429,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         Returns:
             Updated TaskEvent object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if table_event_filters is not None:
@@ -440,6 +451,7 @@ class TaskEventManager(ResourceManager[TaskEvent]):
         Args:
             key: Event $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def trigger(

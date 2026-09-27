@@ -49,6 +49,7 @@ def sample_connection_data() -> dict[str, Any]:
     """Sample IPSec connection data from API."""
     return {
         "$key": 1,
+        "vnet": 3,
         "ipsec": 1,
         "enabled": True,
         "name": "Site-B",
@@ -393,6 +394,7 @@ class TestIPSecConnectionManagerUpdate:
     ) -> None:
         """Test update connection."""
         mock_client._request.side_effect = [
+            sample_connection_data,  # scope check
             None,  # PUT update
             sample_connection_data,  # GET to fetch updated
         ]
@@ -407,17 +409,24 @@ class TestIPSecConnectionManagerUpdate:
     ) -> None:
         """Test update maps friendly values to API values."""
         mock_client._request.side_effect = [
+            sample_connection_data,
             None,
             sample_connection_data,
         ]
         ipsec_manager.update(1, key_exchange="ikev2", connection_mode="start")
         # Check the PUT call had correct API values
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         assert put_call[1]["json_data"]["keyexchange"] == "ikev2"
         assert put_call[1]["json_data"]["auto"] == "start"
 
-    def test_update_requires_parameters(self, ipsec_manager: IPSecConnectionManager) -> None:
+    def test_update_requires_parameters(
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
+    ) -> None:
         """Test update raises ValueError when no parameters provided."""
+        mock_client._request.return_value = sample_connection_data
         with pytest.raises(ValueError, match="No update parameters"):
             ipsec_manager.update(1)
 
@@ -426,10 +435,13 @@ class TestIPSecConnectionManagerDelete:
     """Tests for IPSecConnectionManager.delete() method."""
 
     def test_delete_connection(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
     ) -> None:
         """Test delete connection."""
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [sample_connection_data, None]
         ipsec_manager.delete(1)
         mock_client._request.assert_called_with("DELETE", "vnet_ipsec_phase1s/1")
 
@@ -539,6 +551,7 @@ class TestIPSecPolicyManagerUpdate:
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
         policy_manager = IPSecPolicyManager(mock_client, conn)
         mock_client._request.side_effect = [
+            sample_policy_data,  # scope check
             None,  # PUT
             sample_policy_data,  # GET
         ]
@@ -546,11 +559,15 @@ class TestIPSecPolicyManagerUpdate:
         assert result.name == "LAN-to-LAN"
 
     def test_update_requires_parameters(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test update raises ValueError when no parameters."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
         policy_manager = IPSecPolicyManager(mock_client, conn)
+        mock_client._request.return_value = sample_policy_data
         with pytest.raises(ValueError, match="No update parameters"):
             policy_manager.update(1)
 
@@ -559,11 +576,14 @@ class TestIPSecPolicyManagerDelete:
     """Tests for IPSecPolicyManager.delete() method."""
 
     def test_delete_policy(
-        self, ipsec_manager: IPSecConnectionManager, mock_client: MagicMock
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_policy_data: dict[str, Any],
     ) -> None:
         """Test delete policy."""
         conn = IPSecConnection({"$key": 1, "name": "Test"}, ipsec_manager)
         policy_manager = IPSecPolicyManager(mock_client, conn)
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [sample_policy_data, None]
         policy_manager.delete(1)
         mock_client._request.assert_called_with("DELETE", "vnet_ipsec_phase2s/1")

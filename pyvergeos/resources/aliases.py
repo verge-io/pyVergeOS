@@ -139,6 +139,13 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
     def _to_model(self, data: dict[str, Any]) -> NetworkAlias:
         return NetworkAlias(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Alias"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Router IP aliases belong to one network (#188)."""
+        return [("vnet", self.network_key)]
+
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
@@ -239,12 +246,13 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
             hostname = name
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Alias {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Alias {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if ip is not None:
@@ -318,4 +326,5 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
             Aliases referenced by firewall rules cannot be deleted
             until the rules are removed.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

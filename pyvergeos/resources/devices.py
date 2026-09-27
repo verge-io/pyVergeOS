@@ -31,14 +31,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import (
-    Projected,
-    ResourceManager,
-    ResourceObject,
-    display_map,
-    ensure_projection_field,
-    machine_key_matches,
-)
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject, display_map
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -307,9 +300,12 @@ class DeviceManager(ResourceManager[Device]):
     def _to_model(self, data: dict[str, Any]) -> Device:
         return Device(data, self)
 
-    def _ensure_in_scope(self, key: int) -> None:
-        """Fetch the device and reject one that belongs to another VM (#182)."""
-        self.get(key)
+    def _scope_resource(self) -> str:
+        return "Device"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Devices are owned by the VM's machine (#182)."""
+        return [("machine", self._machine_key)]
 
     def list(
         self,
@@ -421,7 +417,7 @@ class DeviceManager(ResourceManager[Device]):
         if key is not None:
             # list() is filtered by machine; a key is not. Ask for machine even
             # when the caller narrowed fields, then refuse another VM's row (#182).
-            selected = ensure_projection_field(fields, "machine", defaults=self._default_fields)
+            selected = self._with_scope_fields(fields)
             params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
@@ -429,8 +425,7 @@ class DeviceManager(ResourceManager[Device]):
                 raise NotFoundError(f"Device {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Device {key} returned invalid response")
-            if not machine_key_matches(response.get("machine"), self._machine_key):
-                raise NotFoundError(f"Device {key} does not belong to machine {self._machine_key}")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:

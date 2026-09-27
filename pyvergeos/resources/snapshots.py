@@ -8,12 +8,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import (
-    ResourceManager,
-    ResourceObject,
-    ensure_projection_field,
-    machine_key_matches,
-)
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -159,9 +154,12 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
     def _to_model(self, data: dict[str, Any]) -> VMSnapshot:
         return VMSnapshot(data, self)
 
-    def _ensure_in_scope(self, key: int) -> None:
-        """Fetch the snapshot and reject one that belongs to another VM (#168)."""
-        self.get(key)
+    def _scope_resource(self) -> str:
+        return "Snapshot"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Snapshots are owned by the VM's machine (#168)."""
+        return [("machine", self.machine_key)]
 
     def list(  # noqa: A003
         self,
@@ -240,15 +238,14 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
             # list() is filtered by machine; a key is not. Ask for machine even
             # when the caller narrowed fields, then refuse another VM's row (#168).
-            selected = ensure_projection_field(fields, "machine", defaults=self._default_fields)
+            selected = self._with_scope_fields(fields)
             params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Snapshot {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Snapshot {key} returned invalid response")
-            if not machine_key_matches(response.get("machine"), self.machine_key):
-                raise NotFoundError(f"Snapshot {key} does not belong to machine {self.machine_key}")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:

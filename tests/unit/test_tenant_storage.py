@@ -564,6 +564,7 @@ class TestTenantStorageManager:
     ) -> None:
         """Test updating a storage allocation."""
         mock_client._request.side_effect = [
+            sample_storage_data,  # scope check
             None,  # PUT response
             sample_storage_data,  # GET response
         ]
@@ -572,7 +573,7 @@ class TestTenantStorageManager:
         allocation = manager.update(1, provisioned=214748364800)
 
         assert allocation.key == 1
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         assert put_call[0][0] == "PUT"
         assert put_call[0][1] == "tenant_storage/1"
         assert put_call[1]["json_data"]["provisioned"] == 214748364800
@@ -586,6 +587,7 @@ class TestTenantStorageManager:
         """Test updating a storage allocation by tier."""
         mock_client._request.side_effect = [
             sample_storage_list,  # List response to find allocation
+            sample_storage_list[0],  # scope check
             None,  # PUT response
             sample_storage_list[0],  # GET response
         ]
@@ -594,7 +596,7 @@ class TestTenantStorageManager:
         allocation = manager.update_by_tier(1, provisioned_gb=200)
 
         assert allocation.tier == 1
-        put_call = mock_client._request.call_args_list[1]
+        put_call = mock_client._request.call_args_list[2]
         assert put_call[1]["json_data"]["provisioned"] == 214748364800
 
     def test_update_by_tier_with_bytes(
@@ -606,6 +608,7 @@ class TestTenantStorageManager:
         """Test update_by_tier with provisioned_bytes."""
         mock_client._request.side_effect = [
             sample_storage_list,  # List response
+            sample_storage_list[0],  # scope check
             None,  # PUT response
             sample_storage_list[0],  # GET response
         ]
@@ -613,7 +616,7 @@ class TestTenantStorageManager:
 
         manager.update_by_tier(1, provisioned_bytes=214748364800)
 
-        put_call = mock_client._request.call_args_list[1]
+        put_call = mock_client._request.call_args_list[2]
         assert put_call[1]["json_data"]["provisioned"] == 214748364800
 
     def test_update_by_tier_requires_size(
@@ -631,14 +634,15 @@ class TestTenantStorageManager:
         self,
         mock_client: MagicMock,
         mock_tenant: MagicMock,
+        sample_storage_data: dict[str, Any],
     ) -> None:
         """Test deleting a storage allocation."""
+        mock_client._request.side_effect = [sample_storage_data, None]
         manager = TenantStorageManager(mock_client, mock_tenant)
 
         manager.delete(1)
 
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "DELETE"
         assert call_args[0][1] == "tenant_storage/1"
 
@@ -651,13 +655,14 @@ class TestTenantStorageManager:
         """Test deleting a storage allocation by tier."""
         mock_client._request.side_effect = [
             sample_storage_list,  # List response to find allocation
+            sample_storage_list[0],  # scope check
             None,  # DELETE response
         ]
         manager = TenantStorageManager(mock_client, mock_tenant)
 
         manager.delete_by_tier(1)
 
-        delete_call = mock_client._request.call_args_list[1]
+        delete_call = mock_client._request.call_args_list[2]
         assert delete_call[0][0] == "DELETE"
         assert delete_call[0][1] == "tenant_storage/1"
 

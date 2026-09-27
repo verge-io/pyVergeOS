@@ -481,12 +481,12 @@ class TestTenantNetworkBlockManager:
         mock_tenant: MagicMock,
     ) -> None:
         """Test deleting a network block."""
+        mock_client._request.side_effect = [{"$key": 1, "owner": "tenants/123"}, None]
         manager = TenantNetworkBlockManager(mock_client, mock_tenant)
 
         manager.delete(1)
 
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "DELETE"
         assert call_args[0][1] == "vnet_cidrs/1"
 
@@ -499,6 +499,7 @@ class TestTenantNetworkBlockManager:
         """Test deleting a network block by CIDR."""
         mock_client._request.side_effect = [
             [sample_network_block_data],  # GET response
+            sample_network_block_data,  # scope check
             None,  # DELETE response
         ]
         manager = TenantNetworkBlockManager(mock_client, mock_tenant)
@@ -506,7 +507,7 @@ class TestTenantNetworkBlockManager:
         manager.delete_by_cidr("192.168.100.0/24")
 
         # Verify DELETE was called
-        delete_call = mock_client._request.call_args_list[1]
+        delete_call = mock_client._request.call_args_list[2]
         assert delete_call[0][0] == "DELETE"
         assert delete_call[0][1] == "vnet_cidrs/1"
 

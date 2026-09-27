@@ -328,7 +328,9 @@ class TestDNSViewManager:
 
     def test_update_view(self, view_manager: DNSViewManager, mock_client: MagicMock) -> None:
         """Test update view."""
+        scope = {"$key": 1, "name": "internal", "vnet": 1}
         mock_client._request.side_effect = [
+            scope,
             None,  # PUT response
             {  # GET response
                 "$key": 1,
@@ -341,7 +343,7 @@ class TestDNSViewManager:
         assert view.name == "internal-updated"
 
         # Verify PUT body
-        call_args = mock_client._request.call_args_list[0]
+        call_args = mock_client._request.call_args_list[1]
         assert call_args[0][0] == "PUT"
         body = call_args[1]["json_data"]
         assert body["name"] == "internal-updated"
@@ -351,14 +353,16 @@ class TestDNSViewManager:
         self, view_manager: DNSViewManager, mock_client: MagicMock
     ) -> None:
         """Test update view with single field."""
+        current = {"$key": 1, "name": "internal", "recursion": True, "vnet": 1}
         mock_client._request.side_effect = [
+            current,
             None,  # PUT response
-            {"$key": 1, "name": "internal", "recursion": True, "vnet": 1},
+            current,
         ]
         view = view_manager.update(1, recursion=True)
         assert view.recursion is True
 
-        call_args = mock_client._request.call_args_list[0]
+        call_args = mock_client._request.call_args_list[1]
         body = call_args[1]["json_data"]
         assert body == {"recursion": True}
 
@@ -374,25 +378,29 @@ class TestDNSViewManager:
         view = view_manager.update(1)
         assert view.key == 1
 
-        # Should only call GET, not PUT
-        mock_client._request.assert_called_once()
+        # Scope check and the follow-up read. No PUT.
+        assert mock_client._request.call_count == 2
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "GET"]
 
     def test_update_view_all_fields(
         self, view_manager: DNSViewManager, mock_client: MagicMock
     ) -> None:
         """Test update view with all fields."""
+        updated = {
+            "$key": 1,
+            "name": "updated",
+            "recursion": True,
+            "match_clients": "10/8;",
+            "match_destinations": "172.16/16;",
+            "max_cache_size": 0,
+            "query_source": 3,
+            "vnet": 1,
+        }
         mock_client._request.side_effect = [
+            {"$key": 1, "name": "internal", "vnet": 1},
             None,  # PUT
-            {
-                "$key": 1,
-                "name": "updated",
-                "recursion": True,
-                "match_clients": "10/8;",
-                "match_destinations": "172.16/16;",
-                "max_cache_size": 0,
-                "query_source": 3,
-                "vnet": 1,
-            },
+            updated,
         ]
         _ = view_manager.update(
             1,
@@ -404,7 +412,7 @@ class TestDNSViewManager:
             query_source=3,
         )
 
-        call_args = mock_client._request.call_args_list[0]
+        call_args = mock_client._request.call_args_list[1]
         body = call_args[1]["json_data"]
         assert body["name"] == "updated"
         assert body["recursion"] is True
@@ -415,10 +423,10 @@ class TestDNSViewManager:
 
     def test_delete_view(self, view_manager: DNSViewManager, mock_client: MagicMock) -> None:
         """Test delete view."""
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [{"$key": 1, "vnet": 1}, None]
         view_manager.delete(1)
 
-        mock_client._request.assert_called_once_with("DELETE", "vnet_dns_views/1")
+        assert mock_client._request.call_args_list[-1][0] == ("DELETE", "vnet_dns_views/1")
 
 
 # =============================================================================

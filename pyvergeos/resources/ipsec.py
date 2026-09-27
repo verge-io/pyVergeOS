@@ -300,6 +300,13 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         data["_network_name"] = self._network.name
         return IPSecConnection(data, self)
 
+    def _scope_resource(self) -> str:
+        return "IPSec connection"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Phase 1 connections belong to one network (#188)."""
+        return [("vnet", self._network.key)]
+
     def _get_or_create_ipsec_config(self) -> int:
         """Get or create the IPSec configuration for this network.
 
@@ -463,13 +470,14 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             fields = DEFAULT_CONNECTION_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"IPSec connection with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"IPSec connection {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -637,6 +645,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         Returns:
             Updated IPSecConnection object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         # Map kwargs to API field names
@@ -688,6 +697,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         Args:
             key: Connection $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
@@ -732,6 +742,13 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         data["_connection_key"] = self._connection.key
         data["_connection_name"] = self._connection.name
         return IPSecPolicy(data, self)
+
+    def _scope_resource(self) -> str:
+        return "IPSec policy"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Phase 2 policies belong to one Phase 1 connection (#188)."""
+        return [("phase1", self._connection.key)]
 
     def list(
         self,
@@ -814,13 +831,14 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             fields = DEFAULT_POLICY_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"IPSec policy with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"IPSec policy {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -923,6 +941,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         Returns:
             Updated IPSecPolicy object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         # Map kwargs to API field names
@@ -954,4 +973,5 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         Args:
             key: Policy $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

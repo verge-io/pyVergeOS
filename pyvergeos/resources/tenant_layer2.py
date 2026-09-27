@@ -145,6 +145,22 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
     def _to_model(self, data: dict[str, Any]) -> TenantLayer2Network:
         return TenantLayer2Network(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant Layer 2 network"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Layer 2 assignments belong to one tenant (#188)."""
+        return [("tenant", self._tenant.key)]
+
+    def _scope_request(self, key: int | str) -> Any:
+        """Read ``tenant`` with the same collection filter ``get`` uses."""
+        columns = ["$key", *[column for column, _expected in self._scope_bindings()]]
+        params = {
+            "filter": f"$key eq {key}",
+            "fields": self._projection(columns, defaults=[]),
+        }
+        return self._client._request("GET", self._endpoint, params=params)
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -217,22 +233,21 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             fields = self._default_fields
 
         if key is not None:
-            # Query by key with tenant filter to ensure it belongs to this tenant
+            # A key is not filtered by tenant. Ask for tenant, then refuse
+            # another tenant's row (#188). The collection query is what this
+            # endpoint returns for a single key.
             params: dict[str, Any] = {
                 "filter": f"$key eq {key}",
-                "fields": self._projection(fields),
+                "fields": self._projection(self._with_scope_fields(fields)),
             }
             response = self._client._request("GET", self._endpoint, params=params)
-            if response is None:
+            if isinstance(response, list):
+                response = response[0] if response else None
+            if not isinstance(response, dict):
                 from pyvergeos.exceptions import NotFoundError
 
-                raise NotFoundError(f"Tenant Layer 2 network {key} not found")
-            if isinstance(response, list):
-                if not response:
-                    from pyvergeos.exceptions import NotFoundError
-
-                    raise NotFoundError(f"Tenant Layer 2 network {key} not found")
-                return self._to_model(response[0])
+                raise NotFoundError(f"Tenant Layer 2 network {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if network_name is not None:
@@ -347,6 +362,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
         Returns:
             Updated TenantLayer2Network object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {"enabled": enabled}
 
         logger.debug(f"Updating Layer 2 network {key}: enabled={enabled}")
@@ -364,6 +380,7 @@ class TenantLayer2Manager(ResourceManager[TenantLayer2Network]):
             between the parent and tenant networks. This may affect tenant
             workloads using that network segment.
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Removing tenant Layer 2 network {key}")
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 

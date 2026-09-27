@@ -418,12 +418,11 @@ class TestNetworkAliasManagerDelete:
         alias_manager: NetworkAliasManager,
     ) -> None:
         """Test deleting an alias."""
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [{"$key": 17, "vnet": 3}, None]
 
         alias_manager.delete(17)
 
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "DELETE"
         assert call_args[0][1] == "vnet_addresses/17"
 

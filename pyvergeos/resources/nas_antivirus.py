@@ -334,6 +334,15 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         super().__init__(client)
         self._volume_key = volume_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """A volume-scoped manager may only touch that volume's row (#188)."""
+        if self._volume_key is None:
+            return []
+        return [("volume", self._volume_key)]
+
     def list(
         self,
         filter: str | None = None,
@@ -460,11 +469,8 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             >>> av = volume.antivirus.get()
         """
         if key is not None:
-            params: dict[str, Any] = {}
-            if fields:
-                params["fields"] = self._projection(fields)
-            else:
-                params["fields"] = self._projection(self._default_fields)
+            selected = fields if fields else self._default_fields
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(selected))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -473,6 +479,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
                 raise NotFoundError(
                     f"Volume antivirus config with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # If scoped to volume or volume provided, find by unique constraint
@@ -666,6 +673,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             >>> # Change quarantine location
             >>> av = volume.antivirus.update(1, quarantine_location="/quarantine")
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if enabled is not None:
@@ -710,6 +718,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         Example:
             >>> volume.antivirus.delete(1)
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def _action(
@@ -725,6 +734,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         Returns:
             Action response dict or None.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {"volume_antivirus": key, "action": action}
 
         if params:
@@ -766,6 +776,14 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
         super().__init__(client)
         self._antivirus_key = antivirus_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus status"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
+
     def get(self, key: int | None = None) -> VolumeAntivirusStatus:  # type: ignore[override]
         """Get antivirus status.
 
@@ -782,7 +800,9 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
             >>> status = av.get_status()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
+            params: dict[str, Any] = {
+                "fields": self._projection(self._with_scope_fields(self._default_fields))
+            }
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume antivirus status with key {key} not found")
@@ -790,6 +810,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
                 raise NotFoundError(
                     f"Volume antivirus status with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # Look up by antivirus_key (unique constraint)
@@ -887,6 +908,14 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
         super().__init__(client)
         self._antivirus_key = antivirus_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus stats"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
+
     def get(self, key: int | None = None) -> VolumeAntivirusStats:  # type: ignore[override]
         """Get antivirus statistics.
 
@@ -903,7 +932,9 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
             >>> stats = av.get_stats()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
+            params: dict[str, Any] = {
+                "fields": self._projection(self._with_scope_fields(self._default_fields))
+            }
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume antivirus stats with key {key} not found")
@@ -911,6 +942,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
                 raise NotFoundError(
                     f"Volume antivirus stats with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # Look up by antivirus_key (unique constraint)
@@ -1009,6 +1041,14 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
         super().__init__(client)
         self._antivirus_key = antivirus_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus infection"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
+
     def list(  # noqa: A002
         self,
         filter: str | None = None,
@@ -1099,6 +1139,14 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
     def __init__(self, client: VergeClient, *, antivirus_key: int | None = None) -> None:
         super().__init__(client)
         self._antivirus_key = antivirus_key
+
+    def _scope_resource(self) -> str:
+        return "Volume antivirus log"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
 
     def list(  # noqa: A002
         self,
@@ -1206,6 +1254,15 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
         super().__init__(client)
         self._service_key = service_key
 
+    def _scope_resource(self) -> str:
+        return "NAS service antivirus"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """A service-scoped manager may only touch that service's row (#188)."""
+        if self._service_key is None:
+            return []
+        return [("service", self._service_key)]
+
     def get(self, key: int | None = None) -> NasServiceAntivirus:  # type: ignore[override]
         """Get NAS service antivirus configuration.
 
@@ -1222,7 +1279,9 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             >>> svc_av = nas.antivirus.get()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
+            params: dict[str, Any] = {
+                "fields": self._projection(self._with_scope_fields(self._default_fields))
+            }
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NAS service antivirus config with key {key} not found")
@@ -1230,6 +1289,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
                 raise NotFoundError(
                     f"NAS service antivirus config with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # Look up by service_key (unique constraint). list() applies the scope.
@@ -1331,6 +1391,7 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
         Example:
             >>> svc_av = nas_service.antivirus.update(1, max_recursion=20)
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if enabled is not None:
