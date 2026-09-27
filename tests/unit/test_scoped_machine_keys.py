@@ -1,7 +1,8 @@
-"""VM-scoped managers must refuse another VM's row on by-key calls (#168)."""
+"""Scoped managers must refuse another parent's row on by-key calls (#168, #188)."""
 
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -391,3 +392,247 @@ class TestCloudInitFileOwnerScope:
             vm.cloudinit_files.delete(FOREIGN_KEY)
 
         _assert_only_scope_read(mock_session, "cloudinit_files", FOREIGN_KEY, scope_field="owner")
+
+
+def _foreign_parent_value(expected: object) -> object:
+    """A value that cannot compare equal to ``expected``."""
+    if isinstance(expected, bool):
+        return not expected
+    if isinstance(expected, int):
+        return expected + 1000
+    if isinstance(expected, str) and "/" in expected:
+        table, _, _rest = expected.partition("/")
+        return f"{table}/999999"
+    if isinstance(expected, str):
+        return f"{expected}-other"
+    return "other"
+
+
+def _handed_managers(parent: object) -> list[tuple[str, object]]:
+    """Resource managers this parent object hands out as properties."""
+    from pyvergeos.resources.base import ResourceManager
+
+    found: list[tuple[str, object]] = []
+    seen: set[str] = set()
+    for cls in type(parent).__mro__:
+        for name, attr in cls.__dict__.items():
+            if name in seen or not isinstance(attr, property) or attr.fget is None:
+                continue
+            seen.add(name)
+            returned = attr.fget.__annotations__.get("return", "")
+            if not str(returned).endswith("Manager"):
+                continue
+            value = getattr(parent, name)
+            if isinstance(value, ResourceManager):
+                found.append((name, value))
+    return found
+
+
+def _takes_key(method: object) -> bool:
+    params = [
+        param
+        for param in inspect.signature(method).parameters.values()  # type: ignore[arg-type]
+        if param.name != "self"
+    ]
+    return bool(params) and params[0].name == "key"
+
+
+def _call_with_key(method: object, key: int) -> None:
+    """Call ``method(key)``, filling required arguments the scope check ignores."""
+    signature = inspect.signature(method)  # type: ignore[arg-type]
+    kwargs: dict[str, object] = {}
+    var_keyword = False
+    for param in list(signature.parameters.values())[1:]:
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            var_keyword = True
+            continue
+        if param.default is not inspect.Parameter.empty:
+            continue
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.POSITIONAL_ONLY,
+        ):
+            continue
+        if param.annotation in (bool, "bool"):
+            kwargs[param.name] = False
+        elif param.annotation in (int, "int"):
+            kwargs[param.name] = 0
+        else:
+            kwargs[param.name] = "x"
+    if var_keyword and not kwargs:
+        kwargs["description"] = "crossed"
+    method(key, **kwargs)  # type: ignore[operator]
+
+
+def _assert_refused(mock_session: MagicMock, manager: object, key: int) -> None:
+    """The call raised a scope error and sent no write."""
+    from pyvergeos.resources.base import ResourceManager
+
+    assert isinstance(manager, ResourceManager)
+    calls = _operation_calls(mock_session)
+    writes = [
+        call.kwargs.get("method")
+        for call in calls
+        if call.kwargs.get("method") in {"POST", "PUT", "DELETE", "PATCH"}
+    ]
+    assert writes == []
+    columns = [column for column, _expected in manager._scope_bindings()]
+    for call in calls:
+        if call.kwargs.get("method") != "GET":
+            continue
+        url = str(call.kwargs.get("url", ""))
+        if f"/{manager._endpoint}/{key}" not in url:
+            continue
+        fields = str((call.kwargs.get("params") or {}).get("fields", ""))
+        # An unprojected get returns own-columns, including the parent column.
+        if not fields:
+            continue
+        for column in columns:
+            assert column in fields.split(","), url
+
+
+def _scoped_parents(mock_client: VergeClient, vm: VM) -> list[tuple[str, object]]:
+    """Parents that hand out a scoped manager. Names stay off Core and DMZ."""
+    from pyvergeos.resources.dns import DNSZone, DNSZoneManager
+    from pyvergeos.resources.dns_views import DNSView, DNSViewManager
+    from pyvergeos.resources.ipsec import IPSecConnection, IPSecConnectionManager
+    from pyvergeos.resources.nas_services import NASService
+    from pyvergeos.resources.nas_volumes import NASVolume
+    from pyvergeos.resources.networks import Network
+    from pyvergeos.resources.oidc_applications import OidcApplication
+    from pyvergeos.resources.resource_groups import ResourceGroup
+    from pyvergeos.resources.task_schedules import TaskSchedule
+    from pyvergeos.resources.tasks import Task
+    from pyvergeos.resources.tenant_manager import Tenant
+    from pyvergeos.resources.vnet_proxy import VnetProxy, VnetProxyManager
+    from pyvergeos.resources.wireguard import WireGuardInterface, WireGuardManager
+
+    network = Network({"$key": 3, "name": "Internal"}, mock_client.networks)
+    tenant = Tenant({"$key": 5, "name": "tenant-a"}, mock_client.tenants)
+    volume = NASVolume({"$key": "a" * 40, "name": "share"}, mock_client.nas_volumes)
+    service = NASService({"$key": 7, "name": "nas"}, mock_client.nas_services)
+    group = ResourceGroup(
+        {"uuid": "11111111-1111-1111-1111-111111111111", "name": "gpus"},
+        mock_client.resource_groups,
+    )
+    task = Task({"$key": 9, "name": "job"}, mock_client.tasks)
+    schedule = TaskSchedule({"$key": 11, "name": "nightly"}, mock_client.task_schedules)
+    app = OidcApplication({"$key": 13, "name": "portal"}, mock_client.oidc_applications)
+    wireguard = WireGuardInterface(
+        {"$key": 15, "name": "wg0", "vnet": network.key},
+        WireGuardManager(mock_client, network),
+    )
+    zone = DNSZone(
+        {"$key": 17, "domain": "example.com", "view": 4},
+        DNSZoneManager(mock_client, network=network),
+    )
+    view = DNSView(
+        {"$key": 4, "name": "default", "vnet": network.key},
+        DNSViewManager(mock_client, network),
+    )
+    connection = IPSecConnection(
+        {"$key": 19, "name": "hq", "vnet": network.key},
+        IPSecConnectionManager(mock_client, network),
+    )
+    proxy = VnetProxy(
+        {"$key": 21, "vnet": network.key, "listen_address": "0.0.0.0"},
+        VnetProxyManager(mock_client, network),
+    )
+    return [
+        ("Network", network),
+        ("Tenant", tenant),
+        ("NASVolume", volume),
+        ("NASService", service),
+        ("ResourceGroup", group),
+        ("Task", task),
+        ("TaskSchedule", schedule),
+        ("OidcApplication", app),
+        ("VM", vm),
+        ("WireGuardInterface", wireguard),
+        ("DNSZone", zone),
+        ("DNSView", view),
+        ("IPSecConnection", connection),
+        ("VnetProxy", proxy),
+    ]
+
+
+# Managers the issue names, plus the VM managers that already checked scope.
+_REQUIRED_MANAGERS = {
+    "Network.rules",
+    "Network.aliases",
+    "Network.hosts",
+    "Network.wireguard",
+    "Network.dns_zones",
+    "Network.ipsec",
+    "Tenant.network_blocks",
+    "Tenant.external_ips",
+    "Tenant.nodes",
+    "Tenant.storage",
+    "Tenant.snapshots",
+    "Tenant.l2_networks",
+    "NASVolume.antivirus",
+    "NASService.antivirus",
+    "ResourceGroup.rules",
+    "Task.triggers",
+    "OidcApplication.allowed_users",
+    "OidcApplication.allowed_groups",
+    "WireGuardInterface.peers",
+    "DNSZone.records",
+    "IPSecConnection.policies",
+    "VM.drives",
+    "VM.nics",
+    "VM.snapshots",
+    "VM.devices",
+    "VM.cloudinit_files",
+}
+
+
+def test_parent_handed_managers_refuse_other_parents(
+    mock_client: VergeClient, mock_session: MagicMock, vm: VM
+) -> None:
+    """Every manager a parent hands out must refuse another parent's key (#188)."""
+    failures: list[str] = []
+    seen: set[str] = set()
+
+    for label, parent in _scoped_parents(mock_client, vm):
+        handed = _handed_managers(parent)
+        if not handed:
+            failures.append(f"{label} handed no managers")
+            continue
+        for name, manager in handed:
+            ident = f"{label}.{name}"
+            seen.add(ident)
+            bindings = manager._scope_bindings()  # type: ignore[attr-defined]
+            if not bindings:
+                failures.append(f"{ident} has no scope bindings")
+                continue
+            row: dict[str, object] = {"$key": FOREIGN_KEY, "name": "other-parent"}
+            for column, expected in bindings:
+                row[column] = _foreign_parent_value(expected)
+            for op_name in ("get", "update", "delete"):
+                method = getattr(manager, op_name)
+                if not _takes_key(method):
+                    continue
+                mock_session.request.reset_mock()
+                mock_session.request.return_value.json.return_value = row
+                try:
+                    _call_with_key(method, FOREIGN_KEY)
+                except NotFoundError as exc:
+                    if "does not belong" not in str(exc):
+                        failures.append(f"{ident}.{op_name}: {exc}")
+                        continue
+                except Exception as exc:
+                    failures.append(f"{ident}.{op_name}: {type(exc).__name__}: {exc}")
+                    continue
+                else:
+                    failures.append(f"{ident}.{op_name} returned a foreign row")
+                    continue
+                try:
+                    _assert_refused(mock_session, manager, FOREIGN_KEY)
+                except AssertionError as exc:
+                    failures.append(f"{ident}.{op_name}: {exc}")
+
+    missing = _REQUIRED_MANAGERS - seen
+    if missing:
+        failures.append("missing managers: " + ", ".join(sorted(missing)))
+    assert not failures, "\n".join(failures)

@@ -629,6 +629,7 @@ class TestTenantNodeManager:
     ) -> None:
         """Test updating a node."""
         mock_client._request.side_effect = [
+            sample_node_data,  # scope check
             None,  # PUT response
             sample_node_data,  # GET response
         ]
@@ -637,7 +638,7 @@ class TestTenantNodeManager:
         node = manager.update(1, cpu_cores=8, ram=32768)
 
         assert node.key == 1
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         assert put_call[0][0] == "PUT"
         assert put_call[0][1] == "tenant_nodes/1"
         assert put_call[1]["json_data"]["cpu_cores"] == 8
@@ -647,13 +648,14 @@ class TestTenantNodeManager:
         self,
         mock_client: MagicMock,
         mock_tenant: MagicMock,
+        sample_node_data: dict[str, Any],
     ) -> None:
         """Test deleting a node."""
+        mock_client._request.side_effect = [sample_node_data, None]
         manager = TenantNodeManager(mock_client, mock_tenant)
 
         manager.delete(1)
 
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "DELETE"
         assert call_args[0][1] == "tenant_nodes/1"

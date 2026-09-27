@@ -487,14 +487,15 @@ class TestTenantSnapshotManager:
         self,
         mock_client: MagicMock,
         mock_tenant: MagicMock,
+        sample_snapshot_data: dict[str, Any],
     ) -> None:
         """Test deleting a snapshot."""
+        mock_client._request.side_effect = [sample_snapshot_data, None]
         manager = TenantSnapshotManager(mock_client, mock_tenant)
 
         manager.delete(1)
 
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "DELETE"
         assert call_args[0][1] == "tenant_snapshots/1"
 
@@ -504,14 +505,16 @@ class TestTenantSnapshotManager:
         mock_tenant: MagicMock,
     ) -> None:
         """Test restoring from a snapshot."""
-        mock_client._request.return_value = {"task": 456}
+        mock_client._request.side_effect = [
+            {"$key": 1, "tenant": 123},
+            {"task": 456},
+        ]
         manager = TenantSnapshotManager(mock_client, mock_tenant)
 
         result = manager.restore(1)
 
         assert result == {"task": 456}
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "POST"
         assert call_args[0][1] == "tenant_actions"
         json_data = call_args[1]["json_data"]
@@ -526,6 +529,7 @@ class TestTenantSnapshotManager:
     ) -> None:
         """Test that restore raises error if tenant is running."""
         mock_tenant.is_running = True
+        mock_client._request.return_value = {"$key": 1, "tenant": 123}
         manager = TenantSnapshotManager(mock_client, mock_tenant)
 
         with pytest.raises(ValueError, match="Tenant must be powered off"):
@@ -537,7 +541,7 @@ class TestTenantSnapshotManager:
         mock_tenant: MagicMock,
     ) -> None:
         """Test restore returns None when response is not a dict."""
-        mock_client._request.return_value = "success"
+        mock_client._request.side_effect = [{"$key": 1, "tenant": 123}, "success"]
         manager = TenantSnapshotManager(mock_client, mock_tenant)
 
         result = manager.restore(1)

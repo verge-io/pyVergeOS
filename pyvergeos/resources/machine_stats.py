@@ -352,6 +352,12 @@ class MachineStatsManager(ResourceManager[MachineStats]):
     def _to_model(self, data: dict[str, Any]) -> MachineStats:
         return MachineStats(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Machine stats"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("machine", self._machine_key)]
+
     def _to_history_model(self, data: dict[str, Any]) -> MachineStatsHistory:
         return MachineStatsHistory(data, self)
 
@@ -683,6 +689,12 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
     def _to_model(self, data: dict[str, Any]) -> MachineStatus:
         return MachineStatus(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Machine status"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("machine", self._machine_key)]
+
     def get(self, fields: str | builtins.list[str] | None = None) -> MachineStatus:  # type: ignore[override]
         """Get machine status.
 
@@ -829,6 +841,12 @@ class MachineLogManager(ResourceManager[MachineLog]):
     def _to_model(self, data: dict[str, Any]) -> MachineLog:
         return MachineLog(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Machine log"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("machine", self._machine_key)]
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -940,7 +958,7 @@ class MachineLogManager(ResourceManager[MachineLog]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": self._projection(fields)}
+        params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:
@@ -949,4 +967,5 @@ class MachineLogManager(ResourceManager[MachineLog]):
         if not isinstance(response, dict):
             raise NotFoundError(f"Log entry {key} returned invalid response")
 
+        self._assert_row_in_scope(key, response)
         return self._to_model(response)

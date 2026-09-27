@@ -109,6 +109,13 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
     def _to_model(self, data: dict[str, Any]) -> TenantSnapshot:
         return TenantSnapshot(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant snapshot"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Tenant snapshots belong to one tenant (#188)."""
+        return [("tenant", self._tenant.key)]
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -182,7 +189,7 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -192,6 +199,7 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
                 from pyvergeos.exceptions import NotFoundError
 
                 raise NotFoundError(f"Tenant snapshot {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -260,6 +268,7 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
         Args:
             key: Snapshot $key (ID).
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Deleting tenant snapshot {key}")
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
@@ -278,6 +287,8 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
         Raises:
             ValueError: If tenant is running.
         """
+        # Another tenant's snapshot must not be restored through this manager.
+        self._ensure_in_scope(key)
         # Refresh tenant state to check if running
         tenant = self._tenant.refresh()
         if tenant.is_running:

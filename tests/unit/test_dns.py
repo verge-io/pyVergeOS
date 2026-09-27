@@ -236,6 +236,8 @@ class TestDNSZoneManager:
             "$key": 1,
             "domain": "test.local",
             "type": "master",
+            "view": 1,
+            "vnet": 1,
         }
         zone = zone_manager.get(1)
         assert zone.key == 1
@@ -366,10 +368,10 @@ class TestDNSZoneManager:
 
     def test_delete_zone(self, zone_manager: DNSZoneManager, mock_client: MagicMock) -> None:
         """Test delete zone."""
-        mock_client._request.return_value = None
+        mock_client._request.return_value = {"$key": 1, "view": 1, "vnet": 1}
         zone_manager.delete(1)
 
-        mock_client._request.assert_called_once_with("DELETE", "vnet_dns_zones/1")
+        assert mock_client._request.call_args_list[-1][0] == ("DELETE", "vnet_dns_zones/1")
 
     def test_list_zones_via_view(self, mock_client: MagicMock) -> None:
         """Test list zones through a view-scoped manager."""
@@ -747,10 +749,13 @@ class TestDNSRecordManager:
 
     def test_delete_record(self, record_manager: DNSRecordManager, mock_client: MagicMock) -> None:
         """Test delete record."""
-        mock_client._request.return_value = None
+        mock_client._request.return_value = {"$key": 1, "zone": 1}
         record_manager.delete(1)
 
-        mock_client._request.assert_called_once_with("DELETE", "vnet_dns_zone_records/1")
+        assert mock_client._request.call_args_list[-1][0] == (
+            "DELETE",
+            "vnet_dns_zone_records/1",
+        )
 
 
 # =============================================================================

@@ -360,6 +360,7 @@ class TestVolumeAntivirusManager:
         updated["enabled"] = True
         mock_client._request.side_effect = [
             [sample_volume_antivirus],
+            sample_volume_antivirus,
             None,
             updated,
         ]
@@ -368,7 +369,7 @@ class TestVolumeAntivirusManager:
 
         assert result.key == 1
         methods = [call[0][0] for call in mock_client._request.call_args_list]
-        assert methods == ["GET", "PUT", "GET"]
+        assert methods == ["GET", "GET", "PUT", "GET"]
         lookup = mock_client._request.call_args_list[0]
         assert volume_key in lookup[1]["params"]["filter"]
 

@@ -107,6 +107,13 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
     def _to_model(self, data: dict[str, Any]) -> VnetProxyTenant:
         return VnetProxyTenant(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Proxy tenant"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Tenant mappings belong to one proxy (#188)."""
+        return [("proxy", self._proxy.key)]
+
     def list(
         self,
         filter: str | None = None,
@@ -186,16 +193,18 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
             # Direct key lookup - verify it belongs to this proxy
             params = {
                 "filter": f"$key eq {key} and proxy eq {self._proxy.key}",
-                "fields": self._projection(fields),
+                "fields": self._projection(self._with_scope_fields(fields)),
             }
             response = self._client._request("GET", self._endpoint, params=params)
             if not response:
                 raise NotFoundError(f"Proxy tenant mapping with key {key} not found")
-            if isinstance(response, builtins.list):
-                if not response:
-                    raise NotFoundError(f"Proxy tenant mapping with key {key} not found")
-                return self._to_model(response[0])
-            return self._to_model(response)
+            row = response[0] if isinstance(response, builtins.list) else response
+            if isinstance(response, builtins.list) and not response:
+                raise NotFoundError(f"Proxy tenant mapping with key {key} not found")
+            if not isinstance(row, dict):
+                raise NotFoundError(f"Proxy tenant mapping {key} returned invalid response")
+            self._assert_row_in_scope(key, row)
+            return self._to_model(row)
 
         # Build filter for other lookups
         filter_parts = [f"proxy eq {self._proxy.key}"]
@@ -279,7 +288,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
             Updated VnetProxyTenant object.
         """
         # Verify the mapping belongs to this proxy
-        self.get(key)  # Raises NotFoundError if not found
+        self._ensure_in_scope(key)
 
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         return self.get(key)
@@ -291,7 +300,7 @@ class VnetProxyTenantManager(ResourceManager[VnetProxyTenant]):
             key: Mapping $key (ID) to delete.
         """
         # Verify the mapping belongs to this proxy
-        self.get(key)  # Raises NotFoundError if not found
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
@@ -448,6 +457,13 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
     def _to_model(self, data: dict[str, Any]) -> VnetProxy:
         return VnetProxy(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Proxy"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Proxy configuration belongs to one network (#188)."""
+        return [("vnet", self._network.key)]
+
     def exists(self) -> bool:
         """Check if proxy is configured for this network.
 
@@ -494,23 +510,26 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             # Verify it belongs to this network
             params = {
                 "filter": f"$key eq {key} and vnet eq {self._network.key}",
-                "fields": self._projection(fields),
+                "fields": self._projection(self._with_scope_fields(fields)),
             }
         else:
             # Get by network
             params = {
                 "filter": f"vnet eq {self._network.key}",
-                "fields": self._projection(fields),
+                "fields": self._projection(self._with_scope_fields(fields)),
             }
 
         response = self._client._request("GET", self._endpoint, params=params)
         if not response:
             raise NotFoundError(f"Proxy not configured for network {self._network.name}")
-        if isinstance(response, builtins.list):
-            if not response:
-                raise NotFoundError(f"Proxy not configured for network {self._network.name}")
-            return self._to_model(response[0])
-        return self._to_model(response)
+        row = response[0] if isinstance(response, builtins.list) else response
+        if isinstance(response, builtins.list) and not response:
+            raise NotFoundError(f"Proxy not configured for network {self._network.name}")
+        if not isinstance(row, dict):
+            raise NotFoundError("Proxy returned invalid response")
+        row_key = key if key is not None else row.get("$key", 0)
+        self._assert_row_in_scope(row_key, row)
+        return self._to_model(row)
 
     def create(
         self,
@@ -582,7 +601,7 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             Updated VnetProxy object.
         """
         # Verify it belongs to this network
-        self.get(key)  # Raises NotFoundError if not found
+        self._ensure_in_scope(key)
 
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         return self.get(key)
@@ -602,7 +621,7 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             key = proxy.key
 
         # Verify it belongs to this network
-        self.get(key)  # Raises NotFoundError if not found
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def get_or_create(

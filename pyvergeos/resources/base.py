@@ -276,22 +276,39 @@ def ensure_projection_field(
     return [*names, field]
 
 
+def scope_values_equal(actual: Any, expected: Any) -> bool:
+    """Return whether a row's parent column equals the manager's parent value.
+
+    ``bool`` is an ``int`` subclass and is never a key. An int matches a
+    numeric string. Other strings match only exactly, so ``tenants/5`` is not
+    an int and a volume's hex key is not coerced.
+    """
+    if isinstance(actual, bool) or isinstance(expected, bool):
+        return False
+    if isinstance(actual, int) and isinstance(expected, int):
+        return actual == expected
+    if isinstance(actual, str) and isinstance(expected, str):
+        return actual == expected
+    if isinstance(actual, str) and isinstance(expected, int):
+        try:
+            return int(actual) == expected
+        except ValueError:
+            return False
+    if isinstance(actual, int) and isinstance(expected, str):
+        try:
+            return actual == int(expected)
+        except ValueError:
+            return False
+    return False
+
+
 def machine_key_matches(machine: Any, machine_key: int) -> bool:
     """Return whether a row's ``machine`` value is ``machine_key``.
 
     ``bool`` is an ``int`` subclass and is never a machine key. A numeric
     string is accepted.
     """
-    if isinstance(machine, bool):
-        return False
-    if isinstance(machine, int):
-        return machine == machine_key
-    if isinstance(machine, str):
-        try:
-            return int(machine) == machine_key
-        except ValueError:
-            return False
-    return False
+    return scope_values_equal(machine, machine_key)
 
 
 #: Sentinel for "nothing supplied here", distinct from a legitimate ``None``.
@@ -921,16 +938,21 @@ class ResourceManager(Generic[T]):
             ValueError: If neither key nor name provided.
         """
         if key is not None:
-            # Direct fetch by key
+            # Direct fetch by key. A scoped manager still asks for its parent
+            # column when the caller narrowed fields, then refuses another
+            # parent's row (#168, #188). fields=None stays unprojected so the
+            # response keeps every own-column, including that parent column.
+            selected = self._with_scope_fields(fields)
             params: dict[str, Any] = {}
-            if fields:
-                params["fields"] = self._projection(fields)
+            if selected:
+                params["fields"] = self._projection(selected)
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"{self._endpoint}/{key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"{self._endpoint}/{key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -977,17 +999,105 @@ class ResourceManager(Generic[T]):
             raise ValueError("Create operation returned invalid response")
         return self._to_model_unprojected(response)
 
-    def _ensure_in_scope(self, key: int) -> None:
-        """Give a scoped manager a chance to reject ``key`` before a write.
+    def _scope_bindings(self) -> builtins.list[tuple[str, Any]]:
+        """Parent columns this instance is bound to, as ``(column, value)``.
 
-        Called at the start of :meth:`update` and :meth:`delete`. Managers
-        that reimplement those methods call this themselves. The default
-        allows every key. Override it to fetch the row and raise
-        ``NotFoundError`` when the row is outside the manager's scope, so
-        the write is not sent. ``ResourceObject.save`` reaches the base
-        :meth:`update`, which calls this before the PUT.
+        Empty means the instance is not parent-scoped and may address any
+        key. A scoped manager -- one a parent hands out, such as
+        ``network.rules`` or ``tenant.network_blocks`` -- lists the column
+        that points at that parent and the value it must equal. :meth:`get`,
+        :meth:`update` and :meth:`delete` then refuse a row whose column
+        does not match, before any write (#188).
         """
-        return None
+        return []
+
+    def _scope_resource(self) -> str:
+        """Noun used in scope errors, for example ``Rule``."""
+        return "Resource"
+
+    def _with_scope_fields(
+        self,
+        fields: str | builtins.list[str] | None,
+    ) -> str | builtins.list[str] | None:
+        """Add each scope column to a narrowed projection.
+
+        ``fields=None`` is left alone: that request is unprojected and the
+        server returns own-columns, which include the parent column. A
+        caller who named fields must still receive the column the scope
+        check reads.
+        """
+        bindings = self._scope_bindings()
+        if not bindings or fields is None:
+            return fields
+        selected: str | builtins.list[str] | None = fields
+        for column, _expected in bindings:
+            selected = ensure_projection_field(selected, column, defaults=self._default_fields)
+        return selected
+
+    def _row_in_scope(self, row: dict[str, Any]) -> bool:
+        """Return whether ``row`` belongs to this manager's parent.
+
+        The default compares each :meth:`_scope_bindings` column to its
+        value. Override when membership is not a single column on the row
+        (a DNS zone's network is the network of its view).
+        """
+        bindings = self._scope_bindings()
+        if not bindings:
+            return True
+        return all(scope_values_equal(row.get(column), expected) for column, expected in bindings)
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        """Error text when ``row`` is outside this manager's parent."""
+        for column, expected in self._scope_bindings():
+            if not scope_values_equal(row.get(column), expected):
+                resource = self._scope_resource()
+                return f"{resource} {key} does not belong to {column} {expected}"
+        return f"{self._scope_resource()} {key} does not belong to this parent"
+
+    def _assert_row_in_scope(self, key: int | str, row: dict[str, Any]) -> None:
+        """Raise ``NotFoundError`` when ``row`` is outside this parent."""
+        if self._row_in_scope(row):
+            return
+        raise NotFoundError(self._scope_error(key, row))
+
+    def _scope_request(self, key: int | str) -> Any:
+        """GET that reads this manager's parent columns for ``key``.
+
+        The default is ``GET {endpoint}/{key}``. Override when a resource is
+        read through the collection (``tenant_layer2_vnets`` returns a key
+        only as a filtered list).
+        """
+        columns = ["$key", *[column for column, _expected in self._scope_bindings()]]
+        params = {"fields": self._projection(columns, defaults=[])}
+        return self._client._request("GET", f"{self._endpoint}/{key}", params=params)
+
+    def _ensure_in_scope(self, key: int | str) -> None:
+        """Fetch the parent column and refuse a mismatch before a write.
+
+        Called at the start of :meth:`update`, :meth:`delete` and
+        :meth:`action`. Managers that reimplement those methods call this
+        themselves. An instance with no :meth:`_scope_bindings` allows every
+        key. A scoped instance fetches the parent column and raises
+        ``NotFoundError`` when it does not match, so the write is not sent.
+        ``ResourceObject.save`` reaches the base :meth:`update`, which calls
+        this before the PUT.
+
+        The projection recorded for this lookup is restored afterwards. A
+        following ``_to_model`` must not treat the scope read as the fields
+        the caller asked for.
+        """
+        if not self._scope_bindings():
+            return
+        previous = self._requested_aliases
+        try:
+            response = self._scope_request(key)
+        finally:
+            self._requested_aliases = previous
+        if isinstance(response, builtins.list):
+            response = response[0] if len(response) == 1 else None
+        if response is None or not isinstance(response, dict):
+            raise NotFoundError(f"{self._scope_resource()} {key} not found")
+        self._assert_row_in_scope(key, response)
 
     def update(self, key: int, **kwargs: Any) -> T:
         """Update an existing resource.
@@ -1028,6 +1138,7 @@ class ResourceManager(Generic[T]):
         Returns:
             Action response (often includes task information).
         """
+        self._ensure_in_scope(key)
         endpoint = f"{self._endpoint}/{key}?action={action_name}"
         response = self._client._request("PUT", endpoint, json_data=kwargs)
         if isinstance(response, dict):

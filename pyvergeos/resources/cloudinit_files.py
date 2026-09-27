@@ -9,12 +9,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.constants import CLOUDINIT_MAX_SIZE
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value, wildcard_condition
-from pyvergeos.resources.base import (
-    ResourceManager,
-    ResourceObject,
-    ensure_projection_field,
-    split_fields,
-)
+from pyvergeos.resources.base import ResourceManager, ResourceObject, split_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -598,9 +593,15 @@ class VMCloudInitFileManager(CloudInitFileManager):
             raise ValueError("VM has no key")
         return int(key)
 
-    def _ensure_in_scope(self, key: int) -> None:
-        """Fetch the file and reject one owned by another VM (#182)."""
-        self.get(key)
+    def _scope_resource(self) -> str:
+        return "Cloud-init file"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Cloud-init files are owned by ``vms/{vm_key}`` (#182)."""
+        return [("owner", f"vms/{self.vm_key}")]
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        return f"Cloud-init file {key} does not belong to VM {self.vm_key}"
 
     def list(
         self,
@@ -664,17 +665,14 @@ class VMCloudInitFileManager(CloudInitFileManager):
         if key is not None:
             # list() is filtered by owner; a key is not. Ask for owner even
             # when the caller narrowed fields, then refuse another VM's row (#182).
-            selected = ensure_projection_field(
-                fields, "owner", defaults=list(_DEFAULT_CLOUDINIT_FIELDS)
-            )
+            selected = self._with_scope_fields(fields if fields is not None else field_list)
             params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Cloud-init file with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Cloud-init file with key {key} returned invalid response")
-            if response.get("owner") != f"vms/{self.vm_key}":
-                raise NotFoundError(f"Cloud-init file {key} does not belong to VM {self.vm_key}")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         elif name is not None:

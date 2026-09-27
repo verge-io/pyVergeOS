@@ -996,7 +996,14 @@ class TestTenantSnapshotManager:
         tenant_data: dict[str, Any],
     ) -> None:
         """Test deleting a snapshot."""
-        mock_session.request.return_value.status_code = 204
+        scope = MagicMock()
+        scope.status_code = 200
+        scope.text = "{}"
+        scope.json.return_value = {"$key": 10, "tenant": 100}
+        deleted = MagicMock()
+        deleted.status_code = 204
+        deleted.text = ""
+        mock_session.request.side_effect = [scope, deleted]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         tenant.snapshots.delete(10)
@@ -1013,6 +1020,7 @@ class TestTenantSnapshotManager:
     ) -> None:
         """Test restoring from a snapshot."""
         mock_session.request.return_value.json.side_effect = [
+            {"$key": 10, "tenant": 100},  # scope check
             tenant_data,  # Refresh tenant
             {},  # Restore response
         ]
@@ -1041,7 +1049,10 @@ class TestTenantSnapshotManager:
     ) -> None:
         """Test that restore raises ValueError if tenant is running."""
         tenant_data["running"] = True
-        mock_session.request.return_value.json.return_value = tenant_data
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 10, "tenant": 100},
+            tenant_data,
+        ]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         with pytest.raises(ValueError, match="must be powered off"):
@@ -1082,6 +1093,7 @@ class TestTenantSnapshotViaObject:
     ) -> None:
         """Test restore via snapshot object."""
         mock_session.request.return_value.json.side_effect = [
+            snapshot_data,  # scope check
             tenant_data,  # Refresh tenant
             {},  # Restore response
         ]
@@ -1500,10 +1512,12 @@ class TestTenantStorageManager:
         storage_data: dict[str, Any],
     ) -> None:
         """Test updating storage allocation by tier."""
+        updated = {**storage_data, "provisioned": 21474836480}
         mock_session.request.return_value.json.side_effect = [
             [storage_data],  # GET by tier
-            {**storage_data, "provisioned": 21474836480},  # PUT response
-            {**storage_data, "provisioned": 21474836480},  # GET updated
+            storage_data,  # scope check
+            updated,  # PUT response
+            updated,  # GET updated
         ]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
@@ -1529,7 +1543,14 @@ class TestTenantStorageManager:
         tenant_data: dict[str, Any],
     ) -> None:
         """Test deleting a storage allocation."""
-        mock_session.request.return_value.status_code = 204
+        scope = MagicMock()
+        scope.status_code = 200
+        scope.text = "{}"
+        scope.json.return_value = {"$key": 7, "tenant": 100}
+        deleted = MagicMock()
+        deleted.status_code = 204
+        deleted.text = ""
+        mock_session.request.side_effect = [scope, deleted]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         tenant.storage.delete(7)
@@ -1551,11 +1572,16 @@ class TestTenantStorageManager:
         response1.json.return_value = [storage_data]
         response1.status_code = 200
 
+        response_scope = MagicMock()
+        response_scope.status_code = 200
+        response_scope.text = "{}"
+        response_scope.json.return_value = storage_data
+
         response2 = MagicMock()
         response2.status_code = 204
         response2.text = ""
 
-        mock_session.request.side_effect = [response1, response2]
+        mock_session.request.side_effect = [response1, response_scope, response2]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         tenant.storage.delete_by_tier(tier=1)
@@ -1628,7 +1654,14 @@ class TestTenantStorageViaObject:
         storage_data: dict[str, Any],
     ) -> None:
         """Test delete via storage object."""
-        mock_session.request.return_value.status_code = 204
+        scope = MagicMock()
+        scope.status_code = 200
+        scope.text = "{}"
+        scope.json.return_value = storage_data
+        deleted = MagicMock()
+        deleted.status_code = 204
+        deleted.text = ""
+        mock_session.request.side_effect = [scope, deleted]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         manager = TenantStorageManager(mock_client, tenant)
@@ -2075,7 +2108,10 @@ class TestTenantNetworkBlockManager:
         tenant_data: dict[str, Any],
     ) -> None:
         """Test deleting a network block."""
-        mock_session.request.return_value.json.return_value = {}
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42, "owner": "tenants/100"},
+            {},
+        ]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         tenant.network_blocks.delete(42)
@@ -2094,6 +2130,7 @@ class TestTenantNetworkBlockManager:
         """Test deleting a network block by CIDR."""
         mock_session.request.return_value.json.side_effect = [
             [block_data],  # GET to find block
+            block_data,  # scope check
             {},  # DELETE response
         ]
 
@@ -2146,6 +2183,7 @@ class TestTenantNetworkBlockViaObject:
         """Test deleting block via object.delete()."""
         mock_session.request.return_value.json.side_effect = [
             [block_data],  # GET to list blocks
+            block_data,  # scope check
             {},  # DELETE response
         ]
 
@@ -2601,7 +2639,10 @@ class TestTenantExternalIPManager:
         tenant_data: dict[str, Any],
     ) -> None:
         """Test deleting an external IP."""
-        mock_session.request.return_value.json.return_value = {}
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42, "owner": "tenants/100"},
+            {},
+        ]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         tenant.external_ips.delete(42)
@@ -2620,6 +2661,7 @@ class TestTenantExternalIPManager:
         """Test deleting an external IP by IP address."""
         mock_session.request.return_value.json.side_effect = [
             [ip_data],  # GET to find IP
+            ip_data,  # scope check
             {},  # DELETE response
         ]
 
@@ -2674,6 +2716,7 @@ class TestTenantExternalIPViaObject:
         """Test deleting IP via object.delete()."""
         mock_session.request.return_value.json.side_effect = [
             [ip_data],  # GET to list IPs
+            ip_data,  # scope check
             {},  # DELETE response
         ]
 
@@ -3124,6 +3167,7 @@ class TestTenantLayer2Manager:
     ) -> None:
         """Test updating Layer 2 network to enabled."""
         mock_session.request.return_value.json.side_effect = [
+            l2_data,  # scope check
             {},  # PUT response
             [l2_data],  # GET to fetch updated L2 network
         ]
@@ -3155,6 +3199,7 @@ class TestTenantLayer2Manager:
         """Test updating Layer 2 network to disabled."""
         l2_data["enabled"] = False
         mock_session.request.return_value.json.side_effect = [
+            l2_data,  # scope check
             {},  # PUT response
             [l2_data],  # GET to fetch updated L2 network
         ]
@@ -3171,7 +3216,10 @@ class TestTenantLayer2Manager:
         tenant_data: dict[str, Any],
     ) -> None:
         """Test deleting a Layer 2 network."""
-        mock_session.request.return_value.json.return_value = {}
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42, "tenant": 100},
+            {},
+        ]
 
         tenant = Tenant(tenant_data, mock_client.tenants)
         tenant.l2_networks.delete(42)
@@ -3190,6 +3238,7 @@ class TestTenantLayer2Manager:
         """Test deleting Layer 2 network by network name."""
         mock_session.request.return_value.json.side_effect = [
             [l2_data],  # GET to find L2 network
+            l2_data,  # scope check
             {},  # DELETE response
         ]
 
@@ -3243,6 +3292,7 @@ class TestTenantLayer2ViaObject:
         """Test enabling L2 network via object.enable()."""
         mock_session.request.return_value.json.side_effect = [
             [l2_data],  # GET to list L2 networks
+            l2_data,  # scope check
             {},  # PUT response
             [l2_data],  # GET to fetch updated L2 network
         ]
@@ -3276,6 +3326,7 @@ class TestTenantLayer2ViaObject:
         l2_data_disabled["enabled"] = False
         mock_session.request.return_value.json.side_effect = [
             [l2_data],  # GET to list L2 networks
+            l2_data,  # scope check
             {},  # PUT response
             [l2_data_disabled],  # GET to fetch updated L2 network
         ]
@@ -3307,6 +3358,7 @@ class TestTenantLayer2ViaObject:
         """Test deleting L2 network via object.delete()."""
         mock_session.request.return_value.json.side_effect = [
             [l2_data],  # GET to list L2 networks
+            l2_data,  # scope check
             {},  # DELETE response
         ]
 
@@ -4161,6 +4213,7 @@ class TestTenantNodeManager:
     ) -> None:
         """Test updating a node."""
         mock_session.request.return_value.json.side_effect = [
+            node_data,  # scope check
             {},  # PUT response
             node_data,  # GET to fetch updated node
         ]
@@ -4181,7 +4234,10 @@ class TestTenantNodeManager:
         tenant_data: dict[str, Any],
     ) -> None:
         """Test deleting a node."""
-        mock_session.request.return_value.json.return_value = {}
+        mock_session.request.return_value.json.side_effect = [
+            {"$key": 42, "tenant": 100},
+            {},
+        ]
         tenant = Tenant(tenant_data, mock_client.tenants)
 
         tenant.nodes.delete(42)
@@ -4229,6 +4285,7 @@ class TestTenantNodeViaObject:
         """Test saving node changes via object.save()."""
         mock_session.request.return_value.json.side_effect = [
             [node_data],  # GET to list nodes
+            node_data,  # scope check
             {},  # PUT response
             node_data,  # GET to fetch updated node
         ]
@@ -4260,6 +4317,7 @@ class TestTenantNodeViaObject:
         """Test deleting node via object.delete()."""
         mock_session.request.return_value.json.side_effect = [
             [node_data],  # GET to list nodes
+            node_data,  # scope check
             {},  # DELETE response
         ]
 

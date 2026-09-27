@@ -415,6 +415,7 @@ class TestNetworkHostManagerUpdate:
         """Test updating host IP."""
         updated_data = {**sample_host_data, "ip": "10.0.0.51"}
         mock_client._request.side_effect = [
+            sample_host_data,  # scope check
             None,  # PUT response
             updated_data,  # GET response
         ]
@@ -422,7 +423,7 @@ class TestNetworkHostManagerUpdate:
         host = host_manager.update(10, ip="10.0.0.51")
 
         assert host.ip == "10.0.0.51"
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         assert put_call[0][0] == "PUT"
         assert "vnet_hosts/10" in put_call[0][1]
         assert put_call[1]["json_data"]["ip"] == "10.0.0.51"
@@ -435,11 +436,11 @@ class TestNetworkHostManagerUpdate:
     ) -> None:
         """Test updating hostname."""
         updated_data = {**sample_host_data, "host": "newname"}
-        mock_client._request.side_effect = [None, updated_data]
+        mock_client._request.side_effect = [sample_host_data, None, updated_data]
 
         host_manager.update(10, hostname="newname")
 
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         assert put_call[1]["json_data"]["host"] == "newname"
 
     def test_update_type(
@@ -450,11 +451,11 @@ class TestNetworkHostManagerUpdate:
     ) -> None:
         """Test updating host type."""
         updated_data = {**sample_host_data, "type": "domain"}
-        mock_client._request.side_effect = [None, updated_data]
+        mock_client._request.side_effect = [sample_host_data, None, updated_data]
 
         host_manager.update(10, host_type="domain")
 
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         assert put_call[1]["json_data"]["type"] == "domain"
 
     def test_update_multiple_fields(
@@ -465,17 +466,23 @@ class TestNetworkHostManagerUpdate:
     ) -> None:
         """Test updating multiple fields at once."""
         updated_data = {**sample_host_data, "host": "newname", "ip": "10.0.0.99"}
-        mock_client._request.side_effect = [None, updated_data]
+        mock_client._request.side_effect = [sample_host_data, None, updated_data]
 
         host_manager.update(10, hostname="newname", ip="10.0.0.99")
 
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         body = put_call[1]["json_data"]
         assert body["host"] == "newname"
         assert body["ip"] == "10.0.0.99"
 
-    def test_update_no_fields_raises(self, host_manager: NetworkHostManager) -> None:
+    def test_update_no_fields_raises(
+        self,
+        host_manager: NetworkHostManager,
+        mock_client: MagicMock,
+        sample_host_data: dict[str, Any],
+    ) -> None:
         """Test that update with no fields raises ValueError."""
+        mock_client._request.return_value = sample_host_data
         with pytest.raises(ValueError, match="At least one field"):
             host_manager.update(10)
 
@@ -483,14 +490,18 @@ class TestNetworkHostManagerUpdate:
 class TestNetworkHostManagerDelete:
     """Tests for NetworkHostManager.delete() method."""
 
-    def test_delete_host(self, host_manager: NetworkHostManager, mock_client: MagicMock) -> None:
+    def test_delete_host(
+        self,
+        host_manager: NetworkHostManager,
+        mock_client: MagicMock,
+        sample_host_data: dict[str, Any],
+    ) -> None:
         """Test deleting a host."""
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [sample_host_data, None]
 
         host_manager.delete(10)
 
-        mock_client._request.assert_called_once()
-        call_args = mock_client._request.call_args
+        call_args = mock_client._request.call_args_list[-1]
         assert call_args[0][0] == "DELETE"
         assert "vnet_hosts/10" in call_args[0][1]
 
