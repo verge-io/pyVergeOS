@@ -6,11 +6,53 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
-[Unreleased]
-------------
+[1.7.1] - 2026-09-27
+--------------------
+
+Upgrading from 1.6.1
+^^^^^^^^^^^^^^^^^^^^
+
+Most of this release is fixes, but four of them change what a caller sees.
+Check for these before you upgrade:
+
+- ``LicenseManager.generate_payload()`` returns ``bytes``, not ``str``. Write
+  the result in binary mode. (#184)
+- ``skip_missed`` is gone from snapshot profile periods. ``periods.create()``
+  and ``SnapshotProfile.add_period()`` raise ``TypeError`` if you pass it,
+  and ``update()`` and ``save()`` raise ``ValueError``. (#139)
+- ``ResourceRule.resource_group_key`` and ``Device.resource_group_key``
+  return the resource group UUID as a ``str``. They used to raise on every
+  real row, so nothing could have depended on the old type. (#151)
+- A manager handed out by a parent, such as ``network.rules``,
+  ``tenant.nodes`` or ``vm.drives``, raises ``NotFoundError`` for a key that
+  belongs to a different parent. It used to act on that row. (#168, #182,
+  #188)
+
+Added
+^^^^^
+
+- ``auth_sources.update(..., merge_settings=True)`` gives the merge semantics
+  the docstring used to promise: the SDK reads the current document with
+  ``get(key, include_settings=True)``, shallow-merges your keys on top, and
+  writes the result back, so changing ``scope`` alone keeps the client
+  credentials. It requires ``settings`` (raising ``ValueError`` otherwise),
+  costs one extra API call, and is read-modify-write rather than atomic -- a
+  concurrent write landing between the read and the write is lost. The default
+  remains ``False``, preserving replace semantics for existing callers. (#142)
 
 Fixed
 ^^^^^
+
+- Managers handed out by a parent now refuse another parent's rows. That
+  covers network rules, aliases and hosts, DNS views, zones and records,
+  WireGuard interfaces and peers, IPsec connections and policies, proxies,
+  tenant nodes, storage, snapshots, network blocks, external IPs and Layer 2
+  networks, volume and NAS service antivirus, resource group rules, task
+  events and triggers, and OIDC allowed users and groups. They used to
+  ``get``, ``update`` or ``delete`` a row by key even when it belonged to a
+  different parent. They now read the row's parent column first and raise
+  ``NotFoundError`` before anything is written. Code that passed another
+  parent's key has to use that parent's manager instead. (#188)
 
 - ``IPSecConnectionManager`` scopes phase 1 rows by their ``ipsec`` config,
   not by a ``vnet`` column the ``vnet_ipsec_phase1s`` table does not have.
@@ -54,6 +96,11 @@ Fixed
   ``create()`` updates the existing row, including when a POST races
   and returns 409. Examples lead with ``get()`` and ``update()``.
   Measured on VergeOS 26.1.8. (#170)
+
+- ``NasServiceAntivirusManager.list()`` honours its service scope.
+  ``nas_service.antivirus.list()`` returned every NAS service's antivirus
+  config, not just that service's. The antivirus docstrings no longer
+  mention ``client.volume_antivirus``, which does not exist. (#152)
 
 - ``VM.hotplug_drive()`` raises ``ValueError`` before creating a drive
   when ``media`` is not ``disk`` or ``interface`` is not ``virtio`` or
@@ -135,13 +182,6 @@ Fixed
   redundancy flags were truthy strings. Status, stats and history queries
   now project the columns of the endpoint they call. (#149)
 
-
-[1.7.1] - 2026-09-24
---------------------
-
-Fixed
-^^^^^
-
 - ``VMSnapshotManager.create(retention=0)`` now sends ``expires: 0`` so the
   platform stores a never-expiring snapshot. Omitting ``expires`` previously
   let VergeOS default to +72 hours, contradicting the documented "use 0 for
@@ -157,13 +197,6 @@ Fixed
   posting to ``vm_actions``. The object method previously posted the machine
   key as a VM key, which raised ``NotFoundError`` and could clone the wrong
   VM if keys later collided. (#147)
-
-
-[1.7.0] - 2026-09-24
---------------------
-
-Fixed
-^^^^^
 
 - ``PhysicalDriveManager`` node scoping no longer filters on a nonexistent
   ``node`` column (which silently returned ``[]`` for every node). It now
@@ -187,18 +220,6 @@ Fixed
   in full and that omitted keys are deleted, and the manager and module
   examples no longer demonstrate the partial write that causes it. Behaviour
   is unchanged -- this was always what the API did. (#142)
-
-Added
-^^^^^
-
-- ``auth_sources.update(..., merge_settings=True)`` gives the merge semantics
-  the docstring used to promise: the SDK reads the current document with
-  ``get(key, include_settings=True)``, shallow-merges your keys on top, and
-  writes the result back, so changing ``scope`` alone keeps the client
-  credentials. It requires ``settings`` (raising ``ValueError`` otherwise),
-  costs one extra API call, and is read-modify-write rather than atomic -- a
-  concurrent write landing between the read and the write is lost. The default
-  remains ``False``, preserving replace semantics for existing callers. (#142)
 
 Docs
 ^^^^
