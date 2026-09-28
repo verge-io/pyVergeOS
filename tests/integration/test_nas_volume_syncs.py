@@ -5,6 +5,8 @@ These tests require a live VergeOS system with:
 - At least 2 volumes for sync testing
 
 Run with: pytest tests/integration/test_nas_volume_syncs.py -v
+
+TLS verification matches the shared live_client fixture (disabled).
 """
 
 import pytest
@@ -14,15 +16,9 @@ from pyvergeos.exceptions import NotFoundError, ValidationError
 
 
 @pytest.fixture(scope="module")
-def client():
-    """Create a live client for integration tests.
-
-    Requires environment variables:
-        VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
-    """
-    client = VergeClient.from_env()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")

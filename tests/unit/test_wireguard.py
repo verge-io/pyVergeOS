@@ -463,6 +463,7 @@ class TestWireGuardManagerUpdate:
     ) -> None:
         """Test update interface."""
         mock_client._request.side_effect = [
+            sample_interface_data,  # scope check
             None,  # PUT
             sample_interface_data,  # GET
         ]
@@ -477,6 +478,7 @@ class TestWireGuardManagerUpdate:
     ) -> None:
         """Test update maps field names to API format."""
         mock_client._request.side_effect = [
+            sample_interface_data,
             None,
             sample_interface_data,
         ]
@@ -485,13 +487,19 @@ class TestWireGuardManagerUpdate:
             ip_address="10.100.0.2/24",
             listen_port=51821,
         )
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         body = put_call[1]["json_data"]
         assert body["ip"] == "10.100.0.2/24"
         assert body["listenport"] == 51821
 
-    def test_update_requires_parameters(self, wireguard_manager: WireGuardManager) -> None:
+    def test_update_requires_parameters(
+        self,
+        wireguard_manager: WireGuardManager,
+        mock_client: MagicMock,
+        sample_interface_data: dict[str, Any],
+    ) -> None:
         """Test update raises ValueError when no parameters provided."""
+        mock_client._request.return_value = sample_interface_data
         with pytest.raises(ValueError, match="No update parameters"):
             wireguard_manager.update(1)
 
@@ -500,10 +508,13 @@ class TestWireGuardManagerDelete:
     """Tests for WireGuardManager.delete() method."""
 
     def test_delete_interface(
-        self, wireguard_manager: WireGuardManager, mock_client: MagicMock
+        self,
+        wireguard_manager: WireGuardManager,
+        mock_client: MagicMock,
+        sample_interface_data: dict[str, Any],
     ) -> None:
         """Test delete interface."""
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [sample_interface_data, None]
         wireguard_manager.delete(1)
         mock_client._request.assert_called_with("DELETE", "vnet_wireguards/1")
 
@@ -686,6 +697,7 @@ class TestWireGuardPeerManagerUpdate:
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
         mock_client._request.side_effect = [
+            sample_peer_data,  # scope check
             None,  # PUT
             sample_peer_data,  # GET
         ]
@@ -702,20 +714,25 @@ class TestWireGuardPeerManagerUpdate:
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
         mock_client._request.side_effect = [
+            sample_peer_data,
             None,
             sample_peer_data,
         ]
         peer_manager.update(1, firewall_config="remote_user")
-        put_call = mock_client._request.call_args_list[0]
+        put_call = mock_client._request.call_args_list[1]
         body = put_call[1]["json_data"]
         assert body["configure_firewall"] == "remote-user"
 
     def test_update_requires_parameters(
-        self, wireguard_manager: WireGuardManager, mock_client: MagicMock
+        self,
+        wireguard_manager: WireGuardManager,
+        mock_client: MagicMock,
+        sample_peer_data: dict[str, Any],
     ) -> None:
         """Test update raises ValueError when no parameters."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
+        mock_client._request.return_value = sample_peer_data
         with pytest.raises(ValueError, match="No update parameters"):
             peer_manager.update(1)
 
@@ -723,11 +740,16 @@ class TestWireGuardPeerManagerUpdate:
 class TestWireGuardPeerManagerDelete:
     """Tests for WireGuardPeerManager.delete() method."""
 
-    def test_delete_peer(self, wireguard_manager: WireGuardManager, mock_client: MagicMock) -> None:
+    def test_delete_peer(
+        self,
+        wireguard_manager: WireGuardManager,
+        mock_client: MagicMock,
+        sample_peer_data: dict[str, Any],
+    ) -> None:
         """Test delete peer."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
-        mock_client._request.return_value = None
+        mock_client._request.side_effect = [sample_peer_data, None]
         peer_manager.delete(1)
         mock_client._request.assert_called_with("DELETE", "vnet_wireguard_peers/1")
 
@@ -739,9 +761,10 @@ class TestWireGuardPeerManagerGetConfig:
         """Test get_config returns configuration."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
-        mock_client._request.return_value = {
-            "wg_config": "[Interface]\nPrivateKey=abc123==\nAddress=10.100.0.2/24"
-        }
+        mock_client._request.side_effect = [
+            {"$key": 1, "wireguard": 1},
+            {"wg_config": "[Interface]\nPrivateKey=abc123==\nAddress=10.100.0.2/24"},
+        ]
         result = peer_manager.get_config(1)
         assert "[Interface]" in result
 
@@ -761,7 +784,10 @@ class TestWireGuardPeerManagerGetConfig:
         """Test get_config raises ValueError when empty."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
-        mock_client._request.return_value = {"wg_config": ""}
+        mock_client._request.side_effect = [
+            {"$key": 1, "wireguard": 1},
+            {"wg_config": ""},
+        ]
         with pytest.raises(ValueError, match="No configuration available"):
             peer_manager.get_config(1)
 
@@ -771,7 +797,10 @@ class TestWireGuardPeerManagerGetConfig:
         """Test get_config handles API error gracefully."""
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
-        mock_client._request.side_effect = NotFoundError("Not found")
+        mock_client._request.side_effect = [
+            {"$key": 1, "wireguard": 1},
+            NotFoundError("Not found"),
+        ]
         with pytest.raises(ValueError, match="Configuration not available"):
             peer_manager.get_config(1)
 
@@ -810,6 +839,9 @@ class TestWireGuardPeerGetConfigMethod:
         iface = WireGuardInterface({"$key": 1, "name": "wg0"}, wireguard_manager)
         peer_manager = WireGuardPeerManager(mock_client, iface)
         peer = WireGuardPeer({"$key": 1, "name": "test"}, peer_manager)
-        mock_client._request.return_value = {"wg_config": "[Interface]\nTest=1"}
+        mock_client._request.side_effect = [
+            {"$key": 1, "wireguard": 1},
+            {"wg_config": "[Interface]\nTest=1"},
+        ]
         result = peer.get_config()
         assert "[Interface]" in result

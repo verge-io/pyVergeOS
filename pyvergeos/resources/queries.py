@@ -223,6 +223,15 @@ class QueryManager(ResourceManager[QueryResult]):
     def _to_model(self, data: dict[str, Any]) -> QueryResult:
         return QueryResult(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Query"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Queries belong to the parent column this manager was built with (#188)."""
+        if not self._parent_field:
+            return []
+        return [(self._parent_field, self._parent_key)]
+
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
@@ -292,12 +301,13 @@ class QueryManager(ResourceManager[QueryResult]):
             fields = QUERY_DEFAULT_FIELDS
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Query {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Query {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if query_id is not None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
@@ -15,6 +15,28 @@ if TYPE_CHECKING:
     from pyvergeos.resources.vms import VM
 
 logger = logging.getLogger(__name__)
+
+
+def _clone_restore_vm_key(result: Any) -> int:
+    """Return the new VM key from a clone-restore response.
+
+    VergeOS returns ``{"response": {"vmkey": "52", ...}}``. ``$key`` and
+    ``key`` stay as fallbacks for payloads that put the key at the top level.
+    """
+    raw: Any = None
+    if isinstance(result, dict):
+        response = result.get("response")
+        if isinstance(response, dict):
+            raw = response.get("vmkey")
+        if not raw:
+            raw = result.get("$key") or result.get("key")
+    if isinstance(raw, bool) or not raw:
+        raise ValueError("Clone restore did not return a VM key to power on")
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Clone restore did not return a VM key to power on") from exc
+
 
 # Default fields for snapshots
 SNAPSHOT_DEFAULT_FIELDS = [
@@ -88,34 +110,24 @@ class VMSnapshot(ResourceObject):
 
         Returns:
             Clone task information.
+
+        Raises:
+            ValueError: If the snapshot has no snap_machine, no snapshot VM
+                exists for that machine, or ``power_on`` is set and the clone
+                response has no VM key.
+            NotFoundError: If this snapshot key no longer exists or belongs
+                to another VM.
+            APIError: If the clone or power-on request fails. The power-on
+                error is not swallowed.
+
+        Notes:
+            Delegates to ``VMSnapshotManager.restore`` so the snap_machine
+            (machine key) is resolved to the snapshot VM key before posting
+            to ``vm_actions``. Posting the machine key as a VM key fails
+            with NotFound (or, if keys collide, can clone the wrong VM).
         """
-        snap_key = self.snap_machine_key
-        if snap_key is None:
-            raise ValueError("Snapshot does not have a valid snap_machine reference")
-
-        restored_name = name or f"{self.get('name', 'snapshot')} restored"
-
-        body: dict[str, Any] = {
-            "vm": snap_key,
-            "action": "clone",
-            "params": {"name": restored_name},
-        }
-
-        result = self._manager._client._request("POST", "vm_actions", json_data=body)
-
-        if power_on and result and isinstance(result, dict):
-            new_vm_key = result.get("$key") or result.get("key")
-            if new_vm_key:
-                import time
-
-                time.sleep(2)
-                self._manager._client._request(
-                    "POST",
-                    "vm_actions",
-                    json_data={"vm": new_vm_key, "action": "poweron"},
-                )
-
-        return result if isinstance(result, dict) else None
+        manager = cast("VMSnapshotManager", self._manager)
+        return manager.restore(self.key, name=name, power_on=power_on)
 
 
 class VMSnapshotManager(ResourceManager[VMSnapshot]):
@@ -141,6 +153,13 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
     def _to_model(self, data: dict[str, Any]) -> VMSnapshot:
         return VMSnapshot(data, self)
+
+    def _scope_resource(self) -> str:
+        return "Snapshot"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Snapshots are owned by the VM's machine (#168)."""
+        return [("machine", self.machine_key)]
 
     def list(  # noqa: A003
         self,
@@ -208,23 +227,25 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             VMSnapshot object.
 
         Raises:
-            NotFoundError: If snapshot not found.
+            NotFoundError: If the snapshot does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         if fields is None:
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            from pyvergeos.exceptions import NotFoundError
+
+            # list() is filtered by machine; a key is not. Ask for machine even
+            # when the caller narrowed fields, then refuse another VM's row (#168).
+            selected = self._with_scope_fields(fields)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"Snapshot {key} not found")
             if not isinstance(response, dict):
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"Snapshot {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -248,7 +269,9 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
         Args:
             name: Snapshot name (optional, auto-generated with timestamp if not provided).
-            retention: Snapshot retention in seconds (default 24h). Use 0 for never expires.
+            retention: Snapshot retention in seconds (default 24h). Use 0 for
+                never expires. Omitted uses the 24h default. Negative values
+                and None are rejected.
             quiesce: Quiesce disk activity (requires guest agent).
             description: Snapshot description.
 
@@ -256,6 +279,13 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             Created snapshot information.
         """
         import time as _time
+
+        # None/bool must not fall through: bool is an int, and False would
+        # otherwise be stored as expires:0 ("never").
+        if retention is None or isinstance(retention, bool):
+            raise TypeError("retention must be an int number of seconds; use 0 for never expires")
+        if retention < 0:
+            raise ValueError("retention must be non-negative; use 0 for never expires")
 
         # Generate snapshot name if not provided
         snapshot_name = name or f"Snapshot-{_time.strftime('%Y%m%d-%H%M%S')}"
@@ -270,8 +300,9 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             "quiesce": quiesce,
         }
 
-        if expires_timestamp > 0:
-            body["expires"] = expires_timestamp
+        # Always send expires: retention=0 must be expires:0 ("never"), not
+        # omitted — omitting lets the platform default to +72h (#146).
+        body["expires"] = expires_timestamp
 
         if description:
             body["description"] = description
@@ -280,11 +311,15 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         return result if isinstance(result, dict) else None
 
     def delete(self, key: int) -> None:
-        """Delete a snapshot.
+        """Delete a snapshot belonging to this VM.
 
         Args:
             key: Snapshot $key (ID).
+
+        Raises:
+            NotFoundError: If the snapshot does not exist or belongs to another VM.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def restore(
@@ -304,8 +339,19 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
             power_on: Power on VM after restoration.
 
         Returns:
-            Restore task information.
+            Restore task information. An in-place restore often returns None
+            because the action body is empty.
+
+        Raises:
+            ValueError: If the snapshot has no snap_machine, no snapshot VM
+                exists, the VM is running for an in-place restore, or
+                ``power_on`` is set and a clone response has no VM key.
+            NotFoundError: If the snapshot does not exist or belongs to another VM.
+            APIError: If the restore or power-on request fails. The power-on
+                error is not swallowed.
         """
+        # get() already fetched the row, and it rejects another VM's snapshot
+        # before the snap_machine lookup or any vm_actions post (#168).
         snapshot = self.get(key)
         snap_machine_key = snapshot.snap_machine_key
 
@@ -328,9 +374,23 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         if response:
             vms = response if isinstance(response, list) else [response]
             for vm_data in vms:
-                if vm_data.get("is_snapshot"):
-                    snap_vm_key = vm_data.get("$key")
-                    break
+                if not isinstance(vm_data, dict) or not vm_data.get("is_snapshot"):
+                    continue
+                # Trust an integer machine when the server returned one. A
+                # row for a different machine must not be cloned just because
+                # it is also a snapshot (key-collision case, #147).
+                machine = vm_data.get("machine")
+                if (
+                    isinstance(machine, int)
+                    and not isinstance(machine, bool)
+                    and machine != snap_machine_key
+                ):
+                    continue
+                vm_key = vm_data.get("$key")
+                if vm_key is None:
+                    continue
+                snap_vm_key = vm_key
+                break
 
         if snap_vm_key is None:
             raise ValueError(f"Could not find snapshot VM with machine key {snap_machine_key}")
@@ -347,15 +407,10 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
             result = self._client._request("POST", "vm_actions", json_data=body)
 
-            if power_on and result:
-                import time
-
-                time.sleep(2)
-                self._client._request(
-                    "POST",
-                    "vm_actions",
-                    json_data={"vm": self._vm.key, "action": "poweron"},
-                )
+            # The restore action returns an empty body, so result is None.
+            # Power on the original VM whenever requested (#172).
+            if power_on:
+                self._power_on_vm(self._vm.key)
 
             return result if isinstance(result, dict) else None
         else:
@@ -370,16 +425,23 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
 
             result = self._client._request("POST", "vm_actions", json_data=body)
 
-            if power_on and result and isinstance(result, dict):
-                new_vm_key = result.get("$key") or result.get("key")
-                if new_vm_key:
-                    import time
-
-                    time.sleep(2)
-                    self._client._request(
-                        "POST",
-                        "vm_actions",
-                        json_data={"vm": new_vm_key, "action": "poweron"},
-                    )
+            if power_on:
+                # Platform shape is {"response": {"vmkey": "..."}}; $key / key
+                # remain fallbacks. A failed power-on POST propagates (#172).
+                self._power_on_vm(_clone_restore_vm_key(result))
 
             return result if isinstance(result, dict) else None
+
+    def _power_on_vm(self, vm_key: int) -> None:
+        """Power on a VM after restore.
+
+        The POST is not caught: an API error reaches the caller.
+        """
+        import time
+
+        time.sleep(2)
+        self._client._request(
+            "POST",
+            "vm_actions",
+            json_data={"vm": vm_key, "action": "poweron"},
+        )

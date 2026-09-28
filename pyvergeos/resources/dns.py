@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, scope_values_equal
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -160,6 +160,13 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
     def _to_model(self, data: dict[str, Any]) -> DNSRecord:
         return DNSRecord(data, self)
 
+    def _scope_resource(self) -> str:
+        return "DNS record"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Records belong to one zone (#188)."""
+        return [("zone", self.zone_key)]
+
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
@@ -253,12 +260,13 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS record {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"DNS record {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if host is not None:
@@ -348,6 +356,7 @@ class DNSRecordManager(ResourceManager[DNSRecord]):
         Note:
             DNS changes require DNS apply on the network to take effect.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
@@ -511,6 +520,43 @@ class DNSZoneManager(ResourceManager[DNSZone]):
         view_name: str | None = None,
     ) -> DNSZone:
         return DNSZone(data, self, view_key=view_key, view_name=view_name)
+
+    def _scope_resource(self) -> str:
+        return "DNS zone"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Zones belong to one view, and a view belongs to one network (#188).
+
+        A view-scoped manager compares ``view`` directly. A network-scoped
+        manager still requests ``view``; :meth:`_row_in_scope` checks that
+        view's ``vnet``.
+        """
+        if self._view is not None:
+            return [("view", self._view.key)]
+        return [("view", self.network_key)]
+
+    def _row_in_scope(self, row: dict[str, Any]) -> bool:
+        if self._view is not None:
+            return super()._row_in_scope(row)
+        view_key = row.get("view")
+        if view_key is None:
+            return False
+        previous = self._requested_aliases
+        try:
+            params = {"fields": self._projection(["$key", "vnet"], defaults=[])}
+            response = self._client._request(
+                "GET", f"{self._views_endpoint}/{view_key}", params=params
+            )
+        finally:
+            self._requested_aliases = previous
+        if not isinstance(response, dict):
+            return False
+        return scope_values_equal(response.get("vnet"), self.network_key)
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        if self._view is None:
+            return f"DNS zone {key} does not belong to vnet {self.network_key}"
+        return super()._scope_error(key, row)
 
     def _get_views(self) -> builtins.list[dict[str, Any]]:
         """Get DNS views for this network.
@@ -678,12 +724,13 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS zone {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"DNS zone {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if domain is not None:
@@ -796,4 +843,5 @@ class DNSZoneManager(ResourceManager[DNSZone]):
             Deleting a zone also deletes all records within it.
             DNS changes require DNS apply on the network to take effect.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

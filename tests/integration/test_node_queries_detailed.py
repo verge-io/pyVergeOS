@@ -3,6 +3,8 @@
 Tests all 30+ query types from the API schema.
 
 Run: uv run python tests/integration/test_node_queries_detailed.py
+
+Functions are named check_* so pytest does not collect this standalone script.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ def section(title: str) -> None:
     print(f"{'=' * 60}")
 
 
-def test_class_structure() -> bool:
+def check_class_structure() -> bool:
     """Verify NodeQueryManager class attributes."""
     print(f"  _endpoint: {NodeQueryManager._endpoint}")
     assert NodeQueryManager._endpoint == "node_queries"
@@ -53,7 +55,7 @@ def test_class_structure() -> bool:
     return True
 
 
-def test_node_lookup(client: VergeClient) -> tuple[bool, int]:
+def check_node_lookup(client: VergeClient) -> tuple[bool, int]:
     """Find node1 and return its key."""
     node = client.nodes.get(name=NODE_NAME)
     print(f"  Found: name={node.name}, key={node.key}")
@@ -61,7 +63,7 @@ def test_node_lookup(client: VergeClient) -> tuple[bool, int]:
     return True, node.key
 
 
-def test_nested_manager(client: VergeClient, node_key: int) -> bool:
+def check_nested_manager(client: VergeClient, node_key: int) -> bool:
     """Verify node.queries returns NodeQueryManager."""
     node = client.nodes.get(node_key)
     qm = node.queries
@@ -72,7 +74,7 @@ def test_nested_manager(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_list(client: VergeClient, node_key: int) -> bool:
+def check_list(client: VergeClient, node_key: int) -> bool:
     """Test list()."""
     node = client.nodes.get(node_key)
     queries = node.queries.list()
@@ -105,7 +107,7 @@ def run_query(
         return "EXCEPTION", "", str(e)
 
 
-def test_convenience_ping(client: VergeClient, node_key: int) -> bool:
+def check_convenience_ping(client: VergeClient, node_key: int) -> bool:
     """Test ping() convenience method."""
     node = client.nodes.get(node_key)
     result = node.queries.ping("127.0.0.1", timeout=30)
@@ -116,7 +118,7 @@ def test_convenience_ping(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_convenience_dns(client: VergeClient, node_key: int) -> bool:
+def check_convenience_dns(client: VergeClient, node_key: int) -> bool:
     """Test dns() convenience method."""
     node = client.nodes.get(node_key)
     result = node.queries.dns("verge.io", timeout=30)
@@ -127,7 +129,7 @@ def test_convenience_dns(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_convenience_traceroute(client: VergeClient, node_key: int) -> bool:
+def check_convenience_traceroute(client: VergeClient, node_key: int) -> bool:
     """Test traceroute() convenience method."""
     node = client.nodes.get(node_key)
     result = node.queries.traceroute("8.8.8.8", timeout=60)
@@ -138,7 +140,7 @@ def test_convenience_traceroute(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_convenience_arp(client: VergeClient, node_key: int) -> bool:
+def check_convenience_arp(client: VergeClient, node_key: int) -> bool:
     """Test arp() convenience method."""
     node = client.nodes.get(node_key)
     result = node.queries.arp(timeout=30)
@@ -149,7 +151,7 @@ def test_convenience_arp(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_convenience_smartctl(client: VergeClient, node_key: int) -> bool:
+def check_convenience_smartctl(client: VergeClient, node_key: int) -> bool:
     """Test smartctl() convenience method."""
     node = client.nodes.get(node_key)
     # Use first nvme device which should exist on the dev env
@@ -161,7 +163,7 @@ def test_convenience_smartctl(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_convenience_lsblk(client: VergeClient, node_key: int) -> bool:
+def check_convenience_lsblk(client: VergeClient, node_key: int) -> bool:
     """Test lsblk() convenience method."""
     node = client.nodes.get(node_key)
     result = node.queries.lsblk(timeout=30)
@@ -172,7 +174,7 @@ def test_convenience_lsblk(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_convenience_dmidecode(client: VergeClient, node_key: int) -> bool:
+def check_convenience_dmidecode(client: VergeClient, node_key: int) -> bool:
     """Test dmidecode() convenience method."""
     node = client.nodes.get(node_key)
     result = node.queries.dmidecode(timeout=30)
@@ -183,7 +185,7 @@ def test_convenience_dmidecode(client: VergeClient, node_key: int) -> bool:
     return True
 
 
-def test_all_query_types(client: VergeClient, node_key: int) -> bool:
+def check_all_query_types(client: VergeClient, node_key: int) -> bool:
     """Test all 30+ query types via raw run()."""
     # All query types from the API schema
     all_types = [
@@ -244,7 +246,7 @@ def test_all_query_types(client: VergeClient, node_key: int) -> bool:
     return failed == 0
 
 
-def test_query_key_handling(client: VergeClient, node_key: int) -> bool:
+def check_query_key_handling(client: VergeClient, node_key: int) -> bool:
     """Verify SHA1 string key handling."""
     node = client.nodes.get(node_key)
     result = node.queries.run("whatsmyip", timeout=30)
@@ -283,7 +285,7 @@ def run() -> None:
     # 1. Class structure
     section("1. Class Structure")
     try:
-        ok = test_class_structure()
+        ok = check_class_structure()
         tests.append(("Class structure", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Class structure", f"ERROR: {e}"))
@@ -292,7 +294,7 @@ def run() -> None:
     # 2. Node lookup
     section("2. Node Lookup")
     try:
-        ok, node_key = test_node_lookup(client)
+        ok, node_key = check_node_lookup(client)
         tests.append(("Node lookup", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Node lookup", f"ERROR: {e}"))
@@ -304,7 +306,7 @@ def run() -> None:
     # 3. Nested manager
     section("3. Nested Manager (node.queries)")
     try:
-        ok = test_nested_manager(client, node_key)
+        ok = check_nested_manager(client, node_key)
         tests.append(("Nested manager", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Nested manager", f"ERROR: {e}"))
@@ -313,7 +315,7 @@ def run() -> None:
     # 4. list()
     section("4. list()")
     try:
-        ok = test_list(client, node_key)
+        ok = check_list(client, node_key)
         tests.append(("list()", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("list()", f"ERROR: {e}"))
@@ -322,7 +324,7 @@ def run() -> None:
     # 5. SHA1 key handling
     section("5. query_key / query_id Handling")
     try:
-        ok = test_query_key_handling(client, node_key)
+        ok = check_query_key_handling(client, node_key)
         tests.append(("query_key handling", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("query_key handling", f"ERROR: {e}"))
@@ -330,13 +332,13 @@ def run() -> None:
 
     # 6. Convenience methods
     convenience = [
-        ("6a. ping()", test_convenience_ping),
-        ("6b. dns()", test_convenience_dns),
-        ("6c. traceroute()", test_convenience_traceroute),
-        ("6d. arp()", test_convenience_arp),
-        ("6e. smartctl()", test_convenience_smartctl),
-        ("6f. lsblk()", test_convenience_lsblk),
-        ("6g. dmidecode()", test_convenience_dmidecode),
+        ("6a. ping()", check_convenience_ping),
+        ("6b. dns()", check_convenience_dns),
+        ("6c. traceroute()", check_convenience_traceroute),
+        ("6d. arp()", check_convenience_arp),
+        ("6e. smartctl()", check_convenience_smartctl),
+        ("6f. lsblk()", check_convenience_lsblk),
+        ("6g. dmidecode()", check_convenience_dmidecode),
     ]
 
     for name, fn in convenience:
@@ -351,7 +353,7 @@ def run() -> None:
     # 7. All 30+ query types
     section("7. All Query Types (30+)")
     try:
-        ok = test_all_query_types(client, node_key)
+        ok = check_all_query_types(client, node_key)
         tests.append(("All query types", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("All query types", f"ERROR: {e}"))

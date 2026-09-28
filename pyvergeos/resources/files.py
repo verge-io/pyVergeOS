@@ -17,12 +17,13 @@ from pyvergeos.constants import (
     GB,
     HEADER_CONTENT_TYPE,
     HTTP_NO_CONTENT,
+    HTTP_NOT_FOUND,
     HTTP_SUCCESS_CODES,
     UPLOAD_CHUNK_SIZE,
     UPLOAD_CHUNK_TIMEOUT,
     UPLOAD_THREAD_COUNT,
 )
-from pyvergeos.exceptions import NotFoundError, ValidationError
+from pyvergeos.exceptions import APIError, NotFoundError, ValidationError
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
 logger = logging.getLogger(__name__)
@@ -471,6 +472,72 @@ class FileManager(ResourceManager[File]):
 
         logger.info("Download completed: %s", output_path)
         return output_path
+
+    def get_content(
+        self,
+        key: int,
+        *,
+        filename: str | None = None,
+        as_bytes: bool = False,
+    ) -> str | bytes:
+        """Return the contents of a media catalog file.
+
+        Uses the same download URL as :meth:`download`
+        (``files/<key>?download=1``). Prefer this for small files such as a
+        license request. Large images should use :meth:`download`, which
+        streams to disk.
+
+        Args:
+            key: File $key (ID).
+            filename: Name sent as ``asname``. When omitted, the catalog
+                name is looked up.
+            as_bytes: When True, return the body as bytes instead of UTF-8 text.
+
+        Returns:
+            File contents.
+
+        Raises:
+            NotFoundError: If the file does not exist.
+            APIError: If the download fails.
+            NotConnectedError: If the client is not connected.
+            UnicodeDecodeError: If ``as_bytes`` is False and the body is not
+                UTF-8.
+        """
+        download_name = filename or self.get(key=key).name or f"file-{key}"
+
+        connection = self._client._connection
+        if connection is None or not connection.is_connected:
+            from pyvergeos.exceptions import NotConnectedError
+
+            raise NotConnectedError("Not connected to VergeOS")
+
+        session = connection.session
+        if session is None:
+            from pyvergeos.exceptions import NotConnectedError
+
+            raise NotConnectedError("Session not initialized")
+
+        logger.info("Reading contents of '%s' (file %s)", download_name, key)
+        # int and str join as object, which Session.request rejects.
+        params: dict[str, Any] = {"download": 1, "asname": download_name}
+        response = session.request(
+            method="GET",
+            url=f"{connection.api_base_url}/files/{key}",
+            params=params,
+            timeout=self._client._timeout,
+        )
+        if response.status_code == HTTP_NOT_FOUND:
+            raise NotFoundError(f"File with key {key} not found")
+        if response.status_code not in HTTP_SUCCESS_CODES:
+            raise APIError(
+                f"Failed to download file {key}: HTTP {response.status_code}",
+                status_code=int(response.status_code),
+            )
+
+        raw = response.content
+        if as_bytes:
+            return raw
+        return raw.decode("utf-8")
 
     def delete(self, key: int) -> None:
         """Delete a file from the media catalog.

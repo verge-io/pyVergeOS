@@ -35,6 +35,10 @@ def sample_query_data() -> dict[str, Any]:
     """Sample query result data from API."""
     return {
         "$key": 1,
+        "vnet": 10,
+        "node": 5,
+        "service_container": 3,
+        "tenant_node": 7,
         "id": "abc123def456",
         "query": "ping",
         "params": {"host": "8.8.8.8"},
@@ -52,6 +56,10 @@ def sample_running_query() -> dict[str, Any]:
     """Sample running query data."""
     return {
         "$key": 2,
+        "vnet": 10,
+        "node": 5,
+        "service_container": 3,
+        "tenant_node": 7,
         "id": "def789ghi012",
         "query": "tcpdump",
         "params": {"interface": "eth0"},
@@ -69,6 +77,10 @@ def sample_error_query() -> dict[str, Any]:
     """Sample error query data."""
     return {
         "$key": 3,
+        "vnet": 10,
+        "node": 5,
+        "service_container": 3,
+        "tenant_node": 7,
         "id": "err456xyz789",
         "query": "ping",
         "params": {"host": "invalid"},

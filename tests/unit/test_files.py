@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import APIError, NotFoundError
 from pyvergeos.resources.files import File
 
 
@@ -120,6 +120,68 @@ class TestFileManager:
         call_args = mock_session.request.call_args
         assert call_args.kwargs.get("method") == "DELETE"
         assert "files/42" in call_args.kwargs.get("url")
+
+    def test_get_content(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test reading a catalog file's contents."""
+        mock_session.request.return_value.status_code = 200
+        mock_session.request.return_value.content = b"license-request-body"
+
+        content = mock_client.files.get_content(76, filename="request.lrq")
+
+        assert content == "license-request-body"
+        call_args = mock_session.request.call_args
+        assert call_args.kwargs.get("method") == "GET"
+        assert call_args.kwargs["url"].endswith("/files/76")
+        assert call_args.kwargs.get("params") == {"download": 1, "asname": "request.lrq"}
+
+    def test_get_content_as_bytes(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """Test reading catalog contents as bytes."""
+        mock_session.request.return_value.status_code = 200
+        mock_session.request.return_value.content = b"\x00\x01raw"
+
+        content = mock_client.files.get_content(7, filename="raw.bin", as_bytes=True)
+
+        assert content == b"\x00\x01raw"
+
+    def test_get_content_looks_up_name(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """When filename is omitted, the catalog name is used as asname."""
+
+        def fake_request(method: str, url: str, **kwargs: object) -> MagicMock:
+            del method, url
+            params = kwargs.get("params")
+            response = MagicMock()
+            response.status_code = 200
+            if isinstance(params, dict) and params.get("download") == 1:
+                assert params == {"download": 1, "asname": "named.lrq"}
+                response.content = b"named-body"
+                response.text = "named-body"
+                return response
+            response.text = "{}"
+            response.json.return_value = {"$key": 7, "name": "named.lrq"}
+            response.content = b"{}"
+            return response
+
+        mock_session.request.side_effect = fake_request
+
+        assert mock_client.files.get_content(7) == "named-body"
+
+    def test_get_content_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """A missing catalog file raises NotFoundError."""
+        mock_session.request.return_value.status_code = 404
+
+        with pytest.raises(NotFoundError):
+            mock_client.files.get_content(999, filename="missing.lrq")
+
+    def test_get_content_download_error(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """A non-success download raises APIError."""
+        mock_session.request.return_value.status_code = 500
+
+        with pytest.raises(APIError, match="Failed to download file 3"):
+            mock_client.files.get_content(3, filename="nope.lrq")
 
 
 class TestFile:

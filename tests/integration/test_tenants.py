@@ -6,6 +6,10 @@ import pytest
 
 from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
+from tests.integration.live_support import (
+    ExternalNetworkUnavailable,
+    lease_tenant_external_network,
+)
 
 
 @pytest.mark.integration
@@ -758,6 +762,27 @@ class TestTenantStorage:
         storage_manager.delete(allocations[0].key)
 
 
+@pytest.fixture(scope="module")
+def external_network(live_client_module: VergeClient):
+    """External-type network these tests may mutate.
+
+    A disposable external network is used when the platform will create one
+    without an uplink. Otherwise the tests are skipped unless
+    ``VERGE_ALLOW_EXTERNAL_MUTATION=1``, in which case a shared external
+    network is used and teardown applies rules until ``need_fw_apply`` is
+    false.
+    """
+    client = live_client_module
+    try:
+        lease = lease_tenant_external_network(client, prefix="pytest-tenant-ext")
+    except ExternalNetworkUnavailable as exc:
+        pytest.skip(str(exc))
+    try:
+        yield lease.network
+    finally:
+        lease.release(client)
+
+
 @pytest.mark.integration
 class TestTenantNetworkBlocks:
     """Integration tests for Tenant Network Block operations."""
@@ -781,30 +806,6 @@ class TestTenantNetworkBlocks:
 
         with contextlib.suppress(Exception):
             live_client.tenants.delete(tenant.key)
-
-    @pytest.fixture
-    def external_network(self, live_client: VergeClient):
-        """Get an external network for testing.
-
-        Uses the 'External' network which should exist in most deployments.
-        Falls back to first non-reserved external network.
-        """
-        networks = live_client.networks.list_external()
-        if not networks:
-            pytest.skip("No external networks available")
-
-        # Try to find External network first
-        for net in networks:
-            if net.name == "External":
-                return net
-
-        # Fall back to first non-reserved network
-        for net in networks:
-            if net.name not in ["Core", "DMZ"]:
-                return net
-
-        # Last resort
-        return networks[0]
 
     def test_list_network_blocks_empty(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing network blocks on a new tenant returns empty list."""
@@ -1049,30 +1050,6 @@ class TestTenantExternalIPs:
 
         with contextlib.suppress(Exception):
             live_client.tenants.delete(tenant.key)
-
-    @pytest.fixture
-    def external_network(self, live_client: VergeClient):
-        """Get an external network for testing.
-
-        Uses the 'External' network which should exist in most deployments.
-        Falls back to first non-reserved external network.
-        """
-        networks = live_client.networks.list_external()
-        if not networks:
-            pytest.skip("No external networks available")
-
-        # Try to find External network first
-        for net in networks:
-            if net.name == "External":
-                return net
-
-        # Fall back to first non-reserved network
-        for net in networks:
-            if net.name not in ["Core", "DMZ"]:
-                return net
-
-        # Last resort
-        return networks[0]
 
     def test_list_external_ips_empty(self, live_client: VergeClient, test_tenant) -> None:
         """Test listing external IPs on a new tenant returns empty list."""

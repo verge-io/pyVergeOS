@@ -1,4 +1,9 @@
-"""Network IP alias resource manager."""
+"""Router IP aliases on a network (vnet_addresses rows with type ipalias).
+
+These are extra IP addresses on the network's router. They are not
+firewall rule aliases. A rule's alias:<name> syntax resolves against
+the separate vnet_rule_aliases table, which this SDK does not manage yet.
+"""
 
 from __future__ import annotations
 
@@ -28,9 +33,11 @@ _ALIAS_COLUMNS = [
 
 
 class NetworkAlias(ResourceObject):
-    """Network IP alias resource object.
+    """Router IP alias (vnet_addresses row with type ipalias).
 
-    IP aliases can be referenced in firewall rules using alias:name syntax.
+    An extra IP address on the network's router. This is not a firewall
+    rule alias. A rule's alias:<name> syntax resolves against the separate
+    vnet_rule_aliases table, which this SDK does not manage yet.
     """
 
     @property
@@ -87,10 +94,13 @@ ALIAS_DEFAULT_FIELDS = [
 
 
 class NetworkAliasManager(ResourceManager[NetworkAlias]):
-    """Manager for Network IP alias operations.
+    """Manager for router IP aliases on a network.
 
-    This manager is accessed through a Network object's aliases property.
-    IP aliases are used in firewall rules to reference groups of IP addresses.
+    Accessed through a Network object's aliases property. Creates
+    vnet_addresses rows with type ipalias: extra IP addresses on the
+    network's router. These are not vnet_rule_aliases. A firewall rule's
+    alias:<name> syntax does not resolve to them, and this SDK has no
+    manager for vnet_rule_aliases yet.
 
     Examples:
         List all aliases for a network::
@@ -128,6 +138,13 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
 
     def _to_model(self, data: dict[str, Any]) -> NetworkAlias:
         return NetworkAlias(data, self)
+
+    def _scope_resource(self) -> str:
+        return "Alias"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Router IP aliases belong to one network (#188)."""
+        return [("vnet", self.network_key)]
 
     def list(  # type: ignore[override]
         self,
@@ -229,12 +246,13 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
             hostname = name
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Alias {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Alias {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if ip is not None:
@@ -257,11 +275,11 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
         name: str,
         description: str = "",
     ) -> NetworkAlias:
-        """Create a new IP alias.
+        """Create a router IP alias (vnet_addresses type ipalias).
 
         Args:
             ip: IP address for the alias. Can be a single IP or CIDR notation.
-            name: Name/hostname for the alias (used in firewall rules as alias:name).
+            name: Hostname stored on the alias.
             description: Optional description.
 
         Returns:
@@ -269,6 +287,11 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
 
         Raises:
             ValidationError: If an alias with this IP already exists.
+
+        Note:
+            This is an extra IP on the network's router, not a firewall
+            rule alias. alias:<name> in a rule resolves against
+            vnet_rule_aliases, which this SDK does not manage yet.
         """
         body: dict[str, Any] = {
             "vnet": self.network_key,
@@ -303,4 +326,5 @@ class NetworkAliasManager(ResourceManager[NetworkAlias]):
             Aliases referenced by firewall rules cannot be deleted
             until the rules are removed.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

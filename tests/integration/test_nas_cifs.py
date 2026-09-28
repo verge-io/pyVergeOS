@@ -2,13 +2,14 @@
 
 These tests require a live VergeOS system with at least one NAS service and volume.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled).
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
 
 import pytest
 
@@ -17,21 +18,16 @@ from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_cifs import NASCIFSShare
 from pyvergeos.resources.nas_services import NASService
 from pyvergeos.resources.nas_volumes import NASVolume
+from tests.integration.live_support import destroy_volume
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")
@@ -62,9 +58,8 @@ def test_volume(client: VergeClient, test_service: NASService) -> NASVolume:
         description="Volume for CIFS share integration tests",
     )
     yield vol
-    # Cleanup
-    with contextlib.suppress(NotFoundError):
-        client.nas_volumes.delete(vol.key)
+    # A module-scoped volume is mounted by teardown, so disable it first.
+    destroy_volume(client, vol)
 
 
 @pytest.fixture

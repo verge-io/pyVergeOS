@@ -277,6 +277,9 @@ class TestIPSecActiveConnections:
             pytest.skip("No active IPSec connections")
 
         conn = connections[0]
+        fetched = test_network.ipsec_connections.get(conn.key)
+        assert fetched.key == conn.key
+        assert fetched.get("vnet") == test_network.key
 
         # Test required properties
         assert isinstance(conn.local, str)
@@ -343,6 +346,17 @@ class TestWireGuardPeerStatus:
         # May be empty if no peers
         for status in statuses:
             assert isinstance(status, WireGuardPeerStatus)
+
+    def test_get_peer_status_by_key(self, live_client: VergeClient, wireguard_interface) -> None:
+        """Bare get(key) returns this interface's own status row (#191)."""
+        statuses = wireguard_interface.peer_status.list()
+        if not statuses:
+            pytest.skip("No WireGuard peer status rows")
+
+        fetched = wireguard_interface.peer_status.get(statuses[0].key)
+
+        assert fetched.key == statuses[0].key
+        assert fetched.peer_key == statuses[0].peer_key
 
     def test_peer_status_properties(self, live_client: VergeClient, wireguard_interface) -> None:
         """Test WireGuard peer status properties."""

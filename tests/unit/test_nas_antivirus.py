@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import ConflictError, NotFoundError, ValidationError
 from pyvergeos.resources.nas_antivirus import (
     NasServiceAntivirus,
     NasServiceAntivirusManager,
@@ -298,8 +298,9 @@ class TestVolumeAntivirusManager:
             volume_av_manager.get(key=999)
 
     def test_create(self, volume_av_manager, sample_volume_antivirus, mock_client):
-        """Test creating antivirus config."""
+        """POST only when the volume has no antivirus row yet."""
         mock_client._request.side_effect = [
+            [],  # lookup: no existing row
             {"$key": 1},  # POST response
             sample_volume_antivirus,  # GET response
         ]
@@ -312,12 +313,116 @@ class TestVolumeAntivirusManager:
 
         assert isinstance(result, VolumeAntivirus)
         assert result.key == 1
-        # Verify POST call
-        post_call = mock_client._request.call_args_list[0]
+        post_call = mock_client._request.call_args_list[1]
         assert post_call[0][0] == "POST"
         assert post_call[0][1] == "volume_antivirus"
         assert post_call[1]["json_data"]["enabled"] is True
         assert post_call[1]["json_data"]["on_access"] is True
+
+    def test_create_updates_existing_row(
+        self, volume_av_manager, sample_volume_antivirus, mock_client
+    ):
+        """An existing row is updated instead of POSTing a duplicate."""
+        updated = sample_volume_antivirus.copy()
+        updated["on_access"] = True
+        mock_client._request.side_effect = [
+            [sample_volume_antivirus],  # lookup finds the platform row
+            None,  # PUT
+            updated,  # GET after update
+        ]
+
+        result = volume_av_manager.create(
+            volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
+            enabled=True,
+            on_access=True,
+        )
+
+        assert isinstance(result, VolumeAntivirus)
+        assert result.key == 1
+        assert result.get("on_access") is True
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "PUT", "GET"]
+        put_call = mock_client._request.call_args_list[1]
+        assert put_call[0][1] == "volume_antivirus/1"
+        assert put_call[1]["json_data"]["enabled"] is True
+        assert put_call[1]["json_data"]["on_access"] is True
+        assert put_call[1]["json_data"]["infected_action"] == "move"
+        assert put_call[1]["json_data"]["scan"] == "entire"
+        assert put_call[1]["json_data"]["quarantine_location"] == ".quarantine"
+        assert "include" not in put_call[1]["json_data"]
+        assert "exclude" not in put_call[1]["json_data"]
+
+    def test_create_updates_existing_row_when_scoped(self, mock_client, sample_volume_antivirus):
+        """volume.antivirus.create() updates the row the platform already made."""
+        volume_key = "8f73f8bcc9c9f1aaba32f733bfc295acaf548554"
+        manager = VolumeAntivirusManager(mock_client, volume_key=volume_key)
+        updated = sample_volume_antivirus.copy()
+        updated["enabled"] = True
+        mock_client._request.side_effect = [
+            [sample_volume_antivirus],
+            sample_volume_antivirus,
+            None,
+            updated,
+        ]
+
+        result = manager.create(volume=volume_key, enabled=True)
+
+        assert result.key == 1
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "GET", "PUT", "GET"]
+        lookup = mock_client._request.call_args_list[0]
+        assert volume_key in lookup[1]["params"]["filter"]
+
+    def test_create_updates_row_after_conflict(
+        self, volume_av_manager, sample_volume_antivirus, mock_client
+    ):
+        """A unique-constraint conflict updates the row that appeared."""
+        mock_client._request.side_effect = [
+            [],  # lookup misses
+            ConflictError("Validation error: unique constraint", status_code=409),
+            [sample_volume_antivirus],  # row exists after the conflict
+            None,  # PUT
+            sample_volume_antivirus,  # GET after update
+        ]
+
+        result = volume_av_manager.create(
+            volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554",
+            enabled=True,
+        )
+
+        assert result.key == 1
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "POST", "GET", "PUT", "GET"]
+        put_call = mock_client._request.call_args_list[3]
+        assert put_call[0][1] == "volume_antivirus/1"
+        assert put_call[1]["json_data"]["enabled"] is True
+
+    def test_create_reraises_conflict_when_row_still_missing(self, volume_av_manager, mock_client):
+        """A 409 is not swallowed when the volume still has no antivirus row."""
+        conflict = ConflictError("Validation error: unique constraint", status_code=409)
+        mock_client._request.side_effect = [
+            [],
+            conflict,
+            [],
+        ]
+
+        with pytest.raises(ConflictError) as exc_info:
+            volume_av_manager.create(volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
+
+        assert exc_info.value is conflict
+
+    def test_create_reraises_validation_error(self, volume_av_manager, mock_client):
+        """Errors other than a unique-constraint conflict still propagate."""
+        mock_client._request.side_effect = [
+            [],
+            ValidationError("bad field", status_code=422),
+        ]
+
+        with pytest.raises(ValidationError):
+            volume_av_manager.create(volume="8f73f8bcc9c9f1aaba32f733bfc295acaf548554")
+
+        methods = [call[0][0] for call in mock_client._request.call_args_list]
+        assert methods == ["GET", "POST"]
 
     def test_update(self, volume_av_manager, sample_volume_antivirus, mock_client):
         """Test updating antivirus config."""
@@ -434,6 +539,40 @@ class TestVolumeAntivirusInfectionManager:
         call_args = mock_client._request.call_args
         assert "volume_antivirus eq 1" in call_args[1]["params"]["filter"]
 
+    def test_get_by_key_projects_scope_and_accepts_own_row(self, mock_client, sample_av_infection):
+        """Bare get(key) projects volume_antivirus and returns the row (#191)."""
+        manager = VolumeAntivirusInfectionManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = sample_av_infection
+
+        result = manager.get(100)
+
+        assert isinstance(result, VolumeAntivirusInfection)
+        assert result.key == 100
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
+        assert "filename" in fields
+
+    def test_get_by_key_refuses_other_config(self, mock_client, sample_av_infection):
+        """An infection for another antivirus config is refused."""
+        foreign = dict(sample_av_infection)
+        foreign["volume_antivirus"] = 9
+        manager = VolumeAntivirusInfectionManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = foreign
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(100)
+
+    def test_get_by_key_refuses_when_parent_omitted(self, mock_client):
+        """A short row with no parent column is refused, and the read asked for it."""
+        manager = VolumeAntivirusInfectionManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = {"$key": 100, "filename": "/documents/infected.pdf"}
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(100)
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
+
 
 class TestVolumeAntivirusLogManager:
     """Tests for VolumeAntivirusLogManager."""
@@ -460,6 +599,40 @@ class TestVolumeAntivirusLogManager:
         mock_client._request.assert_called_once()
         call_args = mock_client._request.call_args
         assert "level eq 'error'" in call_args[1]["params"]["filter"]
+
+    def test_get_by_key_projects_scope_and_accepts_own_row(self, mock_client, sample_av_log):
+        """Bare get(key) projects volume_antivirus and returns the row (#191)."""
+        manager = VolumeAntivirusLogManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = sample_av_log
+
+        result = manager.get(200)
+
+        assert isinstance(result, VolumeAntivirusLog)
+        assert result.key == 200
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
+        assert "text" in fields
+
+    def test_get_by_key_refuses_other_config(self, mock_client, sample_av_log):
+        """A log for another antivirus config is refused."""
+        foreign = dict(sample_av_log)
+        foreign["volume_antivirus"] = 9
+        manager = VolumeAntivirusLogManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = foreign
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(200)
+
+    def test_get_by_key_refuses_when_parent_omitted(self, mock_client):
+        """A short row with no parent column is refused, and the read asked for it."""
+        manager = VolumeAntivirusLogManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = {"$key": 200, "text": "Scan started"}
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(200)
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
 
 
 class TestNasServiceAntivirus:
@@ -494,6 +667,43 @@ class TestNasServiceAntivirusManager:
 
         assert isinstance(result, NasServiceAntivirus)
         assert result.key == 1
+        call_args = mock_client._request.call_args
+        assert call_args[0] == ("GET", "vm_service_antivirus")
+        assert call_args[1]["params"]["filter"] == "service eq 1"
+
+    def test_list_unscoped_omits_service_filter(self, mock_client, sample_service_antivirus):
+        """An unscoped manager lists every service's antivirus config."""
+        manager = NasServiceAntivirusManager(mock_client)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list()
+
+        assert len(result) == 1
+        call_args = mock_client._request.call_args
+        assert "filter" not in call_args[1]["params"]
+
+    def test_list_scoped_filters_by_service(self, mock_client, sample_service_antivirus):
+        """A scoped manager requests only that service's antivirus config."""
+        manager = NasServiceAntivirusManager(mock_client, service_key=2)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list()
+
+        assert len(result) == 1
+        call_args = mock_client._request.call_args
+        assert call_args[0] == ("GET", "vm_service_antivirus")
+        assert call_args[1]["params"]["filter"] == "service eq 2"
+
+    def test_list_scoped_combines_caller_filter(self, mock_client, sample_service_antivirus):
+        """Scope is applied even when the caller passes another filter."""
+        manager = NasServiceAntivirusManager(mock_client, service_key=2)
+        mock_client._request.return_value = [sample_service_antivirus]
+
+        result = manager.list(filter="enabled eq 1")
+
+        assert len(result) == 1
+        call_args = mock_client._request.call_args
+        assert call_args[1]["params"]["filter"] == "enabled eq 1 and service eq 2"
 
     def test_update(self, mock_client, sample_service_antivirus):
         """Test updating service antivirus config."""

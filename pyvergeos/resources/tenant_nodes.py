@@ -204,6 +204,13 @@ class TenantNodeManager(ResourceManager[TenantNode]):
     def _to_model(self, data: dict[str, Any]) -> TenantNode:
         return TenantNode(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant node"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Compute nodes belong to one tenant (#188)."""
+        return [("tenant", self._tenant.key)]
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -278,12 +285,13 @@ class TenantNodeManager(ResourceManager[TenantNode]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Tenant node {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Tenant node {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -395,6 +403,7 @@ class TenantNodeManager(ResourceManager[TenantNode]):
         Returns:
             Updated TenantNode object.
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Updating tenant node {key}")
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         return self.get(key)
@@ -408,5 +417,6 @@ class TenantNodeManager(ResourceManager[TenantNode]):
         Warning:
             The node must be powered off before it can be deleted.
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Deleting tenant node {key}")
         self._client._request("DELETE", f"{self._endpoint}/{key}")

@@ -427,6 +427,7 @@ class TestNetworkRuleManagerCreate:
             {"$key": 22},
             {
                 "$key": 22,
+                "vnet": 3,
                 "name": "Logged Rule",
                 "log": True,
                 "statistics": True,
@@ -450,7 +451,7 @@ class TestNetworkRuleManagerCreate:
         """Test creating a rule pinned to top."""
         mock_client._request.side_effect = [
             {"$key": 23},
-            {"$key": 23, "name": "Top Rule", "orderid": 1},
+            {"$key": 23, "vnet": 3, "name": "Top Rule", "orderid": 1},
         ]
 
         rule_manager.create(name="Top Rule", pin="top")

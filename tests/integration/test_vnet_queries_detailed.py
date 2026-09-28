@@ -13,6 +13,8 @@ Verifies:
 10. Raw create for additional query types: logs, top, ip, whatsmyip, etc.
 
 Run: uv run python tests/integration/test_vnet_queries_detailed.py
+
+Functions are named check_* so pytest does not collect this standalone script.
 """
 
 from __future__ import annotations
@@ -41,7 +43,7 @@ def section(title: str) -> None:
     print(f"{'=' * 60}")
 
 
-def test_class_structure() -> bool:
+def check_class_structure() -> bool:
     """Verify VNetQueryManager class attributes."""
     print("  _endpoint:", VNetQueryManager._endpoint)
     assert VNetQueryManager._endpoint == "vnet_queries", "Wrong endpoint"
@@ -65,7 +67,7 @@ def test_class_structure() -> bool:
     return True
 
 
-def test_network_lookup(client: VergeClient) -> tuple[bool, int]:
+def check_network_lookup(client: VergeClient) -> tuple[bool, int]:
     """Find network 'fghdfgh454' and return its key."""
     net = client.networks.get(name=NETWORK_NAME)
     print(f"  Found network: name={net.name}, key={net.key}")
@@ -74,7 +76,7 @@ def test_network_lookup(client: VergeClient) -> tuple[bool, int]:
     return True, net.key
 
 
-def test_nested_manager_access(client: VergeClient, net_key: int) -> bool:
+def check_nested_manager_access(client: VergeClient, net_key: int) -> bool:
     """Verify network.queries returns a VNetQueryManager."""
     net = client.networks.get(net_key)
     qm = net.queries
@@ -85,7 +87,7 @@ def test_nested_manager_access(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_list(client: VergeClient, net_key: int) -> bool:
+def check_list(client: VergeClient, net_key: int) -> bool:
     """Test list() — should return list of QueryResult objects."""
     net = client.networks.get(net_key)
     queries = net.queries.list()
@@ -97,7 +99,7 @@ def test_list(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_create_and_get(client: VergeClient, net_key: int) -> bool:
+def check_create_and_get(client: VergeClient, net_key: int) -> bool:
     """Test raw create() then get() by key."""
     net = client.networks.get(net_key)
 
@@ -123,7 +125,7 @@ def test_create_and_get(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_wait(client: VergeClient, net_key: int) -> bool:
+def check_wait(client: VergeClient, net_key: int) -> bool:
     """Test create() + wait() — poll until complete."""
     net = client.networks.get(net_key)
 
@@ -138,7 +140,7 @@ def test_wait(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_run(client: VergeClient, net_key: int) -> bool:
+def check_run(client: VergeClient, net_key: int) -> bool:
     """Test run() — convenience create+wait in one call."""
     net = client.networks.get(net_key)
 
@@ -151,7 +153,7 @@ def test_run(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_ping(client: VergeClient, net_key: int) -> bool:
+def check_ping(client: VergeClient, net_key: int) -> bool:
     """Test ping() convenience method."""
     net = client.networks.get(net_key)
     result = net.queries.ping("127.0.0.1", timeout=30)
@@ -163,7 +165,7 @@ def test_ping(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_dns(client: VergeClient, net_key: int) -> bool:
+def check_dns(client: VergeClient, net_key: int) -> bool:
     """Test dns() convenience method."""
     net = client.networks.get(net_key)
     result = net.queries.dns("google.com", timeout=30)
@@ -175,7 +177,7 @@ def test_dns(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_traceroute(client: VergeClient, net_key: int) -> bool:
+def check_traceroute(client: VergeClient, net_key: int) -> bool:
     """Test traceroute() convenience method."""
     net = client.networks.get(net_key)
     result = net.queries.traceroute("8.8.8.8", timeout=60)
@@ -187,7 +189,7 @@ def test_traceroute(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_arp(client: VergeClient, net_key: int) -> bool:
+def check_arp(client: VergeClient, net_key: int) -> bool:
     """Test arp() convenience method."""
     net = client.networks.get(net_key)
     result = net.queries.arp(timeout=30)
@@ -199,7 +201,7 @@ def test_arp(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_firewall(client: VergeClient, net_key: int) -> bool:
+def check_firewall(client: VergeClient, net_key: int) -> bool:
     """Test firewall() convenience method."""
     net = client.networks.get(net_key)
     result = net.queries.firewall(timeout=30)
@@ -211,7 +213,7 @@ def test_firewall(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_trace(client: VergeClient, net_key: int) -> bool:
+def check_trace(client: VergeClient, net_key: int) -> bool:
     """Test trace() convenience method (nftables trace)."""
     net = client.networks.get(net_key)
     result = net.queries.trace(timeout=30)
@@ -223,7 +225,7 @@ def test_trace(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_tcpdump(client: VergeClient, net_key: int) -> bool:
+def check_tcpdump(client: VergeClient, net_key: int) -> bool:
     """Test tcpdump() convenience method (short capture)."""
     net = client.networks.get(net_key)
     # Use count=5 to limit capture and ensure it completes
@@ -236,7 +238,7 @@ def test_tcpdump(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_remaining_query_types(client: VergeClient, net_key: int) -> bool:
+def check_remaining_query_types(client: VergeClient, net_key: int) -> bool:
     """Test additional query types via raw create/wait."""
     net = client.networks.get(net_key)
 
@@ -257,7 +259,7 @@ def test_remaining_query_types(client: VergeClient, net_key: int) -> bool:
     return True
 
 
-def test_query_key_properties(client: VergeClient, net_key: int) -> bool:
+def check_query_key_properties(client: VergeClient, net_key: int) -> bool:
     """Verify query_key and query_id properties on a live result."""
     net = client.networks.get(net_key)
     result = net.queries.run("whatsmyip", timeout=30)
@@ -304,7 +306,7 @@ def run() -> None:
     # Phase 1: Structure verification (no network needed)
     section("1. Class Structure Verification")
     try:
-        ok = test_class_structure()
+        ok = check_class_structure()
         tests.append(("Class structure", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Class structure", f"ERROR: {e}"))
@@ -313,7 +315,7 @@ def run() -> None:
     # Phase 2: Find the network
     section("2. Network Lookup")
     try:
-        ok, net_key = test_network_lookup(client)
+        ok, net_key = check_network_lookup(client)
         tests.append(("Network lookup", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Network lookup", f"ERROR: {e}"))
@@ -325,7 +327,7 @@ def run() -> None:
     # Phase 3: Manager wiring
     section("3. Nested Manager Access (network.queries)")
     try:
-        ok = test_nested_manager_access(client, net_key)
+        ok = check_nested_manager_access(client, net_key)
         tests.append(("Nested manager access", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Nested manager access", f"ERROR: {e}"))
@@ -334,7 +336,7 @@ def run() -> None:
     # Phase 4: Core CRUD operations
     section("4. list()")
     try:
-        ok = test_list(client, net_key)
+        ok = check_list(client, net_key)
         tests.append(("list()", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("list()", f"ERROR: {e}"))
@@ -342,7 +344,7 @@ def run() -> None:
 
     section("5. create() + get()")
     try:
-        ok = test_create_and_get(client, net_key)
+        ok = check_create_and_get(client, net_key)
         tests.append(("create() + get()", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("create() + get()", f"ERROR: {e}"))
@@ -350,7 +352,7 @@ def run() -> None:
 
     section("6. wait()")
     try:
-        ok = test_wait(client, net_key)
+        ok = check_wait(client, net_key)
         tests.append(("wait()", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("wait()", f"ERROR: {e}"))
@@ -358,7 +360,7 @@ def run() -> None:
 
     section("7. run() (create+wait)")
     try:
-        ok = test_run(client, net_key)
+        ok = check_run(client, net_key)
         tests.append(("run()", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("run()", f"ERROR: {e}"))
@@ -366,7 +368,7 @@ def run() -> None:
 
     section("8. query_key / query_id Properties")
     try:
-        ok = test_query_key_properties(client, net_key)
+        ok = check_query_key_properties(client, net_key)
         tests.append(("query_key/query_id", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("query_key/query_id", f"ERROR: {e}"))
@@ -374,13 +376,13 @@ def run() -> None:
 
     # Phase 5: Convenience methods
     convenience_tests = [
-        ("9. ping()", test_ping),
-        ("10. dns()", test_dns),
-        ("11. traceroute()", test_traceroute),
-        ("12. arp()", test_arp),
-        ("13. firewall()", test_firewall),
-        ("14. trace()", test_trace),
-        ("15. tcpdump()", test_tcpdump),
+        ("9. ping()", check_ping),
+        ("10. dns()", check_dns),
+        ("11. traceroute()", check_traceroute),
+        ("12. arp()", check_arp),
+        ("13. firewall()", check_firewall),
+        ("14. trace()", check_trace),
+        ("15. tcpdump()", check_tcpdump),
     ]
 
     for name, fn in convenience_tests:
@@ -395,7 +397,7 @@ def run() -> None:
     # Phase 6: Additional query types
     section("16. Additional Query Types (logs, top, ip)")
     try:
-        ok = test_remaining_query_types(client, net_key)
+        ok = check_remaining_query_types(client, net_key)
         tests.append(("Additional query types", "PASS" if ok else "FAIL"))
     except Exception as e:
         tests.append(("Additional query types", f"ERROR: {e}"))

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.filters import build_filter
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -198,6 +198,14 @@ class PhysicalDrive(ResourceObject):
         """Whether there are any vSAN read or write errors."""
         return self.vsan_read_errors > 0 or self.vsan_write_errors > 0
 
+    node_name = Projected[str](
+        "parent_drive#machine#name as node_name",
+        str,
+        default="",
+        falsy="",
+        doc="Name of the node that owns this drive (via parent_drive join).",
+    )
+
     def __repr__(self) -> str:
         return (
             f"<PhysicalDrive key={self.get('$key', '?')} "
@@ -214,6 +222,9 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
     Example:
         >>> # List all drives
         >>> drives = client.physical_drives.list()
+
+        >>> # Scope to one node (via nodes.machine -> machine_drives)
+        >>> node_drives = PhysicalDriveManager(client, node_key=1).list()
 
         >>> # Find drives with warnings
         >>> for drive in drives:
@@ -257,6 +268,7 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
         "spare",
         "encrypted",
         "parent_drive",
+        "parent_drive#machine#name as node_name",
         "modified",
     ]
 
@@ -266,6 +278,56 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
 
     def _to_model(self, data: dict[str, Any]) -> PhysicalDrive:
         return PhysicalDrive(data, self)
+
+    def _parent_drive_filter_for_node(self, node_key: int) -> str | None:
+        """Build a parent_drive filter that scopes phys drives to a node.
+
+        ``machine_drive_phys`` has no ``node`` column. Node identity lives on
+        the parent ``machine_drives`` row's machine, and ``nodes.machine`` is
+        the machine key for that node. Resolve that chain and filter by
+        ``parent_drive``. Return None when the node has no machine drives so
+        callers get a genuine empty list instead of a bogus ``node eq``
+        filter that always matches nothing.
+
+        Raises:
+            NotFoundError: If the node key does not exist.
+            ValidationError: If the node exists but has no machine binding.
+        """
+        from pyvergeos.exceptions import NotFoundError, ValidationError
+
+        node = self._client._request(
+            "GET",
+            f"nodes/{node_key}",
+            params={"fields": "$key,name,machine"},
+        )
+        if not isinstance(node, dict) or node.get("$key") is None:
+            raise NotFoundError(f"Node {node_key} not found")
+
+        machine_key = node.get("machine")
+        if machine_key is None:
+            raise ValidationError(f"Node {node_key} ({node.get('name')!r}) has no machine binding")
+
+        machine_drives = self._client._request(
+            "GET",
+            "machine_drives",
+            params={
+                "filter": f"machine eq {int(machine_key)}",
+                "fields": "$key",
+                "limit": 1000,
+            },
+        )
+        if not machine_drives:
+            return None
+        if not isinstance(machine_drives, list):
+            machine_drives = [machine_drives]
+
+        keys = [int(row["$key"]) for row in machine_drives if row.get("$key") is not None]
+        if not keys:
+            return None
+        if len(keys) == 1:
+            return f"parent_drive eq {keys[0]}"
+        joined = " or ".join(f"parent_drive eq {k}" for k in keys)
+        return f"({joined})"
 
     def list(  # noqa: A003
         self,
@@ -297,7 +359,10 @@ class PhysicalDriveManager(ResourceManager[PhysicalDrive]):
             filters.append(filter)
 
         if self._node_key is not None:
-            filters.append(f"node eq {self._node_key}")
+            node_filter = self._parent_drive_filter_for_node(self._node_key)
+            if node_filter is None:
+                return []
+            filters.append(node_filter)
 
         if warnings_only:
             warn_conditions = [

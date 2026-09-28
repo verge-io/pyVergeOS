@@ -31,12 +31,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import (
-    Projected,
-    ResourceManager,
-    ResourceObject,
-    display_map,
-)
+from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject, display_map
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -136,10 +131,10 @@ class Device(ResourceObject):
         return bool(self.get("optional", False))
 
     @property
-    def resource_group_key(self) -> int | None:
-        """Associated resource group key."""
+    def resource_group_key(self) -> str | None:
+        """Associated resource group key (UUID)."""
         rg = self.get("resource_group")
-        return int(rg) if rg else None
+        return str(rg) if rg else None
 
     resource_group_name = Projected[str](
         "resource_group#name as resource_group_name",
@@ -305,6 +300,13 @@ class DeviceManager(ResourceManager[Device]):
     def _to_model(self, data: dict[str, Any]) -> Device:
         return Device(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Device"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Devices are owned by the VM's machine (#182)."""
+        return [("machine", self._machine_key)]
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -406,20 +408,24 @@ class DeviceManager(ResourceManager[Device]):
             Device object.
 
         Raises:
-            NotFoundError: If device not found.
+            NotFoundError: If the device does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         if fields is None:
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            # list() is filtered by machine; a key is not. Ask for machine even
+            # when the caller narrowed fields, then refuse another VM's row (#182).
+            selected = self._with_scope_fields(fields)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
             if response is None:
                 raise NotFoundError(f"Device {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Device {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -798,12 +804,16 @@ class DeviceManager(ResourceManager[Device]):
         Returns:
             Updated Device object.
 
+        Raises:
+            NotFoundError: If the device does not exist or belongs to another VM.
+
         Example:
             >>> device = vm.devices.update(
             ...     device.key,
             ...     enabled=False,
             ... )
         """
+        self._ensure_in_scope(key)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)
@@ -817,7 +827,11 @@ class DeviceManager(ResourceManager[Device]):
         Args:
             key: Device $key (ID).
 
+        Raises:
+            NotFoundError: If the device does not exist or belongs to another VM.
+
         Note:
             Machine should typically be powered off before removing devices.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

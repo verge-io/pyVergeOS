@@ -371,22 +371,21 @@ class TestOidcApplicationAccessControl:
         assert isinstance(groups, list)
         assert len(groups) == 0
 
-    def test_add_and_remove_allowed_user(self, test_oidc_app, live_client: VergeClient) -> None:
+    def test_add_and_remove_allowed_user(
+        self, test_oidc_app, live_client: VergeClient, authenticated_user
+    ) -> None:
         """Test adding and removing an allowed user."""
-        # Get admin user
-        admin = live_client.users.get(name="admin")
-
-        # Add user to allowed list
+        # Add the authenticated user to the allowed list
         app = live_client.oidc_applications.get(test_oidc_app.key)
-        entry = app.allowed_users.add(user_key=admin.key)
+        entry = app.allowed_users.add(user_key=authenticated_user.key)
 
         try:
-            assert entry.user_key == admin.key
+            assert entry.user_key == authenticated_user.key
 
             # Verify user in list
             users = app.allowed_users.list()
             assert len(users) == 1
-            assert users[0].user_key == admin.key
+            assert users[0].user_key == authenticated_user.key
         finally:
             # Remove user
             entry.delete()

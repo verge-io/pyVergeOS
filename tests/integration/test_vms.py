@@ -238,9 +238,17 @@ class TestVMDrives:
         )
 
         try:
-            # Import the QCOW2 disk image
+            # The hash suffix changes per upload. Use any matching image.
+            images = [
+                item
+                for item in live_client.files.list(name="debian-12-generic-amd64-*")
+                if item.name.endswith(".qcow2")
+            ]
+            if not images:
+                pytest.skip("No debian-12-generic-amd64-*.qcow2 file in the media catalog")
+
             drive = vm.drives.import_drive(
-                file_name="debian-12-generic-amd64-fa03cff7.qcow2",
+                file_name=images[0].name,
                 name="ImportedDisk",
                 interface="virtio-scsi",
                 tier=1,
@@ -532,6 +540,7 @@ class TestVMHotplugOperations:
             cpu_cores=1,
             ram=1024,
             os_family="linux",
+            allow_hotplug=True,
         )
 
         try:
@@ -574,6 +583,7 @@ class TestVMHotplugOperations:
             cpu_cores=1,
             ram=1024,
             os_family="linux",
+            allow_hotplug=True,
         )
 
         try:

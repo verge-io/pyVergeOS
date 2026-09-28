@@ -189,6 +189,13 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
     def _to_model(self, data: dict[str, Any]) -> TenantStorage:
         return TenantStorage(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant storage"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Storage allocations belong to one tenant (#188)."""
+        return [("tenant", self._tenant.key)]
+
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,  # noqa: A002
@@ -269,7 +276,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -279,6 +286,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
                 from pyvergeos.exceptions import NotFoundError
 
                 raise NotFoundError(f"Tenant storage allocation {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if tier is not None:
@@ -378,6 +386,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
         Returns:
             Updated TenantStorage object.
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Updating tenant storage allocation {key}")
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         return self.get(key)
@@ -426,6 +435,7 @@ class TenantStorageManager(ResourceManager[TenantStorage]):
             Removing a storage allocation with data may cause data loss.
             Ensure the allocation is empty before removal.
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Deleting tenant storage allocation {key}")
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 

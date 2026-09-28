@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, scope_values_equal
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -300,6 +300,38 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         data["_network_name"] = self._network.name
         return IPSecConnection(data, self)
 
+    def _scope_resource(self) -> str:
+        return "IPSec connection"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Phase 1 rows point at an IPsec config; the config carries ``vnet``.
+
+        ``vnet_ipsec_phase1s`` has no ``vnet`` column (#191). The scope read
+        requests ``ipsec``. :meth:`_row_in_scope` accepts the row when that
+        value is this network's ``vnet_ipsecs`` key, the same parent
+        ``list()`` filters on. The binding value is the network key so a
+        network with no config is still scoped.
+        """
+        return [("ipsec", self._network.key)]
+
+    def _row_in_scope(self, row: dict[str, Any]) -> bool:
+        ipsec_key = row.get("ipsec")
+        if ipsec_key is None:
+            return False
+        # The config lookup must not replace the aliases recorded for the
+        # phase 1 read that is about to become the returned object.
+        previous = self._requested_aliases
+        try:
+            config_key = self._get_ipsec_config()
+        finally:
+            self._requested_aliases = previous
+        if config_key is None:
+            return False
+        return scope_values_equal(ipsec_key, config_key)
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        return f"IPSec connection {key} does not belong to vnet {self._network.key}"
+
     def _get_or_create_ipsec_config(self) -> int:
         """Get or create the IPSec configuration for this network.
 
@@ -463,13 +495,14 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             fields = DEFAULT_CONNECTION_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"IPSec connection with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"IPSec connection {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -637,6 +670,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         Returns:
             Updated IPSecConnection object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         # Map kwargs to API field names
@@ -688,6 +722,7 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         Args:
             key: Connection $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
@@ -732,6 +767,13 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         data["_connection_key"] = self._connection.key
         data["_connection_name"] = self._connection.name
         return IPSecPolicy(data, self)
+
+    def _scope_resource(self) -> str:
+        return "IPSec policy"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Phase 2 policies belong to one Phase 1 connection (#188)."""
+        return [("phase1", self._connection.key)]
 
     def list(
         self,
@@ -814,13 +856,14 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             fields = DEFAULT_POLICY_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"IPSec policy with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"IPSec policy {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -923,6 +966,7 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         Returns:
             Updated IPSecPolicy object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         # Map kwargs to API field names
@@ -954,4 +998,5 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         Args:
             key: Policy $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

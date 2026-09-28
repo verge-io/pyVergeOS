@@ -133,6 +133,13 @@ class DNSViewManager(ResourceManager[DNSView]):
     def _to_model(self, data: dict[str, Any]) -> DNSView:
         return DNSView(data, self)
 
+    def _scope_resource(self) -> str:
+        return "DNS view"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Views belong to one network (#188)."""
+        return [("vnet", self.network_key)]
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -210,12 +217,13 @@ class DNSViewManager(ResourceManager[DNSView]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"DNS view {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"DNS view {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -309,6 +317,7 @@ class DNSViewManager(ResourceManager[DNSView]):
         Note:
             DNS changes require DNS apply on the network to take effect.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if name is not None:
@@ -341,4 +350,5 @@ class DNSViewManager(ResourceManager[DNSView]):
             Deleting a view also deletes all zones and records within it.
             DNS changes require DNS apply on the network to take effect.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, scope_values_equal
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -309,6 +309,12 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
 
     def _to_model(self, data: dict[str, Any]) -> NetworkMonitorStats:
         return NetworkMonitorStats(data, self)
+
+    def _scope_resource(self) -> str:
+        return "Network stats"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("vnet", self._network_key)]
 
     def _to_history_model(self, data: dict[str, Any]) -> NetworkMonitorStatsHistory:
         return NetworkMonitorStatsHistory(data, self)
@@ -867,6 +873,12 @@ class IPSecActiveConnectionManager(ResourceManager[IPSecActiveConnection]):
     def _to_model(self, data: dict[str, Any]) -> IPSecActiveConnection:
         return IPSecActiveConnection(data, self)
 
+    def _scope_resource(self) -> str:
+        return "IPSec active connection"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("vnet", self._network_key)]
+
     def list(  # noqa: A002
         self,
         filter: str | None = None,  # noqa: A002
@@ -1033,6 +1045,32 @@ class WireGuardPeerStatusManager(ResourceManager[WireGuardPeerStatus]):
 
     def _to_model(self, data: dict[str, Any]) -> WireGuardPeerStatus:
         return WireGuardPeerStatus(data, self)
+
+    def _scope_resource(self) -> str:
+        return "WireGuard peer status"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Status rows point at a peer; the peer points at this interface (#188)."""
+        return [("peer", self._wireguard_key)]
+
+    def _row_in_scope(self, row: dict[str, Any]) -> bool:
+        peer_key = row.get("peer")
+        if peer_key is None:
+            return False
+        previous = self._requested_aliases
+        try:
+            params = {"fields": self._projection(["$key", "wireguard"], defaults=[])}
+            response = self._client._request(
+                "GET", f"vnet_wireguard_peers/{peer_key}", params=params
+            )
+        finally:
+            self._requested_aliases = previous
+        if not isinstance(response, dict):
+            return False
+        return scope_values_equal(response.get("wireguard"), self._wireguard_key)
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        return f"WireGuard peer status {key} does not belong to wireguard {self._wireguard_key}"
 
     def list(  # noqa: A002
         self,

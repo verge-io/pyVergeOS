@@ -437,9 +437,13 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             Updated CloudInitFile object.
 
         Raises:
-            NotFoundError: If file not found.
+            NotFoundError: If the file is not found. A VM-scoped manager also
+                raises this when the file belongs to another VM.
             ValidationError: If parameters invalid.
         """
+        # Subclasses such as VMCloudInitFileManager reject another VM's key
+        # before the write. The default allows every key (#182).
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if name is not None:
@@ -472,8 +476,10 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             key: CloudInitFile $key (ID).
 
         Raises:
-            NotFoundError: If file not found.
+            NotFoundError: If the file is not found. A VM-scoped manager also
+                raises this when the file belongs to another VM.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def get_content(
@@ -496,8 +502,13 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             File contents as string (default) or bytes.
 
         Raises:
-            NotFoundError: If file not found.
+            NotFoundError: If the file is not found. A VM-scoped manager also
+                raises this when the file belongs to another VM.
         """
+        # Download does not go through get(). A VM-scoped manager must still
+        # refuse another VM's file before the contents are returned (#182).
+        self._ensure_in_scope(key)
+
         # Use the download endpoint
         endpoint = f"{self._endpoint}/{key}"
         params = {"download": 1}
@@ -582,6 +593,16 @@ class VMCloudInitFileManager(CloudInitFileManager):
             raise ValueError("VM has no key")
         return int(key)
 
+    def _scope_resource(self) -> str:
+        return "Cloud-init file"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Cloud-init files are owned by ``vms/{vm_key}`` (#182)."""
+        return [("owner", f"vms/{self.vm_key}")]
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        return f"Cloud-init file {key} does not belong to VM {self.vm_key}"
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -636,19 +657,22 @@ class VMCloudInitFileManager(CloudInitFileManager):
             CloudInitFile object.
 
         Raises:
-            NotFoundError: If file not found.
+            NotFoundError: If the file does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
 
         if key is not None:
-            # Get by key directly (no VM filtering needed)
-            params: dict[str, Any] = {"fields": self._projection(field_list)}
+            # list() is filtered by owner; a key is not. Ask for owner even
+            # when the caller narrowed fields, then refuse another VM's row (#182).
+            selected = self._with_scope_fields(fields if fields is not None else field_list)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Cloud-init file with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Cloud-init file with key {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         elif name is not None:

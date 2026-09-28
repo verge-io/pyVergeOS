@@ -976,7 +976,9 @@ class TagCategory(ResourceObject):
         """Delete this category.
 
         Note:
-            Category must not contain any tags. Delete tags first.
+            Deleting a category also deletes every tag in it and every
+            assignment of those tags. VergeOS does not require the
+            category to be empty.
         """
         from typing import cast
 
@@ -1365,7 +1367,9 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             key: Category $key (ID).
 
         Note:
-            The category must not contain any tags. Delete all tags first.
+            Deleting a category also deletes every tag in it and every
+            assignment of those tags. VergeOS does not require the
+            category to be empty.
 
         Example:
             >>> client.tag_categories.delete(category.key)

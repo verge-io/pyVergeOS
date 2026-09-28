@@ -236,6 +236,13 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
     def _to_model(self, data: dict[str, Any]) -> NetworkRule:
         return NetworkRule(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Rule"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Firewall rules belong to one network (#188)."""
+        return [("vnet", self.network_key)]
+
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
@@ -335,12 +342,13 @@ class NetworkRuleManager(ResourceManager[NetworkRule]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Rule {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Rule {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:

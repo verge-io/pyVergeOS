@@ -179,6 +179,13 @@ class DriveManager(ResourceManager[Drive]):
     def _to_model(self, data: dict[str, Any]) -> Drive:
         return Drive(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Drive"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Drives are owned by the VM's machine (#168)."""
+        return [("machine", self.machine_key)]
+
     def list(  # type: ignore[override]  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
@@ -250,23 +257,25 @@ class DriveManager(ResourceManager[Drive]):
             Drive object.
 
         Raises:
-            NotFoundError: If drive not found.
+            NotFoundError: If the drive does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
         if fields is None:
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            from pyvergeos.exceptions import NotFoundError
+
+            # list() is filtered by machine; a key is not. Ask for machine even
+            # when the caller narrowed fields, then refuse another VM's row (#168).
+            selected = self._with_scope_fields(fields)
+            params: dict[str, Any] = {"fields": self._projection(selected)}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"Drive {key} not found")
             if not isinstance(response, dict):
-                from pyvergeos.exceptions import NotFoundError
-
                 raise NotFoundError(f"Drive {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -375,14 +384,18 @@ class DriveManager(ResourceManager[Drive]):
         return self.get(drive.key)
 
     def delete(self, key: int) -> None:
-        """Delete a drive.
+        """Delete a drive belonging to this VM.
 
         Args:
             key: Drive $key (ID).
 
+        Raises:
+            NotFoundError: If the drive does not exist or belongs to another VM.
+
         Note:
             VM should typically be powered off before removing drives.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def update(self, key: int, **kwargs: Any) -> Drive:
@@ -398,7 +411,11 @@ class DriveManager(ResourceManager[Drive]):
 
         Returns:
             Updated Drive object.
+
+        Raises:
+            NotFoundError: If the drive does not exist or belongs to another VM.
         """
+        self._ensure_in_scope(key)
         kwargs = self._prepare_write_fields(kwargs)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:

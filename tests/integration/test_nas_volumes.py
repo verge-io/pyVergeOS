@@ -2,13 +2,14 @@
 
 These tests require a live VergeOS system with at least one NAS service.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled).
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
 
 import pytest
 
@@ -16,21 +17,16 @@ from pyvergeos import VergeClient
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.resources.nas_services import NASService
 from pyvergeos.resources.nas_volumes import NASVolume
+from tests.integration.live_support import destroy_volume
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")
@@ -60,8 +56,9 @@ def cleanup_volumes(client: VergeClient):
             for snap in snap_mgr.list():
                 with contextlib.suppress(NotFoundError):
                     snap_mgr.delete(snap.key)
-            # Then delete the volume
-            client.nas_volumes.delete(key)
+            # Disable first: a volume that lived long enough to mount
+            # cannot be deleted while its drive is still online.
+            destroy_volume(client, key)
         except NotFoundError:
             pass  # Already deleted
 

@@ -52,7 +52,6 @@ _DEFAULT_PERIOD_FIELDS = [
     "day_of_month",
     "month",
     "retention",
-    "skip_missed",
     "max_tier",
     "quiesce",
     "min_snapshots",
@@ -81,7 +80,6 @@ class SnapshotProfilePeriod(ResourceObject):
         retention_seconds: Retention period in seconds.
         retention: Retention as timedelta.
         retention_display: Human-readable retention string.
-        skip_missed: Skip if snapshot time was missed.
         max_tier: Maximum storage tier for snapshots (1-5).
         quiesce: Whether to quiesce disks during snapshot.
         min_snapshots: Minimum snapshots to retain.
@@ -166,11 +164,6 @@ class SnapshotProfilePeriod(ResourceObject):
                 return f"{days}d {hours}h"
             return f"{days}d"
         return f"{hours}h"
-
-    @property
-    def skip_missed(self) -> bool:
-        """Check if missed snapshots should be skipped."""
-        return bool(self.get("skip_missed", False))
 
     @property
     def max_tier(self) -> int:
@@ -310,7 +303,6 @@ class SnapshotProfile(ResourceObject):
         day_of_week: str = "any",
         day_of_month: int = 0,
         month: int = 0,
-        skip_missed: bool = False,
         max_tier: int = 1,
         quiesce: bool = False,
         min_snapshots: int = 1,
@@ -327,7 +319,6 @@ class SnapshotProfile(ResourceObject):
             day_of_week: Day of week (sun, mon, tue, wed, thu, fri, sat, any).
             day_of_month: Day of month (0-31, 0 = any).
             month: Month (0-12, 0 = any).
-            skip_missed: Skip if snapshot time was missed.
             max_tier: Maximum storage tier (1-5).
             quiesce: Enable disk quiescing.
             min_snapshots: Minimum snapshots to retain.
@@ -348,7 +339,6 @@ class SnapshotProfile(ResourceObject):
             day_of_week=day_of_week,
             day_of_month=day_of_month,
             month=month,
-            skip_missed=skip_missed,
             max_tier=max_tier,
             quiesce=quiesce,
             min_snapshots=min_snapshots,
@@ -513,7 +503,6 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         day_of_week: str = "any",
         day_of_month: int = 0,
         month: int = 0,
-        skip_missed: bool = False,
         max_tier: int = 1,
         quiesce: bool = False,
         min_snapshots: int = 1,
@@ -530,7 +519,6 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             day_of_week: Day of week (sun, mon, tue, wed, thu, fri, sat, any).
             day_of_month: Day of month (0-31, 0 = any).
             month: Month (0-12, 0 = any).
-            skip_missed: Skip if snapshot time was missed.
             max_tier: Maximum storage tier (1-5).
             quiesce: Enable disk quiescing.
             min_snapshots: Minimum snapshots to retain.
@@ -576,7 +564,6 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             "day_of_week": day_of_week,
             "day_of_month": day_of_month,
             "month": month,
-            "skip_missed": skip_missed,
             "max_tier": str(max_tier),
             "quiesce": quiesce,
             "min_snapshots": min_snapshots,
@@ -601,11 +588,15 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         Args:
             key: Period $key (ID).
             **kwargs: Fields to update (name, frequency, retention, minute, hour,
-                     day_of_week, day_of_month, month, skip_missed, max_tier,
-                     quiesce, min_snapshots, immutable).
+                     day_of_week, day_of_month, month, max_tier, quiesce,
+                     min_snapshots, immutable).
 
         Returns:
             Updated SnapshotProfilePeriod object.
+
+        Raises:
+            ValueError: If ``skip_missed`` or another invalid field is passed.
+                ``skip_missed`` is not a period column.
         """
         kwargs = self._prepare_write_fields(kwargs)
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
@@ -617,6 +608,13 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         Used by both ``update()`` and ``ResourceObject._save()`` so attribute
         assignment behaves the same as ``update()`` (issue #97).
         """
+        # Not a column on snapshot_profile_periods. VergeOS accepts the name
+        # and drops it, so a write looked successful and a later read was
+        # always false (issue #139). Measured absent on 26.1.8.
+        if "skip_missed" in fields:
+            raise ValueError(
+                "skip_missed is not a snapshot profile period column; VergeOS discards it"
+            )
         if "frequency" in fields and fields["frequency"] not in FREQUENCIES:
             raise ValueError(f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}")
         if "day_of_week" in fields and fields["day_of_week"] not in DAYS_OF_WEEK:

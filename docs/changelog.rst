@@ -6,6 +6,231 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[1.7.1] - 2026-09-27
+--------------------
+
+Upgrading from 1.6.1
+^^^^^^^^^^^^^^^^^^^^
+
+Most of this release is fixes, but four of them change what a caller sees.
+Check for these before you upgrade:
+
+- ``LicenseManager.generate_payload()`` returns ``bytes``, not ``str``. Write
+  the result in binary mode. (#184)
+- ``skip_missed`` is gone from snapshot profile periods. ``periods.create()``
+  and ``SnapshotProfile.add_period()`` raise ``TypeError`` if you pass it,
+  and ``update()`` and ``save()`` raise ``ValueError``. (#139)
+- ``ResourceRule.resource_group_key`` and ``Device.resource_group_key``
+  return the resource group UUID as a ``str``. They used to raise on every
+  real row, so nothing could have depended on the old type. (#151)
+- A manager handed out by a parent, such as ``network.rules``,
+  ``tenant.nodes`` or ``vm.drives``, raises ``NotFoundError`` for a key that
+  belongs to a different parent. It used to act on that row. (#168, #182,
+  #188)
+
+Added
+^^^^^
+
+- ``auth_sources.update(..., merge_settings=True)`` gives the merge semantics
+  the docstring used to promise: the SDK reads the current document with
+  ``get(key, include_settings=True)``, shallow-merges your keys on top, and
+  writes the result back, so changing ``scope`` alone keeps the client
+  credentials. It requires ``settings`` (raising ``ValueError`` otherwise),
+  costs one extra API call, and is read-modify-write rather than atomic -- a
+  concurrent write landing between the read and the write is lost. The default
+  remains ``False``, preserving replace semantics for existing callers. (#142)
+
+Fixed
+^^^^^
+
+- Managers handed out by a parent now refuse another parent's rows. That
+  covers network rules, aliases and hosts, DNS views, zones and records,
+  WireGuard interfaces and peers, IPsec connections and policies, proxies,
+  tenant nodes, storage, snapshots, network blocks, external IPs and Layer 2
+  networks, volume and NAS service antivirus, resource group rules, task
+  events and triggers, and OIDC allowed users and groups. They used to
+  ``get``, ``update`` or ``delete`` a row by key even when it belonged to a
+  different parent. They now read the row's parent column first and raise
+  ``NotFoundError`` before anything is written. Code that passed another
+  parent's key has to use that parent's manager instead. (#188)
+
+- ``IPSecConnectionManager`` scopes phase 1 rows by their ``ipsec`` config,
+  not by a ``vnet`` column the ``vnet_ipsec_phase1s`` table does not have.
+  ``create()``, ``get(key)``, ``update(key)`` and ``delete(key)`` on the
+  network's own connections work again. A connection whose config belongs
+  to another network is still refused before any write. A scoped
+  ``get(key)`` with no ``fields`` projects the manager's default fields
+  plus its scope columns, so ``WireGuardPeerStatusManager``,
+  ``IPSecActiveConnectionManager``, ``VolumeAntivirusInfectionManager``
+  and ``VolumeAntivirusLogManager`` accept their own rows. An unprojected
+  read on VergeOS 26.1.8 returns a short set that often omits the parent
+  column. (#191)
+
+- ``LicenseManager.generate_payload()`` returns the license request as
+  bytes. ``license_actions`` ``generate`` writes a binary ``.lrq`` into
+  the media catalog and returns a file reference (``filekey``,
+  ``filename``); the method used to ``json.dumps`` that reference
+  (~155 characters) and leave a new catalog file on every call. The
+  method now downloads the ``.lrq`` through the files manager and returns
+  the raw bytes. Lab files are not UTF-8 text (they start with
+  ``8a3a0000``), so decoding them raised ``APIError`` and skipped the
+  catalog delete. By default the catalog copy is deleted after a
+  successful read. Pass ``delete_catalog_file=False`` to keep the file.
+  An empty or missing file is still an error and is left in the catalog.
+  On VergeOS 26.1.8 the reference looks like
+  ``{"response": {"filekey": "files/76", "filename": "license-request-….lrq", ...}}``.
+  (#184)
+
+- ``DeviceManager`` and ``VMCloudInitFileManager`` require the row to
+  belong to the VM on by-key calls. Devices compare ``machine`` with the
+  VM machine key. Cloud-init files compare ``owner`` with ``vms/<vm key>``.
+  ``get(key)``, ``update(key)``, ``delete(key)``, and
+  ``get_content(key)`` raise ``NotFoundError`` when the key belongs to
+  another VM, before a write or before file contents are returned.
+  ``list()`` was already filtered. (#182)
+
+- ``VolumeAntivirusManager.create()`` no longer fails with
+  ``ConflictError`` when the volume already has an antivirus row.
+  VergeOS creates that row with the volume, and the table allows one
+  row per volume, so a POST always hit the unique constraint.
+  ``create()`` updates the existing row, including when a POST races
+  and returns 409. Examples lead with ``get()`` and ``update()``.
+  Measured on VergeOS 26.1.8. (#170)
+
+- ``NasServiceAntivirusManager.list()`` honours its service scope.
+  ``nas_service.antivirus.list()`` returned every NAS service's antivirus
+  config, not just that service's. The antivirus docstrings no longer
+  mention ``client.volume_antivirus``, which does not exist. (#152)
+
+- ``VM.hotplug_drive()`` raises ``ValueError`` before creating a drive
+  when ``media`` is not ``disk`` or ``interface`` is not ``virtio`` or
+  ``virtio-scsi``. VergeOS hot plugs only those disks. ide, ahci, nvme,
+  and media that is not a disk were created and then refused, leaving an offline
+  drive that came online on the next boot. If ``hotplugdrive`` or
+  ``hotplugnic`` is still rejected after the device is created (for
+  example the VM is not running yet), the drive or NIC from that call
+  is deleted and the API error is raised again. Measured on VergeOS
+  26.1.8. (#169)
+
+- ``VMSnapshotManager.restore(..., power_on=True)`` and
+  ``VMSnapshot.restore(power_on=True)`` power the restored VM on.
+  Clone mode reads the new VM key from ``response.vmkey`` (VergeOS
+  returns ``{"response": {"vmkey": "..."}}``) and still accepts
+  top level ``$key`` or ``key``. In place restore
+  (``replace_original=True``) powers on the original VM even when the
+  action body is empty. A failed power on POST is raised instead of
+  ignored. (#172)
+
+- ``VMSnapshotManager``, ``DriveManager``, and ``NICManager`` require the
+  row's ``machine`` to equal the VM in ``get(key)``. ``update(key)``,
+  ``delete(key)``, and ``VMSnapshotManager.restore(key)`` use that check
+  and raise ``NotFoundError`` when the key belongs to another VM, before
+  sending a write. ``list()`` was already filtered by machine. (#168)
+
+- ``NetworkAlias``, ``NetworkAliasManager``, and
+  ``NetworkAliasManager.create()`` describe router IP aliases
+  (``vnet_addresses`` rows with ``type: ipalias``): extra addresses on
+  the network's router. They are not the ``vnet_rule_aliases`` that a
+  firewall rule's ``alias:<name>`` syntax resolves. This SDK has no
+  manager for ``vnet_rule_aliases`` yet. Measured on VergeOS 26.1.8.
+  (#155)
+
+- ``TaskScriptManager.delete()`` documents that deleting a script also
+  deletes its associated tasks. The previous note said scripts with
+  associated tasks cannot be deleted, which the platform does not
+  enforce. Measured on VergeOS 26.1.8. (#155)
+
+- ``TagCategory.delete()`` and ``TagCategoryManager.delete()`` document
+  that deleting a category also deletes every tag in it and every
+  assignment of those tags. VergeOS does not require the category to be
+  empty; ``DELETE tag_categories/<key>`` cascades. The previous notes
+  said to delete tags first, which read as a refusal the platform does
+  not enforce. Measured on VergeOS 26.1.8. (#154)
+
+- ``ResourceRule.resource_group_key`` and ``Device.resource_group_key``
+  return the resource group UUID as ``str | None``. Both properties
+  called ``int()`` on ``resource_group``, which raised ``ValueError``
+  for every real rule because resource groups are keyed by UUID. (#151)
+
+- ``SnapshotProfilePeriodManager.create()``, ``update()`` /
+  ``save()``, and ``SnapshotProfile.add_period()`` no longer accept
+  ``skip_missed``. ``snapshot_profile_periods`` has no such column;
+  VergeOS accepts the name and drops it, so the write looked
+  successful and ``SnapshotProfilePeriod.skip_missed`` always read
+  false. The property and the default field list drop it too.
+  Passing it to ``update()`` or ``save()`` raises ``ValueError``.
+  The other period write fields match columns measured on VergeOS
+  26.1.8. (#139)
+
+- ``VM.hotplug_drive()`` and ``VM.hotplug_nic()`` sent the create spec
+  (``name``, ``disksize``, ``interface``, and so on) as the action params.
+  VergeOS ``hotplugdrive`` and ``hotplugnic`` attach an existing device and
+  require its key as ``device``, so both raised
+  ``ValidationError: Device is a required parameter``. Each method now
+  creates the drive or NIC, then posts the action with
+  ``params: {"device": <key>}``. ``hotplug_drive(size=...)`` still takes
+  bytes and must be a positive whole number of GiB, because the drive is
+  created through ``drives.create(size_gb=...)``. Measured on VergeOS
+  26.1.8. (#150)
+
+- ``ClusterTier.get_status()`` read ``capacity``, ``used``, ``used_pct``,
+  ``redundant``, ``encrypted`` and ``working`` as the string ``'online'``.
+  ``get_tier_status()`` expanded those columns through ``ClusterTier``'s
+  ``status#`` joins, and on ``cluster_tier_status`` ``status`` is a plain
+  string, so every join came back as ``'online'``. ``capacity_bytes``,
+  ``used_bytes`` and ``used_percent`` then raised ``ValueError``, and the
+  redundancy flags were truthy strings. Status, stats and history queries
+  now project the columns of the endpoint they call. (#149)
+
+- ``VMSnapshotManager.create(retention=0)`` now sends ``expires: 0`` so the
+  platform stores a never-expiring snapshot. Omitting ``expires`` previously
+  let VergeOS default to +72 hours, contradicting the documented "use 0 for
+  never expires" behaviour (and ``VMSnapshot.never_expires``, which already
+  treated ``expires == 0`` as never). Measured on VergeOS 26.1.8. (#146)
+
+- ``VMSnapshotManager.create()`` rejects a negative ``retention`` (and
+  ``None``) instead of storing ``expires: 0``. Omitting ``retention`` still
+  defaults to 24 hours. (#146)
+
+- ``VMSnapshot.restore()`` now delegates to ``VMSnapshotManager.restore()``,
+  which resolves ``snap_machine`` (a machine key) to the snapshot VM before
+  posting to ``vm_actions``. The object method previously posted the machine
+  key as a VM key, which raised ``NotFoundError`` and could clone the wrong
+  VM if keys later collided. (#147)
+
+- ``PhysicalDriveManager`` node scoping no longer filters on a nonexistent
+  ``node`` column (which silently returned ``[]`` for every node). It now
+  resolves ``nodes.machine`` → ``machine_drives`` → ``parent_drive`` filters,
+  raises ``NotFoundError`` for a missing node, and projects
+  ``parent_drive#machine#name as node_name`` in the default field set so
+  identical hardware across nodes is distinguishable. Verified against a live
+  VergeOS 26.1.8 lab. (#143)
+
+- ``auth_sources.update()`` no longer claims that ``settings`` are "merged
+  with existing". They are not: the API replaces the stored settings document
+  wholesale, so a partial write deletes every key it omits. Measured on
+  VergeOS 26.1.8, updating a source with ``settings={"scope": "openid"}``
+  leaves exactly that one key behind -- ``client_id``, ``client_secret`` and
+  the endpoints are gone, no error is raised, and the next SSO login simply
+  fails. The client secret usually cannot be read back from the identity
+  provider, so the configuration has to be rebuilt by hand.
+
+  Anyone following the old docstring to change one field was destroying a
+  working SSO configuration. The docstring now says the document is replaced
+  in full and that omitted keys are deleted, and the manager and module
+  examples no longer demonstrate the partial write that causes it. Behaviour
+  is unchanged -- this was always what the API did. (#142)
+
+Docs
+^^^^
+
+- ``AuthSource.settings`` documents that the server injects a ``debug`` key
+  into the stored document that was never sent, so a round-trip comparison
+  against what you wrote reports drift that is not there, and that the
+  property is only populated when the source was fetched with
+  ``include_settings=True``. (#142)
+
+
 [1.6.1] - 2026-09-23
 --------------------
 

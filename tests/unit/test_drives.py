@@ -102,6 +102,7 @@ class TestDriveManager:
             "$key": 1,
             "name": "OS",
             "interface": "virtio-scsi",
+            "machine": 200,
         }
 
         drive = vm.drives.get(1)
@@ -151,6 +152,7 @@ class TestDriveManager:
                 "interface": "nvme",
                 "media": "disk",
                 "disksize": 53687091200,
+                "machine": 200,
             },
         ]
 
@@ -185,7 +187,7 @@ class TestDriveManager:
         """efidisk creation lets the platform template the vars store size."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672},
-            {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672},
+            {"$key": 9, "name": "efi", "media": "efidisk", "disksize": 540672, "machine": 200},
         ]
 
         drive = vm.drives.create(media="efidisk", name="efi")
@@ -206,7 +208,7 @@ class TestDriveManager:
         # First call is POST (create), second is GET (fetch full data)
         mock_session.request.return_value.json.side_effect = [
             {"$key": 4, "name": "TieredDrive", "preferred_tier": "1"},
-            {"$key": 4, "name": "TieredDrive", "preferred_tier": "1"},
+            {"$key": 4, "name": "TieredDrive", "preferred_tier": "1", "machine": 200},
         ]
 
         vm.drives.create(size_gb=100, tier=1)
@@ -223,9 +225,11 @@ class TestDriveManager:
         assert body["preferred_tier"] == "1"
 
     def test_delete_drive(self, mock_client: VergeClient, mock_session: MagicMock, vm: VM) -> None:
-        """Test deleting a drive."""
-        mock_session.request.return_value.status_code = 204
-        mock_session.request.return_value.text = ""
+        """Test deleting a drive that belongs to this VM."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "machine": 200,
+        }
 
         vm.drives.delete(1)
 
@@ -239,6 +243,7 @@ class TestDriveManager:
             "$key": 1,
             "name": "UpdatedDrive",
             "description": "New description",
+            "machine": 200,
         }
 
         drive = vm.drives.update(1, description="New description")
@@ -258,6 +263,7 @@ class TestDriveManager:
             "$key": 1,
             "name": "TieredDrive",
             "preferred_tier": "4",
+            "machine": 200,
         }
 
         drive = vm.drives.update(1, tier=4)
@@ -282,6 +288,7 @@ class TestDriveManager:
             "$key": 1,
             "name": "TieredDrive",
             "preferred_tier": "2",
+            "machine": 200,
         }
 
         drive = Drive({"$key": 1, "name": "TieredDrive", "preferred_tier": "1"}, vm.drives)
@@ -319,6 +326,7 @@ class TestDriveManager:
             "$key": 1,
             "name": "Drive",
             "description": "updated",
+            "machine": 200,
         }
 
         vm.drives.update(1, tier=None, description="updated")
@@ -336,6 +344,7 @@ class TestDriveManager:
             "$key": 1,
             "name": "Drive",
             "preferred_tier": "2",
+            "machine": 200,
         }
 
         vm.drives.update(1, preferred_tier="2")
@@ -376,6 +385,7 @@ class TestDriveManager:
                 "interface": "virtio-scsi",
                 "media": "import",
                 "media_source": 999,
+                "machine": 200,
             },
         ]
 
@@ -417,6 +427,7 @@ class TestDriveManager:
                 "interface": "nvme",
                 "media": "import",
                 "media_source": 888,
+                "machine": 200,
             },
         ]
 
@@ -447,7 +458,7 @@ class TestDriveManager:
         """Test importing a drive with preserve_drive_format option."""
         mock_session.request.return_value.json.side_effect = [
             {"$key": 7, "name": "PreservedDisk", "media": "import"},
-            {"$key": 7, "name": "PreservedDisk", "media": "import"},
+            {"$key": 7, "name": "PreservedDisk", "media": "import", "machine": 200},
         ]
 
         vm.drives.import_drive(file_key=999, preserve_drive_format=True)

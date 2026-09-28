@@ -129,6 +129,14 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         super().__init__(client)
         self._application_key = application_key
 
+    def _scope_resource(self) -> str:
+        return "OIDC application user"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._application_key is None:
+            return []
+        return [("oidc_application", self._application_key)]
+
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
@@ -213,17 +221,15 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         if key is None:
             raise ValueError("Key must be provided")
 
-        params: dict[str, Any] = {}
-        if fields:
-            params["fields"] = self._projection(fields)
-        else:
-            params["fields"] = self._projection(self._default_fields)
+        selected = fields if fields else self._default_fields
+        params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(selected))}
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"OIDC application user with key {key} not found")
         if not isinstance(response, dict):
             raise NotFoundError(f"OIDC application user with key {key} returned invalid response")
+        self._assert_row_in_scope(key, response)
         return self._to_model(response)
 
     def add(self, *, user_key: int) -> OidcApplicationUser:
@@ -265,6 +271,7 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         Args:
             key: Entry $key (row ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def _to_model(self, data: dict[str, Any]) -> OidcApplicationUser:
@@ -344,6 +351,14 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
     def __init__(self, client: VergeClient, *, application_key: int | None = None) -> None:
         super().__init__(client)
         self._application_key = application_key
+
+    def _scope_resource(self) -> str:
+        return "OIDC application group"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._application_key is None:
+            return []
+        return [("oidc_application", self._application_key)]
 
     def list(  # noqa: A003
         self,
@@ -429,17 +444,15 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         if key is None:
             raise ValueError("Key must be provided")
 
-        params: dict[str, Any] = {}
-        if fields:
-            params["fields"] = self._projection(fields)
-        else:
-            params["fields"] = self._projection(self._default_fields)
+        selected = fields if fields else self._default_fields
+        params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(selected))}
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"OIDC application group with key {key} not found")
         if not isinstance(response, dict):
             raise NotFoundError(f"OIDC application group with key {key} returned invalid response")
+        self._assert_row_in_scope(key, response)
         return self._to_model(response)
 
     def add(self, *, group_key: int) -> OidcApplicationGroup:
@@ -481,6 +494,7 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         Args:
             key: Entry $key (row ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def _to_model(self, data: dict[str, Any]) -> OidcApplicationGroup:
@@ -557,6 +571,14 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
     def __init__(self, client: VergeClient, *, application_key: int | None = None) -> None:
         super().__init__(client)
         self._application_key = application_key
+
+    def _scope_resource(self) -> str:
+        return "OIDC application log"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._application_key is None:
+            return []
+        return [("oidc_application", self._application_key)]
 
     def list(  # noqa: A003
         self,
@@ -651,17 +673,15 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         if key is None:
             raise ValueError("Key must be provided")
 
-        params: dict[str, Any] = {}
-        if fields:
-            params["fields"] = self._projection(fields)
-        else:
-            params["fields"] = self._projection(self._default_fields)
+        selected = fields if fields else self._default_fields
+        params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(selected))}
 
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
         if response is None:
             raise NotFoundError(f"OIDC application log with key {key} not found")
         if not isinstance(response, dict):
             raise NotFoundError(f"OIDC application log with key {key} returned invalid response")
+        self._assert_row_in_scope(key, response)
         return self._to_model(response)
 
     def list_errors(

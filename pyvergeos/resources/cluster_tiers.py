@@ -1107,9 +1107,16 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         Raises:
             NotFoundError: If status not found.
         """
+        # cluster_tier_status owns these columns. Expanding them against
+        # ClusterTier rewrites capacity/used/... into status# joins, and
+        # status is a string on this endpoint, so every alias comes back
+        # as 'online' (issue #149).
         params: dict[str, Any] = {
             "filter": f"tier eq {tier_key}",
-            "fields": self._projection(self._status_fields),
+            "fields": self._projection(
+                self._status_fields,
+                defaults=ClusterTierStatus.projected_entries(),
+            ),
             "limit": 1,
         }
 
@@ -1137,9 +1144,14 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         Raises:
             NotFoundError: If stats not found.
         """
+        # Same constraint as get_tier_status(): rops/wops/... are columns
+        # of cluster_tier_stats, not stats# joins from ClusterTier.
         params: dict[str, Any] = {
             "filter": f"tier eq {tier_key}",
-            "fields": self._projection(self._stats_fields),
+            "fields": self._projection(
+                self._stats_fields,
+                defaults=ClusterTierStats.projected_entries(),
+            ),
             "limit": 1,
         }
 
@@ -1186,9 +1198,14 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
             until_epoch = int(until.timestamp()) if isinstance(until, datetime) else int(until)
             filters.append(f"timestamp le {until_epoch}")
 
+        # Same constraint as get_tier_status(): these columns are native
+        # to the history table, not ClusterTier status#/stats# joins.
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": self._projection(self._history_short_fields),
+            "fields": self._projection(
+                self._history_short_fields,
+                defaults=ClusterTierStatsHistoryShort.projected_entries(),
+            ),
             "sort": "-timestamp",
         }
 
@@ -1238,9 +1255,14 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
             until_epoch = int(until.timestamp()) if isinstance(until, datetime) else int(until)
             filters.append(f"timestamp le {until_epoch}")
 
+        # Same constraint as get_tier_status(): capacity/used are columns
+        # here, not status# joins from ClusterTier.
         params: dict[str, Any] = {
             "filter": " and ".join(filters),
-            "fields": self._projection(self._history_long_fields),
+            "fields": self._projection(
+                self._history_long_fields,
+                defaults=ClusterTierStatsHistoryLong.projected_entries(),
+            ),
             "sort": "-timestamp",
         }
 

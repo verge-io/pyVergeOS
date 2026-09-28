@@ -48,7 +48,6 @@ def sample_period_data() -> dict[str, Any]:
         "day_of_month": 0,
         "month": 0,
         "retention": 604800,  # 7 days
-        "skip_missed": False,
         "max_tier": "1",
         "quiesce": False,
         "min_snapshots": 1,
@@ -85,7 +84,6 @@ class TestSnapshotProfilePeriod:
         assert period.retention_seconds == 604800
         assert period.retention == timedelta(seconds=604800)
         assert period.retention_display == "7d"
-        assert period.skip_missed is False
         assert period.max_tier == 1
         assert period.quiesce is False
         assert period.min_snapshots == 1
@@ -170,11 +168,12 @@ class TestSnapshotProfilePeriod:
         period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
         assert period.quiesce is True
 
-    def test_period_skip_missed_true(self, mock_client: VergeClient) -> None:
-        """Test skip_missed returns True when enabled."""
-        data = {"$key": 1, "profile": 1, "skip_missed": True}
+    def test_period_has_no_skip_missed(self, mock_client: VergeClient) -> None:
+        """skip_missed is not a period column and must not default to False (#139)."""
+        data = {"$key": 1, "profile": 1}
         period = SnapshotProfilePeriod(data, mock_client.snapshot_profiles.periods(1))
-        assert period.skip_missed is True
+        with pytest.raises(AttributeError):
+            _ = period.skip_missed
 
     def test_period_max_tier_default(self, mock_client: VergeClient) -> None:
         """Test max_tier defaults to 1."""
@@ -268,6 +267,19 @@ class TestSnapshotProfile:
         data = {"$key": 1, "name": "Test Profile"}
         profile = SnapshotProfile(data, mock_client.snapshot_profiles)
         assert repr(profile) == "<SnapshotProfile key=1 name='Test Profile'>"
+
+    def test_add_period_rejects_skip_missed(
+        self, mock_client: VergeClient, sample_profile_data: dict[str, Any]
+    ) -> None:
+        """add_period() must not offer skip_missed (#139)."""
+        profile = SnapshotProfile(sample_profile_data, mock_client.snapshot_profiles)
+        with pytest.raises(TypeError, match="skip_missed"):
+            profile.add_period(
+                name="Hourly",
+                frequency="hourly",
+                retention_seconds=86400,
+                skip_missed=True,
+            )
 
 
 # =============================================================================
@@ -413,6 +425,67 @@ class TestSnapshotProfilePeriodManager:
                 retention=-1,
             )
 
+    def test_create_period_omits_skip_missed(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Create must not send skip_missed; the column does not exist (#139)."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 1,
+            "profile": 1,
+            "name": "Hourly",
+            "frequency": "hourly",
+            "retention": 86400,
+        }
+
+        mock_client.snapshot_profiles.periods(1).create(
+            name="Hourly",
+            frequency="hourly",
+            retention=86400,
+        )
+
+        post = next(
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        )
+        assert post.kwargs.get("json") == {
+            "profile": 1,
+            "name": "Hourly",
+            "frequency": "hourly",
+            "retention": 86400,
+            "minute": 0,
+            "hour": 0,
+            "day_of_week": "any",
+            "day_of_month": 0,
+            "month": 0,
+            "max_tier": "1",
+            "quiesce": False,
+            "min_snapshots": 1,
+            "immutable": False,
+        }
+
+    def test_create_period_rejects_skip_missed(self, mock_client: VergeClient) -> None:
+        """skip_missed is not a create parameter (#139)."""
+        with pytest.raises(TypeError, match="skip_missed"):
+            mock_client.snapshot_profiles.periods(1).create(  # type: ignore[call-arg]
+                name="Test",
+                frequency="hourly",
+                retention=86400,
+                skip_missed=True,
+            )
+
+    def test_list_periods_does_not_request_skip_missed(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """The default projection must not ask for a column that does not exist (#139)."""
+        mock_session.request.return_value.json.return_value = []
+
+        mock_client.snapshot_profiles.periods(1).list()
+
+        params = mock_session.request.call_args.kwargs.get("params", {})
+        fields = str(params.get("fields", ""))
+        assert "skip_missed" not in fields.split(",")
+
     def test_update_period(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test updating a period."""
         mock_session.request.return_value.json.return_value = {
@@ -430,6 +503,19 @@ class TestSnapshotProfilePeriodManager:
         """Test update period with invalid frequency."""
         with pytest.raises(ValueError, match="Invalid frequency"):
             mock_client.snapshot_profiles.periods(1).update(1, frequency="invalid")
+
+    def test_update_period_rejects_skip_missed(self, mock_client: VergeClient) -> None:
+        """update() must not forward skip_missed for the server to discard (#139)."""
+        with pytest.raises(ValueError, match="skip_missed"):
+            mock_client.snapshot_profiles.periods(1).update(1, skip_missed=True)
+
+    def test_save_rejects_skip_missed(
+        self, mock_client: VergeClient, sample_period_data: dict[str, Any]
+    ) -> None:
+        """save() rejects skip_missed the same way update() does (#139)."""
+        period = SnapshotProfilePeriod(sample_period_data, mock_client.snapshot_profiles.periods(1))
+        with pytest.raises(ValueError, match="skip_missed"):
+            period.save(skip_missed=True)
 
     def test_delete_period(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test deleting a period."""

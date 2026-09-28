@@ -427,6 +427,12 @@ class TenantStatsManager(ResourceManager[TenantStats]):
     def _to_model(self, data: dict[str, Any]) -> TenantStats:
         return TenantStats(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant stats"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("tenant", self._tenant_key)]
+
     def _to_history_model(self, data: dict[str, Any]) -> TenantStatsHistory:
         return TenantStatsHistory(data, self)
 
@@ -680,6 +686,12 @@ class TenantLogManager(ResourceManager[TenantLog]):
     def _to_model(self, data: dict[str, Any]) -> TenantLog:
         return TenantLog(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant log"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        return [("tenant", self._tenant_key)]
+
     def list(
         self,
         filter: str | None = None,  # noqa: A002
@@ -791,7 +803,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
         if fields is None:
             fields = self._default_fields
 
-        params: dict[str, Any] = {"fields": self._projection(fields)}
+        params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
         response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
 
         if response is None:
@@ -800,6 +812,7 @@ class TenantLogManager(ResourceManager[TenantLog]):
         if not isinstance(response, dict):
             raise NotFoundError(f"Log entry {key} returned invalid response")
 
+        self._assert_row_in_scope(key, response)
         return self._to_model(response)
 
 

@@ -2,13 +2,15 @@
 
 These tests require a live VergeOS system.
 Configure with environment variables:
-    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD, VERGE_VERIFY_SSL
+    VERGE_HOST, VERGE_USERNAME, VERGE_PASSWORD
+
+TLS verification matches the shared live_client fixture (disabled).
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
+from collections.abc import Generator
 
 import pytest
 
@@ -24,38 +26,26 @@ from pyvergeos.resources.routing import (
     EIGRPRouterCommand,
     OSPFCommand,
 )
+from tests.integration.live_support import create_disposable_network, destroy_network
 
 # Skip all tests in this module if not running integration tests
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
-def client() -> VergeClient:
-    """Create a connected client for the test module."""
-    if not os.environ.get("VERGE_HOST"):
-        pytest.skip("VERGE_HOST not set")
-
-    client = VergeClient.from_env()
-    client.connect()
-    yield client
-    client.disconnect()
+def client(live_client_module: VergeClient) -> VergeClient:
+    """Live client with the same TLS settings as the shared live_client fixture."""
+    return live_client_module
 
 
 @pytest.fixture(scope="module")
-def test_network(client: VergeClient) -> Network:
-    """Get an external network to test routing on.
-
-    Routing protocols are typically configured on external networks.
-    """
+def test_network(client: VergeClient) -> Generator[Network, None, None]:
+    """Disposable internal network. Do not mutate External."""
+    network = create_disposable_network(client, prefix="pytest-route")
     try:
-        return client.networks.get(name="External")
-    except NotFoundError:
-        pass
-
-    networks = client.networks.list_external()
-    if not networks:
-        pytest.skip("No external networks available for routing testing")
-    return networks[0]
+        yield network
+    finally:
+        destroy_network(client, network)
 
 
 # =============================================================================

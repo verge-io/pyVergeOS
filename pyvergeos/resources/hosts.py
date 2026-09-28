@@ -136,6 +136,13 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
     def _to_model(self, data: dict[str, Any]) -> NetworkHost:
         return NetworkHost(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Host"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """DHCP/DNS host overrides belong to one network (#188)."""
+        return [("vnet", self.network_key)]
+
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,
@@ -234,12 +241,13 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
             fields = self._default_fields.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Host {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Host {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if hostname is not None:
@@ -333,6 +341,7 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
         if host_type is not None:
             body["type"] = host_type
 
+        self._ensure_in_scope(key)
         if not body:
             raise ValueError("At least one field must be provided to update")
 
@@ -349,4 +358,5 @@ class NetworkHostManager(ResourceManager[NetworkHost]):
         Note:
             Host override changes require DNS apply to take effect.
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

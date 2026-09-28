@@ -331,6 +331,13 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         data["_network_name"] = self._network.name
         return WireGuardInterface(data, self)
 
+    def _scope_resource(self) -> str:
+        return "WireGuard interface"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Interfaces belong to one network (#188)."""
+        return [("vnet", self._network.key)]
+
     def list(
         self,
         filter: str | None = None,
@@ -413,13 +420,14 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             fields = DEFAULT_INTERFACE_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"WireGuard interface with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"WireGuard interface {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -514,6 +522,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         Returns:
             Updated WireGuardInterface object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         # Map kwargs to API field names
@@ -545,6 +554,7 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         Args:
             key: Interface $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
@@ -600,6 +610,13 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         data["_interface_key"] = self._interface.key
         data["_interface_name"] = self._interface.name
         return WireGuardPeer(data, self)
+
+    def _scope_resource(self) -> str:
+        return "WireGuard peer"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Peers belong to one interface (#188)."""
+        return [("wireguard", self._interface.key)]
 
     def list(
         self,
@@ -682,13 +699,14 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             fields = DEFAULT_PEER_FIELDS.copy()
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"WireGuard peer with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"WireGuard peer {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -811,6 +829,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         Returns:
             Updated WireGuardPeer object.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         # Map kwargs to API field names
@@ -849,6 +868,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         Args:
             key: Peer $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def get_config(self, key: int) -> str:
@@ -878,6 +898,7 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             Configuration is only available for peers that were created with
             the autogenerate_peer option enabled in the VergeOS UI.
         """
+        self._ensure_in_scope(key)
         try:
             params = {"fields": "wg_config"}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)

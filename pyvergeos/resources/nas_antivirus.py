@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any
 
-from pyvergeos.exceptions import NotFoundError
+from pyvergeos.exceptions import ConflictError, NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -283,10 +283,15 @@ class NasServiceAntivirus(ResourceObject):
 class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
     """Manager for volume antivirus configuration operations.
 
+    VergeOS creates the per-volume antivirus row when the volume is created,
+    and the table allows one row per volume. Read it with ``get()`` and
+    change it with ``update()``. ``create()`` updates that row when one is
+    already present.
+
     Can be used standalone or scoped to a specific volume.
 
     Example:
-        >>> # Get antivirus config for a volume
+        >>> # The config exists as soon as the volume does
         >>> av = volume.antivirus.get()
 
         >>> # Update configuration
@@ -329,6 +334,15 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         super().__init__(client)
         self._volume_key = volume_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """A volume-scoped manager may only touch that volume's row (#188)."""
+        if self._volume_key is None:
+            return []
+        return [("volume", self._volume_key)]
+
     def list(
         self,
         filter: str | None = None,
@@ -354,11 +368,11 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             List of VolumeAntivirus objects.
 
         Example:
-            >>> # List all antivirus configs
-            >>> configs = client.volume_antivirus.list()
+            >>> # List this volume's antivirus config
+            >>> configs = volume.antivirus.list()
 
             >>> # List enabled configs only
-            >>> enabled = client.volume_antivirus.list(enabled=True)
+            >>> enabled = volume.antivirus.list(enabled=True)
         """
         params: dict[str, Any] = {}
 
@@ -446,20 +460,17 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         Example:
             >>> # Get by key
-            >>> av = client.volume_antivirus.get(1)
+            >>> av = volume.antivirus.get(1)
 
             >>> # Get by volume name
-            >>> av = client.volume_antivirus.get(volume="FileShare")
+            >>> av = volume.antivirus.get(volume="FileShare")
 
-            >>> # Get from scoped manager
+            >>> # Get from the scoped manager
             >>> av = volume.antivirus.get()
         """
         if key is not None:
-            params: dict[str, Any] = {}
-            if fields:
-                params["fields"] = self._projection(fields)
-            else:
-                params["fields"] = self._projection(self._default_fields)
+            selected = fields if fields else self._default_fields
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(selected))}
 
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
@@ -468,6 +479,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
                 raise NotFoundError(
                     f"Volume antivirus config with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # If scoped to volume or volume provided, find by unique constraint
@@ -514,7 +526,21 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         quarantine_location: str = ".quarantine",
         start_time_profile: int | None = None,
     ) -> VolumeAntivirus:
-        """Create a new volume antivirus configuration.
+        """Return this volume's antivirus row, applying the given settings.
+
+        VergeOS creates one ``volume_antivirus`` row when the volume is
+        created. A POST for a volume that already has that row fails with
+        ``ConflictError`` (unique constraint). Prefer ``get()`` and then
+        ``update()``.
+
+        When the row already exists, this updates it and returns it. A POST
+        is sent only when no row is present. If that POST conflicts, the row
+        that appeared is updated instead.
+
+        Arguments that have defaults (``enabled``, ``infected_action``,
+        ``on_access``, ``scan``, ``quarantine_location``) are written onto
+        an existing row. ``include``, ``exclude``, and ``start_time_profile``
+        are written only when passed.
 
         Args:
             volume: Volume key (40-char hex string).
@@ -528,20 +554,47 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             start_time_profile: Scan schedule profile key.
 
         Returns:
-            Created VolumeAntivirus object.
+            VolumeAntivirus object for the volume.
+
+        Raises:
+            ConflictError: If creating a missing row conflicts and the row
+                still cannot be found.
 
         Example:
-            >>> # Create with defaults
-            >>> av = client.volume_antivirus.create(vol.key)
-
-            >>> # Create with custom settings
-            >>> av = client.volume_antivirus.create(
-            ...     vol.key,
+            >>> # The config exists as soon as the volume does
+            >>> av = volume.antivirus.get()
+            >>> av = volume.antivirus.update(
+            ...     av.key,
             ...     enabled=True,
             ...     on_access=True,
-            ...     exclude="/temp\n/cache"
+            ...     exclude="/temp\\n/cache",
+            ... )
+
+            >>> # create() updates the existing row when one is already present
+            >>> av = volume.antivirus.create(
+            ...     volume.key,
+            ...     enabled=True,
+            ...     on_access=True,
             ... )
         """
+
+        def apply(key: int) -> VolumeAntivirus:
+            return self.update(
+                key,
+                enabled=enabled,
+                infected_action=infected_action,
+                on_access=on_access,
+                scan=scan,
+                include=include,
+                exclude=exclude,
+                quarantine_location=quarantine_location,
+                start_time_profile=start_time_profile,
+            )
+
+        existing = self._find_for_volume(volume)
+        if existing is not None:
+            return apply(existing.key)
+
         body: dict[str, Any] = {
             "volume": volume,
             "enabled": enabled,
@@ -560,7 +613,13 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         if start_time_profile is not None:
             body["start_time_profile"] = start_time_profile
 
-        response = self._client._request("POST", self._endpoint, json_data=body)
+        try:
+            response = self._client._request("POST", self._endpoint, json_data=body)
+        except ConflictError:
+            raced = self._find_for_volume(volume)
+            if raced is None:
+                raise
+            return apply(raced.key)
 
         # Get the created config
         if response and isinstance(response, dict):
@@ -570,6 +629,13 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         # Fallback: search by volume
         return self.get(volume=volume)
+
+    def _find_for_volume(self, volume: str) -> VolumeAntivirus | None:
+        """Return the antivirus row for ``volume``, or None when it is absent."""
+        try:
+            return self.get(volume=volume)
+        except NotFoundError:
+            return None
 
     def update(  # type: ignore[override]
         self,
@@ -602,11 +668,12 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
 
         Example:
             >>> # Enable on-access scanning
-            >>> av = client.volume_antivirus.update(1, on_access=True)
+            >>> av = volume.antivirus.update(1, on_access=True)
 
             >>> # Change quarantine location
-            >>> av = client.volume_antivirus.update(1, quarantine_location="/quarantine")
+            >>> av = volume.antivirus.update(1, quarantine_location="/quarantine")
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if enabled is not None:
@@ -642,12 +709,16 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
     def delete(self, key: int) -> None:
         """Delete a volume antivirus configuration.
 
+        VergeOS creates this row with the volume. Deleting it does not turn
+        antivirus off; use ``update(..., enabled=False)`` or ``disable()``.
+
         Args:
             key: Antivirus config $key (ID).
 
         Example:
-            >>> client.volume_antivirus.delete(1)
+            >>> volume.antivirus.delete(1)
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
     def _action(
@@ -663,6 +734,7 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         Returns:
             Action response dict or None.
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {"volume_antivirus": key, "action": action}
 
         if params:
@@ -704,6 +776,14 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
         super().__init__(client)
         self._antivirus_key = antivirus_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus status"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
+
     def get(self, key: int | None = None) -> VolumeAntivirusStatus:  # type: ignore[override]
         """Get antivirus status.
 
@@ -720,7 +800,9 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
             >>> status = av.get_status()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
+            params: dict[str, Any] = {
+                "fields": self._projection(self._with_scope_fields(self._default_fields))
+            }
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume antivirus status with key {key} not found")
@@ -728,6 +810,7 @@ class VolumeAntivirusStatusManager(ResourceManager[VolumeAntivirusStatus]):
                 raise NotFoundError(
                     f"Volume antivirus status with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # Look up by antivirus_key (unique constraint)
@@ -825,6 +908,14 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
         super().__init__(client)
         self._antivirus_key = antivirus_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus stats"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
+
     def get(self, key: int | None = None) -> VolumeAntivirusStats:  # type: ignore[override]
         """Get antivirus statistics.
 
@@ -841,7 +932,9 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
             >>> stats = av.get_stats()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
+            params: dict[str, Any] = {
+                "fields": self._projection(self._with_scope_fields(self._default_fields))
+            }
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Volume antivirus stats with key {key} not found")
@@ -849,6 +942,7 @@ class VolumeAntivirusStatsManager(ResourceManager[VolumeAntivirusStats]):
                 raise NotFoundError(
                     f"Volume antivirus stats with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         # Look up by antivirus_key (unique constraint)
@@ -947,6 +1041,14 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
         super().__init__(client)
         self._antivirus_key = antivirus_key
 
+    def _scope_resource(self) -> str:
+        return "Volume antivirus infection"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
+
     def list(  # noqa: A002
         self,
         filter: str | None = None,
@@ -1037,6 +1139,14 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
     def __init__(self, client: VergeClient, *, antivirus_key: int | None = None) -> None:
         super().__init__(client)
         self._antivirus_key = antivirus_key
+
+    def _scope_resource(self) -> str:
+        return "Volume antivirus log"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        if self._antivirus_key is None:
+            return []
+        return [("volume_antivirus", self._antivirus_key)]
 
     def list(  # noqa: A002
         self,
@@ -1144,6 +1254,15 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
         super().__init__(client)
         self._service_key = service_key
 
+    def _scope_resource(self) -> str:
+        return "NAS service antivirus"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """A service-scoped manager may only touch that service's row (#188)."""
+        if self._service_key is None:
+            return []
+        return [("service", self._service_key)]
+
     def get(self, key: int | None = None) -> NasServiceAntivirus:  # type: ignore[override]
         """Get NAS service antivirus configuration.
 
@@ -1160,7 +1279,9 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             >>> svc_av = nas.antivirus.get()
         """
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(self._default_fields)}
+            params: dict[str, Any] = {
+                "fields": self._projection(self._with_scope_fields(self._default_fields))
+            }
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"NAS service antivirus config with key {key} not found")
@@ -1168,11 +1289,12 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
                 raise NotFoundError(
                     f"NAS service antivirus config with key {key} returned invalid response"
                 )
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
-        # Look up by service_key (unique constraint)
+        # Look up by service_key (unique constraint). list() applies the scope.
         if self._service_key is not None:
-            results = self.list(filter=f"service eq {self._service_key}", fields=None, limit=1)
+            results = self.list(fields=None, limit=1)
             if not results:
                 raise NotFoundError(
                     f"NAS service antivirus config not found for service {self._service_key}"
@@ -1191,6 +1313,10 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
     ) -> builtins.list[NasServiceAntivirus]:
         """List NAS service antivirus configurations.
 
+        When the manager is scoped to a NAS service, results are limited to
+        that service (``service eq <service_key>``). An unscoped manager
+        returns every service's config.
+
         Args:
             filter: OData filter string.
             fields: List of fields to return.
@@ -1200,6 +1326,9 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
 
         Returns:
             List of NasServiceAntivirus objects.
+
+        Example:
+            >>> configs = nas_service.antivirus.list()
         """
         params: dict[str, Any] = {}
 
@@ -1208,6 +1337,10 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
+
+        # Scope to this NAS service, as VolumeAntivirusManager does for volume.
+        if self._service_key is not None:
+            filters.append(f"service eq {self._service_key}")
 
         if filters:
             params["filter"] = " and ".join(filters)
@@ -1256,8 +1389,9 @@ class NasServiceAntivirusManager(ResourceManager[NasServiceAntivirus]):
             Updated NasServiceAntivirus object.
 
         Example:
-            >>> svc_av = client.nas_service_antivirus.update(1, max_recursion=20)
+            >>> svc_av = nas_service.antivirus.update(1, max_recursion=20)
         """
+        self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
         if enabled is not None:

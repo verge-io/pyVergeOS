@@ -556,6 +556,109 @@ class TestClusterTierManager:
         call_args = mock_client._request.call_args
         assert call_args[0][1] == "cluster_tier_status"
 
+    def test_get_tier_status_fields_have_no_status_joins(
+        self,
+        tier_manager: ClusterTierManager,
+        mock_client: MagicMock,
+        sample_status_data: dict[str, Any],
+    ) -> None:
+        """Status columns must stay plain names on cluster_tier_status.
+
+        ``status`` is a string there. ``status#capacity`` and the other
+        joins resolve to ``'online'``, which breaks the numeric accessors
+        (issue #149).
+        """
+        mock_client._request.return_value = [sample_status_data]
+
+        status = tier_manager.get_tier_status(tier_key=1)
+
+        call_args = mock_client._request.call_args
+        assert call_args[0][1] == "cluster_tier_status"
+        fields = call_args[1]["params"]["fields"]
+        assert isinstance(fields, str)
+        assert "status#" not in fields
+        names = fields.split(",")
+        for column in (
+            "status",
+            "capacity",
+            "used",
+            "used_pct",
+            "redundant",
+            "encrypted",
+            "working",
+        ):
+            assert column in names
+        assert status.capacity_bytes == sample_status_data["capacity"]
+        assert status.used_bytes == sample_status_data["used"]
+        assert status.used_percent == float(sample_status_data["used_pct"])
+        assert status.is_redundant is True
+        assert status.is_encrypted is True
+        assert status.is_working is False
+
+    def test_get_tier_stats_fields_have_no_stats_joins(
+        self,
+        tier_manager: ClusterTierManager,
+        mock_client: MagicMock,
+        sample_stats_data: dict[str, Any],
+    ) -> None:
+        """Stats columns are native to cluster_tier_stats, not stats# joins."""
+        mock_client._request.return_value = [sample_stats_data]
+
+        tier_manager.get_tier_stats(tier_key=1)
+
+        call_args = mock_client._request.call_args
+        assert call_args[0][1] == "cluster_tier_stats"
+        fields = call_args[1]["params"]["fields"]
+        assert isinstance(fields, str)
+        assert "stats#" not in fields
+        assert "status#" not in fields
+        names = fields.split(",")
+        for column in ("rops", "wops", "rbps", "wbps"):
+            assert column in names
+
+    def test_history_fields_have_no_cross_endpoint_joins(
+        self,
+        tier_manager: ClusterTierManager,
+        mock_client: MagicMock,
+        sample_history_short_data: dict[str, Any],
+        sample_history_long_data: dict[str, Any],
+    ) -> None:
+        """History endpoints own rops/capacity/used; do not join them."""
+        mock_client._request.return_value = [sample_history_short_data]
+        tier_manager.get_stats_history_short(tier_key=1, limit=1)
+        short_fields = mock_client._request.call_args[1]["params"]["fields"]
+        assert mock_client._request.call_args[0][1] == "cluster_tier_stats_history_short"
+        assert "status#" not in short_fields
+        assert "stats#" not in short_fields
+        assert "capacity" in short_fields.split(",")
+        assert "rops" in short_fields.split(",")
+
+        mock_client._request.return_value = [sample_history_long_data]
+        tier_manager.get_stats_history_long(tier_key=1, limit=1)
+        long_fields = mock_client._request.call_args[1]["params"]["fields"]
+        assert mock_client._request.call_args[0][1] == "cluster_tier_stats_history_long"
+        assert "status#" not in long_fields
+        assert "stats#" not in long_fields
+        assert "capacity" in long_fields.split(",")
+        assert "used" in long_fields.split(",")
+
+    def test_list_still_joins_embedded_status(
+        self,
+        tier_manager: ClusterTierManager,
+        mock_client: MagicMock,
+        sample_tier_data: dict[str, Any],
+    ) -> None:
+        """The tier list lives on cluster_tiers, where status# joins are real."""
+        mock_client._request.return_value = [sample_tier_data]
+
+        tier_manager.list()
+
+        call_args = mock_client._request.call_args
+        assert call_args[0][1] == "cluster_tiers"
+        fields = call_args[1]["params"]["fields"]
+        assert "status#capacity as capacity" in fields
+        assert "stats#rops as rops" in fields
+
     def test_get_tier_stats(
         self,
         tier_manager: ClusterTierManager,

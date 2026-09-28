@@ -885,10 +885,10 @@ class ResourceRule(ResourceObject):
     """
 
     @property
-    def resource_group_key(self) -> int | None:
-        """Parent resource group key."""
+    def resource_group_key(self) -> str | None:
+        """Parent resource group key (UUID)."""
         rg = self.get("resource_group")
-        return int(rg) if rg else None
+        return str(rg) if rg else None
 
     resource_group_name = Projected[str](
         "display(resource_group) as resource_group_display",
@@ -1032,6 +1032,15 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
     def _to_model(self, data: dict[str, Any]) -> ResourceRule:
         return ResourceRule(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Resource rule"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """A group-scoped manager may only touch that group's rules (#188)."""
+        if self._resource_group_key is None:
+            return []
+        return [("resource_group", self._resource_group_key)]
+
     def list(  # noqa: A003
         self,
         filter: str | None = None,  # noqa: A002
@@ -1128,12 +1137,13 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 raise NotFoundError(f"Resource rule with key {key} not found")
             if not isinstance(response, dict):
                 raise NotFoundError(f"Resource rule with key {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if name is not None:
@@ -1217,6 +1227,7 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
         Returns:
             Updated ResourceRule object.
         """
+        self._ensure_in_scope(key)
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         if response is None:
             return self.get(key)
@@ -1230,4 +1241,5 @@ class ResourceRuleManager(ResourceManager[ResourceRule]):
         Args:
             key: Rule $key (ID).
         """
+        self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")

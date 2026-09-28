@@ -138,6 +138,13 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
     def _to_model(self, data: dict[str, Any]) -> TenantNetworkBlock:
         return TenantNetworkBlock(data, self)
 
+    def _scope_resource(self) -> str:
+        return "Tenant network block"
+
+    def _scope_bindings(self) -> list[tuple[str, Any]]:
+        """Network blocks are owned by ``tenants/{key}`` (#188)."""
+        return [("owner", f"tenants/{self._tenant.key}")]
+
     def list(  # type: ignore[override]
         self,
         filter: str | None = None,  # noqa: A002
@@ -214,7 +221,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
             fields = self._default_fields
 
         if key is not None:
-            params: dict[str, Any] = {"fields": self._projection(fields)}
+            params: dict[str, Any] = {"fields": self._projection(self._with_scope_fields(fields))}
             response = self._client._request("GET", f"{self._endpoint}/{key}", params=params)
             if response is None:
                 from pyvergeos.exceptions import NotFoundError
@@ -224,6 +231,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
                 from pyvergeos.exceptions import NotFoundError
 
                 raise NotFoundError(f"Tenant network block {key} returned invalid response")
+            self._assert_row_in_scope(key, response)
             return self._to_model(response)
 
         if cidr is not None:
@@ -315,6 +323,7 @@ class TenantNetworkBlockManager(ResourceManager[TenantNetworkBlock]):
             using addresses in that range. Firewall rules referencing the
             block must be removed first.
         """
+        self._ensure_in_scope(key)
         logger.debug(f"Removing tenant network block {key}")
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 

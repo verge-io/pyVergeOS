@@ -276,7 +276,8 @@ def main() -> int:
         # =====================================================================
         print("=== Cleanup ===")
 
-        # Delete tags first (must delete before categories)
+        # Remove tags before their categories. Deleting a category
+        # also deletes its tags and their assignments.
         for tag_key in created_tags:
             try:
                 client.tags.delete(tag_key)
