@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, scope_values_equal
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -304,8 +304,33 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         return "IPSec connection"
 
     def _scope_bindings(self) -> list[tuple[str, Any]]:
-        """Phase 1 connections belong to one network (#188)."""
-        return [("vnet", self._network.key)]
+        """Phase 1 rows point at an IPsec config; the config carries ``vnet``.
+
+        ``vnet_ipsec_phase1s`` has no ``vnet`` column (#191). The scope read
+        requests ``ipsec``. :meth:`_row_in_scope` accepts the row when that
+        value is this network's ``vnet_ipsecs`` key, the same parent
+        ``list()`` filters on. The binding value is the network key so a
+        network with no config is still scoped.
+        """
+        return [("ipsec", self._network.key)]
+
+    def _row_in_scope(self, row: dict[str, Any]) -> bool:
+        ipsec_key = row.get("ipsec")
+        if ipsec_key is None:
+            return False
+        # The config lookup must not replace the aliases recorded for the
+        # phase 1 read that is about to become the returned object.
+        previous = self._requested_aliases
+        try:
+            config_key = self._get_ipsec_config()
+        finally:
+            self._requested_aliases = previous
+        if config_key is None:
+            return False
+        return scope_values_equal(ipsec_key, config_key)
+
+    def _scope_error(self, key: int | str, row: dict[str, Any]) -> str:
+        return f"IPSec connection {key} does not belong to vnet {self._network.key}"
 
     def _get_or_create_ipsec_config(self) -> int:
         """Get or create the IPSec configuration for this network.

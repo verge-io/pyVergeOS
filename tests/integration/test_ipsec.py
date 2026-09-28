@@ -244,6 +244,36 @@ class TestIPSecConnectionManagerIntegration:
         assert updated.get("description") == "Updated description"
         assert updated.get("dpddelay") == 90
 
+    def test_other_network_refuses_connection(
+        self, client: VergeClient, test_network: Network, cleanup_connections: list[int]
+    ) -> None:
+        """Another network cannot read or change this network's connection (#191)."""
+        conn = test_network.ipsec.create(
+            name="pytest-ipsec-scope",
+            remote_gateway="203.0.113.20",
+            pre_shared_key="TestPSK12345!",
+            description="owned by the test network",
+        )
+        cleanup_connections.append(conn.key)
+
+        own = test_network.ipsec.get(conn.key)
+        assert own.key == conn.key
+        assert own.get("ipsec") is not None
+
+        other = create_disposable_network(client, prefix="pytest-ipsec-other")
+        try:
+            with pytest.raises(NotFoundError, match="does not belong to vnet"):
+                other.ipsec.get(conn.key)
+            with pytest.raises(NotFoundError, match="does not belong to vnet"):
+                other.ipsec.update(conn.key, description="crossed")
+            with pytest.raises(NotFoundError, match="does not belong to vnet"):
+                other.ipsec.delete(conn.key)
+            still = test_network.ipsec.get(conn.key)
+            assert still.key == conn.key
+            assert still.get("description") == "owned by the test network"
+        finally:
+            destroy_network(client, other)
+
 
 class TestIPSecPolicyManagerIntegration:
     """Integration tests for IPSecPolicyManager."""

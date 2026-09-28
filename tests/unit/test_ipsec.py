@@ -49,7 +49,6 @@ def sample_connection_data() -> dict[str, Any]:
     """Sample IPSec connection data from API."""
     return {
         "$key": 1,
-        "vnet": 3,
         "ipsec": 1,
         "enabled": True,
         "name": "Site-B",
@@ -299,6 +298,13 @@ class TestIPSecConnectionManagerGet:
         result = ipsec_manager.get(1)
         assert result.key == 1
         assert result.name == "Site-B"
+        # Phase 1 rows have no vnet column. The read must ask for ipsec,
+        # then resolve this network's config (#191).
+        phase1_get = mock_client._request.call_args_list[0]
+        fields = phase1_get.kwargs["params"]["fields"].split(",")
+        assert "ipsec" in fields
+        assert "vnet" not in fields
+        assert "vnet" not in result
 
     def test_get_by_name(
         self,
@@ -337,6 +343,85 @@ class TestIPSecConnectionManagerGet:
         """Test get raises ValueError when neither key nor name provided."""
         with pytest.raises(ValueError, match="Either key or name"):
             ipsec_manager.get()
+
+    def test_get_accepts_own_config_without_vnet_column(
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
+    ) -> None:
+        """Own rows are accepted when membership is the config, not vnet (#191)."""
+        row = dict(sample_connection_data)
+        row.pop("vnet", None)
+
+        def _request(method: str, endpoint: str, **kwargs: Any) -> dict[str, Any] | None:
+            if endpoint == "vnet_ipsecs":
+                return {"$key": 1, "vnet": 3}
+            return row
+
+        mock_client._request.side_effect = _request
+        result = ipsec_manager.get(1)
+        assert result.key == 1
+        assert result.get("ipsec") == 1
+
+    def test_get_refuses_another_networks_config(
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
+    ) -> None:
+        """A phase 1 row whose config is another network's is refused (#191)."""
+        foreign = dict(sample_connection_data)
+        foreign["$key"] = 5
+        foreign["ipsec"] = 9
+        foreign["vnet"] = 3
+        writes: list[str] = []
+
+        def _request(method: str, endpoint: str, **kwargs: Any) -> dict[str, Any] | None:
+            if method in {"PUT", "DELETE", "POST"}:
+                writes.append(method)
+                return None
+            if endpoint == "vnet_ipsecs":
+                return {"$key": 1, "vnet": 3}
+            return foreign
+
+        mock_client._request.side_effect = _request
+        with pytest.raises(NotFoundError, match="does not belong to vnet 3"):
+            ipsec_manager.get(5)
+        with pytest.raises(NotFoundError, match="does not belong to vnet 3"):
+            ipsec_manager.update(5, description="crossed")
+        with pytest.raises(NotFoundError, match="does not belong to vnet 3"):
+            ipsec_manager.delete(5)
+        assert writes == []
+
+    def test_get_refuses_when_network_has_no_config(
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
+    ) -> None:
+        """No vnet_ipsecs row means no phase 1 row belongs to this network."""
+
+        def _request(method: str, endpoint: str, **kwargs: Any) -> dict[str, Any] | None:
+            if endpoint == "vnet_ipsecs":
+                return None
+            return sample_connection_data
+
+        mock_client._request.side_effect = _request
+        with pytest.raises(NotFoundError, match="does not belong to vnet 3"):
+            ipsec_manager.get(1)
+
+    def test_narrowed_get_still_requests_ipsec(
+        self,
+        ipsec_manager: IPSecConnectionManager,
+        mock_client: MagicMock,
+        sample_connection_data: dict[str, Any],
+    ) -> None:
+        """Omitting ipsec from fields must not skip the scope check."""
+        mock_client._request.return_value = sample_connection_data
+        ipsec_manager.get(1, fields=["$key", "name"])
+        fields = mock_client._request.call_args_list[0].kwargs["params"]["fields"]
+        assert "ipsec" in fields.split(",")
 
 
 class TestIPSecConnectionManagerCreate:
@@ -394,7 +479,8 @@ class TestIPSecConnectionManagerUpdate:
     ) -> None:
         """Test update connection."""
         mock_client._request.side_effect = [
-            sample_connection_data,  # scope check
+            sample_connection_data,  # scope read of the phase 1 row
+            {"$key": 1, "vnet": 3},  # this network's vnet_ipsecs
             None,  # PUT update
             sample_connection_data,  # GET to fetch updated
         ]
@@ -410,12 +496,13 @@ class TestIPSecConnectionManagerUpdate:
         """Test update maps friendly values to API values."""
         mock_client._request.side_effect = [
             sample_connection_data,
+            {"$key": 1, "vnet": 3},
             None,
             sample_connection_data,
         ]
         ipsec_manager.update(1, key_exchange="ikev2", connection_mode="start")
         # Check the PUT call had correct API values
-        put_call = mock_client._request.call_args_list[1]
+        put_call = mock_client._request.call_args_list[2]
         assert put_call[1]["json_data"]["keyexchange"] == "ikev2"
         assert put_call[1]["json_data"]["auto"] == "start"
 
@@ -441,7 +528,11 @@ class TestIPSecConnectionManagerDelete:
         sample_connection_data: dict[str, Any],
     ) -> None:
         """Test delete connection."""
-        mock_client._request.side_effect = [sample_connection_data, None]
+        mock_client._request.side_effect = [
+            sample_connection_data,  # scope read
+            {"$key": 1, "vnet": 3},  # this network's config
+            None,  # DELETE
+        ]
         ipsec_manager.delete(1)
         mock_client._request.assert_called_with("DELETE", "vnet_ipsec_phase1s/1")
 

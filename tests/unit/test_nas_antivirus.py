@@ -539,6 +539,40 @@ class TestVolumeAntivirusInfectionManager:
         call_args = mock_client._request.call_args
         assert "volume_antivirus eq 1" in call_args[1]["params"]["filter"]
 
+    def test_get_by_key_projects_scope_and_accepts_own_row(self, mock_client, sample_av_infection):
+        """Bare get(key) projects volume_antivirus and returns the row (#191)."""
+        manager = VolumeAntivirusInfectionManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = sample_av_infection
+
+        result = manager.get(100)
+
+        assert isinstance(result, VolumeAntivirusInfection)
+        assert result.key == 100
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
+        assert "filename" in fields
+
+    def test_get_by_key_refuses_other_config(self, mock_client, sample_av_infection):
+        """An infection for another antivirus config is refused."""
+        foreign = dict(sample_av_infection)
+        foreign["volume_antivirus"] = 9
+        manager = VolumeAntivirusInfectionManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = foreign
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(100)
+
+    def test_get_by_key_refuses_when_parent_omitted(self, mock_client):
+        """A short row with no parent column is refused, and the read asked for it."""
+        manager = VolumeAntivirusInfectionManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = {"$key": 100, "filename": "/documents/infected.pdf"}
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(100)
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
+
 
 class TestVolumeAntivirusLogManager:
     """Tests for VolumeAntivirusLogManager."""
@@ -565,6 +599,40 @@ class TestVolumeAntivirusLogManager:
         mock_client._request.assert_called_once()
         call_args = mock_client._request.call_args
         assert "level eq 'error'" in call_args[1]["params"]["filter"]
+
+    def test_get_by_key_projects_scope_and_accepts_own_row(self, mock_client, sample_av_log):
+        """Bare get(key) projects volume_antivirus and returns the row (#191)."""
+        manager = VolumeAntivirusLogManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = sample_av_log
+
+        result = manager.get(200)
+
+        assert isinstance(result, VolumeAntivirusLog)
+        assert result.key == 200
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
+        assert "text" in fields
+
+    def test_get_by_key_refuses_other_config(self, mock_client, sample_av_log):
+        """A log for another antivirus config is refused."""
+        foreign = dict(sample_av_log)
+        foreign["volume_antivirus"] = 9
+        manager = VolumeAntivirusLogManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = foreign
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(200)
+
+    def test_get_by_key_refuses_when_parent_omitted(self, mock_client):
+        """A short row with no parent column is refused, and the read asked for it."""
+        manager = VolumeAntivirusLogManager(mock_client, antivirus_key=1)
+        mock_client._request.return_value = {"$key": 200, "text": "Scan started"}
+
+        with pytest.raises(NotFoundError, match="does not belong to volume_antivirus 1"):
+            manager.get(200)
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "volume_antivirus" in fields
 
 
 class TestNasServiceAntivirus:

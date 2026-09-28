@@ -938,11 +938,9 @@ class ResourceManager(Generic[T]):
             ValueError: If neither key nor name provided.
         """
         if key is not None:
-            # Direct fetch by key. A scoped manager still asks for its parent
-            # column when the caller narrowed fields, then refuses another
-            # parent's row (#168, #188). fields=None stays unprojected so the
-            # response keeps every own-column, including that parent column.
-            selected = self._with_scope_fields(fields)
+            # Direct fetch by key. A scoped manager asks for its parent
+            # column, then refuses another parent's row (#168, #188, #191).
+            selected = self._key_get_fields(fields)
             params: dict[str, Any] = {}
             if selected:
                 params["fields"] = self._projection(selected)
@@ -1015,15 +1013,31 @@ class ResourceManager(Generic[T]):
         """Noun used in scope errors, for example ``Rule``."""
         return "Resource"
 
+    def _key_get_fields(
+        self,
+        fields: str | builtins.list[str] | None,
+    ) -> str | builtins.list[str] | None:
+        """Projection for a by-key ``get``.
+
+        Unscoped ``fields=None`` stays unprojected. A scoped manager with
+        ``fields=None`` projects its default fields plus each scope column.
+        On VergeOS 26.1.8 an unprojected read returns a short default set
+        that often omits the parent column, and the scope check would then
+        refuse the caller's own row (#191).
+        """
+        if fields is None and self._scope_bindings():
+            fields = list(self._default_fields) if self._default_fields else ["$key"]
+        return self._with_scope_fields(fields)
+
     def _with_scope_fields(
         self,
         fields: str | builtins.list[str] | None,
     ) -> str | builtins.list[str] | None:
         """Add each scope column to a narrowed projection.
 
-        ``fields=None`` is left alone: that request is unprojected and the
-        server returns own-columns, which include the parent column. A
-        caller who named fields must still receive the column the scope
+        ``fields=None`` is left alone here. :meth:`get` does not pass None
+        for a scoped manager; it supplies the default fields first (#191).
+        A caller who named fields must still receive the column the scope
         check reads.
         """
         bindings = self._scope_bindings()
