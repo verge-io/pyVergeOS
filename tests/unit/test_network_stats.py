@@ -719,6 +719,69 @@ class TestIPSecActiveConnectionManager:
 
         assert count == 2
 
+    def test_get_by_key_projects_scope_and_accepts_own_row(
+        self,
+        mock_client: MagicMock,
+        mock_network: MagicMock,
+        sample_ipsec_connection_data: dict[str, Any],
+    ) -> None:
+        """Bare get(key) must project vnet and return this network's row (#191)."""
+        mock_client._request.return_value = sample_ipsec_connection_data
+        manager = IPSecActiveConnectionManager(mock_client, mock_network)
+
+        connection = manager.get(1)
+
+        assert connection.key == 1
+        assert connection.connection == "site-b-vpn"
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "vnet" in fields
+        assert "connection" in fields
+
+    def test_get_by_key_refuses_other_network(
+        self,
+        mock_client: MagicMock,
+        mock_network: MagicMock,
+        sample_ipsec_connection_data: dict[str, Any],
+    ) -> None:
+        """A row whose vnet is another network is refused."""
+        foreign = dict(sample_ipsec_connection_data)
+        foreign["vnet"] = 9
+        mock_client._request.return_value = foreign
+        manager = IPSecActiveConnectionManager(mock_client, mock_network)
+
+        with pytest.raises(NotFoundError, match="does not belong to vnet 1"):
+            manager.get(1)
+
+    def test_get_by_key_refuses_when_vnet_is_omitted(
+        self,
+        mock_client: MagicMock,
+        mock_network: MagicMock,
+    ) -> None:
+        """A short row with no vnet is refused, and the read still asked for it."""
+        mock_client._request.return_value = {"$key": 1, "connection": "site-b-vpn"}
+        manager = IPSecActiveConnectionManager(mock_client, mock_network)
+
+        with pytest.raises(NotFoundError, match="does not belong to vnet 1"):
+            manager.get(1)
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "vnet" in fields
+
+    def test_narrowed_get_still_requests_vnet(
+        self,
+        mock_client: MagicMock,
+        mock_network: MagicMock,
+        sample_ipsec_connection_data: dict[str, Any],
+    ) -> None:
+        """Omitting vnet from fields must not skip the scope check."""
+        mock_client._request.return_value = sample_ipsec_connection_data
+        manager = IPSecActiveConnectionManager(mock_client, mock_network)
+
+        manager.get(1, fields=["$key", "connection"])
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "vnet" in fields
+
 
 # =============================================================================
 # WireGuardPeerStatus Model Tests
@@ -833,6 +896,79 @@ class TestWireGuardPeerStatusManager:
         assert status.peer_key == 100
         call_args = mock_client._request.call_args
         assert "peer eq 100" in call_args[1]["params"]["filter"]
+
+    def test_get_by_key_projects_peer_and_accepts_own_row(
+        self,
+        mock_client: MagicMock,
+        mock_wireguard: MagicMock,
+    ) -> None:
+        """Bare get(key) projects peer and accepts this interface's status (#191)."""
+        status_row = {
+            "$key": 1,
+            "peer": 100,
+            "last_handshake": 1704153600,
+            "tx_bytes": 10,
+            "rx_bytes": 20,
+            "last_update": 1704153600,
+        }
+
+        def _request(method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
+            if str(endpoint).startswith("vnet_wireguard_peers/"):
+                return {"$key": 100, "wireguard": mock_wireguard.key}
+            return status_row
+
+        mock_client._request.side_effect = _request
+        manager = WireGuardPeerStatusManager(mock_client, mock_wireguard)
+
+        status = manager.get(1)
+
+        assert status.key == 1
+        assert status.peer_key == 100
+        assert status.tx_bytes == 10
+        fields = mock_client._request.call_args_list[0].kwargs["params"]["fields"].split(",")
+        assert "peer" in fields
+        assert "tx_bytes" in fields
+
+    def test_get_by_key_refuses_other_interface(
+        self,
+        mock_client: MagicMock,
+        mock_wireguard: MagicMock,
+    ) -> None:
+        """A status row whose peer belongs to another interface is refused."""
+        status_row = {
+            "$key": 1,
+            "peer": 100,
+            "last_handshake": 0,
+            "tx_bytes": 1,
+            "rx_bytes": 1,
+            "last_update": 0,
+        }
+
+        def _request(method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
+            if str(endpoint).startswith("vnet_wireguard_peers/"):
+                return {"$key": 100, "wireguard": 999}
+            return status_row
+
+        mock_client._request.side_effect = _request
+        manager = WireGuardPeerStatusManager(mock_client, mock_wireguard)
+
+        with pytest.raises(NotFoundError, match="does not belong to wireguard 10"):
+            manager.get(1)
+
+    def test_get_by_key_refuses_when_peer_is_omitted(
+        self,
+        mock_client: MagicMock,
+        mock_wireguard: MagicMock,
+    ) -> None:
+        """A short row with no peer is refused, and the read still asked for it."""
+        mock_client._request.return_value = {"$key": 1}
+        manager = WireGuardPeerStatusManager(mock_client, mock_wireguard)
+
+        with pytest.raises(NotFoundError, match="does not belong to wireguard 10"):
+            manager.get(1)
+
+        fields = mock_client._request.call_args.kwargs["params"]["fields"].split(",")
+        assert "peer" in fields
 
     def test_get_for_peer_not_found(
         self,

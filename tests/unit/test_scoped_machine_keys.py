@@ -484,9 +484,9 @@ def _assert_refused(mock_session: MagicMock, manager: object, key: int) -> None:
         if f"/{manager._endpoint}/{key}" not in url:
             continue
         fields = str((call.kwargs.get("params") or {}).get("fields", ""))
-        # An unprojected get returns own-columns, including the parent column.
-        if not fields:
-            continue
+        # A scoped read must project the parent column. An unprojected read
+        # on VergeOS returns a short set that often omits it (#191).
+        assert fields, f"scoped read of {url} sent no projection"
         for column in columns:
             assert column in fields.split(","), url
 
@@ -636,3 +636,81 @@ def test_parent_handed_managers_refuse_other_parents(
     if missing:
         failures.append("missing managers: " + ", ".join(sorted(missing)))
     assert not failures, "\n".join(failures)
+
+
+def test_unscoped_key_get_stays_unprojected(
+    mock_client: VergeClient, mock_session: MagicMock
+) -> None:
+    """fields=None on an unscoped manager still sends no projection."""
+    from pyvergeos.resources.base import ResourceManager, ResourceObject
+
+    class Widget(ResourceObject):
+        pass
+
+    class WidgetManager(ResourceManager[Widget]):
+        _endpoint = "widgets"
+        _default_fields = ["$key", "name"]
+
+        def _to_model(self, data: dict[str, object]) -> Widget:
+            return Widget(data, self)
+
+    mock_session.request.reset_mock()
+    mock_session.request.return_value.json.return_value = {
+        "$key": 4,
+        "name": "a",
+        "extra": 9,
+    }
+    widget = WidgetManager(mock_client).get(4)
+
+    calls = _operation_calls(mock_session)
+    assert len(calls) == 1
+    assert "fields" not in (calls[0].kwargs.get("params") or {})
+    assert widget["extra"] == 9
+
+
+def test_scoped_key_get_projects_scope_column(
+    mock_client: VergeClient, mock_session: MagicMock
+) -> None:
+    """A scoped bare get projects the parent column and accepts its own row (#191)."""
+    from pyvergeos.resources.base import ResourceManager, ResourceObject
+
+    class Child(ResourceObject):
+        pass
+
+    class ChildManager(ResourceManager[Child]):
+        _endpoint = "child_rows"
+
+        def _scope_bindings(self) -> list[tuple[str, object]]:
+            return [("owner", 7)]
+
+        def _scope_resource(self) -> str:
+            return "Child"
+
+        def _to_model(self, data: dict[str, object]) -> Child:
+            return Child(data, self)
+
+    manager = ChildManager(mock_client)
+    mock_session.request.reset_mock()
+    mock_session.request.return_value.json.return_value = {"$key": 4, "owner": 7, "name": "own"}
+
+    row = manager.get(4)
+
+    assert row.key == 4
+    calls = _operation_calls(mock_session)
+    assert len(calls) == 1
+    fields = str(calls[0].kwargs.get("params", {}).get("fields", "")).split(",")
+    assert "$key" in fields
+    assert "owner" in fields
+
+    mock_session.request.reset_mock()
+    mock_session.request.return_value.json.return_value = {"$key": 4}
+    with pytest.raises(NotFoundError, match="does not belong to owner 7"):
+        manager.get(4)
+    calls = _operation_calls(mock_session)
+    fields = str(calls[0].kwargs.get("params", {}).get("fields", "")).split(",")
+    assert "owner" in fields
+
+    mock_session.request.reset_mock()
+    mock_session.request.return_value.json.return_value = {"$key": 4, "owner": 8}
+    with pytest.raises(NotFoundError, match="does not belong to owner 7"):
+        manager.get(4)

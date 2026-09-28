@@ -288,6 +288,13 @@ class TestVolumeAntivirusIntegration:
             assert infection.get("filename") is not None
             assert infection.get("virus") is not None
 
+        if not infections:
+            return
+
+        fetched = volume_av.infections.get(infections[0].key)
+        assert fetched.key == infections[0].key
+        assert fetched.get("volume_antivirus") == infections[0].get("volume_antivirus")
+
     def test_list_antivirus_logs(self, volume_av: VolumeAntivirus) -> None:
         """Test listing antivirus scan activity logs."""
         logs = volume_av.logs.list()
@@ -297,6 +304,11 @@ class TestVolumeAntivirusIntegration:
             assert isinstance(log, VolumeAntivirusLog)
             assert log.get("level") is not None
             assert log.get("text") is not None
+
+        if logs:
+            fetched = volume_av.logs.get(logs[0].key)
+            assert fetched.key == logs[0].key
+            assert fetched.get("volume_antivirus") == logs[0].get("volume_antivirus")
 
         error_logs = volume_av.logs.list(level="error")
         assert isinstance(error_logs, list)

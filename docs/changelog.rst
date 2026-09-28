@@ -12,6 +12,18 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Fixed
 ^^^^^
 
+- ``IPSecConnectionManager`` scopes phase 1 rows by their ``ipsec`` config,
+  not by a ``vnet`` column the ``vnet_ipsec_phase1s`` table does not have.
+  ``create()``, ``get(key)``, ``update(key)`` and ``delete(key)`` on the
+  network's own connections work again. A connection whose config belongs
+  to another network is still refused before any write. A scoped
+  ``get(key)`` with no ``fields`` projects the manager's default fields
+  plus its scope columns, so ``WireGuardPeerStatusManager``,
+  ``IPSecActiveConnectionManager``, ``VolumeAntivirusInfectionManager``
+  and ``VolumeAntivirusLogManager`` accept their own rows. An unprojected
+  read on VergeOS 26.1.8 returns a short set that often omits the parent
+  column. (#191)
+
 - ``LicenseManager.generate_payload()`` returns the license request as
   bytes. ``license_actions`` ``generate`` writes a binary ``.lrq`` into
   the media catalog and returns a file reference (``filekey``,
