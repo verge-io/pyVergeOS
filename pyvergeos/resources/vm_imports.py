@@ -192,7 +192,6 @@ class VmImportManager(ResourceManager["VmImport"]):
 
     _endpoint = "vm_imports"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "id",
@@ -253,27 +252,23 @@ class VmImportManager(ResourceManager["VmImport"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add status filter
         if status:
             filters.append(f"status eq {quote_value(status)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -318,7 +313,6 @@ class VmImportManager(ResourceManager["VmImport"]):
             >>> imp = client.vm_imports.get(name="imported-vm")
         """
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -340,7 +334,6 @@ class VmImportManager(ResourceManager["VmImport"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"VM import with name '{name}' not found")
@@ -453,7 +446,6 @@ class VmImportManager(ResourceManager["VmImport"]):
             if imp_key:
                 return self.get(key=imp_key)
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
@@ -611,7 +603,6 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
 
     _endpoint = "vm_import_logs"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "vm_import",
@@ -661,14 +652,12 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add import filter (from scope or parameter)
         import_key = self._import_key
         if import_key is None and vm_import is not None:
             import_key = vm_import
@@ -676,20 +665,17 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         if import_key is not None:
             filters.append(f"vm_import eq {quote_value(import_key)}")
 
-        # Add level filter
         if level:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

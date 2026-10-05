@@ -52,11 +52,6 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# =============================================================================
-# Update Logs
-# =============================================================================
-
-
 class UpdateLog(ResourceObject):
     """Update log entry resource object.
 
@@ -141,33 +136,28 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        # Default sort by timestamp descending
         params["sort"] = "-timestamp"
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -251,11 +241,6 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         return UpdateLog(data, self)
 
 
-# =============================================================================
-# Update Branches
-# =============================================================================
-
-
 class UpdateBranch(ResourceObject):
     """Update branch resource object.
 
@@ -318,7 +303,6 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
@@ -328,13 +312,11 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -396,11 +378,6 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateBranch:
         """Convert API response to UpdateBranch object."""
         return UpdateBranch(data, self)
-
-
-# =============================================================================
-# Update Source Status
-# =============================================================================
 
 
 class UpdateSourceStatus(ResourceObject):
@@ -517,14 +494,12 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add source filter (from scope or parameter)
         src_key = self._source_key
         if src_key is None and source is not None:
             src_key = source
@@ -535,13 +510,11 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -612,11 +585,6 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateSourceStatus:
         """Convert API response to UpdateSourceStatus object."""
         return UpdateSourceStatus(data, self)
-
-
-# =============================================================================
-# Update Source Packages
-# =============================================================================
 
 
 class UpdateSourcePackage(ResourceObject):
@@ -735,14 +703,12 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add source filter (from scope or parameter)
         src_key = self._source_key
         if src_key is None and source is not None:
             src_key = source
@@ -750,7 +716,6 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         if src_key is not None:
             filters.append(f"source eq {src_key}")
 
-        # Add branch filter (from scope or parameter)
         br_key = self._branch_key
         if br_key is None and branch is not None:
             br_key = branch
@@ -758,20 +723,17 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         if br_key is not None:
             filters.append(f"branch eq {br_key}")
 
-        # Add downloaded filter
         if downloaded is not None:
             filters.append(f"downloaded eq {1 if downloaded else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -851,11 +813,6 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateSourcePackage:
         """Convert API response to UpdateSourcePackage object."""
         return UpdateSourcePackage(data, self)
-
-
-# =============================================================================
-# Update Sources
-# =============================================================================
 
 
 class UpdateSource(ResourceObject):
@@ -982,27 +939,23 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1107,7 +1060,6 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
             if src_key:
                 return self.get(key=int(src_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
@@ -1250,11 +1202,6 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         return UpdateSource(data, self)
 
 
-# =============================================================================
-# Update Packages
-# =============================================================================
-
-
 class UpdatePackage(ResourceObject):
     """Update package resource object.
 
@@ -1354,27 +1301,23 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add branch filter
         if branch is not None:
             filters.append(f"branch eq {branch}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1432,11 +1375,6 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
     def _to_model(self, data: dict[str, Any]) -> UpdatePackage:
         """Convert API response to UpdatePackage object."""
         return UpdatePackage(data, self)
-
-
-# =============================================================================
-# Update Settings
-# =============================================================================
 
 
 class UpdateSettings(ResourceObject):
@@ -1853,11 +1791,6 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateSettings:
         """Convert API response to UpdateSettings object."""
         return UpdateSettings(data, self)
-
-
-# =============================================================================
-# Update Dashboard
-# =============================================================================
 
 
 class UpdateDashboard(ResourceObject):

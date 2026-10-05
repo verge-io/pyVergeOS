@@ -260,14 +260,12 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add recipe filter (from scope or parameter)
         recipe = self._recipe_ref
         if recipe is None and recipe_ref is not None:
             recipe = recipe_ref
@@ -275,7 +273,6 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
         if recipe is not None:
             filters.append(f"recipe eq {quote_value(recipe)}")
 
-        # Add section filter (from scope or parameter)
         sect = self._section_key
         if sect is None and section is not None:
             sect = section
@@ -283,14 +280,12 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
         if sect is not None:
             filters.append(f"section eq {sect}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
@@ -299,7 +294,6 @@ class RecipeQuestionManager(ResourceManager["RecipeQuestion"]):
         # Sort by orderid
         params["sort"] = "+orderid"
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -667,14 +661,12 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add recipe filter (from scope or parameter)
         recipe = self._recipe_ref
         if recipe is None and recipe_ref is not None:
             recipe = recipe_ref
@@ -685,7 +677,6 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
@@ -694,7 +685,6 @@ class RecipeSectionManager(ResourceManager["RecipeSection"]):
         # Sort by orderid
         params["sort"] = "+orderid"
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

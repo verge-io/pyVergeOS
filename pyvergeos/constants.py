@@ -11,19 +11,12 @@ Example:
 
 from http import HTTPStatus
 
-# =============================================================================
-# API Configuration
-# =============================================================================
-
 #: VergeOS API version
 API_VERSION = "v4"
 
 #: API base path template (use with host)
 API_BASE_PATH = f"/api/{API_VERSION}"
 
-# =============================================================================
-# Timeouts (in seconds)
-# =============================================================================
 
 #: Default timeout for HTTP requests
 DEFAULT_TIMEOUT = 30
@@ -34,9 +27,6 @@ TASK_WAIT_TIMEOUT = 300
 #: Timeout for file chunk uploads
 UPLOAD_CHUNK_TIMEOUT = 120
 
-# =============================================================================
-# Retry Configuration
-# =============================================================================
 
 #: Number of retry attempts for transient failures
 RETRY_TOTAL = 3
@@ -58,9 +48,6 @@ RETRY_STATUS_CODES = frozenset(
 #: HTTP methods that are safe to retry
 RETRY_METHODS = frozenset({"GET", "PUT", "DELETE", "POST"})
 
-# =============================================================================
-# Polling Intervals (in seconds)
-# =============================================================================
 
 #: Default interval for task status polling
 POLL_INTERVAL = 2
@@ -68,9 +55,6 @@ POLL_INTERVAL = 2
 #: Interval for file/job status polling
 POLL_INTERVAL_FAST = 0.5
 
-# =============================================================================
-# HTTP Status Code Groups
-# =============================================================================
 
 #: Success status codes
 HTTP_SUCCESS_CODES = frozenset(
@@ -100,9 +84,6 @@ HTTP_CONFLICT = HTTPStatus.CONFLICT  # 409
 #: Validation error status code
 HTTP_UNPROCESSABLE_ENTITY = HTTPStatus.UNPROCESSABLE_ENTITY  # 422
 
-# =============================================================================
-# HTTP Headers
-# =============================================================================
 
 #: Content-Type header for JSON requests
 CONTENT_TYPE_JSON = "application/json"
@@ -119,9 +100,6 @@ HEADER_CONTENT_TYPE = "Content-Type"
 #: Accept header name
 HEADER_ACCEPT = "Accept"
 
-# =============================================================================
-# Size Constants
-# =============================================================================
 
 #: Bytes in a kilobyte
 KB = 1024
@@ -141,9 +119,6 @@ UPLOAD_THREAD_COUNT = 4
 #: Maximum size for cloud-init file contents (64 KB)
 CLOUDINIT_MAX_SIZE = 64 * KB  # 65536
 
-# =============================================================================
-# Pagination
-# =============================================================================
 
 #: Default page size for list operations
 DEFAULT_PAGE_SIZE = 100
@@ -151,9 +126,6 @@ DEFAULT_PAGE_SIZE = 100
 #: Maximum page size for list operations
 MAX_PAGE_SIZE = 1000
 
-# =============================================================================
-# Default Values
-# =============================================================================
 
 #: Default retention period in seconds (3 days)
 DEFAULT_RETENTION_SECONDS = 259200
@@ -164,9 +136,6 @@ DEFAULT_SNOOZE_DURATION = 86400
 #: Default minimum snapshots to keep
 DEFAULT_MIN_SNAPSHOTS = 1
 
-# =============================================================================
-# Resource Defaults
-# =============================================================================
 
 #: Default RAM for tenant nodes (16 GB in MB)
 DEFAULT_TENANT_NODE_RAM_MB = 16384

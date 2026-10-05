@@ -264,7 +264,6 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
         params: dict[str, Any] = {}
         filters: builtins.list[str] = []
 
-        # Build filter from string
         if filter:
             filters.append(filter)
 
@@ -281,18 +280,15 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             api_render = RENDER_TYPE_MAP.get(render, render.lower())
             filters.append(f"render eq {quote_value(api_render)}")
 
-        # Add filter kwargs
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Field selection
         field_list = split_fields(fields) or list(_DEFAULT_CLOUDINIT_FIELDS)
         params["fields"] = self._projection(field_list)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -461,7 +457,6 @@ class CloudInitFileManager(ResourceManager[CloudInitFile]):
             body["render"] = RENDER_TYPE_MAP.get(render, render.lower())
 
         if not body:
-            # No changes, just fetch current
             return self.get(key)
 
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)

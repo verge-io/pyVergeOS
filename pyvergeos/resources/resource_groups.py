@@ -236,7 +236,6 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
 
     _endpoint = "resource_groups"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "uuid",
@@ -339,7 +338,6 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
             return results[0]
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Resource group with name '{name}' not found")
@@ -870,11 +868,6 @@ class ResourceGroupManager(ResourceManager[ResourceGroup]):
             >>> rules = client.resource_groups.rules.list()
         """
         return ResourceRuleManager(self._client)
-
-
-# =============================================================================
-# Resource Rules
-# =============================================================================
 
 
 class ResourceRule(ResourceObject):

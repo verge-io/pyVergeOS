@@ -56,11 +56,6 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# =============================================================================
-# OIDC Application Users (ACL)
-# =============================================================================
-
-
 class OidcApplicationUser(ResourceObject):
     """OIDC application user ACL entry.
 
@@ -161,14 +156,12 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add application filter
         app_key = self._application_key
         if app_key is None and oidc_application is not None:
             app_key = oidc_application
@@ -279,11 +272,6 @@ class OidcApplicationUserManager(ResourceManager["OidcApplicationUser"]):
         return OidcApplicationUser(data, self)
 
 
-# =============================================================================
-# OIDC Application Groups (ACL)
-# =============================================================================
-
-
 class OidcApplicationGroup(ResourceObject):
     """OIDC application group ACL entry.
 
@@ -384,14 +372,12 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add application filter
         app_key = self._application_key
         if app_key is None and oidc_application is not None:
             app_key = oidc_application
@@ -502,11 +488,6 @@ class OidcApplicationGroupManager(ResourceManager["OidcApplicationGroup"]):
         return OidcApplicationGroup(data, self)
 
 
-# =============================================================================
-# OIDC Application Logs
-# =============================================================================
-
-
 class OidcApplicationLog(ResourceObject):
     """OIDC application log entry.
 
@@ -606,14 +587,12 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add application filter
         app_key = self._application_key
         if app_key is None and oidc_application is not None:
             app_key = oidc_application
@@ -621,7 +600,6 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
         if app_key is not None:
             filters.append(f"oidc_application eq {app_key}")
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
@@ -732,11 +710,6 @@ class OidcApplicationLogManager(ResourceManager["OidcApplicationLog"]):
     def _to_model(self, data: dict[str, Any]) -> OidcApplicationLog:
         """Convert API response to OidcApplicationLog object."""
         return OidcApplicationLog(data, self)
-
-
-# =============================================================================
-# OIDC Application
-# =============================================================================
 
 
 class OidcApplication(ResourceObject):
@@ -990,27 +963,23 @@ class OidcApplicationManager(ResourceManager["OidcApplication"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

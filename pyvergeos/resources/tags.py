@@ -178,13 +178,11 @@ class TagMemberManager(ResourceManager[TagMember]):
 
         params["filter"] = " and ".join(filters)
 
-        # Default fields
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = "$key,tag,member"
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -554,7 +552,6 @@ class TagManager(ResourceManager[Tag]):
 
     _endpoint = "tags"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "name",
@@ -608,7 +605,6 @@ class TagManager(ResourceManager[Tag]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
 
         if filter:
@@ -629,13 +625,11 @@ class TagManager(ResourceManager[Tag]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -684,7 +678,6 @@ class TagManager(ResourceManager[Tag]):
             >>> tag = client.tags.get(name="Production", category_name="Environment")
         """
         if key is not None:
-            # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
                 params["fields"] = self._projection(fields)
@@ -699,7 +692,6 @@ class TagManager(ResourceManager[Tag]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(
                 filter=f"name eq {quote_value(name)}",
                 category_key=category_key,
@@ -754,7 +746,6 @@ class TagManager(ResourceManager[Tag]):
             if tag_key:
                 return self.get(key=int(tag_key))
 
-        # Fallback: search by name
         return self.get(name=name, category_key=category_key)
 
     def update(  # type: ignore[override]
@@ -1008,7 +999,6 @@ class TagCategoryManager(ResourceManager[TagCategory]):
 
     _endpoint = "tag_categories"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "name",
@@ -1066,7 +1056,6 @@ class TagCategoryManager(ResourceManager[TagCategory]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
 
         if filter:
@@ -1077,13 +1066,11 @@ class TagCategoryManager(ResourceManager[TagCategory]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1128,7 +1115,6 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             >>> category = client.tag_categories.get(name="Environment")
         """
         if key is not None:
-            # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
                 params["fields"] = self._projection(fields)
@@ -1143,7 +1129,6 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Tag category '{name}' not found")
@@ -1258,7 +1243,6 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             if category_key:
                 return self.get(key=int(category_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]

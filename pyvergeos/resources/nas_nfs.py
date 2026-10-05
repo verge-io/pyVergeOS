@@ -153,7 +153,6 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
 
     _endpoint = "volume_nfs_shares"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "id",
@@ -218,33 +217,28 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add volume filter
         if volume is not None:
             volume_key = self._resolve_volume_key(volume)
             if volume_key:
                 filters.append(f"volume eq {volume_key}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -291,7 +285,6 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
             >>> share = client.nfs_shares.get(name="exports", volume="FileShare")
         """
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -313,7 +306,6 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             filter_str = f"name eq {quote_value(name)}"
 
             # Add volume filter if specified
@@ -427,7 +419,6 @@ class NASNFSShareManager(ResourceManager["NASNFSShare"]):
             "no_root_squash": "no_root_squash",
         }
 
-        # Build request body
         body: dict[str, Any] = {
             "volume": volume_key,
             "name": name,

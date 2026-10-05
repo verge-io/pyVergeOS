@@ -467,7 +467,6 @@ class AlarmManager(ResourceManager[Alarm]):
         if filter:
             conditions.append(f"({filter})")
 
-        # Level filter
         if level:
             if isinstance(level, str):
                 conditions.append(f"level eq {quote_value(level.lower())}")
@@ -488,14 +487,11 @@ class AlarmManager(ResourceManager[Alarm]):
             # Show alarms where snooze is 0 or snooze time has passed
             conditions.append("(snooze eq 0 or snooze le {$now})")
 
-        # Add any additional filter kwargs
         if filter_kwargs:
             conditions.append(build_filter(**filter_kwargs))
 
-        # Combine conditions
         combined_filter = " and ".join(conditions) if conditions else None
 
-        # Use default fields if not specified
         if fields is None:
             fields = _DEFAULT_ALARM_FIELDS
 
@@ -767,7 +763,6 @@ class AlarmManager(ResourceManager[Alarm]):
         if filter:
             conditions.append(f"({filter})")
 
-        # Level filter
         if level:
             if isinstance(level, str):
                 conditions.append(f"level eq {quote_value(level.lower())}")
@@ -778,14 +773,11 @@ class AlarmManager(ResourceManager[Alarm]):
                 else:
                     conditions.append(f"({' or '.join(level_filters)})")
 
-        # Add any additional filter kwargs
         if filter_kwargs:
             conditions.append(build_filter(**filter_kwargs))
 
-        # Combine conditions
         combined_filter = " and ".join(conditions) if conditions else None
 
-        # Use default fields if not specified
         if fields is None:
             fields = _DEFAULT_HISTORY_FIELDS
 

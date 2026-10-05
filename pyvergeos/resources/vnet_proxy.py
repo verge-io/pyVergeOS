@@ -507,7 +507,6 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             ]
 
         if key is not None:
-            # Verify it belongs to this network
             params = {
                 "filter": f"$key eq {key} and vnet eq {self._network.key}",
                 "fields": self._projection(self._with_scope_fields(fields)),
@@ -600,7 +599,6 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
         Returns:
             Updated VnetProxy object.
         """
-        # Verify it belongs to this network
         self._ensure_in_scope(key)
 
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
@@ -620,7 +618,6 @@ class VnetProxyManager(ResourceManager[VnetProxy]):
             proxy = self.get()  # Raises NotFoundError if not found
             key = proxy.key
 
-        # Verify it belongs to this network
         self._ensure_in_scope(key)
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 

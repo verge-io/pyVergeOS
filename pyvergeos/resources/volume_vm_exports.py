@@ -165,7 +165,6 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
 
     _endpoint = "volume_vm_exports"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "volume",
@@ -214,31 +213,26 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add status filter
         if status:
             filters.append(f"status eq {quote_value(status)}")
 
-        # Add volume filter
         if volume is not None:
             filters.append(f"volume eq {volume}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -283,7 +277,6 @@ class VolumeVmExportManager(ResourceManager["VolumeVmExport"]):
             >>> exp = client.volume_vm_exports.get(volume=123)
         """
         if key is not None:
-            # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
                 params["fields"] = self._projection(fields)
@@ -518,7 +511,6 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
 
     _endpoint = "volume_vm_export_stats"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "volume_vm_exports",
@@ -567,14 +559,12 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add export filter (from scope or parameter)
         export_key = self._export_key
         if export_key is None and volume_vm_exports is not None:
             export_key = volume_vm_exports
@@ -585,13 +575,11 @@ class VolumeVmExportStatManager(ResourceManager["VolumeVmExportStat"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

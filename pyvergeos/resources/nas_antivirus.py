@@ -382,7 +382,6 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add volume filter (from scope or parameter)
         volume_key = self._volume_key
         if volume_key is None and volume is not None:
             # Check if it looks like a volume key (40-char hex) or a name
@@ -409,20 +408,17 @@ class VolumeAntivirusManager(ResourceManager[VolumeAntivirus]):
             # Volume keys are 40-char hex strings
             filters.append(f"volume eq {quote_value(volume_key)}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1081,7 +1077,6 @@ class VolumeAntivirusInfectionManager(ResourceManager[VolumeAntivirusInfection])
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add scoped antivirus filter
         if self._antivirus_key is not None:
             filters.append(f"volume_antivirus eq {self._antivirus_key}")
 
@@ -1182,11 +1177,9 @@ class VolumeAntivirusLogManager(ResourceManager[VolumeAntivirusLog]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add scoped antivirus filter
         if self._antivirus_key is not None:
             filters.append(f"volume_antivirus eq {self._antivirus_key}")
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 

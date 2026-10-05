@@ -16,7 +16,6 @@ from pyvergeos.resources.base import (
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
-# Type aliases
 UserType = Literal["normal", "api", "vdi"]
 TwoFactorType = Literal["email", "authenticator"]
 
@@ -310,7 +309,6 @@ class UserManager(ResourceManager[User]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
 
         # Exclude system user types by default
@@ -323,24 +321,20 @@ class UserManager(ResourceManager[User]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add user_type filter
         if user_type is not None:
             filters.append(f"type eq {quote_value(user_type)}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -417,7 +411,6 @@ class UserManager(ResourceManager[User]):
             >>> user = client.users.get(name="admin")
         """
         if key is not None:
-            # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
                 params["fields"] = self._projection(fields)
@@ -432,7 +425,6 @@ class UserManager(ResourceManager[User]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"User '{name}' not found")
@@ -507,7 +499,6 @@ class UserManager(ResourceManager[User]):
         if two_factor_enabled and not email:
             raise ValueError("Email address is required when enabling two-factor authentication")
 
-        # Build request body
         body: dict[str, Any] = {
             "name": name.lower(),  # API requires lowercase
             "password": password,
@@ -553,7 +544,6 @@ class UserManager(ResourceManager[User]):
             if user_key:
                 return self.get(key=int(user_key))
 
-        # Fallback: search by name
         return self.get(name=name.lower())
 
     def update(  # type: ignore[override]

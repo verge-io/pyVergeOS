@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# Status display mappings
 STATUS_DISPLAY = {
     "initializing": "Initializing",
     "starting": "Starting",
@@ -79,11 +78,6 @@ LOG_LEVEL_DISPLAY = {
     "summary": "Summary",
     "debug": "Debug",
 }
-
-
-# =============================================================================
-# Machine Stats
-# =============================================================================
 
 
 class MachineStats(ResourceObject):
@@ -467,7 +461,6 @@ class MachineStatsManager(ResourceManager[MachineStats]):
 
         filters = [f"machine eq {self._machine_key}"]
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"timestamp ge {since_epoch}")
@@ -496,11 +489,6 @@ class MachineStatsManager(ResourceManager[MachineStats]):
             return [self._to_history_model(item) for item in response]
 
         return [self._to_history_model(response)]
-
-
-# =============================================================================
-# Machine Status
-# =============================================================================
 
 
 class MachineStatus(ResourceObject):
@@ -727,11 +715,6 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
             return self._to_model(response[0])
 
         return self._to_model(response)
-
-
-# =============================================================================
-# Machine Logs
-# =============================================================================
 
 
 class MachineLog(ResourceObject):

@@ -51,11 +51,6 @@ LOG_LEVEL_DISPLAY = {
 }
 
 
-# =============================================================================
-# Tenant Stats
-# =============================================================================
-
-
 class TenantStats(ResourceObject):
     """Tenant statistics resource object.
 
@@ -542,7 +537,6 @@ class TenantStatsManager(ResourceManager[TenantStats]):
 
         filters = [f"tenant eq {self._tenant_key}"]
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"timestamp ge {since_epoch}")
@@ -571,11 +565,6 @@ class TenantStatsManager(ResourceManager[TenantStats]):
             return [self._to_history_model(item) for item in response]
 
         return [self._to_history_model(response)]
-
-
-# =============================================================================
-# Tenant Logs
-# =============================================================================
 
 
 class TenantLog(ResourceObject):
@@ -814,11 +803,6 @@ class TenantLogManager(ResourceManager[TenantLog]):
 
         self._assert_row_in_scope(key, response)
         return self._to_model(response)
-
-
-# =============================================================================
-# Tenant Dashboard
-# =============================================================================
 
 
 class TenantDashboard(ResourceObject):

@@ -52,11 +52,6 @@ PROFILE_TYPE_DISPLAY = {
 }
 
 
-# =============================================================================
-# NVIDIA vGPU Profiles (Global)
-# =============================================================================
-
-
 class NvidiaVgpuProfile(ResourceObject):
     """NVIDIA vGPU profile resource object.
 
@@ -299,11 +294,6 @@ class NvidiaVgpuProfileManager(ResourceManager[NvidiaVgpuProfile]):
             return results[0]
 
         raise ValueError("Either key or name must be provided")
-
-
-# =============================================================================
-# Node GPUs
-# =============================================================================
 
 
 class NodeGpu(ResourceObject):
@@ -659,11 +649,6 @@ class NodeGpuManager(ResourceManager[NodeGpu]):
         return self._to_model_unprojected(response)
 
 
-# =============================================================================
-# Node GPU Stats
-# =============================================================================
-
-
 class NodeGpuStats(ResourceObject):
     """Node GPU stats resource object.
 
@@ -966,11 +951,6 @@ class NodeGpuStatsManager(ResourceManager[NodeGpuStats]):
         return [self._to_history_model(response)]
 
 
-# =============================================================================
-# Node GPU Instances
-# =============================================================================
-
-
 class NodeGpuInstance(ResourceObject):
     """Node GPU instance resource object.
 
@@ -1184,11 +1164,6 @@ class NodeGpuInstanceManager(ResourceManager[NodeGpuInstance]):
             return [self._to_model(item) for item in response]
 
         return [self._to_model(response)]
-
-
-# =============================================================================
-# Node vGPU Devices (Physical vGPU-capable devices)
-# =============================================================================
 
 
 class NodeVgpuDevice(ResourceObject):
@@ -1444,11 +1419,6 @@ class NodeVgpuDeviceManager(ResourceManager[NodeVgpuDevice]):
         return self._to_model(response)
 
 
-# =============================================================================
-# Node Host GPU Devices (Physical GPUs for passthrough)
-# =============================================================================
-
-
 class NodeHostGpuDevice(ResourceObject):
     """Node host GPU device resource object.
 
@@ -1696,11 +1666,6 @@ class NodeHostGpuDeviceManager(ResourceManager[NodeHostGpuDevice]):
         if not isinstance(response, dict):
             raise NotFoundError(f"Host GPU device with key {key} returned invalid response")
         return self._to_model(response)
-
-
-# =============================================================================
-# Node vGPU Profiles (Per-node available profiles)
-# =============================================================================
 
 
 class NodeVgpuProfile(ResourceObject):

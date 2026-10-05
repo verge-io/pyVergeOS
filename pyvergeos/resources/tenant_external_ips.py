@@ -271,7 +271,6 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
         if self._tenant.is_snapshot:
             raise ValueError("Cannot assign external IP to a tenant snapshot")
 
-        # Resolve network key
         if network is None and network_name is None:
             raise ValueError("Either network or network_name must be provided")
 
@@ -280,7 +279,6 @@ class TenantExternalIPManager(ResourceManager[TenantExternalIP]):
             net_key = network
         else:
             assert network_name is not None  # Validated above.
-            # Look up network by name
             response = self._client._request(
                 "GET",
                 "vnets",

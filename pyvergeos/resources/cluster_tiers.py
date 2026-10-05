@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# Status display mappings
 TIER_STATUS_DISPLAY = {
     "online": "Online",
     "offline": "Offline",
@@ -60,11 +59,6 @@ TIER_STATE_DISPLAY = {
     "warning": "Warning",
     "error": "Error",
 }
-
-
-# =============================================================================
-# Cluster Tier Stats History (Long-term)
-# =============================================================================
 
 
 class ClusterTierStatsHistoryLong(ResourceObject):
@@ -194,11 +188,6 @@ class ClusterTierStatsHistoryLong(ResourceObject):
         )
 
 
-# =============================================================================
-# Cluster Tier Stats History (Short-term)
-# =============================================================================
-
-
 class ClusterTierStatsHistoryShort(ResourceObject):
     """Short-term cluster tier stats history record.
 
@@ -307,11 +296,6 @@ class ClusterTierStatsHistoryShort(ResourceObject):
         return f"<ClusterTierStatsHistoryShort ts={ts} rops={self.read_ops} wops={self.write_ops}>"
 
 
-# =============================================================================
-# Cluster Tier Stats
-# =============================================================================
-
-
 class ClusterTierStats(ResourceObject):
     """Current cluster tier statistics.
 
@@ -391,11 +375,6 @@ class ClusterTierStats(ResourceObject):
 
     def __repr__(self) -> str:
         return f"<ClusterTierStats tier={self.tier_key} rops={self.read_ops} wops={self.write_ops}>"
-
-
-# =============================================================================
-# Cluster Tier Status
-# =============================================================================
 
 
 class ClusterTierStatus(ResourceObject):
@@ -597,11 +576,6 @@ class ClusterTierStatus(ResourceObject):
             f"<ClusterTierStatus tier={self.tier_key} "
             f"status={self.status_raw} used={self.used_percent}%>"
         )
-
-
-# =============================================================================
-# Cluster Tier
-# =============================================================================
 
 
 class ClusterTier(ResourceObject):
@@ -850,11 +824,6 @@ class ClusterTier(ResourceObject):
         )
 
 
-# =============================================================================
-# Cluster Tier Manager
-# =============================================================================
-
-
 class ClusterTierManager(ResourceManager[ClusterTier]):
     """Manager for cluster tier operations.
 
@@ -1020,13 +989,11 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
 
         params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1189,7 +1156,6 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         """
         filters = [f"tier eq {tier_key}"]
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"timestamp ge {since_epoch}")
@@ -1246,7 +1212,6 @@ class ClusterTierManager(ResourceManager[ClusterTier]):
         """
         filters = [f"tier eq {tier_key}"]
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"timestamp ge {since_epoch}")

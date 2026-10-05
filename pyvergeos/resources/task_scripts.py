@@ -161,7 +161,6 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter conditions
         filters: builtins.list[str] = []
 
         if filter:
@@ -176,13 +175,11 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -289,7 +286,6 @@ class TaskScriptManager(ResourceManager[TaskScript]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
 
-        # Get the full object
         key = response.get("$key")
         if key is not None:
             return self.get(int(key))
