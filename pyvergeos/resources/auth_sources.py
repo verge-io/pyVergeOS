@@ -67,11 +67,6 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# =============================================================================
-# Auth Source State (OAuth State Tokens)
-# =============================================================================
-
-
 class AuthSourceState(ResourceObject):
     """OAuth state token for authentication flow.
 
@@ -170,14 +165,12 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add auth_source filter (from scope or parameter)
         source_key = self._auth_source_key
         if source_key is None and auth_source is not None:
             source_key = auth_source
@@ -188,13 +181,11 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -258,11 +249,6 @@ class AuthSourceStateManager(ResourceManager["AuthSourceState"]):
     def _to_model(self, data: dict[str, Any]) -> AuthSourceState:
         """Convert API response to AuthSourceState object."""
         return AuthSourceState(data, self)
-
-
-# =============================================================================
-# Auth Source
-# =============================================================================
 
 
 class AuthSource(ResourceObject):
@@ -520,27 +506,23 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add driver filter
         if driver is not None:
             filters.append(f"driver eq {quote_value(driver)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -723,7 +705,6 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
             if source_key:
                 return self.get(key=int(source_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]

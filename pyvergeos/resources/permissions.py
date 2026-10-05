@@ -254,7 +254,6 @@ class PermissionManager(ResourceManager[Permission]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
 
         if filter:
@@ -267,20 +266,17 @@ class PermissionManager(ResourceManager[Permission]):
         if resolved_identity is not None:
             filters.append(f"identity eq {resolved_identity}")
 
-        # Add table filter
         if table is not None:
             filters.append(f"table eq {quote_value(table)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -404,7 +400,6 @@ class PermissionManager(ResourceManager[Permission]):
         if resolved_identity is None:
             raise ValueError("Either user, group, or identity_key must be provided")
 
-        # Build request body
         body: dict[str, Any] = {
             "identity": resolved_identity,
             "table": table,

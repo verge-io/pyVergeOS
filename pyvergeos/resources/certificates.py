@@ -346,7 +346,6 @@ class CertificateManager(ResourceManager[Certificate]):
         params: dict[str, Any] = {}
         filters: builtins.list[str] = []
 
-        # Build filter from string
         if filter:
             filters.append(filter)
 
@@ -359,7 +358,6 @@ class CertificateManager(ResourceManager[Certificate]):
         if valid is not None:
             filters.append(f"valid eq {str(valid).lower()}")
 
-        # Add filter kwargs
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
@@ -373,7 +371,6 @@ class CertificateManager(ResourceManager[Certificate]):
             field_list.extend(f for f in _CERT_KEY_FIELDS if f not in field_list)
         params["fields"] = self._projection(field_list)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -563,7 +560,6 @@ class CertificateManager(ResourceManager[Certificate]):
         if api_type == "letsencrypt" and not agree_tos:
             raise ValueError("agree_tos must be True for Let's Encrypt certificates")
 
-        # Build request body
         body: dict[str, Any] = {
             "domainname": domain,
             "type": api_type,
@@ -698,7 +694,6 @@ class CertificateManager(ResourceManager[Certificate]):
             body["agree_tos"] = agree_tos
 
         if not body:
-            # No changes, just fetch current
             return self.get(key)
 
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)

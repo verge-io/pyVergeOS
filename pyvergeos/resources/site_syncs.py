@@ -1928,10 +1928,6 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# ============================================================================
-# Site Sync Stats
-# ============================================================================
-
 # Default fields for stats
 _DEFAULT_STATS_FIELDS = [
     "$key",
@@ -2364,10 +2360,6 @@ class SiteSyncStatsManager:
         return [SiteSyncStatsHistory(item, None) for item in response]  # type: ignore[arg-type]
 
 
-# ============================================================================
-# Site Sync Queue
-# ============================================================================
-
 # Default fields for queue items
 _DEFAULT_QUEUE_FIELDS = [
     "$key",
@@ -2725,10 +2717,6 @@ class SiteSyncQueueManager:
         return len(items)
 
 
-# ============================================================================
-# Site Sync Remote Snapshots
-# ============================================================================
-
 # Default fields for remote snapshots
 _DEFAULT_REMOTE_SNAP_FIELDS = [
     "$key",
@@ -3013,10 +3001,6 @@ class SiteSyncRemoteSnapManager:
         return len(snaps)
 
 
-# ============================================================================
-# Site Sync Incoming Verified
-# ============================================================================
-
 # Default fields for verified syncs
 _DEFAULT_VERIFIED_FIELDS = [
     "$key",
@@ -3250,10 +3234,6 @@ class SiteSyncIncomingVerifiedManager:
         }
         self._client._request("POST", self._actions_endpoint, json_data=body)
 
-
-# ============================================================================
-# Site Sync Logs
-# ============================================================================
 
 # Default fields for logs
 _DEFAULT_LOG_FIELDS = [

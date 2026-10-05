@@ -194,11 +194,6 @@ DEFAULT_EIGRP_ROUTER_COMMAND_FIELDS = [
 ]
 
 
-# =============================================================================
-# BGP Router Commands
-# =============================================================================
-
-
 class BGPRouterCommand(ResourceObject):
     """BGP router command object.
 
@@ -453,11 +448,6 @@ class BGPRouterCommandManager(ResourceManager[BGPRouterCommand]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# =============================================================================
-# BGP Routers
-# =============================================================================
-
-
 class BGPRouter(ResourceObject):
     """BGP router object.
 
@@ -693,11 +683,6 @@ class BGPRouterManager(ResourceManager[BGPRouter]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# =============================================================================
-# BGP Interface Commands
-# =============================================================================
-
-
 class BGPInterfaceCommand(ResourceObject):
     """BGP interface command object."""
 
@@ -901,11 +886,6 @@ class BGPInterfaceCommandManager(ResourceManager[BGPInterfaceCommand]):
             key: Command $key (ID).
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
-
-
-# =============================================================================
-# BGP Interfaces
-# =============================================================================
 
 
 class BGPInterface(ResourceObject):
@@ -1213,11 +1193,6 @@ class BGPInterfaceManager(ResourceManager[BGPInterface]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# =============================================================================
-# BGP Route Map Commands
-# =============================================================================
-
-
 class BGPRouteMapCommand(ResourceObject):
     """BGP route map command object."""
 
@@ -1434,11 +1409,6 @@ class BGPRouteMapCommandManager(ResourceManager[BGPRouteMapCommand]):
             key: Command $key (ID).
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
-
-
-# =============================================================================
-# BGP Route Maps
-# =============================================================================
 
 
 class BGPRouteMap(ResourceObject):
@@ -1718,11 +1688,6 @@ class BGPRouteMapManager(ResourceManager[BGPRouteMap]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# =============================================================================
-# BGP IP Commands (prefix-list, as-path, etc.)
-# =============================================================================
-
-
 class BGPIPCommand(ResourceObject):
     """BGP IP command object.
 
@@ -1957,11 +1922,6 @@ class BGPIPCommandManager(ResourceManager[BGPIPCommand]):
             key: Command $key (ID).
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
-
-
-# =============================================================================
-# OSPF Commands
-# =============================================================================
 
 
 class OSPFCommand(ResourceObject):
@@ -2221,11 +2181,6 @@ class OSPFCommandManager(ResourceManager[OSPFCommand]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# =============================================================================
-# EIGRP Router Commands
-# =============================================================================
-
-
 class EIGRPRouterCommand(ResourceObject):
     """EIGRP router command object."""
 
@@ -2475,11 +2430,6 @@ class EIGRPRouterCommandManager(ResourceManager[EIGRPRouterCommand]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# =============================================================================
-# EIGRP Routers
-# =============================================================================
-
-
 class EIGRPRouter(ResourceObject):
     """EIGRP router object.
 
@@ -2714,11 +2664,6 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
             key: Router $key (ID).
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
-
-
-# =============================================================================
-# Network Routing Manager (main entry point)
-# =============================================================================
 
 
 class NetworkRoutingManager:

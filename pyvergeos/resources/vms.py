@@ -810,7 +810,6 @@ class VMManager(ResourceManager[VM]):
         Returns:
             List of VM objects.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = self._default_fields
 

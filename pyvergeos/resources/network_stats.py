@@ -63,11 +63,6 @@ def _format_bytes(size: int | float | None) -> str:
     return f"{size_float:.2f} {units[unit_index]}"
 
 
-# =============================================================================
-# Network Monitor Stats
-# =============================================================================
-
-
 class NetworkMonitorStats(ResourceObject):
     """Network monitor statistics resource object.
 
@@ -432,7 +427,6 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
 
         filters = [f"vnet eq {self._network_key}"]
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"timestamp ge {since_epoch}")
@@ -461,11 +455,6 @@ class NetworkMonitorStatsManager(ResourceManager[NetworkMonitorStats]):
             return [self._to_history_model(item) for item in response]
 
         return [self._to_history_model(response)]
-
-
-# =============================================================================
-# Network Dashboard
-# =============================================================================
 
 
 class NetworkDashboard(ResourceObject):
@@ -741,11 +730,6 @@ class NetworkDashboardManager(ResourceManager[NetworkDashboard]):
         return self._to_model({})
 
 
-# =============================================================================
-# IPSec Active Connections
-# =============================================================================
-
-
 class IPSecActiveConnection(ResourceObject):
     """Active IPSec VPN connection (non-persistent/computed).
 
@@ -936,11 +920,6 @@ class IPSecActiveConnectionManager(ResourceManager[IPSecActiveConnection]):
             Number of active connections.
         """
         return len(self.list())
-
-
-# =============================================================================
-# WireGuard Peer Status
-# =============================================================================
 
 
 class WireGuardPeerStatus(ResourceObject):

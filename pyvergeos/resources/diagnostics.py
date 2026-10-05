@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 # Diagnostic status values
 DiagnosticStatus = Literal["initializing", "building", "uploading", "complete", "error"]
 
-# Default fields
 DIAGNOSTIC_DEFAULT_FIELDS = [
     "$key",
     "name",

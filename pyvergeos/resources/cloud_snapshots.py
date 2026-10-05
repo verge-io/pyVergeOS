@@ -1059,7 +1059,6 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         if name is None:
             name = datetime.now().strftime("Snapshot_%Y%m%d_%H%M")
 
-        # Build request body
         body: dict[str, Any] = {
             "name": name,
             "min_snapshots": min_snapshots,

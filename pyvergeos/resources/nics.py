@@ -371,7 +371,6 @@ class NICManager(ResourceManager[NIC]):
         if fields is None:
             fields = self._default_fields
 
-        # Build filter for this VM's machine
         machine_filter = f"machine eq {self.machine_key}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"
@@ -483,7 +482,6 @@ class NICManager(ResourceManager[NIC]):
         # Resolve network by name if string provided
         if network is not None:
             if isinstance(network, str):
-                # Look up network by name
                 response = self._client._request(
                     "GET",
                     "vnets",

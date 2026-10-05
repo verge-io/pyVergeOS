@@ -137,7 +137,6 @@ class TenantSnapshotManager(ResourceManager[TenantSnapshot]):
         if fields is None:
             fields = self._default_fields
 
-        # Build filter for this tenant
         tenant_filter = f"tenant eq {self._tenant.key}"
         if filter:
             tenant_filter = f"{tenant_filter} and ({filter})"

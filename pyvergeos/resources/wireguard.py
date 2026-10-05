@@ -30,7 +30,6 @@ FIREWALL_CONFIG_API_MAP = {
     "none": "none",
 }
 
-# Type aliases
 FirewallConfigType = Literal["site_to_site", "remote_user", "none"]
 
 # Default fields for WireGuard interface queries
@@ -371,12 +370,10 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             filters.append(extra)
         params["filter"] = " and ".join(filters)
 
-        # Default fields
         if fields is None:
             fields = DEFAULT_INTERFACE_FIELDS.copy()
         params["fields"] = self._projection(fields)
 
-        # Sort by name
         params["sort"] = "name"
 
         if limit is not None:
@@ -415,7 +412,6 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
             NotFoundError: If interface not found.
             ValueError: If neither key nor name provided.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = DEFAULT_INTERFACE_FIELDS.copy()
 
@@ -525,7 +521,6 @@ class WireGuardManager(ResourceManager[WireGuardInterface]):
         self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
-        # Map kwargs to API field names
         field_mapping = {
             "name": "name",
             "ip_address": "ip",
@@ -650,12 +645,10 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             filters.append(extra)
         params["filter"] = " and ".join(filters)
 
-        # Default fields
         if fields is None:
             fields = DEFAULT_PEER_FIELDS.copy()
         params["fields"] = self._projection(fields)
 
-        # Sort by name
         params["sort"] = "name"
 
         if limit is not None:
@@ -694,7 +687,6 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
             NotFoundError: If peer not found.
             ValueError: If neither key nor name provided.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = DEFAULT_PEER_FIELDS.copy()
 
@@ -832,7 +824,6 @@ class WireGuardPeerManager(ResourceManager[WireGuardPeer]):
         self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
-        # Map kwargs to API field names
         field_mapping = {
             "name": "name",
             "peer_ip": "peer_ip",

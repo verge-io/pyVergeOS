@@ -348,14 +348,12 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add catalog filter
         if catalog is not None:
             if isinstance(catalog, int):
                 filters.append(f"catalog eq {catalog}")
@@ -382,20 +380,17 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
                                 f"catalog eq {quote_value(str(cat_response.get('$key')))}"
                             )
 
-        # Add downloaded filter
         if downloaded is not None:
             filters.append(f"downloaded eq {1 if downloaded else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -440,7 +435,6 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
             >>> recipe = client.tenant_recipes.get(name="Standard Tenant")
         """
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -462,7 +456,6 @@ class TenantRecipeManager(ResourceManager["TenantRecipe"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Tenant recipe with name '{name}' not found")
@@ -668,14 +661,12 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add recipe filter (from scope or parameter)
         recipe_key = self._recipe_key
         if recipe_key is None and recipe is not None:
             recipe_key = recipe
@@ -686,13 +677,11 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -791,7 +780,6 @@ class TenantRecipeInstanceManager(ResourceManager["TenantRecipeInstance"]):
             if inst_key:
                 return self.get(key=inst_key)
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def delete(self, key: int) -> None:
@@ -864,14 +852,12 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add recipe filter (from scope or parameter)
         recipe_key = self._recipe_key
         if recipe_key is None and tenant_recipe is not None:
             recipe_key = tenant_recipe
@@ -879,26 +865,22 @@ class TenantRecipeLogManager(ResourceManager["TenantRecipeLog"]):
         if recipe_key is not None:
             filters.append(f"tenant_recipe eq {quote_value(recipe_key)}")
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        # Default sort by timestamp descending
         params["sort"] = "-timestamp"
 
         response = self._client._request("GET", self._endpoint, params=params)

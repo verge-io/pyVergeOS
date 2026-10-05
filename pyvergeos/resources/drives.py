@@ -206,11 +206,9 @@ class DriveManager(ResourceManager[Drive]):
         Returns:
             List of Drive objects.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = self._default_fields
 
-        # Build filter for this VM's machine
         machine_filter = f"machine eq {self.machine_key}"
         if media:
             machine_filter = f"{machine_filter} and media eq {quote_value(media)}"

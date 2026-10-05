@@ -372,14 +372,12 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add catalog filter
         if catalog is not None:
             if isinstance(catalog, int):
                 filters.append(f"catalog eq {catalog}")
@@ -406,20 +404,17 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
                                 f"catalog eq {quote_value(str(cat_response.get('$key')))}"
                             )
 
-        # Add downloaded filter
         if downloaded is not None:
             filters.append(f"downloaded eq {1 if downloaded else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -464,7 +459,6 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
             >>> recipe = client.vm_recipes.get(name="Ubuntu Server")
         """
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -486,7 +480,6 @@ class VmRecipeManager(ResourceManager["VmRecipe"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"VM recipe with name '{name}' not found")
@@ -690,14 +683,12 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add recipe filter (from scope or parameter)
         recipe_key = self._recipe_key
         if recipe_key is None and recipe is not None:
             recipe_key = recipe
@@ -708,13 +699,11 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -900,7 +889,6 @@ class VmRecipeInstanceManager(ResourceManager["VmRecipeInstance"]):
             if inst_key:
                 return self.get(key=inst_key)
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def simulate(
@@ -1062,14 +1050,12 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add recipe filter (from scope or parameter)
         recipe_key = self._recipe_key
         if recipe_key is None and vm_recipe is not None:
             recipe_key = vm_recipe
@@ -1077,26 +1063,22 @@ class VmRecipeLogManager(ResourceManager["VmRecipeLog"]):
         if recipe_key is not None:
             filters.append(f"vm_recipe eq {quote_value(recipe_key)}")
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        # Default sort by timestamp descending
         params["sort"] = "-timestamp"
 
         response = self._client._request("GET", self._endpoint, params=params)

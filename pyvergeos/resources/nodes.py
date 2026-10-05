@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from pyvergeos.resources.queries import NodeQueryManager
 
 
-# Status display mappings
 STATUS_DISPLAY = {
     "running": "Running",
     "stopped": "Stopped",
@@ -1016,7 +1015,6 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
 
     _endpoint = "node_drivers"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "node",
@@ -1101,13 +1099,11 @@ class NodeDriverManager(ResourceManager[NodeDriver]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1184,7 +1180,6 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
 
     _endpoint = "node_pci_devices"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "node",
@@ -1284,13 +1279,11 @@ class NodePCIDeviceManager(ResourceManager[NodePCIDevice]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1352,7 +1345,6 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
 
     _endpoint = "node_usb_devices"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "node",
@@ -1432,13 +1424,11 @@ class NodeUSBDeviceManager(ResourceManager[NodeUSBDevice]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1508,7 +1498,6 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
 
     _endpoint = "node_sriov_nic_devices"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "node",
@@ -1596,13 +1585,11 @@ class NodeSriovNicDeviceManager(ResourceManager[NodeSriovNicDevice]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1761,7 +1748,6 @@ class NodeManager(ResourceManager[Node]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters = []
         if filter:
             filters.append(filter)
@@ -1781,13 +1767,11 @@ class NodeManager(ResourceManager[Node]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1828,7 +1812,6 @@ class NodeManager(ResourceManager[Node]):
             >>> node = client.nodes.get(key=1)
             >>> node = client.nodes.get(name="node1")
         """
-        # Use default fields if not specified
         if fields is None:
             fields = self._default_fields
 

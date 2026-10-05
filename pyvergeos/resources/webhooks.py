@@ -359,7 +359,6 @@ class WebhookManager(ResourceManager[Webhook]):
         params: dict[str, Any] = {}
         filters: builtins.list[str] = []
 
-        # Build filter from string
         if filter:
             filters.append(filter)
 
@@ -368,20 +367,17 @@ class WebhookManager(ResourceManager[Webhook]):
             api_auth_type = AUTH_TYPE_MAP.get(authorization_type, authorization_type.lower())
             filters.append(f"authorization_type eq {quote_value(api_auth_type)}")
 
-        # Add filter kwargs
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Field selection
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(_DEFAULT_WEBHOOK_FIELDS)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -583,7 +579,6 @@ class WebhookManager(ResourceManager[Webhook]):
             body["retries"] = retries
 
         if not body:
-            # No changes, just fetch current
             return self.get(key)
 
         response = self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
@@ -702,7 +697,6 @@ class WebhookManager(ResourceManager[Webhook]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Field selection
         if fields:
             params["fields"] = self._projection(fields)
         else:

@@ -768,7 +768,6 @@ class TenantManager(ResourceManager[Tenant]):
         Returns:
             List of Tenant objects.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = self._default_fields
 

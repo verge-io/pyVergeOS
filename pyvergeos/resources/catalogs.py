@@ -47,11 +47,6 @@ if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# =============================================================================
-# Catalog Repository Status
-# =============================================================================
-
-
 class CatalogRepositoryStatus(ResourceObject):
     """Catalog repository status resource object.
 
@@ -143,14 +138,12 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add repository filter (from scope or parameter)
         repo_key = self._repository_key
         if repo_key is None and repository is not None:
             repo_key = repository
@@ -161,13 +154,11 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -238,11 +229,6 @@ class CatalogRepositoryStatusManager(ResourceManager["CatalogRepositoryStatus"])
     def _to_model(self, data: dict[str, Any]) -> CatalogRepositoryStatus:
         """Convert API response to CatalogRepositoryStatus object."""
         return CatalogRepositoryStatus(data, self)
-
-
-# =============================================================================
-# Catalog Repository Logs
-# =============================================================================
 
 
 class CatalogRepositoryLog(ResourceObject):
@@ -332,14 +318,12 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add repository filter (from scope or parameter)
         repo_key = self._repository_key
         if repo_key is None and catalog_repository is not None:
             repo_key = catalog_repository
@@ -347,26 +331,22 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
         if repo_key is not None:
             filters.append(f"catalog_repository eq {repo_key}")
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        # Default sort by timestamp descending
         params["sort"] = "-timestamp"
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -448,11 +428,6 @@ class CatalogRepositoryLogManager(ResourceManager["CatalogRepositoryLog"]):
     def _to_model(self, data: dict[str, Any]) -> CatalogRepositoryLog:
         """Convert API response to CatalogRepositoryLog object."""
         return CatalogRepositoryLog(data, self)
-
-
-# =============================================================================
-# Catalog Logs
-# =============================================================================
 
 
 class CatalogLog(ResourceObject):
@@ -542,14 +517,12 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add catalog filter (from scope or parameter)
         cat_key = self._catalog_key
         if cat_key is None and catalog is not None:
             cat_key = catalog
@@ -557,26 +530,22 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
         if cat_key is not None:
             filters.append(f"catalog eq {quote_value(cat_key)}")
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        # Default sort by timestamp descending
         params["sort"] = "-timestamp"
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -658,11 +627,6 @@ class CatalogLogManager(ResourceManager["CatalogLog"]):
     def _to_model(self, data: dict[str, Any]) -> CatalogLog:
         """Convert API response to CatalogLog object."""
         return CatalogLog(data, self)
-
-
-# =============================================================================
-# Catalogs
-# =============================================================================
 
 
 class Catalog(ResourceObject):
@@ -818,14 +782,12 @@ class CatalogManager(ResourceManager["Catalog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add repository filter (from scope or parameter)
         repo_key = self._repository_key
         if repo_key is None and repository is not None:
             repo_key = repository
@@ -833,20 +795,17 @@ class CatalogManager(ResourceManager["Catalog"]):
         if repo_key is not None:
             filters.append(f"repository eq {repo_key}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -891,7 +850,6 @@ class CatalogManager(ResourceManager["Catalog"]):
             >>> catalog = client.catalogs.get(name="VergeOS Recipes")
         """
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -913,7 +871,6 @@ class CatalogManager(ResourceManager["Catalog"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Catalog with name '{name}' not found")
@@ -970,7 +927,6 @@ class CatalogManager(ResourceManager["Catalog"]):
             if cat_key:
                 return self.get(key=str(cat_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
@@ -1048,11 +1004,6 @@ class CatalogManager(ResourceManager["Catalog"]):
     def _to_model(self, data: dict[str, Any]) -> Catalog:
         """Convert API response to Catalog object."""
         return Catalog(data, self)
-
-
-# =============================================================================
-# Catalog Repositories
-# =============================================================================
 
 
 class CatalogRepository(ResourceObject):
@@ -1244,31 +1195,26 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add type filter
         if type is not None:
             filters.append(f"type eq {quote_value(type)}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1416,7 +1362,6 @@ class CatalogRepositoryManager(ResourceManager["CatalogRepository"]):
             if repo_key:
                 return self.get(key=int(repo_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
