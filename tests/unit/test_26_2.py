@@ -17,7 +17,11 @@ from pyvergeos.resources.machine_stats import MachineStatus, MachineStatusManage
 from pyvergeos.resources.networks import Network, NetworkManager
 from pyvergeos.resources.nics import MAX_NICS_PER_MACHINE, NICManager
 from pyvergeos.resources.queries import VNetQueryType
-from pyvergeos.resources.routing import VNET_BGP_26_2_FIELDS, NetworkRoutingManager
+from pyvergeos.resources.routing import (
+    VNET_BGP_26_2_FIELDS,
+    VNET_BGP_DAEMONS,
+    NetworkRoutingManager,
+)
 from pyvergeos.resources.site_syncs import SiteSyncIncoming, SiteSyncOutgoing
 from pyvergeos.resources.time import (
     TIME_SETTINGS_FIELDS,
@@ -82,46 +86,49 @@ class TestTime:
     def test_get_requests_ntp_and_ptp_columns(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
-        mock_session.request.return_value.json.return_value = {"$key": 1, "mode": "ntp"}
+        mock_session.request.return_value.json.return_value = {"$key": "self", "mode": "ntp"}
         settings = mock_client.time_settings.get()
         assert isinstance(settings, TimeSettings)
+        assert settings.key == "self"
         fields = _fields(mock_session)
         for name in (
             "mode",
             "ntp_servers",
-            "ntp_max_clocks",
-            "ntp_min_clocks",
-            "ntp_min_sane",
-            "ptp_interface_network",
+            "ntp_maxclock",
+            "ntp_minclock",
+            "ntp_minsane",
+            "interface_vnet",
             "ptp_transport",
             "ptp_domain",
             "ptp_delay_mechanism",
-            "ptp_hardware_timestamps",
+            "ptp_use_hw_timestamps",
             "ptp_priority1",
             "ptp_priority2",
+            "ptp_neighbor_prop_delay_thresh",
             "ptp_sync_receipt_timeout",
             "ptp_announce_receipt_timeout",
         ):
             assert name in fields
         assert set(TIME_SETTINGS_FIELDS) <= set(fields.split(","))
         url = mock_session.request.call_args.kwargs["url"]
-        assert url.endswith("/time_settings/1")
+        assert url.endswith("/time_settings/self")
 
     def test_update_payload(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         mock_session.request.return_value.json.side_effect = [
-            {"$key": 1, "mode": "ptp"},
-            {"$key": 1, "mode": "ptp", "ptp_domain": 24},
+            {"$key": "self", "mode": "ptp"},
+            {"$key": "self", "mode": "ptp", "ptp_domain": 24},
         ]
         updated = mock_client.time_settings.update(
             mode="ptp",
-            ptp_interface_network=3,
+            interface_vnet=3,
             ptp_transport="l2",
             ptp_domain=24,
-            ptp_hardware_timestamps=True,
+            ptp_use_hw_timestamps=True,
             ptp_priority1=128,
             ptp_sync_receipt_timeout=0,
         )
         assert updated.mode == "ptp"
+        assert updated.key == "self"
         put = [
             call
             for call in mock_session.request.call_args_list
@@ -131,32 +138,50 @@ class TestTime:
         body = put[0].kwargs["json"]
         assert body == {
             "mode": "ptp",
-            "ptp_interface_network": 3,
+            "interface_vnet": 3,
             "ptp_transport": "l2",
             "ptp_domain": 24,
-            "ptp_hardware_timestamps": True,
+            "ptp_use_hw_timestamps": True,
             "ptp_priority1": 128,
             "ptp_sync_receipt_timeout": 0,
         }
-        assert put[0].kwargs["url"].endswith("/time_settings/1")
+        assert put[0].kwargs["url"].endswith("/time_settings/self")
 
     def test_dashboard_wraps_node_rows(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
         mock_session.request.return_value.json.return_value = {
-            "mode": "ntp",
             "settings": {"mode": "ntp", "ntp_servers": "0.pool.ntp.org"},
             "nodes": [
-                {"node": 1, "name": "node1", "synced": True, "source": "0.pool.ntp.org"},
-                {"node": 2, "name": "node2", "status": "synced", "source": "10.0.0.1"},
+                {
+                    "$key": 1,
+                    "name": "node1",
+                    "machine": {
+                        "status": {
+                            "time_sync_status": {
+                                "synced": True,
+                                "source": "0.pool.ntp.org",
+                            }
+                        }
+                    },
+                },
+                {
+                    "$key": 2,
+                    "name": "node2",
+                    "machine": {"status": {"time_sync_status": []}},
+                },
             ],
             "alarms": [{"alarm_id": "abc"}],
         }
         dashboard = mock_client.time_dashboard.get()
         assert dashboard.mode == "ntp"
+        assert dashboard.mode == dashboard.settings["mode"]
         assert len(dashboard.nodes) == 2
+        assert dashboard.nodes[0].time_sync_status["synced"] is True
         assert dashboard.nodes[0].synced is True
         assert dashboard.nodes[0].source == "0.pool.ntp.org"
+        assert dashboard.nodes[1].time_sync_status == []
+        assert dashboard.nodes[1].synced is False
         assert dashboard.alarms[0]["alarm_id"] == "abc"
         assert mock_session.request.call_args.kwargs["url"].endswith("/time_dashboard")
         assert mock_session.request.call_args.kwargs.get("params") in (None, {})
@@ -229,11 +254,13 @@ class TestVMFields:
 
     def test_properties(self, mock_client: VergeClient) -> None:
         vm = VM(
-            {"$key": 1, "bios_serial": "ABC", "vgamem_mb": 64},
+            {"$key": 1, "bios_serial": "ABC", "vgamem_mb": "default"},
             VMManager(mock_client),
         )
         assert vm.bios_serial == "ABC"
-        assert vm.vgamem_mb == 64
+        assert vm.vgamem_mb == "default"
+        sized = VM({"$key": 2, "vgamem_mb": "64"}, VMManager(mock_client))
+        assert sized.vgamem_mb == "64"
 
 
 class TestImportsDrivesFiles:
@@ -333,12 +360,18 @@ class TestMachineStatusAndNics:
                 "$key": 1,
                 "machine": 3,
                 "agent_ip_list": "10.1.1.5, 10.1.1.6",
-                "time_sync_status": "synced",
+                "time_sync_status": {"synced": True, "source": "kvmclock"},
             },
             MachineStatusManager(mock_client, 3),
         )
-        assert status.agent_ip_list == ["10.1.1.5", "10.1.1.6"]
-        assert status.time_sync_status == "synced"
+        assert status.agent_ip_list == "10.1.1.5, 10.1.1.6"
+        assert status.time_sync_status == {"synced": True, "source": "kvmclock"}
+        empty = MachineStatus(
+            {"$key": 2, "machine": 3, "time_sync_status": []},
+            MachineStatusManager(mock_client, 3),
+        )
+        assert empty.time_sync_status == []
+        assert empty.agent_ip_list == ""
 
     def test_nic_limit_constant(self) -> None:
         assert MAX_NICS_PER_MACHINE == 255
@@ -405,6 +438,19 @@ class TestNetworks:
         VnetBondInterfaceManager(mock_client, 4).list()
         assert ("primary" in _fields(mock_session)) is version.startswith("26.2")
 
+    def test_bond_get_includes_primary_on_26_2(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        _version(mock_client, "26.2.2.1")
+        mock_session.request.return_value.json.return_value = {
+            "$key": 9,
+            "vnet": 4,
+            "primary": True,
+        }
+        member = VnetBondInterfaceManager(mock_client, 4).get(9)
+        assert "primary" in _fields(mock_session)
+        assert member.primary is True
+
     def test_bgp_config_fields_and_update(
         self, mock_client: VergeClient, mock_session: MagicMock
     ) -> None:
@@ -412,11 +458,13 @@ class TestNetworks:
         network = Network({"$key": 6, "name": "edge"}, mock_client.networks)
         routing = NetworkRoutingManager(mock_client, network)
         mock_session.request.return_value.json.return_value = [
-            {"$key": 2, "vnet": 6, "bgpd_enabled": True}
+            {"$key": 2, "vnet": 6, "daemon_bgpd": True, "advanced": True}
         ]
         config = routing.get_config()
         assert config is not None
-        assert config.bgpd_enabled is True
+        assert config.daemon_enabled("bgpd") is True
+        assert config.advanced is True
+        assert len(VNET_BGP_DAEMONS) == 18
         fields = _fields(mock_session)
         for name in VNET_BGP_26_2_FIELDS:
             assert name in fields
@@ -434,18 +482,26 @@ class TestNetworks:
             [],
             {"$key": 8, "vnet": 6},
             {"ok": True},
-            [{"$key": 8, "vnet": 6, "console_rows": 40, "persisted_config": "hostname edge"}],
+            [
+                {
+                    "$key": 8,
+                    "vnet": 6,
+                    "console_rows": 40,
+                    "console_cols": 120,
+                    "advanced_config": "hostname edge",
+                    "daemon_bgpd": True,
+                }
+            ],
         ]
         updated = routing.update_config(
             console_rows=40,
-            console_columns=120,
-            persisted_config="hostname edge",
-            bgpd_enabled=True,
-            ospfd_enabled=False,
-            eigrpd_enabled=False,
+            console_cols=120,
+            advanced_config="hostname edge",
+            daemons={"bgpd": True, "ospfd": False, "eigrpd": False},
         )
         assert updated.console_rows == 40
-        assert updated.persisted_config == "hostname edge"
+        assert updated.console_cols == 120
+        assert updated.advanced_config == "hostname edge"
         put = [
             call
             for call in mock_session.request.call_args_list
@@ -453,12 +509,24 @@ class TestNetworks:
         ]
         assert put[0].kwargs["json"] == {
             "console_rows": 40,
-            "console_columns": 120,
-            "persisted_config": "hostname edge",
-            "bgpd_enabled": True,
-            "ospfd_enabled": False,
-            "eigrpd_enabled": False,
+            "console_cols": 120,
+            "advanced_config": "hostname edge",
+            "daemon_bgpd": True,
+            "daemon_ospfd": False,
+            "daemon_eigrpd": False,
         }
+        assert "vnets" not in put[0].kwargs["url"]
+        assert "vnet_bgp/" in put[0].kwargs["url"]
+
+    def test_bgp_rejects_unknown_daemon(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        network = Network({"$key": 6, "name": "edge"}, mock_client.networks)
+        routing = NetworkRoutingManager(mock_client, network)
+        mock_session.request.reset_mock()
+        with pytest.raises(ValueError, match="Unknown FRR daemon"):
+            routing.update_config(daemons={"sharpd": True})
+        mock_session.request.assert_not_called()
 
     def test_wakeonlan_query_and_network_wrapper(
         self, mock_client: VergeClient, mock_session: MagicMock

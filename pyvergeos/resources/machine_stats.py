@@ -627,26 +627,30 @@ class MachineStatus(ResourceObject):
         return info if isinstance(info, dict) else {}
 
     @property
-    def agent_ip_list(self) -> list[str]:
-        """IP addresses reported by the guest agent.
+    def agent_ip_list(self) -> str:
+        """IP addresses reported by the guest agent, as one string.
 
-        VergeOS 26.2. Empty when the server did not return the field.
-        A comma-separated string is split into addresses.
+        VergeOS 26.2. The column is text, not a list. Empty when the
+        server did not return it.
         """
         raw = self.get("agent_ip_list")
-        if isinstance(raw, list):
-            return [str(item) for item in raw if item]
-        if isinstance(raw, str) and raw.strip():
-            return [part.strip() for part in raw.split(",") if part.strip()]
-        return []
+        if raw is None:
+            return ""
+        return str(raw)
 
     @property
-    def time_sync_status(self) -> str:
-        """Guest time sync status reported with the machine.
+    def time_sync_status(self) -> dict[str, Any] | list[Any]:
+        """Guest time sync status.
 
-        VergeOS 26.2. Empty when the server did not return the field.
+        VergeOS 26.2. A JSON object while the guest is reporting, or
+        ``[]`` when there is nothing to report.
         """
-        return str(self.get("time_sync_status", "") or "")
+        raw = self.get("time_sync_status")
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, list):
+            return raw
+        return []
 
     def __repr__(self) -> str:
         return (

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, reference_key
 from pyvergeos.versions import extend_fields
 
 if TYPE_CHECKING:
@@ -2670,15 +2670,39 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
 # vnet_bgp columns that exist on every release this SDK talks to.
 _VNET_BGP_FIELDS = ["$key", "vnet"]
 
-# Advanced BGP columns added in VergeOS 26.2: vtysh console size, the
-# configuration that is kept across restarts, and which FRR daemons run.
+# FRR daemons with a daemon_* flag on vnet_bgp. zebra is the core process
+# and is not one of these flags. sharpd is the FRR test daemon and is not
+# exposed. Eighteen flags, matching the 26.2 table.
+VNET_BGP_DAEMONS = (
+    "bgpd",
+    "ospfd",
+    "ospf6d",
+    "ripd",
+    "ripngd",
+    "isisd",
+    "pimd",
+    "pim6d",
+    "ldpd",
+    "nhrpd",
+    "eigrpd",
+    "babeld",
+    "pbrd",
+    "bfdd",
+    "fabricd",
+    "vrrpd",
+    "pathd",
+    "staticd",
+)
+
+# Advanced columns on vnet_bgp, added in VergeOS 26.2. They are not
+# columns of the vnets table. console_status points at machine_console.
 VNET_BGP_26_2_FIELDS = [
+    "advanced",
+    "advanced_config",
     "console_rows",
-    "console_columns",
-    "persisted_config",
-    "bgpd_enabled",
-    "ospfd_enabled",
-    "eigrpd_enabled",
+    "console_cols",
+    "console_status",
+    *[f"daemon_{name}" for name in VNET_BGP_DAEMONS],
 ]
 
 
@@ -2686,8 +2710,8 @@ class VnetBGP(ResourceObject):
     """The ``vnet_bgp`` row for one network.
 
     The advanced columns are filled in on VergeOS 26.2. On an older server
-    the matching properties stay at their empty defaults because those
-    columns are not requested.
+    they are not requested, so the matching properties stay at their empty
+    defaults.
     """
 
     @property
@@ -2697,36 +2721,49 @@ class VnetBGP(ResourceObject):
         return int(value) if value is not None else None
 
     @property
+    def advanced(self) -> bool:
+        """Whether this network uses the vtysh console instead of the UI."""
+        return bool(self.get("advanced", False))
+
+    @property
+    def advanced_config(self) -> str:
+        """FRR configuration saved across restarts."""
+        return str(self.get("advanced_config", "") or "")
+
+    @property
     def console_rows(self) -> int | None:
         """vtysh console height in rows."""
         value = self.get("console_rows")
         return int(value) if value is not None else None
 
     @property
-    def console_columns(self) -> int | None:
+    def console_cols(self) -> int | None:
         """vtysh console width in columns."""
-        value = self.get("console_columns")
+        value = self.get("console_cols")
         return int(value) if value is not None else None
 
     @property
-    def persisted_config(self) -> str:
-        """FRR configuration saved across restarts."""
-        return str(self.get("persisted_config", "") or "")
+    def console_status_key(self) -> str | int | None:
+        """Key of the ``machine_console`` row for this console, if any."""
+        return reference_key(self.get("console_status"))
 
     @property
-    def bgpd_enabled(self) -> bool:
-        """Whether the BGP daemon is enabled."""
-        return bool(self.get("bgpd_enabled", False))
+    def daemons(self) -> dict[str, bool]:
+        """Which FRR daemons are enabled, keyed by daemon name."""
+        return {name: bool(self.get(f"daemon_{name}", False)) for name in VNET_BGP_DAEMONS}
 
-    @property
-    def ospfd_enabled(self) -> bool:
-        """Whether the OSPF daemon is enabled."""
-        return bool(self.get("ospfd_enabled", False))
+    def daemon_enabled(self, name: str) -> bool:
+        """Whether one FRR daemon is enabled.
 
-    @property
-    def eigrpd_enabled(self) -> bool:
-        """Whether the EIGRP daemon is enabled."""
-        return bool(self.get("eigrpd_enabled", False))
+        Args:
+            name: Daemon name without the ``daemon_`` prefix, such as ``bgpd``.
+
+        Raises:
+            ValueError: If ``name`` is not one of the vnet_bgp daemon flags.
+        """
+        if name not in VNET_BGP_DAEMONS:
+            raise ValueError(f"Unknown FRR daemon {name!r}")
+        return bool(self.get(f"daemon_{name}", False))
 
 
 class NetworkRoutingManager:
@@ -3020,34 +3057,47 @@ class NetworkRoutingManager:
         self,
         *,
         console_rows: int | None = None,
-        console_columns: int | None = None,
-        persisted_config: str | None = None,
-        bgpd_enabled: bool | None = None,
-        ospfd_enabled: bool | None = None,
-        eigrpd_enabled: bool | None = None,
+        console_cols: int | None = None,
+        advanced: bool | None = None,
+        advanced_config: str | None = None,
+        daemons: dict[str, bool] | None = None,
     ) -> VnetBGP:
-        """Update the advanced BGP configuration.
+        """Update the advanced BGP configuration on the ``vnet_bgp`` row.
 
-        Creates the ``vnet_bgp`` row when the network does not have one yet.
-        Only arguments you pass are written. The console size, persisted
-        configuration, and daemon flags are VergeOS 26.2 columns.
+        Creates the row when the network does not have one yet. Only
+        arguments you pass are written. Console size, ``advanced_config``,
+        the ``advanced`` flag, and the ``daemon_*`` flags are VergeOS 26.2
+        columns on ``vnet_bgp``, not on the network itself.
+
+        Args:
+            console_rows: vtysh console height.
+            console_cols: vtysh console width.
+            advanced: Use the vtysh console instead of the UI.
+            advanced_config: FRR configuration kept across restarts.
+            daemons: Daemon name to enabled, for example ``{"bgpd": True}``.
+                Names are the FRR daemon, without the ``daemon_`` prefix.
 
         Returns:
             The updated configuration.
+
+        Raises:
+            ValueError: If a daemon name is not one of the 18 flags.
         """
         body: dict[str, Any] = {}
         if console_rows is not None:
             body["console_rows"] = console_rows
-        if console_columns is not None:
-            body["console_columns"] = console_columns
-        if persisted_config is not None:
-            body["persisted_config"] = persisted_config
-        if bgpd_enabled is not None:
-            body["bgpd_enabled"] = bgpd_enabled
-        if ospfd_enabled is not None:
-            body["ospfd_enabled"] = ospfd_enabled
-        if eigrpd_enabled is not None:
-            body["eigrpd_enabled"] = eigrpd_enabled
+        if console_cols is not None:
+            body["console_cols"] = console_cols
+        if advanced is not None:
+            body["advanced"] = advanced
+        if advanced_config is not None:
+            body["advanced_config"] = advanced_config
+        if daemons:
+            unknown = sorted(set(daemons) - set(VNET_BGP_DAEMONS))
+            if unknown:
+                raise ValueError(f"Unknown FRR daemon(s): {', '.join(unknown)}")
+            for name, enabled in daemons.items():
+                body[f"daemon_{name}"] = enabled
         bgp_key = self._get_or_create_bgp_config()
         if body:
             self._client._request("PUT", f"vnet_bgp/{bgp_key}", json_data=body)

@@ -8,33 +8,31 @@ status, and the alarms raised when a node stays out of sync.
 from __future__ import annotations
 
 import builtins
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
-from pyvergeos.resources.base import ResourceManager, ResourceObject
-
-if TYPE_CHECKING:
-    pass
+from pyvergeos.resources.base import ResourceManager, ResourceObject, reference_key
 
 TimeMode = Literal["ntp", "ptp"]
 PtpTransport = Literal["udpv4", "udpv6", "l2"]
 PtpDelayMechanism = Literal["e2e", "p2p", "auto"]
 
-# Columns on the time_settings singleton. Names follow the Time Settings
-# form: mode, the NTP server list and clock limits, and every PTP option
-# from the basic and advanced panels.
+# The singleton is addressed as time_settings/self, not a numeric row.
+TIME_SETTINGS_KEY = "self"
+
+# Columns on the time_settings singleton, using the live 26.2 names.
 TIME_SETTINGS_FIELDS = [
     "$key",
     "mode",
     "ntp_servers",
-    "ntp_max_clocks",
-    "ntp_min_clocks",
-    "ntp_min_sane",
-    "ptp_interface_network",
+    "ntp_maxclock",
+    "ntp_minclock",
+    "ntp_minsane",
+    "interface_vnet",
     "ptp_transport",
     "ptp_domain",
     "ptp_delay_mechanism",
-    "ptp_hardware_timestamps",
+    "ptp_use_hw_timestamps",
     "ptp_priority1",
     "ptp_priority2",
     "ptp_two_step",
@@ -50,7 +48,7 @@ TIME_SETTINGS_FIELDS = [
     "ptp_inhibit_delay_req",
     "ptp_follow_up_info",
     "ptp_transport_specific",
-    "ptp_neighbor_prop_delay",
+    "ptp_neighbor_prop_delay_thresh",
     "ptp_sync_receipt_timeout",
     "ptp_announce_receipt_timeout",
 ]
@@ -61,10 +59,18 @@ _TIME_SETTINGS_WRITABLE = [name for name in TIME_SETTINGS_FIELDS if name != "$ke
 class TimeSettings(ResourceObject):
     """NTP and PTP configuration for the system.
 
-    There is one row. Node 1 follows the configured servers (or the PTP
-    grandmaster). The other nodes follow node 1. PTP replaces NTP while it
-    is selected.
+    There is one row, and its key is the text ``self``. Node 1 follows the
+    configured servers (or the PTP grandmaster). The other nodes follow
+    node 1. PTP replaces NTP while it is selected.
     """
+
+    @property
+    def key(self) -> str:  # type: ignore[override]
+        """Singleton key. Always the text ``self`` once the row is loaded."""
+        value = self.get("$key")
+        if value is None:
+            raise ValueError("Resource has no $key - may not be persisted")
+        return str(value)
 
     @property
     def mode(self) -> str:
@@ -87,25 +93,30 @@ class TimeSettings(ResourceObject):
         return str(self.get("ntp_servers", ""))
 
     @property
-    def ntp_max_clocks(self) -> int:
+    def ntp_maxclock(self) -> int:
         """Maximum number of NTP sources. Server default is 11."""
-        return int(self.get("ntp_max_clocks", 0) or 0)
+        return int(self.get("ntp_maxclock", 0) or 0)
 
     @property
-    def ntp_min_clocks(self) -> int:
+    def ntp_minclock(self) -> int:
         """Minimum number of NTP sources NTP tries to use. Default is 4."""
-        return int(self.get("ntp_min_clocks", 0) or 0)
+        return int(self.get("ntp_minclock", 0) or 0)
 
     @property
-    def ntp_min_sane(self) -> int:
+    def ntp_minsane(self) -> int:
         """Minimum number of NTP sources that must agree. Default is 1."""
-        return int(self.get("ntp_min_sane", 0) or 0)
+        return int(self.get("ntp_minsane", 0) or 0)
 
     @property
-    def ptp_interface_network(self) -> int | None:
-        """Physical network that carries PTP traffic."""
-        value = self.get("ptp_interface_network")
-        return int(value) if value else None
+    def interface_vnet(self) -> int | None:
+        """Physical network that carries PTP traffic.
+
+        A row reference to ``vnets``. None when PTP has no interface yet.
+        """
+        value = reference_key(self.get("interface_vnet"))
+        if isinstance(value, int):
+            return value
+        return None
 
     @property
     def ptp_transport(self) -> str:
@@ -123,13 +134,13 @@ class TimeSettings(ResourceObject):
         return str(self.get("ptp_delay_mechanism", ""))
 
     @property
-    def ptp_hardware_timestamps(self) -> bool:
+    def ptp_use_hw_timestamps(self) -> bool:
         """Whether ptp4l uses NIC hardware timestamps.
 
         On is the server default. Turn it off when the NICs cannot timestamp
         in hardware. VergeOS does not fall back on its own.
         """
-        return bool(self.get("ptp_hardware_timestamps", False))
+        return bool(self.get("ptp_use_hw_timestamps", False))
 
     @property
     def ptp_priority1(self) -> int:
@@ -207,9 +218,9 @@ class TimeSettings(ResourceObject):
         return int(self.get("ptp_transport_specific", 0) or 0)
 
     @property
-    def ptp_neighbor_prop_delay(self) -> int:
+    def ptp_neighbor_prop_delay_thresh(self) -> int:
         """Maximum neighbor propagation delay, in nanoseconds."""
-        return int(self.get("ptp_neighbor_prop_delay", 0) or 0)
+        return int(self.get("ptp_neighbor_prop_delay_thresh", 0) or 0)
 
     @property
     def ptp_sync_receipt_timeout(self) -> int:
@@ -245,20 +256,21 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
 
     def get(  # type: ignore[override]
         self,
-        key: int | None = None,
+        key: str | None = None,
         *,
         fields: str | builtins.list[str] | None = None,
     ) -> TimeSettings:
         """Read the time settings.
 
         Args:
-            key: Row key. The singleton is key 1, which is the default.
+            key: Row key. The singleton is the text ``self``, which is the
+                default.
             fields: Fields to return. Defaults to every time setting.
 
         Returns:
             TimeSettings object.
         """
-        row_key = 1 if key is None else key
+        row_key = TIME_SETTINGS_KEY if key is None else key
         selected = self._default_fields if fields is None else fields
         params: dict[str, Any] = {"fields": self._projection(selected)}
         response = self._client._request("GET", f"{self._endpoint}/{row_key}", params=params)
@@ -268,18 +280,18 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
 
     def update(  # type: ignore[override]
         self,
-        key: int | None = None,
+        key: str | None = None,
         *,
         mode: TimeMode | None = None,
         ntp_servers: str | None = None,
-        ntp_max_clocks: int | None = None,
-        ntp_min_clocks: int | None = None,
-        ntp_min_sane: int | None = None,
-        ptp_interface_network: int | None = None,
+        ntp_maxclock: int | None = None,
+        ntp_minclock: int | None = None,
+        ntp_minsane: int | None = None,
+        interface_vnet: int | None = None,
         ptp_transport: PtpTransport | None = None,
         ptp_domain: int | None = None,
         ptp_delay_mechanism: PtpDelayMechanism | None = None,
-        ptp_hardware_timestamps: bool | None = None,
+        ptp_use_hw_timestamps: bool | None = None,
         ptp_priority1: int | None = None,
         ptp_priority2: int | None = None,
         ptp_two_step: bool | None = None,
@@ -295,7 +307,7 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
         ptp_inhibit_delay_req: bool | None = None,
         ptp_follow_up_info: bool | None = None,
         ptp_transport_specific: int | None = None,
-        ptp_neighbor_prop_delay: int | None = None,
+        ptp_neighbor_prop_delay_thresh: int | None = None,
         ptp_sync_receipt_timeout: int | None = None,
         ptp_announce_receipt_timeout: int | None = None,
     ) -> TimeSettings:
@@ -306,17 +318,17 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
         when you make that change.
 
         Args:
-            key: Row key. Defaults to the singleton key 1.
+            key: Row key. Defaults to ``self``.
             mode: ``ntp`` or ``ptp``.
             ntp_servers: Space-separated NTP servers.
-            ntp_max_clocks: Maximum NTP sources (1-255).
-            ntp_min_clocks: Minimum NTP sources NTP tries to use (1-255).
-            ntp_min_sane: Minimum agreeing NTP sources (1-255).
-            ptp_interface_network: Physical network key that carries PTP.
+            ntp_maxclock: Maximum NTP sources (1-255).
+            ntp_minclock: Minimum NTP sources NTP tries to use (1-255).
+            ntp_minsane: Minimum agreeing NTP sources (1-255).
+            interface_vnet: Physical network key that carries PTP.
             ptp_transport: ``udpv4``, ``udpv6``, or ``l2``.
             ptp_domain: PTP domain, 0-127.
             ptp_delay_mechanism: ``e2e``, ``p2p``, or ``auto``.
-            ptp_hardware_timestamps: Use NIC hardware timestamps.
+            ptp_use_hw_timestamps: Use NIC hardware timestamps.
             ptp_priority1: BMCA priority 1 (0-255, lower wins).
             ptp_priority2: BMCA priority 2 (0-255).
             ptp_two_step: Send the timestamp in a Follow_Up message.
@@ -332,7 +344,7 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
             ptp_inhibit_delay_req: Stop Delay Request messages.
             ptp_follow_up_info: Add the follow-up information TLV.
             ptp_transport_specific: transportSpecific field (0-255).
-            ptp_neighbor_prop_delay: Max neighbor delay in nanoseconds.
+            ptp_neighbor_prop_delay_thresh: Max neighbor delay in nanoseconds.
             ptp_sync_receipt_timeout: Sync intervals before timeout.
             ptp_announce_receipt_timeout: Announce intervals before timeout.
 
@@ -342,14 +354,14 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
         values = {
             "mode": mode,
             "ntp_servers": ntp_servers,
-            "ntp_max_clocks": ntp_max_clocks,
-            "ntp_min_clocks": ntp_min_clocks,
-            "ntp_min_sane": ntp_min_sane,
-            "ptp_interface_network": ptp_interface_network,
+            "ntp_maxclock": ntp_maxclock,
+            "ntp_minclock": ntp_minclock,
+            "ntp_minsane": ntp_minsane,
+            "interface_vnet": interface_vnet,
             "ptp_transport": ptp_transport,
             "ptp_domain": ptp_domain,
             "ptp_delay_mechanism": ptp_delay_mechanism,
-            "ptp_hardware_timestamps": ptp_hardware_timestamps,
+            "ptp_use_hw_timestamps": ptp_use_hw_timestamps,
             "ptp_priority1": ptp_priority1,
             "ptp_priority2": ptp_priority2,
             "ptp_two_step": ptp_two_step,
@@ -365,19 +377,24 @@ class TimeSettingsManager(ResourceManager[TimeSettings]):
             "ptp_inhibit_delay_req": ptp_inhibit_delay_req,
             "ptp_follow_up_info": ptp_follow_up_info,
             "ptp_transport_specific": ptp_transport_specific,
-            "ptp_neighbor_prop_delay": ptp_neighbor_prop_delay,
+            "ptp_neighbor_prop_delay_thresh": ptp_neighbor_prop_delay_thresh,
             "ptp_sync_receipt_timeout": ptp_sync_receipt_timeout,
             "ptp_announce_receipt_timeout": ptp_announce_receipt_timeout,
         }
         body = {name: value for name, value in values.items() if value is not None}
-        row_key = 1 if key is None else key
+        row_key = TIME_SETTINGS_KEY if key is None else key
         if body:
             self._client._request("PUT", f"{self._endpoint}/{row_key}", json_data=body)
         return self.get(row_key)
 
 
 class TimeNodeSync:
-    """One physical node's time sync status from the dashboard."""
+    """One physical node from the time dashboard.
+
+    The dashboard nests each node's sync payload at
+    ``machine.status.time_sync_status``. That value is a JSON object while
+    the node is reporting, and ``[]`` when it has nothing to report.
+    """
 
     def __init__(self, data: dict[str, Any]) -> None:
         self._data = data
@@ -394,29 +411,48 @@ class TimeNodeSync:
         return str(self._data.get("name", ""))
 
     @property
+    def time_sync_status(self) -> dict[str, Any] | list[Any]:
+        """Sync payload from ``machine.status.time_sync_status``.
+
+        A dict while the node is reporting, or an empty list when it is not.
+        """
+        machine = self._data.get("machine")
+        if not isinstance(machine, dict):
+            return []
+        status = machine.get("status")
+        if not isinstance(status, dict):
+            return []
+        value = status.get("time_sync_status", [])
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, list):
+            return value
+        return []
+
+    @property
     def source(self) -> str:
-        """Time source this node is following."""
-        value = self._data.get("source", self._data.get("time_source", ""))
+        """Time source this node is following, when the payload names one."""
+        status = self.time_sync_status
+        if not isinstance(status, dict):
+            return ""
+        value = status.get("source", status.get("time_source", ""))
         return str(value or "")
 
     @property
     def synced(self) -> bool:
-        """Whether the node is currently synchronized."""
-        if "synced" in self._data:
-            return bool(self._data.get("synced"))
-        status = str(self._data.get("status", "")).lower()
-        return status in ("synced", "sync", "ok", "online")
+        """Whether the sync payload says this node is synchronized.
 
-    @property
-    def status(self) -> str:
-        """Raw status string from the dashboard."""
-        return str(self._data.get("status", ""))
-
-    @property
-    def last_check(self) -> int | None:
-        """Unix time of the last check, when present."""
-        value = self._data.get("last_check", self._data.get("last_update"))
-        return int(value) if value else None
+        An empty list means there is no report. A payload without an explicit
+        synced flag is not treated as synchronized.
+        """
+        status = self.time_sync_status
+        if not isinstance(status, dict):
+            return False
+        for name in ("synced", "synchronized", "in_sync"):
+            if name in status:
+                return bool(status[name])
+        state = str(status.get("status", status.get("state", ""))).lower()
+        return state in ("synced", "sync", "ok", "online")
 
     def __repr__(self) -> str:
         return f"<TimeNodeSync node={self.node_key} synced={self.synced}>"
@@ -433,10 +469,10 @@ class TimeDashboard(ResourceObject):
 
     @property
     def mode(self) -> str:
-        """Current mode, from the dashboard or its embedded settings."""
-        if self.get("mode"):
-            return str(self.get("mode"))
-        return str(self.settings.get("mode", ""))
+        """Current mode. The dashboard keeps it on ``settings``, not the top level."""
+        if self.settings.get("mode"):
+            return str(self.settings.get("mode"))
+        return str(self.get("mode", "") or "")
 
     @property
     def nodes(self) -> list[TimeNodeSync]:
@@ -477,8 +513,9 @@ class TimeDashboardManager(ResourceManager[TimeDashboard]):
     def get(self) -> TimeDashboard:  # type: ignore[override]
         """Read the time dashboard.
 
-        A single document is used as-is. A list of node rows, which is how
-        some status views answer, is wrapped so ``nodes`` still works.
+        The live document is ``{settings, nodes, alarms}``. ``settings.mode``
+        is the current mode, and each node's sync state is
+        ``machine.status.time_sync_status``.
         """
         response = self._client._request("GET", self._endpoint)
         if response is None:

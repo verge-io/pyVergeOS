@@ -45,6 +45,9 @@ MACHINE_TYPES = (
 # Own-columns that exist only on VergeOS 26.2 and later.
 _VM_26_2_FIELDS = ["bios_serial", "vgamem_mb"]
 
+# vgamem_mb is text. ``default`` means the video adapter's own size.
+VGAMEM_CHOICES = ("default", "8", "16", "32", "64", "128", "256")
+
 # Plain own-columns. The computed entries live on the model below and are
 # appended when the full projection is assembled, so an accessor and the
 # field list feeding it cannot drift apart (issue #125).
@@ -326,15 +329,18 @@ class VM(ResourceObject):
         return str(self.get("bios_serial", "") or "")
 
     @property
-    def vgamem_mb(self) -> int | None:
-        """Video adapter memory in MB.
+    def vgamem_mb(self) -> str:
+        """Video memory setting.
 
-        VergeOS 26.2. None when the server did not return the field.
+        VergeOS 26.2 stores this as text. The choices are ``default``,
+        ``8``, ``16``, ``32``, ``64``, ``128``, and ``256``. ``default``
+        keeps the adapter's own size. Empty when the server did not
+        return the field.
         """
         value = self.get("vgamem_mb")
         if value is None:
-            return None
-        return int(value)
+            return ""
+        return str(value)
 
     def clone(
         self,

@@ -98,6 +98,23 @@ class VnetBondInterfaceManager(ResourceManager[VnetBondInterface]):
             **filter_kwargs,
         )
 
+    def get(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: str | builtins.list[str] | None = None,
+    ) -> VnetBondInterface:
+        """Get one bond member.
+
+        ``primary`` is included on 26.2, same as ``list()``. The inherited
+        get would otherwise keep the unversioned default and leave it out.
+        """
+        defaults = self._prepare()
+        if fields is None:
+            fields = defaults
+        return super().get(key, name=name, fields=fields)
+
     def update(self, key: int, *, primary: bool | None = None, **kwargs: Any) -> VnetBondInterface:
         """Update a bond member.
 
