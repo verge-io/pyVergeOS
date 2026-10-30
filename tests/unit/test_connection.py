@@ -9,7 +9,12 @@ import requests
 from requests.structures import CaseInsensitiveDict
 
 from pyvergeos.connection import AuthMethod, VergeConnection, build_auth_header
-from pyvergeos.constants import RETRY_BACKOFF_FACTOR, RETRY_STATUS_CODES, RETRY_TOTAL
+from pyvergeos.constants import (
+    RETRY_BACKOFF_FACTOR,
+    RETRY_METHODS,
+    RETRY_STATUS_CODES,
+    RETRY_TOTAL,
+)
 
 
 class TestAuthMethod:
@@ -155,6 +160,17 @@ class TestVergeConnectionRetryConfig:
     def test_retry_disabled_with_zero_total(self) -> None:
         conn = VergeConnection(host="test.local", retry_total=0)
         assert conn.retry_total == 0
+
+    def test_retry_adapter_uses_allowed_methods(self) -> None:
+        """Retry.allowed_methods exists on urllib3 1.26+ and is what we pass."""
+        conn = VergeConnection(host="test.local")
+        assert conn.session is not None
+
+        adapter = conn.session.get_adapter("https://test.local")
+        allowed_methods = getattr(adapter.max_retries, "allowed_methods", None)
+
+        assert allowed_methods is not None
+        assert set(allowed_methods) == set(RETRY_METHODS)
 
     def test_all_retry_params_together(self) -> None:
         custom_codes = frozenset({HTTPStatus.SERVICE_UNAVAILABLE})

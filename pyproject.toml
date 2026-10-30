@@ -26,6 +26,9 @@ keywords = ["vergeos", "verge", "virtualization", "api", "sdk", "cloud"]
 
 dependencies = [
     "requests>=2.28.0",
+    # Retry(allowed_methods=...) requires urllib3 1.26+. requests>=2.28.0
+    # still allows 1.25, which raises TypeError during session setup.
+    "urllib3>=1.26",
 ]
 
 [project.optional-dependencies]
