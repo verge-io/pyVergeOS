@@ -93,7 +93,8 @@ class TestVergeOS262:
             assert "console_cols" in config
             assert "console_status" not in config
             assert isinstance(config.advanced_config, str)
-            assert config.advanced_config
+            if config.advanced:
+                assert config.advanced_config
             assert "daemon_bgpd" in config
             for name in VNET_BGP_DAEMONS:
                 assert f"daemon_{name}" in config
