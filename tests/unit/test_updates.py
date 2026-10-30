@@ -340,7 +340,7 @@ class TestUpdateSourceStatus:
         """Test is_busy property."""
         manager = UpdateSourceStatusManager(mock_client)
 
-        for busy_status in ["refreshing", "downloading", "installing", "applying"]:
+        for busy_status in ["refreshing", "downloading", "installing", "uninstalling", "applying"]:
             status = UpdateSourceStatus({"$key": 1, "status": busy_status}, manager)
             assert status.is_busy is True, f"{busy_status} should be busy"
 

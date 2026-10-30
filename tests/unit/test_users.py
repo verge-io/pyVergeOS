@@ -575,7 +575,7 @@ class TestUserManager:
         assert body["change_password"] is True
 
     def test_create_with_physical_access(self) -> None:
-        """Test create with physical_access flag."""
+        """physical_access on create requests Super Users membership."""
         manager, client = self._create_manager()
         client._request.side_effect = [
             {"$key": 1},
@@ -749,7 +749,7 @@ class TestUserManager:
         assert body["change_password"] is True
 
     def test_update_physical_access(self) -> None:
-        """Test update physical_access flag."""
+        """physical_access on update adds or removes Super Users membership."""
         manager, client = self._create_manager()
         client._request.side_effect = [
             None,

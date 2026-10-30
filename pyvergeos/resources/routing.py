@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.versions import extend_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -2666,6 +2667,98 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
+# vnet_bgp columns that exist on every release this SDK talks to.
+_VNET_BGP_FIELDS = ["$key", "vnet"]
+
+# The 18 daemon_* flags on vnet_bgp. zebra is not one of them. The live
+# table has sharpd and does not have staticd.
+VNET_BGP_DAEMONS = (
+    "babeld",
+    "bfdd",
+    "bgpd",
+    "eigrpd",
+    "fabricd",
+    "isisd",
+    "ldpd",
+    "nhrpd",
+    "ospf6d",
+    "ospfd",
+    "pathd",
+    "pbrd",
+    "pim6d",
+    "pimd",
+    "ripd",
+    "ripngd",
+    "sharpd",
+    "vrrpd",
+)
+
+# Advanced columns on vnet_bgp, added in VergeOS 26.2. They are not
+# columns of the vnets table.
+VNET_BGP_26_2_FIELDS = [
+    "advanced",
+    "advanced_config",
+    "console_rows",
+    "console_cols",
+    *[f"daemon_{name}" for name in VNET_BGP_DAEMONS],
+]
+
+
+class VnetBGP(ResourceObject):
+    """The ``vnet_bgp`` row for one network.
+
+    The advanced columns are filled in on VergeOS 26.2. On an older server
+    they are not requested, so the matching properties stay at their empty
+    defaults.
+    """
+
+    @property
+    def vnet_key(self) -> int | None:
+        """Network this BGP configuration belongs to."""
+        value = self.get("vnet")
+        return int(value) if value is not None else None
+
+    @property
+    def advanced(self) -> bool:
+        """Whether this network uses the vtysh console instead of the UI."""
+        return bool(self.get("advanced", False))
+
+    @property
+    def advanced_config(self) -> str:
+        """FRR configuration saved across restarts."""
+        return str(self.get("advanced_config", "") or "")
+
+    @property
+    def console_rows(self) -> int | None:
+        """vtysh console height in rows."""
+        value = self.get("console_rows")
+        return int(value) if value is not None else None
+
+    @property
+    def console_cols(self) -> int | None:
+        """vtysh console width in columns."""
+        value = self.get("console_cols")
+        return int(value) if value is not None else None
+
+    @property
+    def daemons(self) -> dict[str, bool]:
+        """Which FRR daemons are enabled, keyed by daemon name."""
+        return {name: bool(self.get(f"daemon_{name}", False)) for name in VNET_BGP_DAEMONS}
+
+    def daemon_enabled(self, name: str) -> bool:
+        """Whether one FRR daemon is enabled.
+
+        Args:
+            name: Daemon name without the ``daemon_`` prefix, such as ``bgpd``.
+
+        Raises:
+            ValueError: If ``name`` is not one of the vnet_bgp daemon flags.
+        """
+        if name not in VNET_BGP_DAEMONS:
+            raise ValueError(f"Unknown FRR daemon {name!r}")
+        return bool(self.get(f"daemon_{name}", False))
+
+
 class NetworkRoutingManager:
     """Manager for network routing protocols (BGP, OSPF, EIGRP).
 
@@ -2925,6 +3018,86 @@ class NetworkRoutingManager:
                 router = network.routing.eigrp_routers.create(asn=100)
         """
         return EIGRPRouterManager(self._client, self)
+
+    def _bgp_fields(self) -> list[str]:
+        return extend_fields(self._client.os_version, _VNET_BGP_FIELDS, VNET_BGP_26_2_FIELDS)
+
+    def get_config(self) -> VnetBGP | None:
+        """Read the advanced BGP configuration for this network.
+
+        Returns:
+            The ``vnet_bgp`` row, or None when BGP has not been set up.
+        """
+        params = {
+            "filter": f"vnet eq {self._network.key}",
+            "fields": ",".join(self._bgp_fields()),
+        }
+        response = self._client._request("GET", "vnet_bgp", params=params)
+        row: dict[str, Any] | None = None
+        if isinstance(response, builtins.list) and response:
+            if isinstance(response[0], dict):
+                row = response[0]
+        elif isinstance(response, dict) and response.get("$key") is not None:
+            row = response
+        if row is None:
+            return None
+        key_val = row.get("$key")
+        if key_val is not None:
+            self._bgp_key = int(key_val)
+        return VnetBGP(row, self)  # type: ignore[arg-type]
+
+    def update_config(
+        self,
+        *,
+        console_rows: int | None = None,
+        console_cols: int | None = None,
+        advanced: bool | None = None,
+        advanced_config: str | None = None,
+        daemons: dict[str, bool] | None = None,
+    ) -> VnetBGP:
+        """Update the advanced BGP configuration on the ``vnet_bgp`` row.
+
+        Creates the row when the network does not have one yet. Only
+        arguments you pass are written. Console size, ``advanced_config``,
+        the ``advanced`` flag, and the ``daemon_*`` flags are VergeOS 26.2
+        columns on ``vnet_bgp``, not on the network itself.
+
+        Args:
+            console_rows: vtysh console height.
+            console_cols: vtysh console width.
+            advanced: Use the vtysh console instead of the UI.
+            advanced_config: FRR configuration kept across restarts.
+            daemons: Daemon name to enabled, for example ``{"bgpd": True}``.
+                Names are the FRR daemon, without the ``daemon_`` prefix.
+
+        Returns:
+            The updated configuration.
+
+        Raises:
+            ValueError: If a daemon name is not one of the 18 flags.
+        """
+        body: dict[str, Any] = {}
+        if console_rows is not None:
+            body["console_rows"] = console_rows
+        if console_cols is not None:
+            body["console_cols"] = console_cols
+        if advanced is not None:
+            body["advanced"] = advanced
+        if advanced_config is not None:
+            body["advanced_config"] = advanced_config
+        if daemons:
+            unknown = sorted(set(daemons) - set(VNET_BGP_DAEMONS))
+            if unknown:
+                raise ValueError(f"Unknown FRR daemon(s): {', '.join(unknown)}")
+            for name, enabled in daemons.items():
+                body[f"daemon_{name}"] = enabled
+        bgp_key = self._get_or_create_bgp_config()
+        if body:
+            self._client._request("PUT", f"vnet_bgp/{bgp_key}", json_data=body)
+        config = self.get_config()
+        if config is None:
+            raise ValueError("BGP configuration was not returned after update")
+        return config
 
     @property
     def is_configured(self) -> bool:

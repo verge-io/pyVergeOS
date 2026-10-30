@@ -40,6 +40,7 @@ VNetQueryType = Literal[
     "firewall",
     "nmap",
     "tcp_connect",
+    "wakeonlan",
 ]
 
 NodeQueryType = Literal[
@@ -407,8 +408,8 @@ class QueryManager(ResourceManager[QueryResult]):
 class VNetQueryManager(QueryManager):
     """Manager for virtual network diagnostic queries.
 
-    Supports 19 query types including ping, dns, tcpdump, traceroute,
-    arp, firewall trace, and more.
+    Supports ping, dns, tcpdump, traceroute, arp, firewall trace,
+    Wake-on-LAN, and the other vnet query types.
 
     Examples:
         Run a ping query::
@@ -506,6 +507,25 @@ class VNetQueryManager(QueryManager):
             Completed QueryResult with ARP table output.
         """
         return self.run("arp", timeout=timeout)
+
+    def wakeonlan(
+        self,
+        mac: str,
+        timeout: float = 30,
+        **params: Any,
+    ) -> QueryResult:
+        """Send a Wake-on-LAN magic packet.
+
+        Args:
+            mac: Target MAC address.
+            timeout: Max seconds to wait for the query.
+            **params: Additional query parameters. A ``mac`` entry here
+                replaces the ``mac`` argument.
+
+        Returns:
+            Completed QueryResult.
+        """
+        return self.run("wakeonlan", {"mac": mac, **params}, timeout=timeout)
 
     def firewall(self, timeout: float = 30, **params: Any) -> QueryResult:
         """Get firewall rule listing.

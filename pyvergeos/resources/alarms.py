@@ -15,6 +15,7 @@ from pyvergeos.resources.base import (
     ResourceObject,
     reference_key,
 )
+from pyvergeos.versions import prepare_default_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -36,6 +37,18 @@ OWNER_TYPE_MAP = {
 
 # Reverse mapping (API value -> friendly name)
 OWNER_TYPE_DISPLAY = {v: k for k, v in OWNER_TYPE_MAP.items()}
+
+# sub_owner_type values. vnet_wires is a virtual switch port (the old
+# virtual-wire name) and is the sub-owner, not the alarm owner.
+SUB_OWNER_TYPE_MAP = {
+    "VirtualSwitchPort": "vnet_wires",
+}
+SUB_OWNER_TYPE_DISPLAY = {
+    "vnet_wires": "Virtual Switch Port",
+}
+
+# Alarm column added in VergeOS 26.2.
+_ALARM_26_2_FIELDS = ["sub_owner_type"]
 
 
 # Plain own-columns. The computed entries live on the model below and are
@@ -91,6 +104,9 @@ class Alarm(ResourceObject):
         owner_type: API owner type value (vms, vnets, etc.).
         owner_type_display: Friendly owner type name (VM, Network, etc.).
         sub_owner: Sub-owner key if applicable.
+        sub_owner_type: Sub-owner table, such as ``vnet_wires`` for a
+            virtual switch port. Computed into the default projection on
+            VergeOS 26.2 and later.
         is_resolvable: True if alarm can be resolved.
         resolve_text: Text describing how to resolve.
         is_snoozed: True if alarm is currently snoozed.
@@ -171,6 +187,16 @@ class Alarm(ResourceObject):
     def owner_type_display(self) -> str:
         """Get friendly owner type name."""
         return OWNER_TYPE_DISPLAY.get(self.owner_type, self.owner_type)
+
+    @property
+    def sub_owner_type(self) -> str:
+        """API name of the sub-owner table, such as ``vnet_wires``."""
+        return str(self.get("sub_owner_type", "") or "")
+
+    @property
+    def sub_owner_type_display(self) -> str:
+        """Friendly sub-owner type. ``vnet_wires`` is a virtual switch port."""
+        return SUB_OWNER_TYPE_DISPLAY.get(self.sub_owner_type, self.sub_owner_type)
 
     @property
     def sub_owner(self) -> str | int | None:
@@ -425,6 +451,7 @@ class AlarmManager(ResourceManager[Alarm]):
         level: str | builtins.list[str] | None = None,
         owner_type: str | None = None,
         include_snoozed: bool = False,
+        sub_owner_type: str | None = None,
         **filter_kwargs: Any,
     ) -> builtins.list[Alarm]:
         """List alarms with optional filtering.
@@ -441,6 +468,8 @@ class AlarmManager(ResourceManager[Alarm]):
             owner_type: Filter by owner type.
                         Values: VM, Network, Node, Tenant, User, System, CloudSnapshot.
             include_snoozed: If True, include snoozed alarms (default: False).
+            sub_owner_type: Filter by sub-owner table. ``VirtualSwitchPort``
+                and ``vnet_wires`` both mean a virtual switch port.
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -482,6 +511,10 @@ class AlarmManager(ResourceManager[Alarm]):
             api_owner_type = OWNER_TYPE_MAP.get(owner_type, owner_type)
             conditions.append(f"owner_type eq {quote_value(api_owner_type)}")
 
+        if sub_owner_type:
+            api_sub_owner = SUB_OWNER_TYPE_MAP.get(sub_owner_type, sub_owner_type)
+            conditions.append(f"sub_owner_type eq {quote_value(api_sub_owner)}")
+
         # Active (non-snoozed) filter - default behavior
         if not include_snoozed:
             # Show alarms where snooze is 0 or snooze time has passed
@@ -492,8 +525,9 @@ class AlarmManager(ResourceManager[Alarm]):
 
         combined_filter = " and ".join(conditions) if conditions else None
 
+        prepare_default_fields(self, _DEFAULT_ALARM_FIELDS, _ALARM_26_2_FIELDS)
         if fields is None:
-            fields = _DEFAULT_ALARM_FIELDS
+            fields = self._default_fields
 
         params: dict[str, Any] = {}
         if combined_filter:
@@ -612,9 +646,10 @@ class AlarmManager(ResourceManager[Alarm]):
         if key is None:
             raise ValueError("key must be provided")
 
+        prepare_default_fields(self, _DEFAULT_ALARM_FIELDS, _ALARM_26_2_FIELDS)
         params: dict[str, Any] = {}
         if fields is None:
-            fields = _DEFAULT_ALARM_FIELDS
+            fields = self._default_fields
         if fields:
             params["fields"] = self._projection(fields)
 

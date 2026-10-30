@@ -44,6 +44,7 @@ if TYPE_CHECKING:
         AuthSourceStateManager,
     )
     from pyvergeos.resources.billing import BillingManager
+    from pyvergeos.resources.bond_interfaces import VnetBondInterfaceManager
     from pyvergeos.resources.catalogs import (
         CatalogLogManager,
         CatalogManager,
@@ -115,6 +116,7 @@ if TYPE_CHECKING:
         TenantRecipeManager,
     )
     from pyvergeos.resources.tenant_stats import TenantDashboardManager
+    from pyvergeos.resources.time import TimeDashboardManager, TimeSettingsManager
     from pyvergeos.resources.updates import (
         UpdateBranchManager,
         UpdateDashboardManager,
@@ -133,6 +135,7 @@ if TYPE_CHECKING:
         VmRecipeManager,
     )
     from pyvergeos.resources.vms import VMManager
+    from pyvergeos.resources.vmware import VmwareContainerManager
     from pyvergeos.resources.volume_vm_exports import (
         VolumeVmExportManager,
         VolumeVmExportStatManager,
@@ -328,6 +331,10 @@ class VergeClient:
         self._cluster_status: ClusterStatusManager | None = None
         self._node_memory: NodeMemoryManager | None = None
         self._vsan_queries: VsanQueryManager | None = None
+        self._time_settings: TimeSettingsManager | None = None
+        self._time_dashboard: TimeDashboardManager | None = None
+        self._vmware_containers: VmwareContainerManager | None = None
+        self._vnet_bond_interfaces: VnetBondInterfaceManager | None = None
 
         if auto_connect:
             self.connect()
@@ -2114,3 +2121,61 @@ class VergeClient:
 
             self._vsan_queries = VsanQueryManager(self)
         return self._vsan_queries
+
+    @property
+    def time_settings(self) -> TimeSettingsManager:
+        """NTP and PTP configuration. VergeOS 26.2 and later.
+
+        Example:
+            >>> settings = client.time_settings.get()
+            >>> print(settings.mode, settings.ntp_servers)
+        """
+        if self._time_settings is None:
+            from pyvergeos.resources.time import TimeSettingsManager
+
+            self._time_settings = TimeSettingsManager(self)
+        return self._time_settings
+
+    @property
+    def time_dashboard(self) -> TimeDashboardManager:
+        """Read-only time view: settings, node sync, and related alarms.
+
+        VergeOS 26.2 and later.
+
+        Example:
+            >>> dashboard = client.time_dashboard.get()
+            >>> for node in dashboard.nodes:
+            ...     print(node.name, node.synced)
+        """
+        if self._time_dashboard is None:
+            from pyvergeos.resources.time import TimeDashboardManager
+
+            self._time_dashboard = TimeDashboardManager(self)
+        return self._time_dashboard
+
+    @property
+    def vmware_containers(self) -> VmwareContainerManager:
+        """VMware service containers.
+
+        Example:
+            >>> container = client.vmware_containers.get(1)
+            >>> container.install_vixdisklib("VMware-vix-disklib.tar.gz")
+        """
+        if self._vmware_containers is None:
+            from pyvergeos.resources.vmware import VmwareContainerManager
+
+            self._vmware_containers = VmwareContainerManager(self)
+        return self._vmware_containers
+
+    @property
+    def vnet_bond_interfaces(self) -> VnetBondInterfaceManager:
+        """Bond member interfaces across networks.
+
+        ``primary`` is requested when the server is VergeOS 26.2 or later.
+        A single network's members are also on ``network.bond_interfaces``.
+        """
+        if self._vnet_bond_interfaces is None:
+            from pyvergeos.resources.bond_interfaces import VnetBondInterfaceManager
+
+            self._vnet_bond_interfaces = VnetBondInterfaceManager(self)
+        return self._vnet_bond_interfaces

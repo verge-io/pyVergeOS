@@ -36,7 +36,10 @@ class User(ResourceObject):
         created: Creation timestamp (Unix epoch).
         last_login: Last login timestamp (Unix epoch).
         change_password: Whether password change is required on next login.
-        physical_access: Whether console/SSH access is enabled (admin privilege).
+        physical_access: Computed compatibility flag. True when the user is a
+            member of the Super Users group, which grants console, BMC, and
+            hardware access. It is not a separately stored administrator bit.
+            Writing it adds the user to that group or removes them from it.
         two_factor_enabled: Whether 2FA is enabled.
         two_factor_type: Type of 2FA ('email' or 'authenticator').
         two_factor_setup_required: Whether 2FA setup is required on next login.
@@ -101,9 +104,13 @@ class User(ResourceObject):
 
     @property
     def physical_access(self) -> bool:
-        """Check if physical (console/SSH) access is enabled.
+        """Whether this user is in the Super Users group.
 
-        Note: Users with physical access have administrator privileges.
+        VergeOS computes this from group membership. It is the compatibility
+        view of console, BMC, and hardware access, not an administrator flag
+        stored on the user. Setting it on create or update adds or removes
+        that membership, and it no longer grants the built-in administrator
+        role by itself.
         """
         return bool(self.get("physical_access", False))
 
@@ -458,7 +465,9 @@ class UserManager(ResourceManager[User]):
             user_type: User type ('normal', 'api', 'vdi'). Default 'normal'.
             enabled: Enable the account. Default True.
             change_password: Require password change on next login. Default False.
-            physical_access: Enable console/SSH access (grants admin). Default False.
+            physical_access: Add the user to the Super Users group (console,
+                BMC, and hardware access). This does not grant the built-in
+                administrator role. Default False.
             two_factor_enabled: Enable two-factor authentication. Default False.
             two_factor_type: Type of 2FA ('email' or 'authenticator'). Default 'email'.
             two_factor_setup_required: Require 2FA setup on next login. Default False.
@@ -570,7 +579,9 @@ class UserManager(ResourceManager[User]):
             email: New email address.
             enabled: Enable or disable the account.
             change_password: Require password change on next login.
-            physical_access: Enable or disable console/SSH access.
+            physical_access: Add or remove Super Users membership. This is the
+                compatibility toggle for console and hardware access, not a
+                stored administrator flag.
             two_factor_enabled: Enable or disable 2FA.
             two_factor_type: Type of 2FA ('email' or 'authenticator').
             two_factor_setup_required: Require 2FA setup on next login.
