@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.versions import extend_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -2666,6 +2667,68 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
+# vnet_bgp columns that exist on every release this SDK talks to.
+_VNET_BGP_FIELDS = ["$key", "vnet"]
+
+# Advanced BGP columns added in VergeOS 26.2: vtysh console size, the
+# configuration that is kept across restarts, and which FRR daemons run.
+VNET_BGP_26_2_FIELDS = [
+    "console_rows",
+    "console_columns",
+    "persisted_config",
+    "bgpd_enabled",
+    "ospfd_enabled",
+    "eigrpd_enabled",
+]
+
+
+class VnetBGP(ResourceObject):
+    """The ``vnet_bgp`` row for one network.
+
+    The advanced columns are filled in on VergeOS 26.2. On an older server
+    the matching properties stay at their empty defaults because those
+    columns are not requested.
+    """
+
+    @property
+    def vnet_key(self) -> int | None:
+        """Network this BGP configuration belongs to."""
+        value = self.get("vnet")
+        return int(value) if value is not None else None
+
+    @property
+    def console_rows(self) -> int | None:
+        """vtysh console height in rows."""
+        value = self.get("console_rows")
+        return int(value) if value is not None else None
+
+    @property
+    def console_columns(self) -> int | None:
+        """vtysh console width in columns."""
+        value = self.get("console_columns")
+        return int(value) if value is not None else None
+
+    @property
+    def persisted_config(self) -> str:
+        """FRR configuration saved across restarts."""
+        return str(self.get("persisted_config", "") or "")
+
+    @property
+    def bgpd_enabled(self) -> bool:
+        """Whether the BGP daemon is enabled."""
+        return bool(self.get("bgpd_enabled", False))
+
+    @property
+    def ospfd_enabled(self) -> bool:
+        """Whether the OSPF daemon is enabled."""
+        return bool(self.get("ospfd_enabled", False))
+
+    @property
+    def eigrpd_enabled(self) -> bool:
+        """Whether the EIGRP daemon is enabled."""
+        return bool(self.get("eigrpd_enabled", False))
+
+
 class NetworkRoutingManager:
     """Manager for network routing protocols (BGP, OSPF, EIGRP).
 
@@ -2925,6 +2988,73 @@ class NetworkRoutingManager:
                 router = network.routing.eigrp_routers.create(asn=100)
         """
         return EIGRPRouterManager(self._client, self)
+
+    def _bgp_fields(self) -> list[str]:
+        return extend_fields(self._client.os_version, _VNET_BGP_FIELDS, VNET_BGP_26_2_FIELDS)
+
+    def get_config(self) -> VnetBGP | None:
+        """Read the advanced BGP configuration for this network.
+
+        Returns:
+            The ``vnet_bgp`` row, or None when BGP has not been set up.
+        """
+        params = {
+            "filter": f"vnet eq {self._network.key}",
+            "fields": ",".join(self._bgp_fields()),
+        }
+        response = self._client._request("GET", "vnet_bgp", params=params)
+        row: dict[str, Any] | None = None
+        if isinstance(response, builtins.list) and response:
+            if isinstance(response[0], dict):
+                row = response[0]
+        elif isinstance(response, dict) and response.get("$key") is not None:
+            row = response
+        if row is None:
+            return None
+        key_val = row.get("$key")
+        if key_val is not None:
+            self._bgp_key = int(key_val)
+        return VnetBGP(row, self)  # type: ignore[arg-type]
+
+    def update_config(
+        self,
+        *,
+        console_rows: int | None = None,
+        console_columns: int | None = None,
+        persisted_config: str | None = None,
+        bgpd_enabled: bool | None = None,
+        ospfd_enabled: bool | None = None,
+        eigrpd_enabled: bool | None = None,
+    ) -> VnetBGP:
+        """Update the advanced BGP configuration.
+
+        Creates the ``vnet_bgp`` row when the network does not have one yet.
+        Only arguments you pass are written. The console size, persisted
+        configuration, and daemon flags are VergeOS 26.2 columns.
+
+        Returns:
+            The updated configuration.
+        """
+        body: dict[str, Any] = {}
+        if console_rows is not None:
+            body["console_rows"] = console_rows
+        if console_columns is not None:
+            body["console_columns"] = console_columns
+        if persisted_config is not None:
+            body["persisted_config"] = persisted_config
+        if bgpd_enabled is not None:
+            body["bgpd_enabled"] = bgpd_enabled
+        if ospfd_enabled is not None:
+            body["ospfd_enabled"] = ospfd_enabled
+        if eigrpd_enabled is not None:
+            body["eigrpd_enabled"] = eigrpd_enabled
+        bgp_key = self._get_or_create_bgp_config()
+        if body:
+            self._client._request("PUT", f"vnet_bgp/{bgp_key}", json_data=body)
+        config = self.get_config()
+        if config is None:
+            raise ValueError("BGP configuration was not returned after update")
+        return config
 
     @property
     def is_configured(self) -> bool:

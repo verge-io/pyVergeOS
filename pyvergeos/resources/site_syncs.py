@@ -85,7 +85,10 @@ class SiteSyncOutgoing(ResourceObject):
         name: Sync name.
         description: Sync description.
         is_enabled: Whether the sync is enabled.
-        status: Sync status (offline, initializing, syncing, error).
+        status: Sync activity. Idle means the destination is waiting for its
+            next run. Older servers reported that same wait as offline, and
+            offline is still accepted, along with initializing, syncing, and
+            error.
         status_info: Additional status information.
         state: Sync state (offline, online, warning, error).
         url: Remote URL.
@@ -127,8 +130,17 @@ class SiteSyncOutgoing(ResourceObject):
 
     @property
     def status(self) -> str:
-        """Get sync status (offline, initializing, syncing, error)."""
-        return str(self.get("status", "offline"))
+        """Sync activity.
+
+        Idle is the usual waiting state on VergeOS 26.2. Offline is still
+        accepted from older servers. Also initializing, syncing, or error.
+        """
+        return str(self.get("status", "idle"))
+
+    @property
+    def is_idle(self) -> bool:
+        """Whether the sync is waiting for its next run."""
+        return self.status == "idle"
 
     @property
     def status_info(self) -> str:
@@ -406,7 +418,9 @@ class SiteSyncIncoming(ResourceObject):
         name: Sync name.
         description: Sync description.
         is_enabled: Whether the sync is enabled.
-        status: Sync status (offline, syncing, error, etc.).
+        status: Sync activity. Idle means the destination is waiting for its
+            next run. Offline is still accepted from older servers, along
+            with syncing and error.
         status_info: Additional status information.
         state: Sync state (offline, online, warning, error).
         sync_id: Unique sync identifier.
@@ -444,8 +458,17 @@ class SiteSyncIncoming(ResourceObject):
 
     @property
     def status(self) -> str:
-        """Get sync status."""
-        return str(self.get("status", "offline"))
+        """Sync activity.
+
+        Idle is the usual waiting state on VergeOS 26.2. Offline is still
+        accepted from older servers.
+        """
+        return str(self.get("status", "idle"))
+
+    @property
+    def is_idle(self) -> bool:
+        """Whether the sync is waiting for its next run."""
+        return self.status == "idle"
 
     @property
     def status_info(self) -> str:

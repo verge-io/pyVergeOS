@@ -9,6 +9,7 @@ from pyvergeos.resources.auth_sources import (
 )
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 from pyvergeos.resources.billing import BillingManager, BillingRecord
+from pyvergeos.resources.bond_interfaces import VnetBondInterface, VnetBondInterfaceManager
 from pyvergeos.resources.certificates import Certificate, CertificateManager
 from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshot,
@@ -217,6 +218,13 @@ from pyvergeos.resources.tenant_stats import (
     TenantStatsManager,
 )
 from pyvergeos.resources.tenant_storage import TenantStorage, TenantStorageManager
+from pyvergeos.resources.time import (
+    TimeDashboard,
+    TimeDashboardManager,
+    TimeNodeSync,
+    TimeSettings,
+    TimeSettingsManager,
+)
 from pyvergeos.resources.updates import (
     UpdateBranch,
     UpdateBranchManager,
@@ -244,6 +252,7 @@ from pyvergeos.resources.vm_recipes import (
     VmRecipeManager,
     VmRecipeSimulationResult,
 )
+from pyvergeos.resources.vmware import VmwareContainer, VmwareContainerManager
 from pyvergeos.resources.webhooks import Webhook, WebhookHistory, WebhookManager
 
 __all__ = [
@@ -471,4 +480,13 @@ __all__ = [
     "UpdateSourcePackageManager",
     "UpdateSourceStatus",
     "UpdateSourceStatusManager",
+    "TimeDashboard",
+    "TimeDashboardManager",
+    "TimeNodeSync",
+    "TimeSettings",
+    "TimeSettingsManager",
+    "VnetBondInterface",
+    "VnetBondInterfaceManager",
+    "VmwareContainer",
+    "VmwareContainerManager",
 ]

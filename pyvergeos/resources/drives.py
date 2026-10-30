@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pyvergeos.filters import combine_filters, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.versions import version_at_least
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -66,15 +67,29 @@ MEDIA_DISPLAY_MAP = {
 }
 
 
+# Read-only columns added on machine_drives in VergeOS 26.2.
+_DRIVE_26_2_FIELDS = ["uuid", "is_primary"]
+
+
 def _supports_ms_2023_kek(os_version: str | None) -> bool:
     """Return whether a VergeOS version exposes the Microsoft 2023 KEK field."""
-    parts = (os_version or "").split(".")
-    if len(parts) < 2:
-        return False
-    try:
-        return (int(parts[0]), int(parts[1])) >= (26, 1)
-    except ValueError:
-        return False
+    return version_at_least(os_version, 26, 1)
+
+
+def drive_default_fields(os_version: str | None) -> list[str]:
+    """Default drive projection for this server version.
+
+    ``ms_2023_kek_applied`` is 26.1 and later. ``uuid`` and ``is_primary``
+    are 26.2 and later. Older servers are not asked for columns they lack.
+    """
+    fields = [
+        field
+        for field in DRIVE_DEFAULT_FIELDS
+        if field != "ms_2023_kek_applied" or _supports_ms_2023_kek(os_version)
+    ]
+    if version_at_least(os_version, 26, 2):
+        fields.extend(_DRIVE_26_2_FIELDS)
+    return fields
 
 
 class Drive(ResourceObject):
@@ -120,6 +135,22 @@ class Drive(ResourceObject):
         return bool(self.get("ms_2023_kek_applied", False))
 
     @property
+    def uuid(self) -> str:
+        """Drive UUID. Empty when the server did not return one.
+
+        Read-only. Present on VergeOS 26.2 and later.
+        """
+        return str(self.get("uuid", "") or "")
+
+    @property
+    def is_primary(self) -> bool:
+        """Whether this is the VM's primary drive.
+
+        Read-only. Present on VergeOS 26.2 and later.
+        """
+        return bool(self.get("is_primary", False))
+
+    @property
     def drive_stats(self) -> MachineDriveStatsManager:
         """Per-drive IO statistics, scoped to this drive (issue #128).
 
@@ -162,11 +193,11 @@ class DriveManager(ResourceManager[Drive]):
     def __init__(self, client: VergeClient, vm: VM) -> None:
         super().__init__(client)
         self._vm = vm
-        self._default_fields = [
-            field
-            for field in DRIVE_DEFAULT_FIELDS
-            if field != "ms_2023_kek_applied" or _supports_ms_2023_kek(client.os_version)
-        ]
+        self._default_fields = drive_default_fields(client.os_version)
+
+    def _prepare_fields(self) -> list[str]:
+        self._default_fields = drive_default_fields(self._client.os_version)
+        return self._default_fields
 
     @property
     def machine_key(self) -> int:
@@ -206,6 +237,7 @@ class DriveManager(ResourceManager[Drive]):
         Returns:
             List of Drive objects.
         """
+        self._prepare_fields()
         if fields is None:
             fields = self._default_fields
 
@@ -258,6 +290,7 @@ class DriveManager(ResourceManager[Drive]):
             NotFoundError: If the drive does not exist or belongs to another VM.
             ValueError: If neither key nor name provided.
         """
+        self._prepare_fields()
         if fields is None:
             fields = self._default_fields
 
@@ -297,6 +330,8 @@ class DriveManager(ResourceManager[Drive]):
         readonly: bool = False,
         enabled: bool = True,
         media_source: int | str | None = None,
+        share: bool = False,
+        ovmf_code: int | str | None = None,
     ) -> Drive:
         """Create a new drive for this VM.
 
@@ -311,6 +346,10 @@ class DriveManager(ResourceManager[Drive]):
             enabled: Enable drive (default True).
             media_source: File key (int) or name (str) for CD-ROM media source.
                 Used to attach ISO or other media files.
+            share: Create the disk as a shared (multi-writer) disk. Sent only
+                when True. VergeOS 26.2.
+            ovmf_code: File key or name of a custom OVMF firmware image for an
+                EFI drive. VergeOS 26.2. A name is resolved to a media file.
 
         Returns:
             Created Drive object.
@@ -349,6 +388,10 @@ class DriveManager(ResourceManager[Drive]):
             body["description"] = description
         if readonly:
             body["readonly"] = True
+        if share:
+            body["share"] = True
+        if ovmf_code is not None:
+            body["ovmf_code"] = self._resolve_file_key(ovmf_code, "OVMF firmware")
 
         # Resolve media_source by name if string provided
         if media_source is not None:
@@ -421,6 +464,30 @@ class DriveManager(ResourceManager[Drive]):
         if not isinstance(response, dict):
             return self.get(key)
         return self._to_model_unprojected(response)
+
+    def _resolve_file_key(self, file_ref: int | str, label: str) -> int:
+        """Resolve a media-catalog file key or name to a key."""
+        if isinstance(file_ref, int):
+            return file_ref
+        response = self._client._request(
+            "GET",
+            "files",
+            params={
+                "filter": f"name eq {quote_value(file_ref)}",
+                "fields": "$key,name",
+            },
+        )
+        if not response:
+            raise ValueError(f"{label} file '{file_ref}' not found")
+        if isinstance(response, list):
+            if not response:
+                raise ValueError(f"{label} file '{file_ref}' not found")
+            key = response[0].get("$key")
+        else:
+            key = response.get("$key")
+        if key is None:
+            raise ValueError(f"{label} file '{file_ref}' not found")
+        return int(key)
 
     def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
         """Translate the ``tier`` alias to the API's ``preferred_tier`` field.

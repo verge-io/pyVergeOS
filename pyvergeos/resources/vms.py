@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import APIError
 from pyvergeos.filters import quote_value
 from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
+from pyvergeos.versions import prepare_default_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
@@ -30,6 +31,19 @@ logger = logging.getLogger(__name__)
 # ide, ahci, nvme, and non-disk media are refused after the drive exists,
 # which leaves an offline drive on the VM (issue #169). Measured on 26.1.8.
 _HOTPLUG_DRIVE_INTERFACES = frozenset({"virtio", "virtio-scsi"})
+
+# QEMU machine types VergeOS accepts, including the Q35 10.1, 10.2, and
+# 11.0 types added with 26.2. create() does not send one unless the caller
+# does, so the server can apply its own default (pc-q35-11.0 on 26.2).
+MACHINE_TYPES = (
+    "pc-q35-10.0",
+    "pc-q35-10.1",
+    "pc-q35-10.2",
+    "pc-q35-11.0",
+)
+
+# Own-columns that exist only on VergeOS 26.2 and later.
+_VM_26_2_FIELDS = ["bios_serial", "vgamem_mb"]
 
 # Plain own-columns. The computed entries live on the model below and are
 # appended when the full projection is assembled, so an accessor and the
@@ -302,24 +316,51 @@ class VM(ResourceObject):
         )
         return self
 
+    @property
+    def bios_serial(self) -> str:
+        """SMBIOS serial number assigned to this VM.
+
+        VergeOS 26.2 gives each VM its own serial. Empty when the server
+        did not return the field.
+        """
+        return str(self.get("bios_serial", "") or "")
+
+    @property
+    def vgamem_mb(self) -> int | None:
+        """Video adapter memory in MB.
+
+        VergeOS 26.2. None when the server did not return the field.
+        """
+        value = self.get("vgamem_mb")
+        if value is None:
+            return None
+        return int(value)
+
     def clone(
         self,
         name: str | None = None,
         preserve_macs: bool = False,
+        preserve_bios_serial: bool = False,
     ) -> dict[str, Any] | None:
         """Clone this VM.
 
         Args:
             name: Name for the clone (default: {name}_{timestamp}).
             preserve_macs: Keep original MAC addresses.
+            preserve_bios_serial: Keep the source SMBIOS serial. Sent only
+                when True, so a 26.1 server is not given a parameter it
+                does not have. VergeOS 26.2.
 
         Returns:
             Clone task information with new VM key.
         """
+        params: dict[str, Any] = {"preserve_macs": preserve_macs}
+        if preserve_bios_serial:
+            params["preserve_bios_serial"] = True
         body: dict[str, Any] = {
             "vm": self.key,
             "action": "clone",
-            "params": {"preserve_macs": preserve_macs},
+            "params": params,
         }
         if name:
             body["params"]["name"] = name
@@ -810,6 +851,7 @@ class VMManager(ResourceManager[VM]):
         Returns:
             List of VM objects.
         """
+        prepare_default_fields(self, VM_DEFAULT_FIELDS, _VM_26_2_FIELDS)
         if fields is None:
             fields = self._default_fields
 
@@ -847,6 +889,7 @@ class VMManager(ResourceManager[VM]):
             NotFoundError: If VM not found.
             ValueError: If neither key nor name provided.
         """
+        prepare_default_fields(self, VM_DEFAULT_FIELDS, _VM_26_2_FIELDS)
         if fields is None:
             fields = self._default_fields
         return super().get(key, name=name, fields=fields)
@@ -868,7 +911,7 @@ class VMManager(ResourceManager[VM]):
         cpu_cores: int = 1,
         description: str = "",
         os_family: str = "linux",
-        machine_type: str = "pc-q35-10.0",
+        machine_type: str | None = None,
         cloudinit_datasource: str | None = None,
         cloud_init: str | dict[str, str] | builtins.list[dict[str, Any]] | None = None,
         **kwargs: Any,
@@ -881,7 +924,9 @@ class VMManager(ResourceManager[VM]):
             cpu_cores: Number of CPU cores (default 1).
             description: VM description.
             os_family: OS family (linux, windows, freebsd, other).
-            machine_type: QEMU machine type.
+            machine_type: QEMU machine type, for example one of
+                ``MACHINE_TYPES``. Leave this unset to let the server pick
+                its default (``pc-q35-11.0`` on VergeOS 26.2).
             cloudinit_datasource: Cloud-init datasource type. Valid values are
                 "ConfigDrive" (Config Drive v2), "NoCloud", or None (disabled, default).
                 Use "none" or "" to explicitly disable delivery, even when files
@@ -958,9 +1003,10 @@ class VMManager(ResourceManager[VM]):
             "cpu_cores": cpu_cores,
             "description": description,
             "os_family": os_family,
-            "machine_type": machine_type,
-            **kwargs,
         }
+        if machine_type is not None:
+            data["machine_type"] = machine_type
+        data.update(kwargs)
 
         # Add cloudinit_datasource if specified
         if effective_datasource is not None:

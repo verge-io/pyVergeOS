@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# VergeOS 26.2 allows 255 NICs on a machine. The SDK does not impose a
+# lower cap on count or order.
+MAX_NICS_PER_MACHINE = 255
+
 # Plain own-columns. The computed entries live on the model below and are
 # appended when the full projection is assembled, so an accessor and the
 # field list feeding it cannot drift apart (issue #125).
@@ -178,6 +182,8 @@ NIC_DEFAULT_FIELDS = [
 class MachineNICManager(ResourceManager[NIC]):
     """Manager for machine NIC operations (not scoped to a specific VM).
 
+    A machine can have up to ``MAX_NICS_PER_MACHINE`` (255) NICs.
+
     Can list/get NICs across all machines, or scoped to a specific machine
     by passing a machine_key filter. This is the manager exposed on the
     client and on Node objects.
@@ -323,6 +329,7 @@ class NICManager(ResourceManager[NIC]):
     """Manager for VM NIC operations.
 
     This manager is accessed through a VM object's nics property.
+    A machine can have up to ``MAX_NICS_PER_MACHINE`` (255) NICs.
     """
 
     _endpoint = "machine_nics"
@@ -462,6 +469,7 @@ class NICManager(ResourceManager[NIC]):
             network: Network key (int) or name (str) to connect to.
             name: NIC name (optional, auto-generated if not provided).
             interface: NIC interface type (virtio, e1000, e1000e, etc.).
+                Up to 255 NICs can be attached to one machine.
             mac_address: MAC address (format: xx:xx:xx:xx:xx:xx).
             ip_address: Static IP address.
             description: NIC description.

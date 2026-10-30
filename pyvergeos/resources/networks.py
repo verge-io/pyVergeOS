@@ -12,10 +12,12 @@ from pyvergeos.resources.base import (
     ResourceObject,
     serialize_list,
 )
+from pyvergeos.versions import prepare_default_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
     from pyvergeos.resources.aliases import NetworkAliasManager
+    from pyvergeos.resources.bond_interfaces import VnetBondInterfaceManager
     from pyvergeos.resources.dns import DNSZoneManager
     from pyvergeos.resources.dns_views import DNSViewManager
     from pyvergeos.resources.hosts import NetworkHostManager
@@ -24,7 +26,7 @@ if TYPE_CHECKING:
         IPSecActiveConnectionManager,
         NetworkMonitorStatsManager,
     )
-    from pyvergeos.resources.queries import VNetQueryManager
+    from pyvergeos.resources.queries import QueryResult, VNetQueryManager
     from pyvergeos.resources.routing import NetworkRoutingManager
     from pyvergeos.resources.rules import NetworkRuleManager
     from pyvergeos.resources.vnet_proxy import VnetProxyManager
@@ -737,6 +739,70 @@ class Network(ResourceObject):
 
         return VNetQueryManager(self._manager._client, self.key)
 
+    @property
+    def bond_interfaces(self) -> VnetBondInterfaceManager:
+        """Bond member interfaces for this network.
+
+        ``primary`` is included when the server is VergeOS 26.2 or later.
+        """
+        from pyvergeos.resources.bond_interfaces import VnetBondInterfaceManager
+
+        return VnetBondInterfaceManager(self._manager._client, self.key)
+
+    def wakeonlan(self, mac: str, timeout: float = 30, **params: Any) -> QueryResult:
+        """Send a Wake-on-LAN query from this network.
+
+        Args:
+            mac: Target MAC address.
+            timeout: Max seconds to wait for the query.
+            **params: Extra query parameters.
+
+        Returns:
+            Completed query result.
+        """
+        return self.queries.wakeonlan(mac, timeout=timeout, **params)
+
+    @property
+    def dhcp_broadcast(self) -> bool:
+        """Whether a dynamic external network requests broadcast DHCP replies.
+
+        Off by default. VergeOS 26.2.
+        """
+        return bool(self.get("dhcp_broadcast", False))
+
+    @property
+    def vlan_bond_mode(self) -> str:
+        """VLAN bond mode, such as active-backup or balance-slb. VergeOS 26.2."""
+        return str(self.get("vlan_bond_mode", "") or "")
+
+    @property
+    def vlan_bond_primary(self) -> str | int | None:
+        """Primary member of a VLAN bond. VergeOS 26.2."""
+        return self.get("vlan_bond_primary")
+
+    @property
+    def vlan_bond_miimon(self) -> int | None:
+        """VLAN bond MII monitor interval in milliseconds. VergeOS 26.2."""
+        value = self.get("vlan_bond_miimon")
+        return int(value) if value is not None else None
+
+    @property
+    def vlan_bond_updelay(self) -> int | None:
+        """VLAN bond up-delay in milliseconds. VergeOS 26.2."""
+        value = self.get("vlan_bond_updelay")
+        return int(value) if value is not None else None
+
+    @property
+    def vlan_bond_downdelay(self) -> int | None:
+        """VLAN bond down-delay in milliseconds. VergeOS 26.2."""
+        value = self.get("vlan_bond_downdelay")
+        return int(value) if value is not None else None
+
+    @property
+    def vlan_bond_xmit_hash_policy(self) -> str:
+        """VLAN bond transmit hash policy. VergeOS 26.2."""
+        return str(self.get("vlan_bond_xmit_hash_policy", "") or "")
+
     def statistics(
         self,
         include_history: bool = False,
@@ -797,6 +863,17 @@ class Network(ResourceObject):
 DEFAULT_NETWORK_FIELDS = [
     *_NETWORK_COLUMNS,
     *Network.projected_entries(),
+]
+
+# Columns added on vnets in VergeOS 26.2.
+_NETWORK_26_2_FIELDS = [
+    "dhcp_broadcast",
+    "vlan_bond_mode",
+    "vlan_bond_primary",
+    "vlan_bond_miimon",
+    "vlan_bond_updelay",
+    "vlan_bond_downdelay",
+    "vlan_bond_xmit_hash_policy",
 ]
 
 
@@ -897,9 +974,9 @@ class NetworkManager(ResourceManager[Network]):
         Returns:
             List of Network objects.
         """
-        # Use default fields if none specified
+        prepare_default_fields(self, DEFAULT_NETWORK_FIELDS, _NETWORK_26_2_FIELDS)
         if fields is None:
-            fields = DEFAULT_NETWORK_FIELDS.copy()
+            fields = self._default_fields
         return super().list(
             filter=filter,
             fields=fields,
@@ -928,8 +1005,9 @@ class NetworkManager(ResourceManager[Network]):
         Raises:
             NotFoundError: If network not found.
         """
+        prepare_default_fields(self, DEFAULT_NETWORK_FIELDS, _NETWORK_26_2_FIELDS)
         if fields is None:
-            fields = DEFAULT_NETWORK_FIELDS.copy()
+            fields = self._default_fields
         return super().get(key, name=name, fields=fields)
 
     def list_internal(self) -> builtins.list[Network]:
@@ -983,6 +1061,13 @@ class NetworkManager(ResourceManager[Network]):
         interface_network: int | None = None,
         on_power_loss: str = "last_state",
         description: str = "",
+        dhcp_broadcast: bool | None = None,
+        vlan_bond_mode: str | None = None,
+        vlan_bond_primary: str | int | None = None,
+        vlan_bond_miimon: int | None = None,
+        vlan_bond_updelay: int | None = None,
+        vlan_bond_downdelay: int | None = None,
+        vlan_bond_xmit_hash_policy: str | None = None,
         **kwargs: Any,
     ) -> Network:
         """Create a new virtual network.
@@ -1005,6 +1090,14 @@ class NetworkManager(ResourceManager[Network]):
             interface_network: Key of interface (uplink) network.
             on_power_loss: Behavior on power restore (power_on, last_state, leave_off).
             description: Network description.
+            dhcp_broadcast: Ask DHCP servers to answer by broadcast. Off unless
+                set. VergeOS 26.2. Sent only when not None.
+            vlan_bond_mode: VLAN bond mode. VergeOS 26.2.
+            vlan_bond_primary: Primary bond member. VergeOS 26.2.
+            vlan_bond_miimon: MII monitor interval in milliseconds. VergeOS 26.2.
+            vlan_bond_updelay: Up-delay in milliseconds. VergeOS 26.2.
+            vlan_bond_downdelay: Down-delay in milliseconds. VergeOS 26.2.
+            vlan_bond_xmit_hash_policy: Transmit hash policy. VergeOS 26.2.
             **kwargs: Additional network properties.
 
         Returns:
@@ -1041,6 +1134,20 @@ class NetworkManager(ResourceManager[Network]):
             data["layer2_id"] = layer2_id
         if interface_network:
             data["interface_vnet"] = interface_network
+        if dhcp_broadcast is not None:
+            data["dhcp_broadcast"] = dhcp_broadcast
+        if vlan_bond_mode is not None:
+            data["vlan_bond_mode"] = vlan_bond_mode
+        if vlan_bond_primary is not None:
+            data["vlan_bond_primary"] = vlan_bond_primary
+        if vlan_bond_miimon is not None:
+            data["vlan_bond_miimon"] = vlan_bond_miimon
+        if vlan_bond_updelay is not None:
+            data["vlan_bond_updelay"] = vlan_bond_updelay
+        if vlan_bond_downdelay is not None:
+            data["vlan_bond_downdelay"] = vlan_bond_downdelay
+        if vlan_bond_xmit_hash_policy is not None:
+            data["vlan_bond_xmit_hash_policy"] = vlan_bond_xmit_hash_policy
 
         # Create the network
         response = self._client._request("POST", self._endpoint, json_data=data)
