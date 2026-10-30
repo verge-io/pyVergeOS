@@ -32,6 +32,7 @@ from pyvergeos.resources.time import (
 from pyvergeos.resources.updates import (
     UpdatePackage,
     UpdatePackageManager,
+    UpdateSettings,
     UpdateSettingsManager,
     UpdateSourceStatus,
     UpdateSourceStatusManager,
@@ -304,8 +305,8 @@ class TestImportsDrivesFiles:
         vm = VM({"$key": 1, "machine": 2}, mock_client.vms)
         DriveManager(mock_client, vm).list()
         fields = _fields(mock_session)
-        for name in ("uuid", "is_primary"):
-            assert (name in fields) is version.startswith("26.2")
+        assert "uuid" not in fields
+        assert ("is_primary" in fields) is version.startswith("26.2")
         assert ("ms_2023_kek_applied" in fields) is True
 
     def test_drive_create_share_and_ovmf(
@@ -327,17 +328,12 @@ class TestImportsDrivesFiles:
         assert body["ovmf_code"] == 15
         assert "disksize" not in body
 
-    def test_file_type_fd_and_uuid_gating(
-        self, mock_client: VergeClient, mock_session: MagicMock
-    ) -> None:
+    def test_file_type_fd(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """fd is an OVMF firmware type. files.uuid is hidden and not requested."""
         assert FILE_TYPES["fd"] == "OVMF firmware"
-        _version(mock_client, "26.1.8")
         mock_session.request.return_value.json.return_value = []
         FileManager(mock_client).list()
         assert "uuid" not in _fields(mock_session)
-        _version(mock_client, "26.2.2.1")
-        FileManager(mock_client).list()
-        assert "uuid" in _fields(mock_session)
 
 
 class TestMachineStatusAndNics:
@@ -463,7 +459,11 @@ class TestNetworks:
         config = routing.get_config()
         assert config is not None
         assert config.daemon_enabled("bgpd") is True
+        assert config.daemon_enabled("sharpd") is False
         assert config.advanced is True
+        assert "sharpd" in VNET_BGP_DAEMONS
+        assert "staticd" not in VNET_BGP_DAEMONS
+        assert "console_status" not in VNET_BGP_26_2_FIELDS
         assert len(VNET_BGP_DAEMONS) == 18
         fields = _fields(mock_session)
         for name in VNET_BGP_26_2_FIELDS:
@@ -525,7 +525,7 @@ class TestNetworks:
         routing = NetworkRoutingManager(mock_client, network)
         mock_session.request.reset_mock()
         with pytest.raises(ValueError, match="Unknown FRR daemon"):
-            routing.update_config(daemons={"sharpd": True})
+            routing.update_config(daemons={"staticd": True})
         mock_session.request.assert_not_called()
 
     def test_wakeonlan_query_and_network_wrapper(
@@ -595,6 +595,16 @@ class TestAlarmsUpdatesVMware:
         mock_session.request.return_value.json.return_value = {"$key": 1, "source": 1}
         UpdateSettingsManager(mock_client).get()
         assert ("restart_pending_packages" in _fields(mock_session)) is version.startswith("26.2")
+
+    def test_restart_pending_packages_is_a_list(self, mock_client: VergeClient) -> None:
+        manager = UpdateSettingsManager(mock_client)
+        pending = UpdateSettings(
+            {"$key": 1, "restart_pending_packages": ["vergeos"]},
+            manager,
+        )
+        assert pending.restart_pending_packages == ["vergeos"]
+        empty = UpdateSettings({"$key": 1, "restart_pending_packages": []}, manager)
+        assert empty.restart_pending_packages == []
 
     def test_uninstall_payload(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         mock_session.request.return_value.json.side_effect = [

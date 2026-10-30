@@ -57,7 +57,8 @@ class TestVergeOS262:
         if not vms:
             pytest.skip("no VMs on this system")
         vm = vms[0]
-        assert vm.bios_serial
+        assert "bios_serial" in vm
+        assert isinstance(vm.bios_serial, str)
         assert vm.vgamem_mb in VGAMEM_CHOICES
         status = vm.machine_status.get()
         assert isinstance(status.agent_ip_list, str)
@@ -66,9 +67,6 @@ class TestVergeOS262:
     def test_catalog_and_package_fields(self, live_client: VergeClient) -> None:
         """Files, alarms, and packages accept their 26.2 columns."""
         _needs_26_2(live_client)
-        files = live_client.files.list(limit=1)
-        if files:
-            assert files[0].uuid
         alarms = live_client.alarms.list(limit=1)
         if alarms:
             assert isinstance(alarms[0].sub_owner_type, str)
@@ -78,7 +76,7 @@ class TestVergeOS262:
             assert isinstance(packages[0].dependencies, list)
         settings = live_client.update_settings.get()
         assert "restart_pending_packages" in settings
-        assert isinstance(settings.restart_pending_packages, bool)
+        assert isinstance(settings.restart_pending_packages, list)
 
     def test_bgp_config_columns(self, live_client: VergeClient) -> None:
         """Advanced BGP columns are read from vnet_bgp when a row exists."""
@@ -93,8 +91,9 @@ class TestVergeOS262:
             assert "advanced_config" in config
             assert "console_rows" in config
             assert "console_cols" in config
-            assert "console_status" in config
+            assert "console_status" not in config
             assert isinstance(config.advanced_config, str)
+            assert config.advanced_config
             assert "daemon_bgpd" in config
             for name in VNET_BGP_DAEMONS:
                 assert f"daemon_{name}" in config

@@ -1436,7 +1436,8 @@ class UpdateSettings(ResourceObject):
         applying_updates: Whether updates are currently being applied.
         release_notes_url: URL to release notes.
         anonymize_statistics: Anonymize statistics sent to update server.
-        restart_pending_packages: Packages waiting on a restart. VergeOS 26.2.
+        restart_pending_packages: JSON list of packages waiting on a restart.
+            VergeOS 26.2. Empty when nothing is pending.
     """
 
     @property
@@ -1495,12 +1496,18 @@ class UpdateSettings(ResourceObject):
         return bool(self.get("applying_updates", False))
 
     @property
-    def restart_pending_packages(self) -> bool:
-        """Whether installed packages are waiting on a service restart.
+    def restart_pending_packages(self) -> list[str]:
+        """Package names waiting on a restart.
 
-        VergeOS 26.2. False when the server did not return the field.
+        VergeOS 26.2 stores this as a JSON list. Empty when nothing is
+        pending or the server did not return the field.
         """
-        return bool(self.get("restart_pending_packages", False))
+        raw = self.get("restart_pending_packages")
+        if isinstance(raw, list):
+            return [str(item) for item in raw if item]
+        if isinstance(raw, str) and raw.strip():
+            return [part.strip() for part in raw.split(",") if part.strip()]
+        return []
 
     def check(self) -> dict[str, Any] | None:
         """Check for available updates.
@@ -1662,7 +1669,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         snapshot_cloud_on_update: bool | None = None,
         snapshot_cloud_expire_seconds: int | None = None,
         anonymize_statistics: bool | None = None,
-        restart_pending_packages: bool | None = None,
+        restart_pending_packages: list[str] | None = None,
     ) -> UpdateSettings:
         """Update the update settings.
 
@@ -1682,8 +1689,8 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
             snapshot_cloud_on_update: Take system snapshot before updates.
             snapshot_cloud_expire_seconds: Snapshot expiration period in seconds.
             anonymize_statistics: Anonymize statistics sent to update server.
-            restart_pending_packages: Whether packages are waiting on a restart.
-                VergeOS 26.2. Sent only when not None.
+            restart_pending_packages: Package names waiting on a restart.
+                VergeOS 26.2. Sent only when not None. An empty list clears it.
 
         Returns:
             Updated UpdateSettings object.

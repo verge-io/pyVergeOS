@@ -67,8 +67,9 @@ MEDIA_DISPLAY_MAP = {
 }
 
 
-# Read-only columns added on machine_drives in VergeOS 26.2.
-_DRIVE_26_2_FIELDS = ["uuid", "is_primary"]
+# Read-only column added on machine_drives in VergeOS 26.2.
+# ``uuid`` is in the schema but hidden: the API never returns it.
+_DRIVE_26_2_FIELDS = ["is_primary"]
 
 
 def _supports_ms_2023_kek(os_version: str | None) -> bool:
@@ -79,8 +80,8 @@ def _supports_ms_2023_kek(os_version: str | None) -> bool:
 def drive_default_fields(os_version: str | None) -> list[str]:
     """Default drive projection for this server version.
 
-    ``ms_2023_kek_applied`` is 26.1 and later. ``uuid`` and ``is_primary``
-    are 26.2 and later. Older servers are not asked for columns they lack.
+    ``ms_2023_kek_applied`` is 26.1 and later. ``is_primary`` is 26.2 and
+    later. Older servers are not asked for columns they lack.
     """
     fields = [
         field
@@ -133,14 +134,6 @@ class Drive(ResourceObject):
     def ms_2023_kek_applied(self) -> bool:
         """Check if the Microsoft 2023 Secure Boot keys have been applied."""
         return bool(self.get("ms_2023_kek_applied", False))
-
-    @property
-    def uuid(self) -> str:
-        """Drive UUID. Empty when the server did not return one.
-
-        Read-only. Present on VergeOS 26.2 and later.
-        """
-        return str(self.get("uuid", "") or "")
 
     @property
     def is_primary(self) -> bool:

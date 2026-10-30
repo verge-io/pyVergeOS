@@ -25,7 +25,6 @@ from pyvergeos.constants import (
 )
 from pyvergeos.exceptions import APIError, NotFoundError, ValidationError
 from pyvergeos.resources.base import ResourceManager, ResourceObject
-from pyvergeos.versions import prepare_default_fields
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +61,6 @@ FILE_DEFAULT_FIELDS = [
     "modified",
     "creator",
 ]
-
-# Read-only column added in VergeOS 26.2.
-_FILE_26_2_FIELDS = ["uuid"]
 
 
 class File(ResourceObject):
@@ -146,14 +142,6 @@ class File(ResourceObject):
         """Username who created the file."""
         return str(self.get("creator", ""))
 
-    @property
-    def uuid(self) -> str:
-        """File UUID. Empty when the server did not return one.
-
-        Read-only. Present on VergeOS 26.2 and later.
-        """
-        return str(self.get("uuid", "") or "")
-
     def __repr__(self) -> str:
         return f"<File key={self.get('$key', '?')} name={self.name!r} type={self.file_type}>"
 
@@ -213,9 +201,8 @@ class FileManager(ResourceManager[File]):
             >>> # List importable disk images
             >>> images = client.files.list(file_type=["ova", "ovf", "vmdk", "qcow2"])
         """
-        prepare_default_fields(self, FILE_DEFAULT_FIELDS, _FILE_26_2_FIELDS)
         if fields is None:
-            fields = self._default_fields
+            fields = FILE_DEFAULT_FIELDS
 
         results = super().list(
             filter=filter, fields=fields, limit=limit, offset=offset, **filter_kwargs

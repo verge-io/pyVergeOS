@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import combine_filters, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject, reference_key
+from pyvergeos.resources.base import ResourceManager, ResourceObject
 from pyvergeos.versions import extend_fields
 
 if TYPE_CHECKING:
@@ -2670,38 +2670,36 @@ class EIGRPRouterManager(ResourceManager[EIGRPRouter]):
 # vnet_bgp columns that exist on every release this SDK talks to.
 _VNET_BGP_FIELDS = ["$key", "vnet"]
 
-# FRR daemons with a daemon_* flag on vnet_bgp. zebra is the core process
-# and is not one of these flags. sharpd is the FRR test daemon and is not
-# exposed. Eighteen flags, matching the 26.2 table.
+# The 18 daemon_* flags on vnet_bgp. zebra is not one of them. The live
+# table has sharpd and does not have staticd.
 VNET_BGP_DAEMONS = (
+    "babeld",
+    "bfdd",
     "bgpd",
-    "ospfd",
-    "ospf6d",
-    "ripd",
-    "ripngd",
+    "eigrpd",
+    "fabricd",
     "isisd",
-    "pimd",
-    "pim6d",
     "ldpd",
     "nhrpd",
-    "eigrpd",
-    "babeld",
-    "pbrd",
-    "bfdd",
-    "fabricd",
-    "vrrpd",
+    "ospf6d",
+    "ospfd",
     "pathd",
-    "staticd",
+    "pbrd",
+    "pim6d",
+    "pimd",
+    "ripd",
+    "ripngd",
+    "sharpd",
+    "vrrpd",
 )
 
 # Advanced columns on vnet_bgp, added in VergeOS 26.2. They are not
-# columns of the vnets table. console_status points at machine_console.
+# columns of the vnets table.
 VNET_BGP_26_2_FIELDS = [
     "advanced",
     "advanced_config",
     "console_rows",
     "console_cols",
-    "console_status",
     *[f"daemon_{name}" for name in VNET_BGP_DAEMONS],
 ]
 
@@ -2741,11 +2739,6 @@ class VnetBGP(ResourceObject):
         """vtysh console width in columns."""
         value = self.get("console_cols")
         return int(value) if value is not None else None
-
-    @property
-    def console_status_key(self) -> str | int | None:
-        """Key of the ``machine_console`` row for this console, if any."""
-        return reference_key(self.get("console_status"))
 
     @property
     def daemons(self) -> dict[str, bool]:
