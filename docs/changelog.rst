@@ -6,6 +6,18 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+Fixed
+^^^^^
+
+- Declared ``urllib3>=1.26``. Session setup calls
+  ``Retry(allowed_methods=...)``, which urllib3 1.25 does not accept.
+  ``requests>=2.28.0`` still allows 1.25, so an environment that met the
+  declared dependencies could raise ``TypeError`` while creating a
+  connection. (#196)
+
 [1.7.1] - 2026-09-27
 --------------------
 
