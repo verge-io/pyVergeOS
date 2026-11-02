@@ -180,6 +180,8 @@ from pyvergeos.resources.snapshot_profiles import (
     SnapshotProfileManager,
     SnapshotProfilePeriod,
     SnapshotProfilePeriodManager,
+    SnapshotProfilePeriodTag,
+    SnapshotProfilePeriodTagManager,
 )
 from pyvergeos.resources.tags import (
     Tag,
@@ -188,6 +190,8 @@ from pyvergeos.resources.tags import (
     TagManager,
     TagMember,
     TagMemberManager,
+    TagReference,
+    TagReferenceManager,
 )
 from pyvergeos.resources.tenant_external_ips import (
     TenantExternalIP,
@@ -417,12 +421,16 @@ __all__ = [
     "SnapshotProfileManager",
     "SnapshotProfilePeriod",
     "SnapshotProfilePeriodManager",
+    "SnapshotProfilePeriodTag",
+    "SnapshotProfilePeriodTagManager",
     "Tag",
     "TagCategory",
     "TagCategoryManager",
     "TagManager",
     "TagMember",
     "TagMemberManager",
+    "TagReference",
+    "TagReferenceManager",
     "Tenant",
     "TenantExternalIP",
     "TenantExternalIPManager",

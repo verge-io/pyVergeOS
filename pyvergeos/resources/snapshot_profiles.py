@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import builtins
+from collections.abc import Sequence
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.cloud_snapshots import TagRef
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+    from pyvergeos.resources.tags import TagReference
 
 
 # Frequency options
@@ -57,7 +60,21 @@ _DEFAULT_PERIOD_FIELDS = [
     "min_snapshots",
     "immutable",
     "estimated_snapshot_count",
+    # Tag scope and the private flag. Read off a stored period on 26.1.8.
+    # site_sync_refs is also a column there; it is a rows field, so it stays
+    # out of this list.
+    "type",
+    "partial_tags",
+    "quiesce_tags",
+    "private",
 ]
+
+# type values stored on a period, and on a cloud snapshot. Measured with
+# cloud_snapshots.create() on 26.1.8.
+PERIOD_SNAPSHOT_TYPES = ("full", "partial_include", "partial_exclude")
+
+# snapshot_profile_period_tags, from a 26.1.8 listing of 26 rows.
+_DEFAULT_PERIOD_TAG_FIELDS = ["$key", "snapshot_profile_period", "refs"]
 
 
 class SnapshotProfilePeriod(ResourceObject):
@@ -85,6 +102,13 @@ class SnapshotProfilePeriod(ResourceObject):
         min_snapshots: Minimum snapshots to retain.
         is_immutable: Whether snapshots are immutable (system snapshots only).
         estimated_snapshot_count: Estimated number of snapshots.
+        snapshot_type: full, partial_include, or partial_exclude.
+        partial_tags: Comma-separated tag keys for a partial snapshot.
+        partial_tag_keys: Those keys as ints.
+        quiesce_tags: Comma-separated tag keys that quiesce during a partial snapshot.
+        quiesce_tag_keys: Those keys as ints.
+        is_private: Whether snapshots from this period are hidden from tenants.
+        is_partial: Whether the period is include-scoped or exclude-scoped.
     """
 
     @property
@@ -192,6 +216,48 @@ class SnapshotProfilePeriod(ResourceObject):
         val = self.get("estimated_snapshot_count")
         return int(val) if val is not None else None
 
+    @property
+    def snapshot_type(self) -> str:
+        """Snapshot scope stored in ``type``.
+
+        ``full`` when the row has no type. A partial period is
+        ``partial_include`` or ``partial_exclude``.
+        """
+        raw = self.get("type")
+        return str(raw) if raw else "full"
+
+    @property
+    def is_partial(self) -> bool:
+        """Whether this period captures a tag-scoped subset."""
+        return self.snapshot_type in ("partial_include", "partial_exclude")
+
+    @property
+    def partial_tags(self) -> str:
+        """Comma-separated tag keys for the partial snapshot."""
+        raw = self.get("partial_tags")
+        return str(raw) if raw else ""
+
+    @property
+    def partial_tag_keys(self) -> builtins.list[int]:
+        """Tag keys parsed from ``partial_tags``."""
+        return _split_tag_keys(self.get("partial_tags"))
+
+    @property
+    def quiesce_tags(self) -> str:
+        """Comma-separated tag keys that quiesce during the snapshot."""
+        raw = self.get("quiesce_tags")
+        return str(raw) if raw else ""
+
+    @property
+    def quiesce_tag_keys(self) -> builtins.list[int]:
+        """Tag keys parsed from ``quiesce_tags``."""
+        return _split_tag_keys(self.get("quiesce_tags"))
+
+    @property
+    def is_private(self) -> bool:
+        """Whether snapshots from this period are hidden from tenants."""
+        return bool(self.get("private", False))
+
     def save(self, **kwargs: Any) -> SnapshotProfilePeriod:
         """Save changes to period.
 
@@ -211,6 +277,13 @@ class SnapshotProfilePeriod(ResourceObject):
 
         manager = cast("SnapshotProfilePeriodManager", self._manager)
         manager.delete(self.key)
+
+    def period_tags(self) -> SnapshotProfilePeriodTagManager:
+        """Join rows that link this period to ``tag_references``."""
+        from typing import cast
+
+        manager = cast("SnapshotProfilePeriodManager", self._manager)
+        return manager.period_tags(self.key)
 
     def __repr__(self) -> str:
         key = self.get("$key", "?")
@@ -307,6 +380,9 @@ class SnapshotProfile(ResourceObject):
         quiesce: bool = False,
         min_snapshots: int = 1,
         immutable: bool = False,
+        include_tags: TagRef | Sequence[TagRef] | None = None,
+        exclude_tags: TagRef | Sequence[TagRef] | None = None,
+        quiesce_tags: TagRef | Sequence[TagRef] | None = None,
     ) -> SnapshotProfilePeriod:
         """Add a schedule period to this profile.
 
@@ -323,6 +399,9 @@ class SnapshotProfile(ResourceObject):
             quiesce: Enable disk quiescing.
             min_snapshots: Minimum snapshots to retain.
             immutable: Make snapshots immutable (system snapshots only).
+            include_tags: Capture only resources carrying these tags.
+            exclude_tags: Capture everything except resources carrying these tags.
+            quiesce_tags: Quiesce resources carrying these tags. Partial periods only.
 
         Returns:
             Created SnapshotProfilePeriod object.
@@ -343,6 +422,9 @@ class SnapshotProfile(ResourceObject):
             quiesce=quiesce,
             min_snapshots=min_snapshots,
             immutable=immutable,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            quiesce_tags=quiesce_tags,
         )
 
     def __repr__(self) -> str:
@@ -507,6 +589,9 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         quiesce: bool = False,
         min_snapshots: int = 1,
         immutable: bool = False,
+        include_tags: TagRef | Sequence[TagRef] | None = None,
+        exclude_tags: TagRef | Sequence[TagRef] | None = None,
+        quiesce_tags: TagRef | Sequence[TagRef] | None = None,
     ) -> SnapshotProfilePeriod:
         """Create a new period in this profile.
 
@@ -523,6 +608,12 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             quiesce: Enable disk quiescing.
             min_snapshots: Minimum snapshots to retain.
             immutable: Make snapshots immutable (system snapshots only).
+            include_tags: Capture only resources carrying these tags. A tag is
+                a ``$key``, a name, or a Tag object. Mutually exclusive with
+                ``exclude_tags``.
+            exclude_tags: Capture everything except resources carrying these tags.
+            quiesce_tags: Quiesce resources carrying these tags during the
+                snapshot. Only on a partial period.
 
         Returns:
             Created SnapshotProfilePeriod object.
@@ -569,6 +660,16 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             "min_snapshots": min_snapshots,
             "immutable": immutable,
         }
+        body.update(
+            self._period_tag_body(
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                quiesce_tags=quiesce_tags,
+                snapshot_type=None,
+                current_type=None,
+                clear_empty_quiesce=False,
+            )
+        )
 
         response = self._client._request("POST", self._endpoint, json_data=body)
         if response is None:
@@ -582,14 +683,29 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             return self.get(int(created_key))
         return self._to_model_unprojected(response)
 
-    def update(self, key: int, **kwargs: Any) -> SnapshotProfilePeriod:
+    def update(
+        self,
+        key: int,
+        *,
+        include_tags: TagRef | Sequence[TagRef] | None = None,
+        exclude_tags: TagRef | Sequence[TagRef] | None = None,
+        quiesce_tags: TagRef | Sequence[TagRef] | None = None,
+        snapshot_type: str | None = None,
+        **kwargs: Any,
+    ) -> SnapshotProfilePeriod:
         """Update a period.
 
         Args:
             key: Period $key (ID).
-            **kwargs: Fields to update (name, frequency, retention, minute, hour,
-                     day_of_week, day_of_month, month, max_tier, quiesce,
-                     min_snapshots, immutable).
+            include_tags: Capture only resources carrying these tags.
+            exclude_tags: Capture everything except resources carrying these tags.
+            quiesce_tags: Quiesce resources carrying these tags. An empty list
+                clears the column. Omit it to leave the column alone.
+            snapshot_type: Pass ``"full"`` to clear tag scope. A partial scope
+                is set with ``include_tags`` or ``exclude_tags``.
+            **kwargs: Columns to update (name, frequency, retention, minute, hour,
+                day_of_week, day_of_month, month, max_tier, quiesce,
+                min_snapshots, immutable, type, partial_tags, quiesce_tags, private).
 
         Returns:
             Updated SnapshotProfilePeriod object.
@@ -598,7 +714,30 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             ValueError: If ``skip_missed`` or another invalid field is passed.
                 ``skip_missed`` is not a period column.
         """
+        needs_current = (
+            quiesce_tags is not None
+            and include_tags is None
+            and exclude_tags is None
+            and snapshot_type != "full"
+        )
+        current_type = self.get(key).snapshot_type if needs_current else None
+        tag_body = self._period_tag_body(
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            quiesce_tags=quiesce_tags,
+            snapshot_type=snapshot_type,
+            current_type=current_type,
+            clear_empty_quiesce=True,
+        )
+        overlap = set(tag_body) & set(kwargs)
+        if overlap:
+            names = ", ".join(sorted(overlap))
+            raise ValueError(
+                "pass tag scope as include_tags, exclude_tags, quiesce_tags, "
+                f"or snapshot_type, or as the raw columns, not both ({names})"
+            )
         kwargs = self._prepare_write_fields(kwargs)
+        kwargs.update(tag_body)
         self._client._request("PUT", f"{self._endpoint}/{key}", json_data=kwargs)
         return self.get(key)
 
@@ -608,6 +747,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         Used by both ``update()`` and ``ResourceObject._save()`` so attribute
         assignment behaves the same as ``update()`` (issue #97).
         """
+        fields = dict(fields)
         # Not a column on snapshot_profile_periods. VergeOS accepts the name
         # and drops it, so a write looked successful and a later read was
         # always false (issue #139). Measured absent on 26.1.8.
@@ -615,14 +755,123 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             raise ValueError(
                 "skip_missed is not a snapshot profile period column; VergeOS discards it"
             )
+        for convenience in ("include_tags", "exclude_tags", "quiesce_tags", "snapshot_type"):
+            if convenience in fields:
+                raise ValueError(
+                    f"{convenience} is not a snapshot profile period column; "
+                    "pass it to create(), update(), or save()"
+                )
         if "frequency" in fields and fields["frequency"] not in FREQUENCIES:
             raise ValueError(f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}")
         if "day_of_week" in fields and fields["day_of_week"] not in DAYS_OF_WEEK:
             raise ValueError(f"Invalid day_of_week. Must be one of: {', '.join(DAYS_OF_WEEK)}")
+        if "type" in fields and fields["type"] not in PERIOD_SNAPSHOT_TYPES:
+            raise ValueError(
+                f"Invalid type {fields['type']!r}. "
+                f"Must be one of: {', '.join(PERIOD_SNAPSHOT_TYPES)}"
+            )
+        if fields.get("type") == "full":
+            fields.setdefault("partial_tags", "")
+            fields.setdefault("quiesce_tags", "")
         if "max_tier" in fields:
-            fields = dict(fields)
             fields["max_tier"] = str(fields["max_tier"])
+        for column in ("partial_tags", "quiesce_tags"):
+            if column in fields and not isinstance(fields[column], str):
+                fields[column] = self._coerce_tag_column(fields[column])
         return fields
+
+    def period_tags(self, period_key: int) -> SnapshotProfilePeriodTagManager:
+        """Join rows for one period.
+
+        Args:
+            period_key: Period ``$key``.
+
+        Returns:
+            A manager filtered to that period.
+        """
+        return SnapshotProfilePeriodTagManager(self._client, period_key)
+
+    def _resolve_tag_keys(self, tags: TagRef | Sequence[TagRef] | None) -> str | None:
+        """Resolve tags to the comma-separated ``$key`` string the columns store.
+
+        ``partial_tags`` and ``quiesce_tags`` take keys. A name stored
+        verbatim is ignored, same as on a cloud snapshot, so this uses that
+        resolver.
+        """
+        from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
+
+        return CloudSnapshotManager(self._client)._resolve_tag_keys(tags)
+
+    def _coerce_tag_column(self, value: Any) -> str:
+        """Turn a tag column value into the comma-separated key string."""
+        if isinstance(value, str):
+            return value
+        if value is None:
+            return ""
+        return self._resolve_tag_keys(value) or ""
+
+    def _period_tag_body(
+        self,
+        *,
+        include_tags: TagRef | Sequence[TagRef] | None,
+        exclude_tags: TagRef | Sequence[TagRef] | None,
+        quiesce_tags: TagRef | Sequence[TagRef] | None,
+        snapshot_type: str | None,
+        current_type: str | None,
+        clear_empty_quiesce: bool,
+    ) -> dict[str, Any]:
+        """Build the ``type`` / ``partial_tags`` / ``quiesce_tags`` write.
+
+        ``snapshot_type="full"`` clears the tag columns. A partial scope is
+        written by ``include_tags`` or ``exclude_tags``, which set ``type``
+        to ``partial_include`` or ``partial_exclude``.
+        """
+        if include_tags is not None and exclude_tags is not None:
+            raise ValueError(
+                "include_tags and exclude_tags are mutually exclusive; a partial "
+                "snapshot is either include-scoped or exclude-scoped, not both"
+            )
+        if snapshot_type not in (None, "full"):
+            raise ValueError(
+                "snapshot_type only accepts 'full', to clear tag scope. "
+                "Pass include_tags or exclude_tags to set a partial period"
+            )
+        if snapshot_type == "full" and (include_tags is not None or exclude_tags is not None):
+            raise ValueError(
+                "snapshot_type='full' cannot be combined with include_tags or exclude_tags"
+            )
+
+        body: dict[str, Any] = {}
+        if include_tags is not None:
+            partial_keys = self._resolve_tag_keys(include_tags)
+            if not partial_keys:
+                raise ValueError("include_tags must name at least one tag")
+            body["type"] = "partial_include"
+            body["partial_tags"] = partial_keys
+        elif exclude_tags is not None:
+            partial_keys = self._resolve_tag_keys(exclude_tags)
+            if not partial_keys:
+                raise ValueError("exclude_tags must name at least one tag")
+            body["type"] = "partial_exclude"
+            body["partial_tags"] = partial_keys
+        elif snapshot_type == "full":
+            body["type"] = "full"
+            body["partial_tags"] = ""
+            body["quiesce_tags"] = ""
+
+        if quiesce_tags is not None:
+            quiesce_keys = self._resolve_tag_keys(quiesce_tags)
+            if quiesce_keys:
+                effective = body.get("type", current_type)
+                if effective not in ("partial_include", "partial_exclude"):
+                    raise ValueError(
+                        "quiesce_tags applies only to a partial snapshot; also pass "
+                        "include_tags or exclude_tags"
+                    )
+                body["quiesce_tags"] = quiesce_keys
+            elif clear_empty_quiesce and "quiesce_tags" not in body:
+                body["quiesce_tags"] = ""
+        return body
 
     def delete(self, key: int) -> None:
         """Delete a period.
@@ -631,6 +880,254 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             key: Period $key (ID).
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
+
+
+def _split_tag_keys(raw: Any) -> builtins.list[int]:
+    """Parse a comma-separated tag-key column. Non-numeric tokens are skipped."""
+    if raw is None or raw is False:
+        return []
+    text = raw if isinstance(raw, str) else str(raw)
+    keys: builtins.list[int] = []
+    for part in text.split(","):
+        part = part.strip()
+        if part.isdigit():
+            keys.append(int(part))
+    return keys
+
+
+def _rows_from_refs(refs: Any) -> builtins.list[dict[str, Any]]:
+    """Turn a ``refs`` value into row dicts.
+
+    The column links a period-tag row to ``tag_references``. Expanded, it is
+    a list of rows. Unexpanded, it can be a count. A count is not a key.
+    """
+    if refs is None or refs == "" or refs == 0 or isinstance(refs, bool):
+        return []
+    if isinstance(refs, int):
+        return []
+    if isinstance(refs, dict):
+        return [refs]
+    if isinstance(refs, str):
+        return [{"$key": int(part)} for part in refs.split(",") if part.strip().isdigit()]
+    if isinstance(refs, list):
+        rows: builtins.list[dict[str, Any]] = []
+        for item in refs:
+            if isinstance(item, dict):
+                rows.append(item)
+            elif isinstance(item, bool):
+                continue
+            elif isinstance(item, int) or (isinstance(item, str) and item.strip().isdigit()):
+                rows.append({"$key": int(item)})
+        return rows
+    return []
+
+
+class SnapshotProfilePeriodTag(ResourceObject):
+    """One ``snapshot_profile_period_tags`` row.
+
+    The row points at a period and, through ``refs``, at ``tag_references``.
+    Those are the columns a 26.1.8 listing returned.
+    """
+
+    @property
+    def period_key(self) -> int | None:
+        """Parent period ``$key``."""
+        val = self.get("snapshot_profile_period")
+        if val is None or val == "":
+            return None
+        return int(val)
+
+    @property
+    def refs(self) -> Any:
+        """Raw ``refs`` value from the row."""
+        return self.get("refs")
+
+    def references(self) -> builtins.list[TagReference]:
+        """Child ``tag_references`` rows, read with ``refs[all]``."""
+        from typing import cast
+
+        manager = cast("SnapshotProfilePeriodTagManager", self._manager)
+        return manager.references(self.key)
+
+    def delete(self) -> None:
+        """Delete this row."""
+        from typing import cast
+
+        manager = cast("SnapshotProfilePeriodTagManager", self._manager)
+        manager.delete(self.key)
+
+
+class SnapshotProfilePeriodTagManager(ResourceManager[SnapshotProfilePeriodTag]):
+    """Manager for ``snapshot_profile_period_tags``.
+
+    Pass a period key to only see that period's rows. Without one, the
+    manager addresses the whole table.
+
+    Writes accept ``snapshot_profile_period`` and ``refs`` only. Anything
+    else is refused before the request, because VergeOS drops unknown
+    fields and reports success.
+    """
+
+    _default_fields = _DEFAULT_PERIOD_TAG_FIELDS
+    _endpoint = "snapshot_profile_period_tags"
+
+    def __init__(self, client: VergeClient, period_key: int | None = None) -> None:
+        super().__init__(client)
+        self._period_key = period_key
+
+    def _to_model(self, data: dict[str, Any]) -> SnapshotProfilePeriodTag:
+        return SnapshotProfilePeriodTag(data, self)
+
+    def _scope_bindings(self) -> builtins.list[tuple[str, Any]]:
+        if self._period_key is None:
+            return []
+        return [("snapshot_profile_period", self._period_key)]
+
+    def _scope_resource(self) -> str:
+        return "Snapshot profile period tag"
+
+    def list(
+        self,
+        filter: str | None = None,  # noqa: A002
+        fields: str | builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        **filter_kwargs: Any,
+    ) -> builtins.list[SnapshotProfilePeriodTag]:
+        """List period-tag rows.
+
+        A manager created for one period only returns that period's rows.
+        """
+        if self._period_key is not None:
+            scope = f"snapshot_profile_period eq {self._period_key}"
+            filter = f"({filter}) and {scope}" if filter else scope
+        if fields is None:
+            fields = list(_DEFAULT_PERIOD_TAG_FIELDS)
+        return super().list(
+            filter=filter,
+            fields=fields,
+            limit=limit,
+            offset=offset,
+            **filter_kwargs,
+        )
+
+    def get(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: str | builtins.list[str] | None = None,
+    ) -> SnapshotProfilePeriodTag:
+        """Get one row by ``$key``.
+
+        The table has no name column in the 26.1.8 listing, so lookup by
+        name is refused.
+        """
+        if name is not None:
+            raise ValueError("snapshot profile period tags have no name column; get by key")
+        if fields is None:
+            fields = list(_DEFAULT_PERIOD_TAG_FIELDS)
+        return super().get(key, fields=fields)
+
+    def create(
+        self,
+        *,
+        snapshot_profile_period: int | None = None,
+        refs: Any = None,
+        **extra: Any,
+    ) -> SnapshotProfilePeriodTag:
+        """Create a period-tag row.
+
+        Args:
+            snapshot_profile_period: Period ``$key``. Filled in when this
+                manager was opened for a period.
+            refs: The ``refs`` value to store. Pass back a shape you read.
+            **extra: Refused. Not a column on this table.
+
+        Returns:
+            The created row, re-read so the response is not just the POST receipt.
+        """
+        self._reject_unknown_fields(extra)
+        period_key = self._period_key if self._period_key is not None else snapshot_profile_period
+        if period_key is None:
+            raise ValueError("snapshot_profile_period is required")
+        if (
+            self._period_key is not None
+            and snapshot_profile_period is not None
+            and int(snapshot_profile_period) != int(self._period_key)
+        ):
+            raise ValueError(
+                f"this manager is scoped to period {self._period_key}, "
+                f"not {snapshot_profile_period}"
+            )
+        body: dict[str, Any] = {"snapshot_profile_period": int(period_key)}
+        if refs is not None:
+            body["refs"] = refs
+        response = super().create(**body)
+        created = response.get("$key")
+        if created is not None:
+            return self.get(int(created))
+        return response
+
+    def update(
+        self,
+        key: int,
+        *,
+        snapshot_profile_period: int | None = None,
+        refs: Any = None,
+        **extra: Any,
+    ) -> SnapshotProfilePeriodTag:
+        """Update ``snapshot_profile_period`` or ``refs``."""
+        self._reject_unknown_fields(extra)
+        body: dict[str, Any] = {}
+        if snapshot_profile_period is not None:
+            if self._period_key is not None and int(snapshot_profile_period) != int(
+                self._period_key
+            ):
+                raise ValueError(
+                    f"this manager is scoped to period {self._period_key}, "
+                    f"not {snapshot_profile_period}"
+                )
+            body["snapshot_profile_period"] = int(snapshot_profile_period)
+        if refs is not None:
+            body["refs"] = refs
+        if not body:
+            return self.get(key)
+        self._ensure_in_scope(key)
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
+        return self.get(key)
+
+    def references(self, key: int) -> builtins.list[TagReference]:
+        """Read ``refs[all]`` for one period-tag row.
+
+        Args:
+            key: ``snapshot_profile_period_tags`` ``$key``.
+
+        Returns:
+            The nested rows. Empty when ``refs`` is a count or absent.
+        """
+        self._ensure_in_scope(key)
+        response = self._client._request(
+            "GET",
+            f"{self._endpoint}/{key}",
+            params={"fields": "refs[all]"},
+        )
+        if not isinstance(response, dict):
+            raise NotFoundError(f"snapshot_profile_period_tags/{key} not found")
+        from pyvergeos.resources.tags import TagReferenceManager
+
+        manager = TagReferenceManager(self._client)
+        manager._requested_aliases = None
+        return [manager._to_model(row) for row in _rows_from_refs(response.get("refs"))]
+
+    def _reject_unknown_fields(self, extra: dict[str, Any]) -> None:
+        if not extra:
+            return
+        unknown = ", ".join(sorted(extra))
+        raise ValueError(
+            f"unknown snapshot_profile_period_tags field {unknown}; "
+            "known columns are $key, snapshot_profile_period, and refs"
+        )
 
 
 class SnapshotProfileManager(ResourceManager[SnapshotProfile]):

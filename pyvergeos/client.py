@@ -100,10 +100,13 @@ if TYPE_CHECKING:
         SiteSyncScheduleManager,
     )
     from pyvergeos.resources.sites import SiteManager
-    from pyvergeos.resources.snapshot_profiles import SnapshotProfileManager
+    from pyvergeos.resources.snapshot_profiles import (
+        SnapshotProfileManager,
+        SnapshotProfilePeriodTagManager,
+    )
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.system import SystemManager
-    from pyvergeos.resources.tags import TagCategoryManager, TagManager
+    from pyvergeos.resources.tags import TagCategoryManager, TagManager, TagReferenceManager
     from pyvergeos.resources.task_events import TaskEventManager
     from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
     from pyvergeos.resources.task_schedules import TaskScheduleManager
@@ -276,6 +279,7 @@ class VergeClient:
         self._site_syncs_incoming: SiteSyncIncomingManager | None = None
         self._site_sync_schedules: SiteSyncScheduleManager | None = None
         self._snapshot_profiles: SnapshotProfileManager | None = None
+        self._snapshot_profile_period_tags: SnapshotProfilePeriodTagManager | None = None
         self._cloud_snapshots: CloudSnapshotManager | None = None
         self._system: SystemManager | None = None
         self._resource_groups: ResourceGroupManager | None = None
@@ -283,6 +287,7 @@ class VergeClient:
         self._cloudinit_files: CloudInitFileManager | None = None
         self._tags: TagManager | None = None
         self._tag_categories: TagCategoryManager | None = None
+        self._tag_references: TagReferenceManager | None = None
         self._vm_imports: VmImportManager | None = None
         self._vm_import_logs: VmImportLogManager | None = None
         self._volume_vm_exports: VolumeVmExportManager | None = None
@@ -1046,6 +1051,19 @@ class VergeClient:
         return self._snapshot_profiles
 
     @property
+    def snapshot_profile_period_tags(self) -> SnapshotProfilePeriodTagManager:
+        """Rows that link a snapshot profile period to ``tag_references``.
+
+        A period's own rows are ``period.period_tags()``. This property
+        lists the whole table.
+        """
+        if self._snapshot_profile_period_tags is None:
+            from pyvergeos.resources.snapshot_profiles import SnapshotProfilePeriodTagManager
+
+            self._snapshot_profile_period_tags = SnapshotProfilePeriodTagManager(self)
+        return self._snapshot_profile_period_tags
+
+    @property
     def cloud_snapshots(self) -> CloudSnapshotManager:
         """Access cloud (system) snapshot operations for backup/DR."""
         if self._cloud_snapshots is None:
@@ -1160,6 +1178,19 @@ class VergeClient:
 
             self._tag_categories = TagCategoryManager(self)
         return self._tag_categories
+
+    @property
+    def tag_references(self) -> TagReferenceManager:
+        """Rows linked from ``snapshot_profile_period_tags.refs``.
+
+        The 26.1.8 listing of this table was empty, so the manager does not
+        name columns beyond ``$key``. Pass ``fields="all"`` to read the rest.
+        """
+        if self._tag_references is None:
+            from pyvergeos.resources.tags import TagReferenceManager
+
+            self._tag_references = TagReferenceManager(self)
+        return self._tag_references
 
     @property
     def vm_imports(self) -> VmImportManager:

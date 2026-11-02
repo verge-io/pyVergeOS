@@ -1359,3 +1359,115 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             >>> client.tag_categories.delete(category.key)
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
+
+
+# tag_references had no rows on the 26.1.8 system that listed it, so no
+# column names were measured. $key is on every VergeOS row. Ask for
+# fields="all" to see whatever that server actually stores.
+_DEFAULT_TAG_REFERENCE_FIELDS = ["$key"]
+
+
+class TagReference(ResourceObject):
+    """One ``tag_references`` row.
+
+    The table is the child side of ``snapshot_profile_period_tags.refs``.
+    Columns other than ``$key`` are left on the dict. This class does not
+    name them, because a live listing of the table was empty.
+    """
+
+
+class TagReferenceManager(ResourceManager[TagReference]):
+    """Manager for ``tag_references``.
+
+    ``list()`` and ``get()`` ask for ``$key`` unless you pass ``fields``.
+    ``fields="all"`` returns every column the server has. ``create()`` and
+    ``update()`` send the mapping you pass and add no names of their own.
+    VergeOS drops a name it does not know, so copy column names from a row
+    you read or from ``GET /api/v4/tag_references/$table``.
+    """
+
+    _endpoint = "tag_references"
+    _default_fields = _DEFAULT_TAG_REFERENCE_FIELDS
+
+    def _to_model(self, data: dict[str, Any]) -> TagReference:
+        return TagReference(data, self)
+
+    def list(
+        self,
+        filter: str | None = None,  # noqa: A002
+        fields: str | builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        **filter_kwargs: Any,
+    ) -> builtins.list[TagReference]:
+        """List tag reference rows."""
+        if fields is None:
+            fields = list(_DEFAULT_TAG_REFERENCE_FIELDS)
+        return super().list(
+            filter=filter,
+            fields=fields,
+            limit=limit,
+            offset=offset,
+            **filter_kwargs,
+        )
+
+    def get(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: str | builtins.list[str] | None = None,
+    ) -> TagReference:
+        """Get one row by ``$key``.
+
+        No name column was measured, so lookup by name is refused.
+        """
+        if name is not None:
+            raise ValueError("tag_references has no measured name column; get by key")
+        if fields is None:
+            fields = list(_DEFAULT_TAG_REFERENCE_FIELDS)
+        return super().get(key, fields=fields)
+
+    def create(self, **fields: Any) -> TagReference:
+        """Create a row from columns the caller already read.
+
+        Args:
+            **fields: Column names and values. This method does not add any.
+
+        Returns:
+            The created row, re-read when the POST returns a ``$key``.
+
+        Raises:
+            ValueError: If ``fields`` is empty.
+        """
+        if not fields:
+            raise ValueError(
+                "tag_references create needs the columns you read from the server; "
+                "this manager does not supply any"
+            )
+        response = super().create(**fields)
+        created = response.get("$key")
+        if created is not None:
+            return self.get(int(created))
+        return response
+
+    def update(self, key: int, **fields: Any) -> TagReference:
+        """Update a row with columns the caller already read.
+
+        Args:
+            key: Row ``$key``.
+            **fields: Column names and values. This method does not add any.
+
+        Returns:
+            The updated row.
+
+        Raises:
+            ValueError: If ``fields`` is empty.
+        """
+        if not fields:
+            raise ValueError(
+                "tag_references update needs the columns you read from the server; "
+                "this manager does not supply any"
+            )
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=fields)
+        return self.get(key)

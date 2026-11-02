@@ -9,6 +9,26 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 [Unreleased]
 ------------
 
+Added
+^^^^^
+
+- A snapshot profile period can be tag-scoped. ``periods.create()``,
+  ``update()``, ``save()`` and ``SnapshotProfile.add_period()`` take
+  ``include_tags``, ``exclude_tags`` and ``quiesce_tags``. The period stores
+  that as ``type`` (``full``, ``partial_include`` or ``partial_exclude``),
+  ``partial_tags`` and ``quiesce_tags``, which are comma-separated tag keys.
+  Those names were on a stored period on VergeOS 26.1.8, and the values match
+  what a partial cloud snapshot already sends. A tag name is resolved to its
+  ``$key`` before the write. ``snapshot_type="full"`` clears the scope. (#199)
+- ``client.snapshot_profile_period_tags`` reads and writes
+  ``snapshot_profile_period_tags``. A 26.1.8 listing of that table returned
+  ``$key``, ``snapshot_profile_period`` and ``refs``. ``period.period_tags()``
+  is the same manager limited to one period. ``references()`` reads the
+  nested rows with ``refs[all]``.
+- ``client.tag_references`` reads and writes ``tag_references``. That listing
+  was empty, so the manager does not invent column names. Pass
+  ``fields="all"``, or read them through a period tag's ``refs``.
+
 Fixed
 ^^^^^
 

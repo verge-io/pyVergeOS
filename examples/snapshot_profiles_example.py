@@ -160,6 +160,7 @@ def main() -> int:
                 print(f"    - {period.name}:")
                 print(f"        Frequency: {period.frequency_display}")
                 print(f"        Retention: {retention}")
+                print(f"        Snapshot type: {period.snapshot_type}")
                 if period.estimated_snapshot_count:
                     print(f"        Est. Snapshots: {period.estimated_snapshot_count}")
         print()

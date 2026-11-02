@@ -16,6 +16,7 @@ from pyvergeos.resources.tags import (
     TagManager,
     TagMember,
     TagMemberManager,
+    TagReferenceManager,
 )
 
 
@@ -1123,6 +1124,52 @@ class TestTagCategoryManager:
         manager.delete(123)
 
         mock_client._request.assert_called_once_with("DELETE", "tag_categories/123")
+
+
+class TestTagReferences:
+    """tag_references had no measured columns beyond the table existing."""
+
+    def test_list_asks_for_key_only(self) -> None:
+        client = MagicMock()
+        client._request.return_value = []
+        rows = TagReferenceManager(client).list()
+        assert rows == []
+        assert client._request.call_args.kwargs["params"]["fields"] == "$key"
+
+    def test_fields_all_is_forwarded(self) -> None:
+        client = MagicMock()
+        client._request.return_value = []
+        TagReferenceManager(client).list(fields="all")
+        fields = client._request.call_args.kwargs["params"]["fields"]
+        assert fields.startswith("all")
+
+    def test_get_by_name_refused(self) -> None:
+        with pytest.raises(ValueError, match="no measured name column"):
+            TagReferenceManager(MagicMock()).get(name="gold")
+
+    def test_create_requires_columns(self) -> None:
+        with pytest.raises(ValueError, match="does not supply any"):
+            TagReferenceManager(MagicMock()).create()
+
+    def test_create_sends_only_the_callers_columns(self) -> None:
+        client = MagicMock()
+        client._request.return_value = {"$key": 4}
+        TagReferenceManager(client).create(caller_column=6)
+        post = client._request.call_args_list[0]
+        assert post.args[0] == "POST"
+        assert post.kwargs["json_data"] == {"caller_column": 6}
+
+    def test_update_sends_only_the_callers_columns(self) -> None:
+        client = MagicMock()
+        client._request.return_value = {"$key": 4}
+        TagReferenceManager(client).update(4, note="kept")
+        put = client._request.call_args_list[0]
+        assert put.args[0] == "PUT"
+        assert put.kwargs["json_data"] == {"note": "kept"}
+
+    def test_update_requires_columns(self) -> None:
+        with pytest.raises(ValueError, match="does not supply any"):
+            TagReferenceManager(MagicMock()).update(4)
 
 
 class TestConstants:
