@@ -1359,3 +1359,146 @@ class TagCategoryManager(ResourceManager[TagCategory]):
             >>> client.tag_categories.delete(category.key)
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
+
+
+# Columns on tag_references, from VergeOS 26.2.2.1. ``tag`` is the tag,
+# ``reference`` names the row that uses it (snapshot_profile_period_tags/37).
+# The pair is unique.
+_DEFAULT_TAG_REFERENCE_FIELDS = ["$key", "tag", "reference"]
+_TAG_REFERENCE_WRITE_FIELDS = frozenset({"tag", "reference"})
+
+
+class TagReference(ResourceObject):
+    """One ``tag_references`` row.
+
+    ``tag`` points at a tag. ``reference`` is the row that uses it, such as
+    ``snapshot_profile_period_tags/37``.
+    """
+
+    @property
+    def tag(self) -> Any:
+        """Raw ``tag`` value from the row."""
+        return self.get("tag")
+
+    @property
+    def tag_key(self) -> int | None:
+        """Tag ``$key``. A path such as ``tags/3`` yields 3."""
+        from pyvergeos.resources.snapshot_profiles import _as_tag_key
+
+        return _as_tag_key(self.get("tag"))
+
+    @property
+    def reference(self) -> str:
+        """The row this tag is attached to."""
+        raw = self.get("reference")
+        return "" if raw is None else str(raw)
+
+
+class TagReferenceManager(ResourceManager[TagReference]):
+    """Manager for ``tag_references``.
+
+    Writes send ``tag`` and ``reference`` only. Anything else is refused
+    before the request, because VergeOS drops unknown fields.
+    """
+
+    _endpoint = "tag_references"
+    _default_fields = _DEFAULT_TAG_REFERENCE_FIELDS
+
+    def _to_model(self, data: dict[str, Any]) -> TagReference:
+        return TagReference(data, self)
+
+    def list(
+        self,
+        filter: str | None = None,  # noqa: A002
+        fields: str | builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        **filter_kwargs: Any,
+    ) -> builtins.list[TagReference]:
+        """List tag reference rows."""
+        if fields is None:
+            fields = list(_DEFAULT_TAG_REFERENCE_FIELDS)
+        return super().list(
+            filter=filter,
+            fields=fields,
+            limit=limit,
+            offset=offset,
+            **filter_kwargs,
+        )
+
+    def get(
+        self,
+        key: int | None = None,
+        *,
+        name: str | None = None,
+        fields: str | builtins.list[str] | None = None,
+    ) -> TagReference:
+        """Get one row by ``$key``.
+
+        The table has no name column, so lookup by name is refused.
+        """
+        if name is not None:
+            raise ValueError("tag_references has no name column; get by key")
+        if fields is None:
+            fields = list(_DEFAULT_TAG_REFERENCE_FIELDS)
+        return super().get(key, fields=fields)
+
+    def create(  # type: ignore[override]
+        self,
+        *,
+        tag: Any,
+        reference: str,
+        **extra: Any,
+    ) -> TagReference:
+        """Create a tag reference.
+
+        Args:
+            tag: Tag ``$key``, name, ``tags/<key>`` ref, or a Tag object.
+            reference: Row that uses the tag, such as
+                ``snapshot_profile_period_tags/37``.
+            **extra: Refused. Not a column on this table.
+
+        Returns:
+            The created row, re-read when the POST returns a ``$key``.
+        """
+        body = self._prepare_write_fields({"tag": tag, "reference": reference, **extra})
+        response = super().create(**body)
+        created = response.get("$key")
+        if created is not None:
+            return self.get(int(created))
+        return response
+
+    def update(self, key: int, **fields: Any) -> TagReference:
+        """Update ``tag`` or ``reference``."""
+        if not fields:
+            raise ValueError("tag_references update needs tag or reference")
+        body = self._prepare_write_fields(fields)
+        self._client._request("PUT", f"{self._endpoint}/{key}", json_data=body)
+        return self.get(key)
+
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Keep ``tag`` and ``reference``, and store ``tag`` as its ``$key``."""
+        unknown = [name for name in fields if name not in _TAG_REFERENCE_WRITE_FIELDS]
+        if unknown:
+            names = ", ".join(sorted(unknown))
+            raise ValueError(
+                f"unknown tag_references field {names}; known columns are tag and reference"
+            )
+        prepared = dict(fields)
+        if "tag" in prepared:
+            prepared["tag"] = self._tag_id(prepared["tag"])
+        if "reference" in prepared and not isinstance(prepared["reference"], str):
+            raise TypeError("reference must be a string such as 'snapshot_profile_period_tags/37'")
+        return prepared
+
+    def _tag_id(self, tag: Any) -> int:
+        """Resolve a tag argument to the integer ``tag`` column stores."""
+        from pyvergeos.resources.base import reference_key
+        from pyvergeos.resources.cloud_snapshots import CloudSnapshotManager
+
+        if isinstance(tag, str) and "/" in tag:
+            key = reference_key(tag)
+            if isinstance(key, int):
+                return key
+            raise ValueError(f"invalid tag ref {tag!r}")
+        return CloudSnapshotManager(self._client)._resolve_one_tag(tag)
