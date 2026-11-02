@@ -1127,14 +1127,24 @@ class TestTagCategoryManager:
 
 
 class TestTagReferences:
-    """tag_references had no measured columns beyond the table existing."""
+    """tag and reference, measured on VergeOS 26.2.2.1."""
 
-    def test_list_asks_for_key_only(self) -> None:
+    def test_list_asks_for_the_measured_columns(self) -> None:
         client = MagicMock()
         client._request.return_value = []
         rows = TagReferenceManager(client).list()
         assert rows == []
-        assert client._request.call_args.kwargs["params"]["fields"] == "$key"
+        assert client._request.call_args.kwargs["params"]["fields"] == "$key,tag,reference"
+
+    def test_tag_key_reads_a_ref(self) -> None:
+        from pyvergeos.resources.tags import TagReference
+
+        row = TagReference(
+            {"$key": 1, "tag": "tags/3", "reference": "snapshot_profile_period_tags/37"},
+            MagicMock(),
+        )
+        assert row.tag_key == 3
+        assert row.reference == "snapshot_profile_period_tags/37"
 
     def test_fields_all_is_forwarded(self) -> None:
         client = MagicMock()
@@ -1144,32 +1154,58 @@ class TestTagReferences:
         assert fields.startswith("all")
 
     def test_get_by_name_refused(self) -> None:
-        with pytest.raises(ValueError, match="no measured name column"):
+        with pytest.raises(ValueError, match="no name column"):
             TagReferenceManager(MagicMock()).get(name="gold")
 
-    def test_create_requires_columns(self) -> None:
-        with pytest.raises(ValueError, match="does not supply any"):
-            TagReferenceManager(MagicMock()).create()
-
-    def test_create_sends_only_the_callers_columns(self) -> None:
+    def test_create_sends_tag_and_reference(self) -> None:
         client = MagicMock()
-        client._request.return_value = {"$key": 4}
-        TagReferenceManager(client).create(caller_column=6)
+        client._request.return_value = {
+            "$key": 4,
+            "tag": 6,
+            "reference": "snapshot_profile_period_tags/37",
+        }
+        TagReferenceManager(client).create(tag=6, reference="snapshot_profile_period_tags/37")
         post = client._request.call_args_list[0]
         assert post.args[0] == "POST"
-        assert post.kwargs["json_data"] == {"caller_column": 6}
+        assert post.kwargs["json_data"] == {
+            "tag": 6,
+            "reference": "snapshot_profile_period_tags/37",
+        }
 
-    def test_update_sends_only_the_callers_columns(self) -> None:
+    def test_create_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValueError, match="unknown tag_references field"):
+            TagReferenceManager(MagicMock()).create(
+                tag=6,
+                reference="snapshot_profile_period_tags/37",
+                note="nope",
+            )
+
+    def test_update_sends_tag_and_reference(self) -> None:
         client = MagicMock()
-        client._request.return_value = {"$key": 4}
-        TagReferenceManager(client).update(4, note="kept")
+        client._request.return_value = {
+            "$key": 4,
+            "tag": 6,
+            "reference": "snapshot_profile_period_tags/37",
+        }
+        TagReferenceManager(client).update(4, reference="snapshot_profile_period_tags/37")
         put = client._request.call_args_list[0]
         assert put.args[0] == "PUT"
-        assert put.kwargs["json_data"] == {"note": "kept"}
+        assert put.kwargs["json_data"] == {"reference": "snapshot_profile_period_tags/37"}
 
     def test_update_requires_columns(self) -> None:
-        with pytest.raises(ValueError, match="does not supply any"):
+        with pytest.raises(ValueError, match="needs tag or reference"):
             TagReferenceManager(MagicMock()).update(4)
+
+    def test_save_rejects_unknown_field(self) -> None:
+        from pyvergeos.resources.tags import TagReference
+
+        row = TagReference(
+            {"$key": 4, "tag": 6, "reference": "snapshot_profile_period_tags/37"},
+            TagReferenceManager(MagicMock()),
+        )
+        row.note = "nope"
+        with pytest.raises(ValueError, match="unknown tag_references field"):
+            row.save()
 
 
 class TestConstants:

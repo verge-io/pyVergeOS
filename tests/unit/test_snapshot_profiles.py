@@ -20,7 +20,7 @@ from pyvergeos.resources.snapshot_profiles import (
     SnapshotProfilePeriodTag,
     SnapshotProfilePeriodTagManager,
     _rows_from_refs,
-    _split_tag_keys,
+    _tag_keys_from_row,
 )
 
 # =============================================================================
@@ -740,19 +740,29 @@ class TestPeriodTagScope:
                 "$key": 10,
                 "profile": 1,
                 "type": "partial_include",
-                "partial_tags": "3,4",
-                "quiesce_tags": "3",
+                "partial_tags": {
+                    "$key": 37,
+                    "refs": [{"tag": 3}, {"tag": "tags/4"}],
+                },
+                "quiesce_tags": {"$key": 38, "refs": [{"tag": 3}]},
                 "private": True,
             },
             mock_client.snapshot_profiles.periods(1),
         )
         assert period.snapshot_type == "partial_include"
         assert period.is_partial is True
-        assert period.partial_tags == "3,4"
         assert period.partial_tag_keys == [3, 4]
-        assert period.quiesce_tags == "3"
         assert period.quiesce_tag_keys == [3]
         assert period.is_private is True
+
+    def test_row_key_is_not_a_tag_key(self, mock_client: VergeClient) -> None:
+        """A bare partial_tags value is the period-tag row, not a tag."""
+        period = SnapshotProfilePeriod(
+            {"$key": 10, "profile": 1, "type": "partial_include", "partial_tags": 37},
+            mock_client.snapshot_profiles.periods(1),
+        )
+        assert period.partial_tags == 37
+        assert period.partial_tag_keys == []
 
     def test_missing_type_reads_as_full(self, mock_client: VergeClient) -> None:
         period = SnapshotProfilePeriod(
@@ -771,8 +781,12 @@ class TestPeriodTagScope:
         mock_session.request.return_value.json.return_value = []
         mock_client.snapshot_profiles.periods(1).list()
         fields = str(mock_session.request.call_args.kwargs["params"]["fields"]).split(",")
-        for name in ("type", "partial_tags", "quiesce_tags", "private"):
-            assert name in fields
+        assert "type" in fields
+        assert "private" in fields
+        assert "partial_tags[refs[tag]]" in fields
+        assert "quiesce_tags[refs[tag]]" in fields
+        assert "partial_tags" not in fields
+        assert "quiesce_tags" not in fields
         assert "site_sync_refs" not in fields
         assert "skip_missed" not in fields
 
@@ -794,10 +808,11 @@ class TestPeriodTagScope:
         )
         body = _post_json(mock_session)
         assert body["type"] == "partial_include"
-        assert body["partial_tags"] == "3"
-        assert body["quiesce_tags"] == "3"
+        assert body["partial_tag_args"] == "3"
+        assert body["quiesce_tag_args"] == "3"
+        assert "partial_tags" not in body
+        assert "quiesce_tags" not in body
         assert period.snapshot_type == "partial_include"
-        assert period.partial_tag_keys == [3]
 
     def test_create_exclude_tags(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         mock_session.request.return_value.json.return_value = {
@@ -815,7 +830,9 @@ class TestPeriodTagScope:
         )
         body = _post_json(mock_session)
         assert body["type"] == "partial_exclude"
-        assert body["partial_tags"] == "1,2"
+        assert body["partial_tag_args"] == "1,2"
+        assert "quiesce_tag_args" not in body
+        assert "partial_tags" not in body
         assert "quiesce_tags" not in body
 
     def test_single_tag_string_is_not_split(
@@ -834,7 +851,7 @@ class TestPeriodTagScope:
             retention=86400,
             include_tags="3",
         )
-        assert _post_json(mock_session)["partial_tags"] == "3"
+        assert _post_json(mock_session)["partial_tag_args"] == "3"
 
     def test_include_and_exclude_rejected(self, mock_client: VergeClient) -> None:
         with pytest.raises(ValueError, match="mutually exclusive"):
@@ -881,7 +898,9 @@ class TestPeriodTagScope:
             include_tags=[3],
             quiesce_tags=[],
         )
-        assert "quiesce_tags" not in _post_json(mock_session)
+        body = _post_json(mock_session)
+        assert "quiesce_tag_args" not in body
+        assert "quiesce_tags" not in body
 
     def test_name_is_resolved(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         def respond(*_args: Any, **kwargs: Any) -> MagicMock:
@@ -908,7 +927,7 @@ class TestPeriodTagScope:
             retention=86400,
             include_tags=["DB"],
         )
-        assert _post_json(mock_session)["partial_tags"] == "3"
+        assert _post_json(mock_session)["partial_tag_args"] == "3"
 
     def test_update_clears_with_full(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -923,8 +942,10 @@ class TestPeriodTagScope:
         period = mock_client.snapshot_profiles.periods(1).update(10, snapshot_type="full")
         body = _put_json(mock_session)
         assert body["type"] == "full"
-        assert body["partial_tags"] == ""
-        assert body["quiesce_tags"] == ""
+        assert body["partial_tag_args"] == ""
+        assert body["quiesce_tag_args"] == ""
+        assert "partial_tags" not in body
+        assert "quiesce_tags" not in body
         assert period.snapshot_type == "full"
 
     def test_raw_type_full_clears_tag_columns(
@@ -937,8 +958,10 @@ class TestPeriodTagScope:
         }
         mock_client.snapshot_profiles.periods(1).update(10, type="full")
         body = _put_json(mock_session)
-        assert body["partial_tags"] == ""
-        assert body["quiesce_tags"] == ""
+        assert body["partial_tag_args"] == ""
+        assert body["quiesce_tag_args"] == ""
+        assert "partial_tags" not in body
+        assert "quiesce_tags" not in body
 
     def test_update_quiesce_on_existing_partial(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -951,7 +974,9 @@ class TestPeriodTagScope:
             "quiesce_tags": "3",
         }
         mock_client.snapshot_profiles.periods(1).update(10, quiesce_tags=[3])
-        assert _put_json(mock_session)["quiesce_tags"] == "3"
+        body = _put_json(mock_session)
+        assert body["quiesce_tag_args"] == "3"
+        assert "quiesce_tags" not in body
 
     def test_update_quiesce_on_full_period_rejected(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -974,7 +999,9 @@ class TestPeriodTagScope:
             "quiesce_tags": "",
         }
         mock_client.snapshot_profiles.periods(1).update(10, quiesce_tags=[])
-        assert _put_json(mock_session)["quiesce_tags"] == ""
+        body = _put_json(mock_session)
+        assert body["quiesce_tag_args"] == ""
+        assert "quiesce_tags" not in body
 
     def test_snapshot_type_partial_is_rejected(self, mock_client: VergeClient) -> None:
         with pytest.raises(ValueError, match="only accepts 'full'"):
@@ -1013,7 +1040,9 @@ class TestPeriodTagScope:
         }
         period = SnapshotProfilePeriod(sample_period_data, mock_client.snapshot_profiles.periods(1))
         period.save(include_tags=[8])
-        assert _put_json(mock_session)["partial_tags"] == "8"
+        body = _put_json(mock_session)
+        assert body["partial_tag_args"] == "8"
+        assert "partial_tags" not in body
 
     def test_assigned_include_tags_is_rejected(
         self, mock_client: VergeClient, sample_period_data: dict[str, Any]
@@ -1023,17 +1052,22 @@ class TestPeriodTagScope:
         with pytest.raises(ValueError, match="not a snapshot profile period column"):
             period.save()
 
-    def test_assigned_partial_tags_list_is_coerced(
+    def test_assigned_partial_tag_args_list_is_coerced(
         self, mock_client: VergeClient, mock_session: MagicMock, sample_period_data: dict[str, Any]
     ) -> None:
-        mock_session.request.return_value.json.return_value = {
-            **sample_period_data,
-            "partial_tags": "4,5",
-        }
+        mock_session.request.return_value.json.return_value = sample_period_data
         period = SnapshotProfilePeriod(sample_period_data, mock_client.snapshot_profiles.periods(1))
-        period.partial_tags = [4, 5]
+        period.partial_tag_args = [4, 5]
         period.save()
-        assert _put_json(mock_session)["partial_tags"] == "4,5"
+        assert _put_json(mock_session)["partial_tag_args"] == "4,5"
+
+    def test_assigned_partial_tags_is_rejected(
+        self, mock_client: VergeClient, sample_period_data: dict[str, Any]
+    ) -> None:
+        period = SnapshotProfilePeriod(sample_period_data, mock_client.snapshot_profiles.periods(1))
+        period.partial_tags = 37
+        with pytest.raises(ValueError, match="read-only"):
+            period.save()
 
     def test_add_period_forwards_tags(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -1058,6 +1092,7 @@ class TestPeriodTagScope:
             retention_seconds=3600,
             exclude_tags=[9],
         )
+        assert _post_json(mock_session)["partial_tag_args"] == "9"
         assert _post_json(mock_session)["type"] == "partial_exclude"
 
     def test_ambiguous_name_raises(self) -> None:
@@ -1076,10 +1111,13 @@ class TestPeriodTagScope:
 
 
 class TestRefParsing:
-    def test_split_keys(self) -> None:
-        assert _split_tag_keys("1, 2,x,") == [1, 2]
-        assert _split_tag_keys(None) == []
-        assert _split_tag_keys(False) == []
+    def test_expanded_row_yields_tag_keys_not_the_row_key(self) -> None:
+        raw = {"$key": 37, "refs": [{"tag": 3}, {"tag": "tags/4"}, {"tag": 3}]}
+        assert _tag_keys_from_row(raw) == [3, 4, 3]
+        assert _tag_keys_from_row(37) == []
+        assert _tag_keys_from_row("snapshot_profile_period_tags/37") == []
+        assert _tag_keys_from_row({"refs": []}) == []
+        assert _tag_keys_from_row(None) == []
 
     def test_rows_from_expanded_refs(self) -> None:
         assert _rows_from_refs([{"$key": 4, "kept": 1}]) == [{"$key": 4, "kept": 1}]
@@ -1230,3 +1268,31 @@ class TestSnapshotProfilePeriodTags:
         tag.delete()
         methods = [call.kwargs.get("method") for call in mock_session.request.call_args_list]
         assert "DELETE" in methods
+
+    def test_save_rejects_unknown_field(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """Dirty fields go through base update(), so the check has to live on save too."""
+        tag = SnapshotProfilePeriodTag(
+            {"$key": 6, "snapshot_profile_period": 10},
+            mock_client.snapshot_profile_period_tags,
+        )
+        tag.partial_tags = "1"
+        with pytest.raises(ValueError, match="unknown snapshot_profile_period_tags field"):
+            tag.save()
+        methods = [call.kwargs.get("method") for call in mock_session.request.call_args_list]
+        assert "PUT" not in methods
+
+    def test_save_allows_refs(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        mock_session.request.return_value.json.return_value = {
+            "$key": 6,
+            "snapshot_profile_period": 10,
+            "refs": [],
+        }
+        tag = SnapshotProfilePeriodTag(
+            {"$key": 6, "snapshot_profile_period": 10},
+            mock_client.snapshot_profile_period_tags,
+        )
+        tag.refs = []
+        tag.save()
+        assert _put_json(mock_session) == {"refs": []}

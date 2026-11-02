@@ -1183,8 +1183,8 @@ class VergeClient:
     def tag_references(self) -> TagReferenceManager:
         """Rows linked from ``snapshot_profile_period_tags.refs``.
 
-        The 26.1.8 listing of this table was empty, so the manager does not
-        name columns beyond ``$key``. Pass ``fields="all"`` to read the rest.
+        Each row has ``tag`` and ``reference``. ``reference`` looks like
+        ``snapshot_profile_period_tags/37``, and that pair is unique.
         """
         if self._tag_references is None:
             from pyvergeos.resources.tags import TagReferenceManager

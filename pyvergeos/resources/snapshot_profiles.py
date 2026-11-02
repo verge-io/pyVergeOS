@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
-from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.resources.base import ResourceManager, ResourceObject, reference_key
 from pyvergeos.resources.cloud_snapshots import TagRef
 
 if TYPE_CHECKING:
@@ -60,14 +60,19 @@ _DEFAULT_PERIOD_FIELDS = [
     "min_snapshots",
     "immutable",
     "estimated_snapshot_count",
-    # Tag scope and the private flag. Read off a stored period on 26.1.8.
-    # site_sync_refs is also a column there; it is a rows field, so it stays
-    # out of this list.
+    # partial_tags and quiesce_tags are read-only row pointers. The tag
+    # keys sit on the linked tag_references rows, so ask for those instead
+    # of the period-tag row key. Measured on VergeOS 26.2.2.1.
+    # site_sync_refs is also a column; it is a rows field, so it stays out.
     "type",
-    "partial_tags",
-    "quiesce_tags",
+    "partial_tags[refs[tag]]",
+    "quiesce_tags[refs[tag]]",
     "private",
 ]
+
+# Writable tag columns on a period. The matching partial_tags / quiesce_tags
+# columns are read-only and point at a snapshot_profile_period_tags row.
+_PERIOD_TAG_ARG_FIELDS = ("partial_tag_args", "quiesce_tag_args")
 
 # type values stored on a period, and on a cloud snapshot. Measured with
 # cloud_snapshots.create() on 26.1.8.
@@ -103,10 +108,10 @@ class SnapshotProfilePeriod(ResourceObject):
         is_immutable: Whether snapshots are immutable (system snapshots only).
         estimated_snapshot_count: Estimated number of snapshots.
         snapshot_type: full, partial_include, or partial_exclude.
-        partial_tags: Comma-separated tag keys for a partial snapshot.
-        partial_tag_keys: Those keys as ints.
-        quiesce_tags: Comma-separated tag keys that quiesce during a partial snapshot.
-        quiesce_tag_keys: Those keys as ints.
+        partial_tags: Read-only row for the include or exclude tags.
+        partial_tag_keys: Tag keys from that row's ``refs``.
+        quiesce_tags: Read-only row for the quiesce tags.
+        quiesce_tag_keys: Tag keys from that row's ``refs``.
         is_private: Whether snapshots from this period are hidden from tenants.
         is_partial: Whether the period is include-scoped or exclude-scoped.
     """
@@ -232,26 +237,29 @@ class SnapshotProfilePeriod(ResourceObject):
         return self.snapshot_type in ("partial_include", "partial_exclude")
 
     @property
-    def partial_tags(self) -> str:
-        """Comma-separated tag keys for the partial snapshot."""
-        raw = self.get("partial_tags")
-        return str(raw) if raw else ""
+    def partial_tags(self) -> Any:
+        """Read-only row for the include or exclude tags.
+
+        A bare value is the ``snapshot_profile_period_tags`` ``$key``. The
+        default projection expands it, so this is usually that row with
+        ``refs`` narrowed to each ``tag``.
+        """
+        return _selected_row(self, "partial_tags")
 
     @property
     def partial_tag_keys(self) -> builtins.list[int]:
-        """Tag keys parsed from ``partial_tags``."""
-        return _split_tag_keys(self.get("partial_tags"))
+        """Tag keys linked from ``partial_tags``, not the period-tag row key."""
+        return _tag_keys_from_row(self.partial_tags)
 
     @property
-    def quiesce_tags(self) -> str:
-        """Comma-separated tag keys that quiesce during the snapshot."""
-        raw = self.get("quiesce_tags")
-        return str(raw) if raw else ""
+    def quiesce_tags(self) -> Any:
+        """Read-only row for the tags that quiesce during the snapshot."""
+        return _selected_row(self, "quiesce_tags")
 
     @property
     def quiesce_tag_keys(self) -> builtins.list[int]:
-        """Tag keys parsed from ``quiesce_tags``."""
-        return _split_tag_keys(self.get("quiesce_tags"))
+        """Tag keys linked from ``quiesce_tags``, not the period-tag row key."""
+        return _tag_keys_from_row(self.quiesce_tags)
 
     @property
     def is_private(self) -> bool:
@@ -705,7 +713,8 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
                 is set with ``include_tags`` or ``exclude_tags``.
             **kwargs: Columns to update (name, frequency, retention, minute, hour,
                 day_of_week, day_of_month, month, max_tier, quiesce,
-                min_snapshots, immutable, type, partial_tags, quiesce_tags, private).
+                min_snapshots, immutable, type, partial_tag_args, quiesce_tag_args,
+                private). ``partial_tags`` and ``quiesce_tags`` are read-only.
 
         Returns:
             Updated SnapshotProfilePeriod object.
@@ -734,7 +743,8 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             names = ", ".join(sorted(overlap))
             raise ValueError(
                 "pass tag scope as include_tags, exclude_tags, quiesce_tags, "
-                f"or snapshot_type, or as the raw columns, not both ({names})"
+                f"or snapshot_type, or as partial_tag_args and quiesce_tag_args, "
+                f"not both ({names})"
             )
         kwargs = self._prepare_write_fields(kwargs)
         kwargs.update(tag_body)
@@ -761,6 +771,13 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
                     f"{convenience} is not a snapshot profile period column; "
                     "pass it to create(), update(), or save()"
                 )
+        for readonly in ("partial_tags", "quiesce_tags"):
+            if readonly in fields:
+                arg = readonly.removesuffix("s") + "_args"
+                raise ValueError(
+                    f"{readonly} is a read-only row; write {arg} "
+                    "or pass include_tags, exclude_tags, or quiesce_tags"
+                )
         if "frequency" in fields and fields["frequency"] not in FREQUENCIES:
             raise ValueError(f"Invalid frequency. Must be one of: {', '.join(FREQUENCIES)}")
         if "day_of_week" in fields and fields["day_of_week"] not in DAYS_OF_WEEK:
@@ -771,11 +788,11 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
                 f"Must be one of: {', '.join(PERIOD_SNAPSHOT_TYPES)}"
             )
         if fields.get("type") == "full":
-            fields.setdefault("partial_tags", "")
-            fields.setdefault("quiesce_tags", "")
+            fields.setdefault("partial_tag_args", "")
+            fields.setdefault("quiesce_tag_args", "")
         if "max_tier" in fields:
             fields["max_tier"] = str(fields["max_tier"])
-        for column in ("partial_tags", "quiesce_tags"):
+        for column in _PERIOD_TAG_ARG_FIELDS:
             if column in fields and not isinstance(fields[column], str):
                 fields[column] = self._coerce_tag_column(fields[column])
         return fields
@@ -794,7 +811,7 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
     def _resolve_tag_keys(self, tags: TagRef | Sequence[TagRef] | None) -> str | None:
         """Resolve tags to the comma-separated ``$key`` string the columns store.
 
-        ``partial_tags`` and ``quiesce_tags`` take keys. A name stored
+        ``partial_tag_args`` and ``quiesce_tag_args`` take keys. A name stored
         verbatim is ignored, same as on a cloud snapshot, so this uses that
         resolver.
         """
@@ -820,11 +837,11 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         current_type: str | None,
         clear_empty_quiesce: bool,
     ) -> dict[str, Any]:
-        """Build the ``type`` / ``partial_tags`` / ``quiesce_tags`` write.
+        """Build the ``type`` / ``partial_tag_args`` / ``quiesce_tag_args`` write.
 
-        ``snapshot_type="full"`` clears the tag columns. A partial scope is
-        written by ``include_tags`` or ``exclude_tags``, which set ``type``
-        to ``partial_include`` or ``partial_exclude``.
+        ``partial_tags`` and ``quiesce_tags`` are read-only rows, so the keys
+        go in the ``_args`` columns. ``snapshot_type="full"`` sends ``type``
+        plus empty args, which clears the scope.
         """
         if include_tags is not None and exclude_tags is not None:
             raise ValueError(
@@ -847,17 +864,17 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
             if not partial_keys:
                 raise ValueError("include_tags must name at least one tag")
             body["type"] = "partial_include"
-            body["partial_tags"] = partial_keys
+            body["partial_tag_args"] = partial_keys
         elif exclude_tags is not None:
             partial_keys = self._resolve_tag_keys(exclude_tags)
             if not partial_keys:
                 raise ValueError("exclude_tags must name at least one tag")
             body["type"] = "partial_exclude"
-            body["partial_tags"] = partial_keys
+            body["partial_tag_args"] = partial_keys
         elif snapshot_type == "full":
             body["type"] = "full"
-            body["partial_tags"] = ""
-            body["quiesce_tags"] = ""
+            body["partial_tag_args"] = ""
+            body["quiesce_tag_args"] = ""
 
         if quiesce_tags is not None:
             quiesce_keys = self._resolve_tag_keys(quiesce_tags)
@@ -868,9 +885,9 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
                         "quiesce_tags applies only to a partial snapshot; also pass "
                         "include_tags or exclude_tags"
                     )
-                body["quiesce_tags"] = quiesce_keys
-            elif clear_empty_quiesce and "quiesce_tags" not in body:
-                body["quiesce_tags"] = ""
+                body["quiesce_tag_args"] = quiesce_keys
+            elif clear_empty_quiesce and "quiesce_tag_args" not in body:
+                body["quiesce_tag_args"] = ""
         return body
 
     def delete(self, key: int) -> None:
@@ -882,16 +899,87 @@ class SnapshotProfilePeriodManager(ResourceManager[SnapshotProfilePeriod]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-def _split_tag_keys(raw: Any) -> builtins.list[int]:
-    """Parse a comma-separated tag-key column. Non-numeric tokens are skipped."""
-    if raw is None or raw is False:
+def _as_tag_key(value: Any) -> int | None:
+    """The tag ``$key`` inside a tag ref.
+
+    A row comes back as an int. A path such as ``tags/3`` comes back as
+    text. Either one is the tag, not the period-tag row that points at it.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, dict):
+        return _as_tag_key(value.get("$key"))
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    key = reference_key(text)
+    if isinstance(key, int):
+        return key
+    tail = text.rstrip("/").rsplit("/", 1)[-1]
+    if tail.isdigit():
+        return int(tail)
+    return None
+
+
+def _selected_row(row: Any, column: str) -> Any:
+    """Value of a read-only tag row, preferring the expanded projection."""
+    expanded = f"{column}[refs[tag]]"
+    if expanded in row:
+        return row.get(expanded)
+    return row.get(column)
+
+
+def _tag_keys_from_row(raw: Any) -> builtins.list[int]:
+    """Tag keys from ``partial_tags[refs[tag]]`` or ``quiesce_tags[refs[tag]]``.
+
+    A bare int is the ``snapshot_profile_period_tags`` row key. The tags
+    are the ``tag`` values on that row's ``refs``.
+    """
+    if raw is None or raw == "" or isinstance(raw, bool):
         return []
-    text = raw if isinstance(raw, str) else str(raw)
+    if isinstance(raw, int):
+        return []
+    if isinstance(raw, str):
+        return []
+    if isinstance(raw, dict):
+        if "refs" in raw:
+            return _tag_keys_from_refs(raw.get("refs"))
+        key = _as_tag_key(raw.get("tag"))
+        return [key] if key is not None else []
+    if isinstance(raw, list):
+        keys: builtins.list[int] = []
+        for item in raw:
+            if isinstance(item, dict):
+                keys.extend(_tag_keys_from_row(item))
+            else:
+                key = _as_tag_key(item)
+                if key is not None:
+                    keys.append(key)
+        return keys
+    return []
+
+
+def _tag_keys_from_refs(refs: Any) -> builtins.list[int]:
+    """Tag keys listed on a ``refs`` value."""
+    if refs is None or refs == "" or refs == 0 or isinstance(refs, bool):
+        return []
+    if isinstance(refs, int):
+        return []
+    if isinstance(refs, dict):
+        refs = [refs]
+    if not isinstance(refs, list):
+        return []
     keys: builtins.list[int] = []
-    for part in text.split(","):
-        part = part.strip()
-        if part.isdigit():
-            keys.append(int(part))
+    for item in refs:
+        key = _as_tag_key(item.get("tag")) if isinstance(item, dict) else _as_tag_key(item)
+        if key is not None:
+            keys.append(key)
     return keys
 
 
@@ -1120,12 +1208,21 @@ class SnapshotProfilePeriodTagManager(ResourceManager[SnapshotProfilePeriodTag])
         manager._requested_aliases = None
         return [manager._to_model(row) for row in _rows_from_refs(response.get("refs"))]
 
+    def _prepare_write_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Allow ``snapshot_profile_period`` and ``refs`` only.
+
+        ``save()`` sends dirty fields through here before the base ``update()``.
+        """
+        self._reject_unknown_fields(fields)
+        return dict(fields)
+
     def _reject_unknown_fields(self, extra: dict[str, Any]) -> None:
-        if not extra:
+        unknown = [name for name in extra if name not in {"snapshot_profile_period", "refs"}]
+        if not unknown:
             return
-        unknown = ", ".join(sorted(extra))
+        names = ", ".join(sorted(unknown))
         raise ValueError(
-            f"unknown snapshot_profile_period_tags field {unknown}; "
+            f"unknown snapshot_profile_period_tags field {names}; "
             "known columns are $key, snapshot_profile_period, and refs"
         )
 

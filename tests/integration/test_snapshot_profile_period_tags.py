@@ -71,11 +71,14 @@ class TestPeriodTagScopeIntegration:
             assert fetched.quiesce_tag_keys == [tag.key]
 
             joined = period.period_tags().list()
-            assert isinstance(joined, list)
+            assert joined, "a partial period should have a period-tag row"
+            linked = [child.tag_key for row in joined for child in row.references()]
+            assert tag.key in linked
             for row in joined:
                 assert row.period_key == period.key
-                children = row.references()
-                assert isinstance(children, list)
+                for child in row.references():
+                    if child.tag_key == tag.key:
+                        assert child.reference.startswith("snapshot_profile_period_tags/")
 
             cleared = live_client.snapshot_profiles.periods(profile.key).update(
                 period.key,
@@ -114,6 +117,8 @@ class TestPeriodTagScopeIntegration:
             assert period.snapshot_type == "partial_exclude"
             assert period.partial_tag_keys == [tag.key]
             assert period.quiesce_tag_keys == []
+            linked = [child for row in period.period_tags().list() for child in row.references()]
+            assert any(child.tag_key == tag.key for child in linked)
         finally:
             if profile is not None:
                 for period in live_client.snapshot_profiles.periods(profile.key).list():

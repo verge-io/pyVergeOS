@@ -14,20 +14,21 @@ Added
 
 - A snapshot profile period can be tag-scoped. ``periods.create()``,
   ``update()``, ``save()`` and ``SnapshotProfile.add_period()`` take
-  ``include_tags``, ``exclude_tags`` and ``quiesce_tags``. The period stores
-  that as ``type`` (``full``, ``partial_include`` or ``partial_exclude``),
-  ``partial_tags`` and ``quiesce_tags``, which are comma-separated tag keys.
-  Those names were on a stored period on VergeOS 26.1.8, and the values match
-  what a partial cloud snapshot already sends. A tag name is resolved to its
-  ``$key`` before the write. ``snapshot_type="full"`` clears the scope. (#199)
+  ``include_tags``, ``exclude_tags`` and ``quiesce_tags``. Those write
+  ``partial_tag_args`` and ``quiesce_tag_args``, comma-separated tag keys,
+  plus ``type`` (``full``, ``partial_include`` or ``partial_exclude``).
+  ``partial_tags`` and ``quiesce_tags`` are read-only rows that point at a
+  ``snapshot_profile_period_tags`` row; the tag keys are read back through
+  ``refs[tag]``. ``snapshot_type="full"`` sends ``type`` and empty args,
+  which clears the scope. Measured on VergeOS 26.2.2.1. (#199)
 - ``client.snapshot_profile_period_tags`` reads and writes
-  ``snapshot_profile_period_tags``. A 26.1.8 listing of that table returned
-  ``$key``, ``snapshot_profile_period`` and ``refs``. ``period.period_tags()``
-  is the same manager limited to one period. ``references()`` reads the
-  nested rows with ``refs[all]``.
-- ``client.tag_references`` reads and writes ``tag_references``. That listing
-  was empty, so the manager does not invent column names. Pass
-  ``fields="all"``, or read them through a period tag's ``refs``.
+  ``snapshot_profile_period_tags`` (``$key``, ``snapshot_profile_period``,
+  ``refs``). ``period.period_tags()`` is the same manager limited to one
+  period. ``references()`` reads the nested rows with ``refs[all]``.
+  ``save()`` refuses a column the table does not have.
+- ``client.tag_references`` reads and writes ``tag_references``. The columns
+  are ``tag`` and ``reference`` (for example
+  ``snapshot_profile_period_tags/37``). That pair is unique.
 
 Fixed
 ^^^^^
