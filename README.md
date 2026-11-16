@@ -290,6 +290,19 @@ You can also scope a cloud snapshot to a set of tags, which captures only the VM
 client.cloud_snapshots.create(name="db-only", include_tags="database", wait=True)
 ```
 
+A scheduled profile period takes the same tag scope. The write columns are `partial_tag_args` and `quiesce_tag_args`. `partial_tags` and `quiesce_tags` are read-only rows.
+
+```python
+profile = client.snapshot_profiles.get(name="System Snapshots")
+profile.add_period(
+    name="DB hourly",
+    frequency="hourly",
+    retention_seconds=86400,
+    include_tags="database",
+    quiesce_tags="database",
+)
+```
+
 ## Tenants
 
 ```python
