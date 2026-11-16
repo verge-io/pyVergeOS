@@ -284,8 +284,7 @@ snapshot = client.cloud_snapshots.create(
 print(snapshot.status)
 
 # A new snapshot's VM rows stay empty until find_vms runs.
-# get_vms() and vms().list() post that action, then read
-# cloud_snapshot_vms with is_snapshot eq false.
+# get_vms() and vms().list() post that action first.
 for vm in snapshot.get_vms():
     print(vm.name)
 ```

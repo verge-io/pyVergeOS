@@ -40,11 +40,10 @@ Fixed
 
 - ``cloud_snapshots.vms(key).list()``, ``CloudSnapshot.get_vms()``, and
   ``include_vms=True`` post ``find_vms`` before reading
-  ``cloud_snapshot_vms``. The read uses
-  ``cloud_snapshot eq N and is_snapshot eq false``, which is the query
-  that returned the snapshot's VMs after that action. Pass
-  ``include_snapshots=True`` to keep rows with ``is_snapshot`` true, the
-  same default as ``VMManager.list``. (#201)
+  ``cloud_snapshot_vms``. The read stays filtered by
+  ``cloud_snapshot eq N``. ``is_snapshot`` is not added: rows in that
+  table already belong to the snapshot. Pass ``is_snapshot=False`` for
+  the lab query that returned the tagged VMs. (#201)
 - ``cloud_snapshots.create(wait=True)`` waits on
   ``GET cloud_snapshots/N?fields=all`` and reads ``status`` from that body.
   ``get()`` with the default field list can return while that read still

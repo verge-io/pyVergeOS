@@ -306,12 +306,9 @@ class TestCloudSnapshotVMManager:
         assert len(vms) == 1
         assert vms[0].name == "TestVM"
 
-        # Verify the filter is the membership query from issue #201.
+        # Scope stays the snapshot. is_snapshot is not a default filter.
         call_args = mock_session.request.call_args
-        assert (
-            call_args.kwargs.get("params", {}).get("filter", "")
-            == "cloud_snapshot eq 1 and is_snapshot eq false"
-        )
+        assert call_args.kwargs.get("params", {}).get("filter", "") == "cloud_snapshot eq 1"
         posts = [
             call
             for call in mock_session.request.call_args_list
@@ -325,35 +322,33 @@ class TestCloudSnapshotVMManager:
             mock_session.request.call_args_list.index(call_args)
         )
 
-    def test_list_vms_include_snapshots(
-        self,
-        mock_client: VergeClient,
-        mock_session: MagicMock,
-        sample_vm_data: dict[str, Any],
-    ) -> None:
-        """include_snapshots keeps is_snapshot rows and still posts find_vms."""
-        mock_session.request.return_value.json.return_value = [sample_vm_data]
-
-        vms = mock_client.cloud_snapshots.vms(1).list(include_snapshots=True)
-
-        assert len(vms) == 1
-        filt = mock_session.request.call_args.kwargs.get("params", {}).get("filter", "")
-        assert filt == "cloud_snapshot eq 1"
-        assert "is_snapshot" not in filt
-
     def test_list_vms_combines_caller_filter(
         self,
         mock_client: VergeClient,
         mock_session: MagicMock,
         sample_vm_data: dict[str, Any],
     ) -> None:
-        """A caller filter is ANDed after the membership clauses."""
+        """A caller filter is ANDed after the snapshot scope."""
         mock_session.request.return_value.json.return_value = [sample_vm_data]
 
         mock_client.cloud_snapshots.vms(4).list(filter="name eq 'TestVM'")
 
         filt = mock_session.request.call_args.kwargs.get("params", {}).get("filter", "")
-        assert filt == ("cloud_snapshot eq 4 and is_snapshot eq false and (name eq 'TestVM')")
+        assert filt == "cloud_snapshot eq 4 and (name eq 'TestVM')"
+
+    def test_list_vms_caller_can_filter_is_snapshot(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """The lab membership query is a caller filter, not the default."""
+        mock_session.request.return_value.json.return_value = [sample_vm_data]
+
+        mock_client.cloud_snapshots.vms(4).list(is_snapshot=False)
+
+        filt = mock_session.request.call_args.kwargs.get("params", {}).get("filter", "")
+        assert filt == "cloud_snapshot eq 4 and is_snapshot eq false"
 
     def test_get_vm_by_key(
         self,

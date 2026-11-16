@@ -280,7 +280,6 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
-        include_snapshots: bool = False,
         **filter_kwargs: Any,
     ) -> builtins.list[CloudSnapshotVM]:
         """List VMs in this cloud snapshot.
@@ -288,16 +287,16 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         Posts ``find_vms`` before the GET. On VergeOS 26.2.2.1 a new
         system snapshot's ``cloud_snapshot_vms`` rows stay empty until
         ``POST /api/v4/cloud_snapshot_actions`` with
-        ``{"action": "find_vms", "cloud_snapshot": N}``. The rows that
-        are the snapshot's VMs are those with ``is_snapshot`` false,
-        matching ``VMManager.list``.
+        ``{"action": "find_vms", "cloud_snapshot": N}``. The read stays
+        scoped to this snapshot. ``is_snapshot`` is a property of those
+        rows, not a default filter. Pass ``is_snapshot=False`` to match
+        the lab query that returned the snapshot's VMs.
 
         Args:
             filter: OData filter string.
             fields: List of fields to return.
             limit: Maximum number of results.
             offset: Skip this many results.
-            include_snapshots: Include rows with ``is_snapshot`` true.
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -307,8 +306,6 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         self._client.cloud_snapshots.find_vms(self._snapshot_key)
 
         conditions: builtins.list[str] = [f"cloud_snapshot eq {self._snapshot_key}"]
-        if not include_snapshots:
-            conditions.append("is_snapshot eq false")
 
         if filter:
             conditions.append(f"({filter})")
@@ -664,8 +661,8 @@ class CloudSnapshot(ResourceObject):
     def get_vms(self) -> builtins.list[CloudSnapshotVM]:
         """Get the VMs captured in this snapshot.
 
-        Posts ``find_vms`` first, then reads ``cloud_snapshot_vms`` with
-        ``is_snapshot eq false``.
+        Posts ``find_vms`` first, then reads this snapshot's
+        ``cloud_snapshot_vms`` rows. ``is_snapshot`` is left to the caller.
 
         Returns:
             List of CloudSnapshotVM objects.
