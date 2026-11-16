@@ -254,7 +254,7 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
     Provides access to VMs captured in a specific cloud snapshot.
 
     Example:
-        >>> # Get VMs in a snapshot
+        >>> # Get VMs in a snapshot. list() posts find_vms first.
         >>> snapshot = client.cloud_snapshots.get(name="Daily_20260123")
         >>> vms = client.cloud_snapshots.vms(snapshot.key).list()
         >>> for vm in vms:
@@ -284,6 +284,14 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
     ) -> builtins.list[CloudSnapshotVM]:
         """List VMs in this cloud snapshot.
 
+        Posts ``find_vms`` before the GET. On VergeOS 26.2.2.1 a new
+        system snapshot's ``cloud_snapshot_vms`` rows stay empty until
+        ``POST /api/v4/cloud_snapshot_actions`` with
+        ``{"action": "find_vms", "cloud_snapshot": N}``. The read stays
+        scoped to this snapshot. ``is_snapshot`` is a property of those
+        rows, not a default filter. Pass ``is_snapshot=False`` to match
+        the lab query that returned the snapshot's VMs.
+
         Args:
             filter: OData filter string.
             fields: List of fields to return.
@@ -294,6 +302,9 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         Returns:
             List of CloudSnapshotVM objects.
         """
+        # Membership is empty until this action runs (#201).
+        self._client.cloud_snapshots.find_vms(self._snapshot_key)
+
         conditions: builtins.list[str] = [f"cloud_snapshot eq {self._snapshot_key}"]
 
         if filter:
@@ -630,8 +641,28 @@ class CloudSnapshot(ResourceObject):
         """Get tenants in this snapshot (if loaded with include_tenants=True)."""
         return self._tenants
 
+    def find_vms(self) -> dict[str, Any] | None:
+        """Populate this snapshot's VM membership.
+
+        Posts ``{"action": "find_vms", "cloud_snapshot": <key>}`` to
+        ``cloud_snapshot_actions``. ``get_vms()`` and ``vms().list()``
+        call this first. On VergeOS 26.2.2.1 the rows stay empty until
+        it runs. The UI posts the same action when a snapshot is opened.
+
+        Returns:
+            The action response when VergeOS returns an object, otherwise
+            None.
+        """
+        from typing import cast
+
+        manager = cast("CloudSnapshotManager", self._manager)
+        return manager.find_vms(self.key)
+
     def get_vms(self) -> builtins.list[CloudSnapshotVM]:
-        """Get all VMs in this snapshot.
+        """Get the VMs captured in this snapshot.
+
+        Posts ``find_vms`` first, then reads this snapshot's
+        ``cloud_snapshot_vms`` rows. ``is_snapshot`` is left to the caller.
 
         Returns:
             List of CloudSnapshotVM objects.
@@ -774,7 +805,8 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             limit: Maximum number of results.
             offset: Skip this many results.
             include_expired: Include expired snapshots.
-            include_vms: Include VMs for each snapshot.
+            include_vms: Include VMs for each snapshot. Each VM list posts
+                ``find_vms`` first.
             include_tenants: Include tenants for each snapshot.
             **filter_kwargs: Additional filter arguments.
 
@@ -869,7 +901,8 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             key: Snapshot $key (ID).
             name: Snapshot name.
             fields: List of fields to return.
-            include_vms: Include VMs in the snapshot.
+            include_vms: Include VMs in the snapshot. The VM list posts
+                ``find_vms`` first.
             include_tenants: Include tenants in the snapshot.
             include_expired: Include expired snapshots when searching by name.
 
@@ -1250,6 +1283,35 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             NotFoundError: If snapshot not found.
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
+
+    def find_vms(self, snapshot_key: int) -> dict[str, Any] | None:
+        """Populate VM membership for a cloud snapshot.
+
+        On VergeOS 26.2.2.1, ``cloud_snapshot_vms`` for a new system
+        snapshot stays empty until this action runs. The UI posts the
+        same body when a snapshot is opened. ``vms().list()`` and
+        ``CloudSnapshot.get_vms()`` call this before they read.
+
+        Args:
+            snapshot_key: Cloud snapshot ``$key``.
+
+        Returns:
+            The action response when VergeOS returns an object, otherwise
+            None. The response fields are not interpreted.
+
+        Example:
+            >>> client.cloud_snapshots.find_vms(snapshot.key)
+            >>> for vm in client.cloud_snapshots.vms(snapshot.key).list():
+            ...     print(vm.name)
+        """
+        response = self._client._request(
+            "POST",
+            "cloud_snapshot_actions",
+            json_data={"action": "find_vms", "cloud_snapshot": snapshot_key},
+        )
+        if isinstance(response, dict):
+            return response
+        return None
 
     def restore_vm(
         self,

@@ -282,6 +282,11 @@ snapshot = client.cloud_snapshots.create(
     wait_timeout=600,
 )
 print(snapshot.status)
+
+# A new snapshot's VM rows stay empty until find_vms runs.
+# get_vms() and vms().list() post that action first.
+for vm in snapshot.get_vms():
+    print(vm.name)
 ```
 
 You can also scope a cloud snapshot to a set of tags, which captures only the VMs carrying them.

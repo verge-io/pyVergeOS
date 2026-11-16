@@ -12,6 +12,11 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 Added
 ^^^^^
 
+- ``CloudSnapshot.find_vms()`` and ``CloudSnapshotManager.find_vms()``
+  post ``{"action": "find_vms", "cloud_snapshot": N}`` to
+  ``cloud_snapshot_actions``. On VergeOS 26.2.2.1 a new system snapshot's
+  ``cloud_snapshot_vms`` rows stay empty until that action runs. The UI
+  posts the same body when a snapshot is opened. (#201)
 - A snapshot profile period can be tag-scoped. ``periods.create()``,
   ``update()``, ``save()`` and ``SnapshotProfile.add_period()`` take
   ``include_tags``, ``exclude_tags`` and ``quiesce_tags``. Those write
@@ -33,6 +38,12 @@ Added
 Fixed
 ^^^^^
 
+- ``cloud_snapshots.vms(key).list()``, ``CloudSnapshot.get_vms()``, and
+  ``include_vms=True`` post ``find_vms`` before reading
+  ``cloud_snapshot_vms``. The read stays filtered by
+  ``cloud_snapshot eq N``. ``is_snapshot`` is not added: rows in that
+  table already belong to the snapshot. Pass ``is_snapshot=False`` for
+  the lab query that returned the tagged VMs. (#201)
 - ``cloud_snapshots.create(wait=True)`` waits on
   ``GET cloud_snapshots/N?fields=all`` and reads ``status`` from that body.
   ``get()`` with the default field list can return while that read still
