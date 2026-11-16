@@ -33,6 +33,22 @@ Added
 Fixed
 ^^^^^
 
+- ``cloud_snapshots.create(wait=True)`` waits on
+  ``GET cloud_snapshots/N?fields=all`` and reads ``status`` from that body.
+  ``get()`` with the default field list can return while that read still
+  says ``building``, so the wait was handing back a snapshot that was not
+  finished. A missing status is still not treated as finished, and
+  ``wait_timeout`` still raises ``VergeTimeoutError``. (#202)
+- ``cloud_snapshots.create(..., retry_if_busy=True)`` retries the POST when
+  VergeOS answers ``ValidationError: System snapshot is still building``.
+  That shows up while another system snapshot is in progress, for example
+  right after a snapshot profile period is saved. The pause starts at the
+  usual poll interval and doubles up to 30 seconds, bounded by
+  ``wait_timeout``. Any other error is raised as before. The flag defaults
+  to off: the client already retries transport failures (429 and 5xx), and
+  this refusal is an application error. The POST did not create a row, so
+  retrying it does not make a second snapshot. ``wait`` and
+  ``retry_if_busy`` each get their own ``wait_timeout``. (#202)
 - Declared ``urllib3>=1.26``. Session setup calls
   ``Retry(allowed_methods=...)``, which urllib3 1.25 does not accept.
   ``requests>=2.28.0`` still allows 1.25, so an environment that met the

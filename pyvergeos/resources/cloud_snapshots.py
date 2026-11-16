@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 #: A tag given as its ``$key``, its name, or a Tag/ResourceObject.
 TagRef = Union[int, str, ResourceObject]
 
+#: Longest pause between create retries while another system snapshot is building.
+_BUSY_RETRY_MAX_DELAY = 30
 
 # Default fields for cloud snapshot list operations
 _DEFAULT_SNAPSHOT_FIELDS = [
@@ -522,7 +524,7 @@ class CloudSnapshot(ResourceObject):
         is_immutable: Whether the snapshot is immutable.
         immutable_status: Immutable status (unlocked, unlocking, locked).
         immutable_lock_expires_at: When the immutable lock expires.
-        status: Snapshot status (normal, held).
+        status: Snapshot status (building, normal, held).
         status_info: Additional status information.
     """
 
@@ -610,7 +612,7 @@ class CloudSnapshot(ResourceObject):
 
     @property
     def status(self) -> str:
-        """Get snapshot status (normal, held)."""
+        """Get snapshot status (building, normal, held)."""
         return str(self.get("status", "normal"))
 
     @property
@@ -990,6 +992,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         quiesce_tags: TagRef | Sequence[TagRef] | None = None,
         wait: bool = False,
         wait_timeout: int = TASK_WAIT_TIMEOUT,
+        retry_if_busy: bool = False,
     ) -> CloudSnapshot:
         """Create a new cloud snapshot.
 
@@ -1011,14 +1014,33 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
                 during capture for an application-consistent snapshot. Valid
                 only for a partial snapshot (with ``include_tags`` or
                 ``exclude_tags``).
-            wait: Wait for snapshot creation to complete.
-            wait_timeout: Maximum seconds to wait (default: 300).
+            wait: Wait until ``status`` is present and not ``building``.
+                The wait reads ``GET cloud_snapshots/N?fields=all``. The
+                default ``get()`` projection can come back settled while
+                that read still says ``building``.
+            wait_timeout: Maximum seconds for ``wait``, and again for
+                ``retry_if_busy`` (default: 300). ``0`` waits indefinitely.
+                The two limits are separate, so a busy retry does not eat
+                the time left to wait for the new snapshot.
+            retry_if_busy: Retry the POST when VergeOS refuses it with
+                ``ValidationError`` because another system snapshot is
+                still building (the message contains ``still building``).
+                The pause starts at the poll interval and doubles up to
+                30 seconds. Any other error is raised immediately. Off by
+                default: the client already retries transport failures,
+                and this one is an application error.
 
         Returns:
             Created CloudSnapshot object.
 
         Raises:
             ValueError: If invalid parameters.
+            ValidationError: If creation is refused. With
+                ``retry_if_busy=False`` this includes "System snapshot is
+                still building", which is safe to retry: the POST did not
+                create a row.
+            VergeTimeoutError: If ``wait`` or ``retry_if_busy`` exceeds
+                ``wait_timeout``.
             APIError: If creation fails.
 
         Example:
@@ -1043,6 +1065,14 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             ...     name="DB-Only",
             ...     include_tags=["DB"],
             ...     quiesce_tags=["DB"],
+            ... )
+
+            >>> # Another system snapshot may still be building, for
+            >>> # example right after a snapshot profile period is saved.
+            >>> snapshot = client.cloud_snapshots.create(
+            ...     name="After-Profile",
+            ...     wait=True,
+            ...     retry_if_busy=True,
             ... )
         """
         if include_tags is not None and exclude_tags is not None:
@@ -1108,7 +1138,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             if quiesce_keys:
                 body["quiesce_tags"] = quiesce_keys
 
-        response = self._client._request("POST", self._endpoint, json_data=body)
+        response = self._post_snapshot(body, retry_if_busy=retry_if_busy, timeout=wait_timeout)
         if response is None:
             raise ValueError("No response from create operation")
         if not isinstance(response, dict):
@@ -1124,25 +1154,73 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
 
         # Cloud snapshot creation is not backed by a task row: the POST
         # response carries no ``task`` key and the row's ``task`` field stays
-        # null. The real completion signal is the row's ``status``, which
-        # progresses ``building`` -> ``normal`` (issue #133). Waiting on a task
-        # here was a silent no-op, so poll the row instead.
+        # null. The completion signal is ``status`` on a ``fields=all`` read,
+        # which moves ``building`` -> ``normal``. The default ``get()``
+        # projection can look finished while that read still says
+        # ``building`` (#133, #202).
         if wait:
             return self._wait_until_built(snapshot_key, wait_timeout)
 
         return self.get(snapshot_key)
 
+    def _post_snapshot(
+        self,
+        body: dict[str, Any],
+        *,
+        retry_if_busy: bool,
+        timeout: int,
+    ) -> Any:
+        """POST one cloud snapshot.
+
+        With ``retry_if_busy``, a ``ValidationError`` whose message says
+        the system snapshot is still building is retried. The platform
+        raises that while another system snapshot is in progress, and the
+        refused POST does not create a row. Listed snapshots can already
+        read ``normal``, so this does not poll them. Every other error is
+        re-raised.
+        """
+        if not retry_if_busy:
+            return self._client._request("POST", self._endpoint, json_data=body)
+
+        start = time.time()
+        delay = POLL_INTERVAL
+        while True:
+            try:
+                return self._client._request("POST", self._endpoint, json_data=body)
+            except ValidationError as exc:
+                if "still building" not in str(exc).lower():
+                    raise
+                elapsed = time.time() - start
+                if timeout > 0 and elapsed >= timeout:
+                    raise VergeTimeoutError(
+                        f"System snapshot still building after {timeout} seconds ({exc})"
+                    ) from exc
+                pause: float = delay
+                if timeout > 0:
+                    pause = min(delay, max(timeout - elapsed, 0))
+                time.sleep(pause)
+                if delay < _BUSY_RETRY_MAX_DELAY:
+                    delay = min(delay * 2, _BUSY_RETRY_MAX_DELAY)
+
     def _wait_until_built(self, key: int, timeout: int) -> CloudSnapshot:
-        """Poll a snapshot until it leaves the ``building`` state (issue #133).
+        """Poll ``fields=all`` until ``status`` is present and not ``building``.
+
+        ``get()`` without ``fields`` asks for the default projection. On
+        VergeOS 26.2 that read can return while
+        ``GET cloud_snapshots/N?fields=all`` of the same row still says
+        ``building`` (#202). ``status`` is the column this wait already
+        used; ``fields=all`` is the read that showed the real value.
+
+        A missing or blank ``status`` is not finished. The accessor
+        reports that as ``normal``, which would return on the first poll
+        (#133).
 
         Args:
             key: Snapshot ``$key`` to poll.
             timeout: Maximum seconds to wait (``0`` = wait indefinitely).
 
         Returns:
-            The snapshot once it reports a settled status, fetched fresh so
-            ``status`` reflects reality rather than the stale value the POST
-            response would have implied.
+            The snapshot from the ``fields=all`` read that settled.
 
         Raises:
             VergeTimeoutError: If the snapshot has not settled after
@@ -1150,13 +1228,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         """
         start = time.time()
         while True:
-            snapshot = self.get(key)
-            # Read the raw field, not the ``status`` accessor: the accessor
-            # defaults a missing status to ``"normal"``, which right after the
-            # POST -- before the field flips to ``building`` -- would look
-            # settled and return immediately, reintroducing the no-op this
-            # fixes. Treat a missing/blank status as "not settled yet" and keep
-            # waiting; only a concrete, non-``building`` status is done (#133).
+            snapshot = self.get(key, fields="all")
             raw_status = snapshot.get("status")
             if raw_status and raw_status != "building":
                 return snapshot

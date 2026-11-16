@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import NotFoundError, ValidationError, VergeTimeoutError
+from pyvergeos.exceptions import ConflictError, NotFoundError, ValidationError, VergeTimeoutError
 from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshot,
     CloudSnapshotTenant,
@@ -973,6 +973,19 @@ def _resp(payload: Any) -> MagicMock:
     return r
 
 
+def _error(status: int, message: str) -> MagicMock:
+    """Build an error response ``_handle_response`` will turn into an APIError."""
+    response = MagicMock()
+    response.status_code = status
+    response.text = message
+    response.json.return_value = {"err": message}
+    return response
+
+
+def _field_tokens(fields: Any) -> list[str]:
+    return [part.strip() for part in str(fields or "").split(",") if part.strip()]
+
+
 class TestCreateWait:
     """Cover the wait=True completion path fixed for issue #133.
 
@@ -1011,6 +1024,13 @@ class TestCreateWait:
         assert mock_session.request.call_count == 4
         # And slept between polls, but not after the terminal one.
         assert mock_time.sleep.call_count == 2
+        gets = [
+            call.kwargs
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "GET"
+        ]
+        assert gets
+        assert all("all" in _field_tokens(call["params"].get("fields")) for call in gets)
 
     @patch("pyvergeos.resources.cloud_snapshots.time")
     def test_wait_true_raises_on_timeout_still_building(
@@ -1115,3 +1135,174 @@ class TestCreateWaitPreBuildingRace:
         assert snapshot.get("status") == "normal"  # the real terminal row
         assert mock_session.request.call_count == 3  # POST + absent + normal
         assert mock_time.sleep.call_count == 1
+
+
+def _dispatch(payloads: dict[str, list[MagicMock]], **kwargs: Any) -> MagicMock:
+    """Return a scripted body for ``fields=all``, and a settled row otherwise.
+
+    The settled row is what ``get()`` returned on the lab while
+    ``fields=all`` of the same snapshot still said ``building``.
+    """
+    if kwargs.get("method") == "POST":
+        return payloads["post"].pop(0)
+    fields = (kwargs.get("params") or {}).get("fields")
+    if "all" in _field_tokens(fields):
+        return payloads["all"].pop(0)
+    return _resp({"$key": 5, "name": "early", "status": "normal"})
+
+
+class TestCreateWaitFieldsAll:
+    """``wait=True`` must follow the read that still says ``building`` (#202)."""
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_default_get_looking_settled_does_not_finish_the_wait(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1000.0
+        payloads: dict[str, list[MagicMock]] = {
+            "post": [_resp({"$key": 5, "location": "/v4/cloud_snapshots/5"})],
+            "all": [
+                _resp({"$key": 5, "name": "early", "status": "building"}),
+                _resp({"$key": 5, "name": "early", "status": "normal"}),
+            ],
+        }
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = lambda **kwargs: _dispatch(payloads, **kwargs)
+
+        snapshot = mock_client.cloud_snapshots.create(name="early", never_expire=True, wait=True)
+
+        assert snapshot.get("status") == "normal"
+        assert payloads["all"] == []
+        assert mock_time.sleep.call_count == 1
+        gets = [
+            call.kwargs
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "GET"
+        ]
+        assert len(gets) == 2
+        assert all("all" in _field_tokens(call["params"].get("fields")) for call in gets)
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_timeout_uses_fields_all_not_the_settled_default_read(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        # start, then the timeout check on the first fields=all poll.
+        mock_time.time.side_effect = [1000.0, 2000.0]
+        payloads: dict[str, list[MagicMock]] = {
+            "post": [_resp({"$key": 6, "location": "/v4/cloud_snapshots/6"})],
+            "all": [_resp({"$key": 6, "name": "stuck", "status": "building"})],
+        }
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = lambda **kwargs: _dispatch(payloads, **kwargs)
+
+        with pytest.raises(VergeTimeoutError, match="did not finish building within 10 seconds"):
+            mock_client.cloud_snapshots.create(
+                name="stuck", never_expire=True, wait=True, wait_timeout=10
+            )
+
+        mock_time.sleep.assert_not_called()
+
+
+class TestCreateRetryIfBusy:
+    """Opt-in retry for 'System snapshot is still building' (#202)."""
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_retries_with_bounded_backoff_then_creates(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1000.0
+        busy = _error(422, "System snapshot is still building")
+        created = _resp({"$key": 11, "name": "retry-me"})
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [busy, busy, busy, busy, busy, busy, created, created]
+
+        snapshot = mock_client.cloud_snapshots.create(
+            name="retry-me", never_expire=True, retry_if_busy=True
+        )
+
+        assert snapshot.key == 11
+        assert [call.args[0] for call in mock_time.sleep.call_args_list] == [
+            2,
+            4,
+            8,
+            16,
+            30,
+            30,
+        ]
+        posts = [
+            call.kwargs
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        assert len(posts) == 7
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_other_validation_error_is_not_retried(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1000.0
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [
+            _error(422, "System snapshot is still building"),
+            _error(422, "Name already exists"),
+        ]
+
+        with pytest.raises(ValidationError, match="Name already exists"):
+            mock_client.cloud_snapshots.create(name="taken", never_expire=True, retry_if_busy=True)
+
+        assert mock_time.sleep.call_count == 1
+        assert mock_session.request.call_count == 2
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_conflict_with_the_same_text_is_not_retried(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1000.0
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [
+            _error(409, "System snapshot is still building"),
+        ]
+
+        with pytest.raises(ConflictError, match="still building"):
+            mock_client.cloud_snapshots.create(
+                name="conflict", never_expire=True, retry_if_busy=True
+            )
+
+        mock_time.sleep.assert_not_called()
+        assert mock_session.request.call_count == 1
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_busy_error_is_immediate_without_the_flag(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.return_value = 1000.0
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [
+            _error(422, "System snapshot is still building"),
+        ]
+
+        with pytest.raises(ValidationError, match="still building"):
+            mock_client.cloud_snapshots.create(name="busy", never_expire=True)
+
+        mock_time.sleep.assert_not_called()
+        assert mock_session.request.call_count == 1
+
+    @patch("pyvergeos.resources.cloud_snapshots.time")
+    def test_retry_budget_raises_timeout(
+        self, mock_time: MagicMock, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        mock_time.time.side_effect = [1000.0, 1010.0]
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [
+            _error(422, "System snapshot is still building"),
+        ]
+
+        with pytest.raises(VergeTimeoutError, match="still building after 10 seconds"):
+            mock_client.cloud_snapshots.create(
+                name="late",
+                never_expire=True,
+                retry_if_busy=True,
+                wait_timeout=10,
+            )
+
+        mock_time.sleep.assert_not_called()
