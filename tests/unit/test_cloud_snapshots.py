@@ -306,9 +306,54 @@ class TestCloudSnapshotVMManager:
         assert len(vms) == 1
         assert vms[0].name == "TestVM"
 
-        # Verify the filter includes cloud_snapshot
+        # Verify the filter is the membership query from issue #201.
         call_args = mock_session.request.call_args
-        assert "cloud_snapshot eq 1" in call_args.kwargs.get("params", {}).get("filter", "")
+        assert (
+            call_args.kwargs.get("params", {}).get("filter", "")
+            == "cloud_snapshot eq 1 and is_snapshot eq false"
+        )
+        posts = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+            and str(call.kwargs.get("url", "")).endswith("cloud_snapshot_actions")
+        ]
+        assert len(posts) == 1
+        assert posts[0].kwargs.get("json") == {"action": "find_vms", "cloud_snapshot": 1}
+        # find_vms is posted before the membership GET.
+        assert mock_session.request.call_args_list.index(posts[0]) < (
+            mock_session.request.call_args_list.index(call_args)
+        )
+
+    def test_list_vms_include_snapshots(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """include_snapshots keeps is_snapshot rows and still posts find_vms."""
+        mock_session.request.return_value.json.return_value = [sample_vm_data]
+
+        vms = mock_client.cloud_snapshots.vms(1).list(include_snapshots=True)
+
+        assert len(vms) == 1
+        filt = mock_session.request.call_args.kwargs.get("params", {}).get("filter", "")
+        assert filt == "cloud_snapshot eq 1"
+        assert "is_snapshot" not in filt
+
+    def test_list_vms_combines_caller_filter(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """A caller filter is ANDed after the membership clauses."""
+        mock_session.request.return_value.json.return_value = [sample_vm_data]
+
+        mock_client.cloud_snapshots.vms(4).list(filter="name eq 'TestVM'")
+
+        filt = mock_session.request.call_args.kwargs.get("params", {}).get("filter", "")
+        assert filt == ("cloud_snapshot eq 4 and is_snapshot eq false and (name eq 'TestVM')")
 
     def test_get_vm_by_key(
         self,
@@ -689,6 +734,58 @@ class TestCloudSnapshotManager:
         assert result["snapshot_key"] == 1
         assert result["vm_key"] == 100
 
+    def test_find_vms_posts_action(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
+        """find_vms posts the action body from issue #201 and returns an object."""
+        mock_session.request.return_value.json.return_value = {"response": "ok"}
+
+        result = mock_client.cloud_snapshots.find_vms(7)
+
+        assert result == {"response": "ok"}
+        call = mock_session.request.call_args
+        assert call.kwargs.get("method") == "POST"
+        assert str(call.kwargs.get("url", "")).endswith("cloud_snapshot_actions")
+        assert call.kwargs.get("json") == {"action": "find_vms", "cloud_snapshot": 7}
+
+    def test_find_vms_ignores_non_object_body(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """A list or empty action body is not treated as fields we know."""
+        mock_session.request.return_value.text = "[]"
+        mock_session.request.return_value.json.return_value = [{"$key": 1}]
+        assert mock_client.cloud_snapshots.find_vms(3) is None
+
+        mock_session.request.return_value.text = ""
+        assert mock_client.cloud_snapshots.find_vms(3) is None
+
+    def test_include_vms_posts_find_vms_before_read(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """include_vms=True populates membership before reading VMs."""
+        mock_session.request.side_effect = [
+            _resp([sample_snapshot_data]),
+            _resp({}),
+            _resp([sample_vm_data]),
+        ]
+
+        snapshots = mock_client.cloud_snapshots.list(include_vms=True)
+
+        assert snapshots[0].vms is not None
+        assert snapshots[0].vms[0].name == "TestVM"
+        cloud_calls = [
+            call
+            for call in mock_session.request.call_args_list
+            if "cloud_snapshot" in str(call.kwargs.get("url", ""))
+        ]
+        assert cloud_calls[0].kwargs["method"] == "GET"
+        assert cloud_calls[1].kwargs["method"] == "POST"
+        assert cloud_calls[1].kwargs["json"] == {"action": "find_vms", "cloud_snapshot": 1}
+        assert cloud_calls[2].kwargs["method"] == "GET"
+        assert "cloud_snapshot_vms" in cloud_calls[2].kwargs["url"]
+
     def test_restore_vm_missing_params(self, mock_client: VergeClient) -> None:
         """Test restore_vm with missing parameters."""
         with pytest.raises(ValueError, match="snapshot_key or snapshot_name"):
@@ -748,6 +845,31 @@ class TestCloudSnapshotObjectMethods:
 
         assert len(vms) == 1
         assert vms[0].name == "TestVM"
+        posts = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "POST"
+        ]
+        assert len(posts) == 1
+        assert posts[0].kwargs.get("json") == {"action": "find_vms", "cloud_snapshot": 1}
+
+    def test_find_vms_method(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+    ) -> None:
+        """CloudSnapshot.find_vms() posts this snapshot's key."""
+        mock_session.request.return_value.json.return_value = {"response": "ok"}
+
+        snapshot = CloudSnapshot(sample_snapshot_data, mock_client.cloud_snapshots)
+        result = snapshot.find_vms()
+
+        assert result == {"response": "ok"}
+        assert mock_session.request.call_args.kwargs.get("json") == {
+            "action": "find_vms",
+            "cloud_snapshot": 1,
+        }
 
     def test_get_tenants_method(
         self,
