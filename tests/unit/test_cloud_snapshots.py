@@ -9,7 +9,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pyvergeos import VergeClient
-from pyvergeos.exceptions import ConflictError, NotFoundError, ValidationError, VergeTimeoutError
+from pyvergeos.exceptions import (
+    APIError,
+    AuthenticationError,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+    VergeTimeoutError,
+)
 from pyvergeos.resources.cloud_snapshots import (
     CloudSnapshot,
     CloudSnapshotTenant,
@@ -297,8 +304,13 @@ class TestCloudSnapshotVMManager:
         mock_session: MagicMock,
         sample_vm_data: dict[str, Any],
     ) -> None:
-        """Test listing VMs in a snapshot."""
-        mock_session.request.return_value.json.return_value = [sample_vm_data]
+        """Existing membership is returned from the GET, with no find_vms POST."""
+        # A 403 queued behind the rows would fire if list() still posted first.
+        mock_session.request.side_effect = [
+            _resp([sample_vm_data]),
+            _error(403, "Permission denied"),
+        ]
+        mock_session.request.reset_mock()
 
         vm_manager = mock_client.cloud_snapshots.vms(1)
         vms = vm_manager.list()
@@ -308,19 +320,11 @@ class TestCloudSnapshotVMManager:
 
         # Scope stays the snapshot. is_snapshot is not a default filter.
         call_args = mock_session.request.call_args
+        assert call_args.kwargs.get("method") == "GET"
+        assert "cloud_snapshot_vms" in call_args.kwargs.get("url", "")
         assert call_args.kwargs.get("params", {}).get("filter", "") == "cloud_snapshot eq 1"
-        posts = [
-            call
-            for call in mock_session.request.call_args_list
-            if call.kwargs.get("method") == "POST"
-            and str(call.kwargs.get("url", "")).endswith("cloud_snapshot_actions")
-        ]
-        assert len(posts) == 1
-        assert posts[0].kwargs.get("json") == {"action": "find_vms", "cloud_snapshot": 1}
-        # find_vms is posted before the membership GET.
-        assert mock_session.request.call_args_list.index(posts[0]) < (
-            mock_session.request.call_args_list.index(call_args)
-        )
+        assert _find_vms_posts(mock_session) == []
+        assert len(mock_session.request.call_args_list) == 1
 
     def test_list_vms_combines_caller_filter(
         self,
@@ -752,19 +756,21 @@ class TestCloudSnapshotManager:
         mock_session.request.return_value.text = ""
         assert mock_client.cloud_snapshots.find_vms(3) is None
 
-    def test_include_vms_posts_find_vms_before_read(
+    def test_include_vms_posts_find_vms_only_when_membership_empty(
         self,
         mock_client: VergeClient,
         mock_session: MagicMock,
         sample_snapshot_data: dict[str, Any],
         sample_vm_data: dict[str, Any],
     ) -> None:
-        """include_vms=True populates membership before reading VMs."""
+        """include_vms posts find_vms only after an empty membership read."""
         mock_session.request.side_effect = [
             _resp([sample_snapshot_data]),
+            _resp([]),
             _resp({}),
             _resp([sample_vm_data]),
         ]
+        mock_session.request.reset_mock()
 
         snapshots = mock_client.cloud_snapshots.list(include_vms=True)
 
@@ -776,10 +782,13 @@ class TestCloudSnapshotManager:
             if "cloud_snapshot" in str(call.kwargs.get("url", ""))
         ]
         assert cloud_calls[0].kwargs["method"] == "GET"
-        assert cloud_calls[1].kwargs["method"] == "POST"
-        assert cloud_calls[1].kwargs["json"] == {"action": "find_vms", "cloud_snapshot": 1}
-        assert cloud_calls[2].kwargs["method"] == "GET"
-        assert "cloud_snapshot_vms" in cloud_calls[2].kwargs["url"]
+        assert "cloud_snapshots" in cloud_calls[0].kwargs["url"]
+        assert cloud_calls[1].kwargs["method"] == "GET"
+        assert "cloud_snapshot_vms" in cloud_calls[1].kwargs["url"]
+        assert cloud_calls[2].kwargs["method"] == "POST"
+        assert cloud_calls[2].kwargs["json"] == {"action": "find_vms", "cloud_snapshot": 1}
+        assert cloud_calls[3].kwargs["method"] == "GET"
+        assert "cloud_snapshot_vms" in cloud_calls[3].kwargs["url"]
 
     def test_restore_vm_missing_params(self, mock_client: VergeClient) -> None:
         """Test restore_vm with missing parameters."""
@@ -831,22 +840,19 @@ class TestCloudSnapshotObjectMethods:
         sample_snapshot_data: dict[str, Any],
         sample_vm_data: dict[str, Any],
     ) -> None:
-        """Test CloudSnapshot.get_vms() method."""
-        # First call returns VMs
-        mock_session.request.return_value.json.return_value = [sample_vm_data]
+        """get_vms() returns existing rows and does not post find_vms."""
+        mock_session.request.side_effect = [
+            _resp([sample_vm_data]),
+            _error(403, "Permission denied"),
+        ]
+        mock_session.request.reset_mock()
 
         snapshot = CloudSnapshot(sample_snapshot_data, mock_client.cloud_snapshots)
         vms = snapshot.get_vms()
 
         assert len(vms) == 1
         assert vms[0].name == "TestVM"
-        posts = [
-            call
-            for call in mock_session.request.call_args_list
-            if call.kwargs.get("method") == "POST"
-        ]
-        assert len(posts) == 1
-        assert posts[0].kwargs.get("json") == {"action": "find_vms", "cloud_snapshot": 1}
+        assert _find_vms_posts(mock_session) == []
 
     def test_find_vms_method(
         self,
@@ -1097,6 +1103,17 @@ def _error(status: int, message: str) -> MagicMock:
     response.text = message
     response.json.return_value = {"err": message}
     return response
+
+
+def _find_vms_posts(mock_session: MagicMock) -> list[Any]:
+    """POSTs of the ``find_vms`` action."""
+    return [
+        call
+        for call in mock_session.request.call_args_list
+        if call.kwargs.get("method") == "POST"
+        and str(call.kwargs.get("url", "")).endswith("cloud_snapshot_actions")
+        and (call.kwargs.get("json") or {}).get("action") == "find_vms"
+    ]
 
 
 def _field_tokens(fields: Any) -> list[str]:
@@ -1423,3 +1440,245 @@ class TestCreateRetryIfBusy:
             )
 
         mock_time.sleep.assert_not_called()
+
+
+# =============================================================================
+# Read-only cloud snapshot VM membership — issue #206
+# =============================================================================
+
+
+class TestCloudSnapshotVMReadOnly:
+    """Membership reads must work without permission to post find_vms."""
+
+    def test_permission_denied_classifier(self) -> None:
+        """403 and the Permission denied message are the tolerated refusal."""
+        from pyvergeos.resources.cloud_snapshots import _find_vms_permission_denied
+
+        assert _find_vms_permission_denied(AuthenticationError("Permission denied"))
+        assert _find_vms_permission_denied(AuthenticationError("nope", status_code=403))
+        assert not _find_vms_permission_denied(
+            AuthenticationError("Permission denied", status_code=401)
+        )
+        assert not _find_vms_permission_denied(AuthenticationError("session expired"))
+
+    def test_empty_membership_posts_find_vms_then_rereads(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """No rows yet: find_vms runs, then the membership GET is repeated."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        vms = mock_client.cloud_snapshots.vms(1).list()
+
+        assert [vm.name for vm in vms] == ["TestVM"]
+        posts = _find_vms_posts(mock_session)
+        assert len(posts) == 1
+        assert posts[0].kwargs["json"] == {"action": "find_vms", "cloud_snapshot": 1}
+        calls = mock_session.request.call_args_list
+        assert calls[0].kwargs["method"] == "GET"
+        assert calls[1].kwargs["method"] == "POST"
+        assert calls[2].kwargs["method"] == "GET"
+        assert "cloud_snapshot_vms" in calls[0].kwargs["url"]
+        assert "cloud_snapshot_vms" in calls[2].kwargs["url"]
+
+    def test_permission_denied_on_empty_membership_returns_rows(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """HTTP 403 on find_vms falls back to the membership rows already read."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _error(403, "Permission denied"),
+        ]
+        mock_session.request.reset_mock()
+
+        vms = mock_client.cloud_snapshots.vms(1).list()
+
+        assert vms == []
+        assert len(_find_vms_posts(mock_session)) == 1
+        # The refused POST is not followed by another read.
+        assert len(mock_session.request.call_args_list) == 2
+
+    def test_unauthorized_find_vms_is_not_an_empty_list(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """HTTP 401 on find_vms is an authentication failure, not zero VMs."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _error(401, "Permission denied"),
+        ]
+
+        with pytest.raises(AuthenticationError, match="Permission denied"):
+            mock_client.cloud_snapshots.vms(1).list()
+
+    def test_find_vms_server_error_is_raised(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """A failed find_vms is not reported as an empty membership."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _error(500, "find failed"),
+        ]
+
+        with pytest.raises(APIError, match="find failed"):
+            mock_client.cloud_snapshots.vms(1).list()
+
+    def test_filtered_miss_does_not_post_when_rows_exist(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """A filter that matches nothing is not an empty membership."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp([sample_vm_data]),
+            _error(403, "Permission denied"),
+        ]
+        mock_session.request.reset_mock()
+
+        vms = mock_client.cloud_snapshots.vms(4).list(is_snapshot=False)
+
+        assert vms == []
+        assert _find_vms_posts(mock_session) == []
+        gets = [
+            call
+            for call in mock_session.request.call_args_list
+            if call.kwargs.get("method") == "GET"
+        ]
+        assert len(gets) == 2
+        assert gets[0].kwargs["params"]["filter"] == (
+            "cloud_snapshot eq 4 and is_snapshot eq false"
+        )
+        assert gets[1].kwargs["params"]["filter"] == "cloud_snapshot eq 4"
+        assert gets[1].kwargs["params"]["limit"] == 1
+
+    def test_list_include_vms_skips_find_vms_when_rows_exist(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """list(include_vms=True) does not POST once per snapshot with rows."""
+        second = {**sample_snapshot_data, "$key": 2, "name": "Other"}
+        other_vm = {**sample_vm_data, "$key": 101, "name": "OtherVM", "cloud_snapshot": 2}
+        mock_session.request.side_effect = [
+            _resp([sample_snapshot_data, second]),
+            _resp([sample_vm_data]),
+            _resp([other_vm]),
+            _error(403, "Permission denied"),
+        ]
+
+        snapshots = mock_client.cloud_snapshots.list(include_vms=True)
+
+        assert snapshots[0].vms is not None
+        assert [vm.name for vm in snapshots[0].vms] == ["TestVM"]
+        assert snapshots[1].vms is not None
+        assert [vm.name for vm in snapshots[1].vms] == ["OtherVM"]
+        assert _find_vms_posts(mock_session) == []
+
+    def test_list_include_vms_posts_only_for_empty_snapshot(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """One POST for the snapshot that has no rows, none for the rest."""
+        second = {**sample_snapshot_data, "$key": 2, "name": "New"}
+        filled = {**sample_vm_data, "$key": 101, "name": "Filled", "cloud_snapshot": 2}
+        mock_session.request.side_effect = [
+            _resp([sample_snapshot_data, second]),
+            _resp([sample_vm_data]),
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([filled]),
+        ]
+
+        snapshots = mock_client.cloud_snapshots.list(include_vms=True)
+
+        assert [vm.name for vm in snapshots[0].vms or []] == ["TestVM"]
+        assert [vm.name for vm in snapshots[1].vms or []] == ["Filled"]
+        posts = _find_vms_posts(mock_session)
+        assert len(posts) == 1
+        assert posts[0].kwargs["json"] == {"action": "find_vms", "cloud_snapshot": 2}
+
+    def test_get_include_vms_keeps_rows_for_readonly_user(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """get(include_vms=True) returns existing rows when find_vms is forbidden."""
+        mock_session.request.side_effect = [
+            _resp(sample_snapshot_data),
+            _resp([sample_vm_data]),
+            _error(403, "Permission denied"),
+        ]
+
+        snapshot = mock_client.cloud_snapshots.get(1, include_vms=True)
+
+        assert snapshot.vms is not None
+        assert [vm.name for vm in snapshot.vms] == ["TestVM"]
+        assert _find_vms_posts(mock_session) == []
+
+    def test_get_include_vms_permission_denied_on_empty_membership(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+    ) -> None:
+        """An empty read plus a refused find_vms stays an empty VM list."""
+        mock_session.request.side_effect = [
+            _resp(sample_snapshot_data),
+            _resp([]),
+            _error(403, "Permission denied"),
+        ]
+
+        snapshot = mock_client.cloud_snapshots.get(1, include_vms=True)
+
+        assert snapshot.vms == []
+
+    def test_get_include_vms_raises_vm_read_errors(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+    ) -> None:
+        """A failed membership GET is raised from get(include_vms=True)."""
+        mock_session.request.side_effect = [
+            _resp(sample_snapshot_data),
+            _error(500, "membership read failed"),
+        ]
+
+        with pytest.raises(APIError, match="membership read failed"):
+            mock_client.cloud_snapshots.get(1, include_vms=True)
+
+    def test_list_include_vms_raises_vm_read_errors(
+        self,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+    ) -> None:
+        """A failed membership GET is raised from list(include_vms=True)."""
+        mock_session.request.side_effect = [
+            _resp([sample_snapshot_data]),
+            _error(500, "membership read failed"),
+        ]
+
+        with pytest.raises(APIError, match="membership read failed"):
+            mock_client.cloud_snapshots.list(include_vms=True)
