@@ -9,7 +9,12 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Union
 
 from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
-from pyvergeos.exceptions import NotFoundError, ValidationError, VergeTimeoutError
+from pyvergeos.exceptions import (
+    AuthenticationError,
+    NotFoundError,
+    ValidationError,
+    VergeTimeoutError,
+)
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
 
@@ -248,13 +253,46 @@ class CloudSnapshotTenant(ResourceObject):
         return f"<CloudSnapshotTenant key={key} name={name!r}>"
 
 
+def _vm_read_can_hide_rows(
+    filter: str | None,
+    limit: int | None,
+    offset: int | None,
+    filter_kwargs: dict[str, Any],
+) -> bool:
+    """True when an empty read does not prove the snapshot has no VM rows.
+
+    A filter, ``limit=0``, or a non-zero offset can return nothing while
+    membership rows exist. An unfiltered read of the snapshot cannot.
+    """
+    if filter or filter_kwargs:
+        return True
+    if limit == 0:
+        return True
+    return offset not in (None, 0)
+
+
+def _find_vms_permission_denied(exc: AuthenticationError) -> bool:
+    """True when ``find_vms`` was refused for lack of permission.
+
+    VergeOS answers that POST with HTTP 403 and the message
+    ``Permission denied`` for a read-only user. HTTP 401 is an
+    authentication failure and is left to the caller.
+    """
+    if exc.status_code == 401:
+        return False
+    if exc.status_code == 403:
+        return True
+    return "permission denied" in str(exc).lower()
+
+
 class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
     """Manager for VMs within a cloud snapshot.
 
     Provides access to VMs captured in a specific cloud snapshot.
 
     Example:
-        >>> # Get VMs in a snapshot. list() posts find_vms first.
+        >>> # Get VMs in a snapshot. Existing rows are returned as read.
+        >>> # find_vms runs only when that membership is empty.
         >>> snapshot = client.cloud_snapshots.get(name="Daily_20260123")
         >>> vms = client.cloud_snapshots.vms(snapshot.key).list()
         >>> for vm in vms:
@@ -284,13 +322,16 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
     ) -> builtins.list[CloudSnapshotVM]:
         """List VMs in this cloud snapshot.
 
-        Posts ``find_vms`` before the GET. On VergeOS 26.2.2.1 a new
-        system snapshot's ``cloud_snapshot_vms`` rows stay empty until
+        Reads ``cloud_snapshot_vms`` first. On VergeOS 26.2.2.1 a new
+        system snapshot's rows stay empty until
         ``POST /api/v4/cloud_snapshot_actions`` with
-        ``{"action": "find_vms", "cloud_snapshot": N}``. The read stays
-        scoped to this snapshot. ``is_snapshot`` is a property of those
-        rows, not a default filter. Pass ``is_snapshot=False`` to match
-        the lab query that returned the snapshot's VMs.
+        ``{"action": "find_vms", "cloud_snapshot": N}``. That POST runs
+        only when this snapshot has no membership rows. A permission
+        failure on the POST returns the rows already read. Any other
+        error from the POST is raised. The read stays scoped to this
+        snapshot. ``is_snapshot`` is a property of those rows, not a
+        default filter. Pass ``is_snapshot=False`` to match the lab
+        query that returned the snapshot's VMs.
 
         Args:
             filter: OData filter string.
@@ -301,17 +342,41 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
 
         Returns:
             List of CloudSnapshotVM objects.
-        """
-        # Membership is empty until this action runs (#201).
-        self._client.cloud_snapshots.find_vms(self._snapshot_key)
 
+        Raises:
+            AuthenticationError: If ``find_vms`` fails authentication
+                (HTTP 401). A read-only user's HTTP 403 is not raised.
+            APIError: If the membership read or ``find_vms`` fails.
+        """
+        rows = self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+        if rows or not self._membership_is_empty(filter, limit, offset, filter_kwargs):
+            return rows
+        try:
+            self._client.cloud_snapshots.find_vms(self._snapshot_key)
+        except AuthenticationError as exc:
+            if not _find_vms_permission_denied(exc):
+                raise
+            return rows
+        return self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+
+    def _fetch_vms(
+        self,
+        filter: str | None = None,
+        fields: str | builtins.list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        filter_kwargs: dict[str, Any] | None = None,
+    ) -> builtins.list[CloudSnapshotVM]:
+        """GET this snapshot's ``cloud_snapshot_vms`` rows."""
         conditions: builtins.list[str] = [f"cloud_snapshot eq {self._snapshot_key}"]
 
         if filter:
             conditions.append(f"({filter})")
 
         if filter_kwargs:
-            conditions.append(build_filter(**filter_kwargs))
+            extra = build_filter(**filter_kwargs)
+            if extra:
+                conditions.append(extra)
 
         combined_filter = " and ".join(conditions)
 
@@ -336,6 +401,23 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
             return [self._to_model(response)]
 
         return [self._to_model(item) for item in response]
+
+    def _membership_is_empty(
+        self,
+        filter: str | None,
+        limit: int | None,
+        offset: int | None,
+        filter_kwargs: dict[str, Any],
+    ) -> bool:
+        """True when this snapshot has no ``cloud_snapshot_vms`` rows.
+
+        Called after the caller's read came back empty. A filter,
+        ``limit=0``, or a non-zero offset can hide rows that exist, so
+        those cases read once more with no extra filter.
+        """
+        if _vm_read_can_hide_rows(filter, limit, offset, filter_kwargs):
+            return not self._fetch_vms(limit=1)
+        return True
 
     def get(
         self,
@@ -646,8 +728,9 @@ class CloudSnapshot(ResourceObject):
 
         Posts ``{"action": "find_vms", "cloud_snapshot": <key>}`` to
         ``cloud_snapshot_actions``. ``get_vms()`` and ``vms().list()``
-        call this first. On VergeOS 26.2.2.1 the rows stay empty until
-        it runs. The UI posts the same action when a snapshot is opened.
+        call this when the membership read is empty. On VergeOS 26.2.2.1
+        the rows stay empty until it runs. The UI posts the same action
+        when a snapshot is opened.
 
         Returns:
             The action response when VergeOS returns an object, otherwise
@@ -661,8 +744,10 @@ class CloudSnapshot(ResourceObject):
     def get_vms(self) -> builtins.list[CloudSnapshotVM]:
         """Get the VMs captured in this snapshot.
 
-        Posts ``find_vms`` first, then reads this snapshot's
-        ``cloud_snapshot_vms`` rows. ``is_snapshot`` is left to the caller.
+        Reads this snapshot's ``cloud_snapshot_vms`` rows. ``find_vms``
+        runs only when that membership is empty. A permission failure on
+        the POST returns the rows already read. ``is_snapshot`` is left
+        to the caller.
 
         Returns:
             List of CloudSnapshotVM objects.
@@ -805,8 +890,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             limit: Maximum number of results.
             offset: Skip this many results.
             include_expired: Include expired snapshots.
-            include_vms: Include VMs for each snapshot. Each VM list posts
-                ``find_vms`` first.
+            include_vms: Include VMs for each snapshot. ``find_vms`` is
+                posted only for a snapshot that has no membership rows.
+                A failed VM read is raised.
             include_tenants: Include tenants for each snapshot.
             **filter_kwargs: Additional filter arguments.
 
@@ -871,10 +957,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
 
             if snapshot_key:
                 if include_vms:
-                    try:
-                        snapshot_vms = self.vms(int(snapshot_key)).list()
-                    except Exception:
-                        snapshot_vms = []
+                    snapshot_vms = self.vms(int(snapshot_key)).list()
                 if include_tenants:
                     try:
                         snapshot_tenants = self.tenants(int(snapshot_key)).list()
@@ -901,8 +984,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             key: Snapshot $key (ID).
             name: Snapshot name.
             fields: List of fields to return.
-            include_vms: Include VMs in the snapshot. The VM list posts
-                ``find_vms`` first.
+            include_vms: Include VMs in the snapshot. ``find_vms`` is
+                posted only when the snapshot has no membership rows. A
+                failed VM read is raised.
             include_tenants: Include tenants in the snapshot.
             include_expired: Include expired snapshots when searching by name.
 
@@ -930,10 +1014,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             snapshot_vms = None
             snapshot_tenants = None
             if include_vms:
-                try:
-                    snapshot_vms = self.vms(key).list()
-                except Exception:
-                    snapshot_vms = []
+                snapshot_vms = self.vms(key).list()
             if include_tenants:
                 try:
                     snapshot_tenants = self.tenants(key).list()
@@ -1290,7 +1371,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         On VergeOS 26.2.2.1, ``cloud_snapshot_vms`` for a new system
         snapshot stays empty until this action runs. The UI posts the
         same body when a snapshot is opened. ``vms().list()`` and
-        ``CloudSnapshot.get_vms()`` call this before they read.
+        ``CloudSnapshot.get_vms()`` call this only when that read is
+        empty. A read-only user who cannot POST still receives the rows
+        the GET returned.
 
         Args:
             snapshot_key: Cloud snapshot ``$key``.

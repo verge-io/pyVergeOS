@@ -44,11 +44,16 @@ Fixed
   ``get(name=...)`` and ``list(name=...)`` store a numeric string key as
   ``int`` when the row is built. (#205)
 - ``cloud_snapshots.vms(key).list()``, ``CloudSnapshot.get_vms()``, and
-  ``include_vms=True`` post ``find_vms`` before reading
-  ``cloud_snapshot_vms``. The read stays filtered by
+  ``include_vms=True`` read ``cloud_snapshot_vms`` filtered by
   ``cloud_snapshot eq N``. ``is_snapshot`` is not added: rows in that
   table already belong to the snapshot. Pass ``is_snapshot=False`` for
-  the lab query that returned the tagged VMs. (#201)
+  the lab query that returned the tagged VMs. ``find_vms`` runs only
+  when that snapshot has no membership rows. (#201, #206)
+- Reading a cloud snapshot's VMs works for a read-only user. The
+  membership GET happens before ``find_vms``. When rows already exist
+  the POST is skipped, so ``list(include_vms=True)`` does not POST once
+  per snapshot. A permission failure on ``find_vms`` (HTTP 403) returns
+  the rows already read. Any other error from that read is raised. (#206)
 - ``cloud_snapshots.create(wait=True)`` waits on
   ``GET cloud_snapshots/N?fields=all`` and reads ``status`` from that body.
   ``get()`` with the default field list can return while that read still
