@@ -134,6 +134,41 @@ class TestNetworkManager:
         assert network.name == "my-network"
         assert network.key == 200
 
+    def test_string_key_is_stored_as_int(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """A string vnet $key from the API is stored as an int.
+
+        VergeOS 26.2 returns $key as the string "22" when vlan_bond_primary
+        is selected. dict(network)["$key"] has to stay an int.
+        """
+        row = {
+            "$key": "22",
+            "name": "edge",
+            "type": "internal",
+            "vlan_bond_primary": None,
+        }
+
+        mock_session.request.return_value.json.return_value = [dict(row)]
+        listed = mock_client.networks.list()
+        assert dict(listed[0])["$key"] == 22
+        assert type(dict(listed[0])["$key"]) is int
+
+        mock_session.request.return_value.json.return_value = dict(row)
+        by_key = mock_client.networks.get(22)
+        assert dict(by_key)["$key"] == 22
+        assert type(dict(by_key)["$key"]) is int
+
+        mock_session.request.return_value.json.return_value = [dict(row)]
+        by_name = mock_client.networks.get(name="edge")
+        assert dict(by_name)["$key"] == 22
+        assert type(dict(by_name)["$key"]) is int
+
+        mock_session.request.return_value.json.return_value = [dict(row)]
+        named = mock_client.networks.list(name="edge")
+        assert dict(named[0])["$key"] == 22
+        assert type(dict(named[0])["$key"]) is int
+
     def test_get_network_not_found(self, mock_client: VergeClient, mock_session: MagicMock) -> None:
         """Test that NotFoundError is raised when network not found."""
         mock_session.request.return_value.json.return_value = []

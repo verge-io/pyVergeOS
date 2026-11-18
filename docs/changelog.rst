@@ -38,6 +38,11 @@ Added
 Fixed
 ^^^^^
 
+- Network reads keep ``$key`` as an int on VergeOS 26.2. Selecting
+  ``vlan_bond_primary`` makes the API return that key as a string, and the
+  26.2 default projection includes the column. ``list()``, ``get(key)``,
+  ``get(name=...)`` and ``list(name=...)`` store a numeric string key as
+  ``int`` when the row is built. (#205)
 - ``cloud_snapshots.vms(key).list()``, ``CloudSnapshot.get_vms()``, and
   ``include_vms=True`` post ``find_vms`` before reading
   ``cloud_snapshot_vms``. The read stays filtered by

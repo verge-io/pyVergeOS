@@ -928,6 +928,11 @@ class NetworkManager(ResourceManager[Network]):
         super().__init__(client)
 
     def _to_model(self, data: dict[str, Any]) -> Network:
+        # VergeOS 26.2 returns $key as a string when vlan_bond_primary is
+        # selected. Network keys are integers (issue #205).
+        key = data.get("$key")
+        if isinstance(key, str):
+            data = {**data, "$key": int(key)}
         return Network(data, self)
 
     def _power_action(self, key: int, action: str, **params: Any) -> dict[str, Any] | None:
