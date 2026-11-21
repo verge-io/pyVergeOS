@@ -49,6 +49,9 @@ Fixed
   table already belong to the snapshot. Pass ``is_snapshot=False`` for
   the lab query that returned the tagged VMs. ``find_vms`` runs only
   when that snapshot has no membership rows. (#201, #206)
+- ``cloud_snapshots.vms(key).list()`` and ``CloudSnapshot.get_vms()`` poll
+  until VM rows appear when ``find_vms`` runs asynchronously. ``find_vms``
+  retries if the server reports the system snapshot is still building. (#209)
 - Reading a cloud snapshot's VMs works for a read-only user. The
   membership GET happens before ``find_vms``. When rows already exist
   the POST is skipped, so ``list(include_vms=True)`` does not POST once

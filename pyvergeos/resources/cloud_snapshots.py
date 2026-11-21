@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Union
 
-from pyvergeos.constants import POLL_INTERVAL, TASK_WAIT_TIMEOUT
+from pyvergeos.constants import POLL_INTERVAL, POLL_INTERVAL_FAST, TASK_WAIT_TIMEOUT
 from pyvergeos.exceptions import (
     AuthenticationError,
     NotFoundError,
@@ -318,6 +318,9 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         fields: str | builtins.list[str] | None = None,
         limit: int | None = None,
         offset: int | None = None,
+        *,
+        wait: bool = True,
+        wait_timeout: float = 15.0,
         **filter_kwargs: Any,
     ) -> builtins.list[CloudSnapshotVM]:
         """List VMs in this cloud snapshot.
@@ -328,16 +331,21 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         ``{"action": "find_vms", "cloud_snapshot": N}``. That POST runs
         only when this snapshot has no membership rows. A permission
         failure on the POST returns the rows already read. Any other
-        error from the POST is raised. The read stays scoped to this
-        snapshot. ``is_snapshot`` is a property of those rows, not a
-        default filter. Pass ``is_snapshot=False`` to match the lab
-        query that returned the snapshot's VMs.
+        error from the POST is raised. When ``find_vms`` runs and ``wait``
+        is True, polls until membership rows appear or ``wait_timeout``
+        expires (the platform populates rows asynchronously, issue #209).
+        The read stays scoped to this snapshot. ``is_snapshot`` is a
+        property of those rows, not a default filter. Pass
+        ``is_snapshot=False`` to match the lab query that returned the
+        snapshot's VMs.
 
         Args:
             filter: OData filter string.
             fields: List of fields to return.
             limit: Maximum number of results.
             offset: Skip this many results.
+            wait: When find_vms runs, wait for membership rows to appear.
+            wait_timeout: Maximum seconds to wait for membership rows.
             **filter_kwargs: Additional filter arguments.
 
         Returns:
@@ -357,7 +365,18 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
             if not _find_vms_permission_denied(exc):
                 raise
             return rows
-        return self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+
+        if not wait or wait_timeout <= 0:
+            return self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+
+        start = time.time()
+        delay = POLL_INTERVAL_FAST
+        while True:
+            rows = self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+            if rows or (time.time() - start) >= wait_timeout:
+                return rows
+            time.sleep(delay)
+            delay = min(delay * 1.5, 2.0)
 
     def _fetch_vms(
         self,
@@ -723,7 +742,12 @@ class CloudSnapshot(ResourceObject):
         """Get tenants in this snapshot (if loaded with include_tenants=True)."""
         return self._tenants
 
-    def find_vms(self) -> dict[str, Any] | None:
+    def find_vms(
+        self,
+        *,
+        retry_if_building: bool = True,
+        timeout: float = 30.0,
+    ) -> dict[str, Any] | None:
         """Populate this snapshot's VM membership.
 
         Posts ``{"action": "find_vms", "cloud_snapshot": <key>}`` to
@@ -732,6 +756,12 @@ class CloudSnapshot(ResourceObject):
         the rows stay empty until it runs. The UI posts the same action
         when a snapshot is opened.
 
+        Args:
+            retry_if_building: Whether to retry when the server returns
+                ``ValidationError`` with ``System snapshot is still building``.
+            timeout: Maximum seconds to retry when ``retry_if_building``
+                is True (default: 30.0).
+
         Returns:
             The action response when VergeOS returns an object, otherwise
             None.
@@ -739,15 +769,25 @@ class CloudSnapshot(ResourceObject):
         from typing import cast
 
         manager = cast("CloudSnapshotManager", self._manager)
-        return manager.find_vms(self.key)
+        return manager.find_vms(self.key, retry_if_building=retry_if_building, timeout=timeout)
 
-    def get_vms(self) -> builtins.list[CloudSnapshotVM]:
+    def get_vms(
+        self,
+        *,
+        wait: bool = True,
+        wait_timeout: float = 15.0,
+    ) -> builtins.list[CloudSnapshotVM]:
         """Get the VMs captured in this snapshot.
 
         Reads this snapshot's ``cloud_snapshot_vms`` rows. ``find_vms``
         runs only when that membership is empty. A permission failure on
-        the POST returns the rows already read. ``is_snapshot`` is left
-        to the caller.
+        the POST returns the rows already read. When ``find_vms`` runs and
+        ``wait`` is True, polls until rows appear or ``wait_timeout``
+        expires (issue #209). ``is_snapshot`` is left to the caller.
+
+        Args:
+            wait: When find_vms runs, wait for membership rows to appear.
+            wait_timeout: Maximum seconds to wait for membership rows.
 
         Returns:
             List of CloudSnapshotVM objects.
@@ -755,7 +795,7 @@ class CloudSnapshot(ResourceObject):
         from typing import cast
 
         manager = cast("CloudSnapshotManager", self._manager)
-        return manager.vms(self.key).list()
+        return manager.vms(self.key).list(wait=wait, wait_timeout=wait_timeout)
 
     def get_tenants(self) -> builtins.list[CloudSnapshotTenant]:
         """Get all tenants in this snapshot.
@@ -1365,7 +1405,13 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
-    def find_vms(self, snapshot_key: int) -> dict[str, Any] | None:
+    def find_vms(
+        self,
+        snapshot_key: int,
+        *,
+        retry_if_building: bool = True,
+        timeout: float = 30.0,
+    ) -> dict[str, Any] | None:
         """Populate VM membership for a cloud snapshot.
 
         On VergeOS 26.2.2.1, ``cloud_snapshot_vms`` for a new system
@@ -1377,6 +1423,10 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
 
         Args:
             snapshot_key: Cloud snapshot ``$key``.
+            retry_if_building: Whether to retry when the server returns
+                ``ValidationError`` with ``System snapshot is still building``.
+            timeout: Maximum seconds to retry when ``retry_if_building``
+                is True (default: 30.0).
 
         Returns:
             The action response when VergeOS returns an object, otherwise
@@ -1387,14 +1437,26 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             >>> for vm in client.cloud_snapshots.vms(snapshot.key).list():
             ...     print(vm.name)
         """
-        response = self._client._request(
-            "POST",
-            "cloud_snapshot_actions",
-            json_data={"action": "find_vms", "cloud_snapshot": snapshot_key},
-        )
-        if isinstance(response, dict):
-            return response
-        return None
+        start = time.time()
+        delay = POLL_INTERVAL_FAST
+        while True:
+            try:
+                response = self._client._request(
+                    "POST",
+                    "cloud_snapshot_actions",
+                    json_data={"action": "find_vms", "cloud_snapshot": snapshot_key},
+                )
+                if isinstance(response, dict):
+                    return response
+                return None
+            except ValidationError as exc:
+                if retry_if_building and "building" in str(exc).lower():
+                    if timeout > 0 and (time.time() - start) >= timeout:
+                        raise
+                    time.sleep(delay)
+                    delay = min(delay * 2, 2.0)
+                    continue
+                raise
 
     def restore_vm(
         self,

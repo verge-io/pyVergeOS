@@ -1682,3 +1682,82 @@ class TestCloudSnapshotVMReadOnly:
 
         with pytest.raises(APIError, match="membership read failed"):
             mock_client.cloud_snapshots.list(include_vms=True)
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_find_vms_retries_when_still_building(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """find_vms retries when server reports snapshot is still building (issue #209)."""
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [
+            ValidationError("System snapshot is still building"),
+            _resp({"response": "ok"}),
+        ]
+        result = mock_client.cloud_snapshots.find_vms(7)
+        assert result == {"response": "ok"}
+        assert mock_session.request.call_count == 2
+        assert mock_sleep.called
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_find_vms_still_building_raises_on_timeout(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """find_vms raises ValidationError when still building exceeds timeout."""
+        mock_session.request.side_effect = ValidationError("System snapshot is still building")
+        with pytest.raises(ValidationError, match="System snapshot is still building"):
+            mock_client.cloud_snapshots.find_vms(7, timeout=0.01)
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_empty_membership_polls_until_vms_appear(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """vms.list() polls when find_vms runs asynchronously (issue #209)."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        vms = mock_client.cloud_snapshots.vms(1).list()
+
+        assert [vm.name for vm in vms] == ["TestVM"]
+        assert mock_sleep.called
+        calls = mock_session.request.call_args_list
+        assert len(calls) == 4
+        assert calls[0].kwargs["method"] == "GET"
+        assert calls[1].kwargs["method"] == "POST"
+        assert calls[2].kwargs["method"] == "GET"
+        assert calls[3].kwargs["method"] == "GET"
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_empty_membership_wait_false_does_not_poll(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """vms.list(wait=False) does not poll after the first re-read."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+        ]
+        mock_session.request.reset_mock()
+
+        vms = mock_client.cloud_snapshots.vms(1).list(wait=False)
+
+        assert vms == []
+        assert not mock_sleep.called
+        assert len(mock_session.request.call_args_list) == 3
