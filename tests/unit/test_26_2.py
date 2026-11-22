@@ -432,7 +432,12 @@ class TestNetworks:
         _version(mock_client, version)
         mock_session.request.return_value.json.return_value = []
         VnetBondInterfaceManager(mock_client, 4).list()
-        assert ("primary" in _fields(mock_session)) is version.startswith("26.2")
+        fields = _fields(mock_session)
+        assert "parent_vnet" in fields
+        assert "child_vnet" in fields
+        assert ("primary" in fields) is version.startswith("26.2")
+        filter_param = mock_session.request.call_args.kwargs["params"].get("filter")
+        assert filter_param == "parent_vnet eq 4"
 
     def test_bond_get_includes_primary_on_26_2(
         self, mock_client: VergeClient, mock_session: MagicMock
@@ -440,12 +445,31 @@ class TestNetworks:
         _version(mock_client, "26.2.2.1")
         mock_session.request.return_value.json.return_value = {
             "$key": 9,
-            "vnet": 4,
+            "parent_vnet": 4,
+            "child_vnet": 12,
             "primary": True,
         }
         member = VnetBondInterfaceManager(mock_client, 4).get(9)
-        assert "primary" in _fields(mock_session)
+        fields = _fields(mock_session)
+        assert "primary" in fields
+        assert "parent_vnet" in fields
+        assert "child_vnet" in fields
+        assert member.parent_vnet_key == 4
+        assert member.child_vnet_key == 12
+        assert member.vnet_key == 4
         assert member.primary is True
+
+    def test_bond_interface_legacy_vnet_fallback(
+        self, mock_client: VergeClient, mock_session: MagicMock
+    ) -> None:
+        """vnet_key falls back to legacy vnet property when parent_vnet is absent."""
+        mock_session.request.return_value.json.return_value = {
+            "$key": 9,
+            "vnet": 7,
+        }
+        member = mock_client.vnet_bond_interfaces.get(9)
+        assert member.parent_vnet_key is None
+        assert member.vnet_key == 7
 
     def test_bgp_config_fields_and_update(
         self, mock_client: VergeClient, mock_session: MagicMock

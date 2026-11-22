@@ -38,6 +38,11 @@ Added
 Fixed
 ^^^^^
 
+- ``vnet_bond_interfaces`` requests ``parent_vnet`` and ``child_vnet``.
+  ``network.bond_interfaces.list()`` filters on ``parent_vnet eq <key>``
+  instead of the non-existent ``vnet`` column. ``VnetBondInterface`` exposes
+  ``parent_vnet_key`` and ``child_vnet_key``, while keeping ``vnet_key`` as
+  an alias.
 - Network reads keep ``$key`` as an int on VergeOS 26.2. Selecting
   ``vlan_bond_primary`` makes the API return that key as a string, and the
   26.2 default projection includes the column. ``list()``, ``get(key)``,
