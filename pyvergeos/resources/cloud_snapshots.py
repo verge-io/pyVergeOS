@@ -308,6 +308,22 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
     def __init__(self, client: VergeClient, snapshot_key: int) -> None:
         super().__init__(client)
         self._snapshot_key = snapshot_key
+        self._populated = False
+
+    @property
+    def _is_populated(self) -> bool:
+        if self._populated:
+            return True
+        manager = getattr(self._client, "cloud_snapshots", None)
+        if manager is not None and hasattr(manager, "_vms_populated"):
+            return self._snapshot_key in manager._vms_populated
+        return False
+
+    def _mark_populated(self) -> None:
+        self._populated = True
+        manager = getattr(self._client, "cloud_snapshots", None)
+        if manager is not None and hasattr(manager, "_vms_populated"):
+            manager._vms_populated.add(self._snapshot_key)
 
     def _to_model(self, data: dict[str, Any]) -> CloudSnapshotVM:
         return CloudSnapshotVM(data, self)
@@ -358,22 +374,36 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         """
         rows = self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
         if rows or not self._membership_is_empty(filter, limit, offset, filter_kwargs):
+            self._mark_populated()
             return rows
+
+        if self._is_populated:
+            return rows
+
         try:
             self._client.cloud_snapshots.find_vms(self._snapshot_key)
         except AuthenticationError as exc:
             if not _find_vms_permission_denied(exc):
                 raise
+            self._mark_populated()
             return rows
 
         if not wait or wait_timeout <= 0:
-            return self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+            rows = self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
+            if rows or not self._membership_is_empty(filter, limit, offset, filter_kwargs):
+                self._mark_populated()
+            return rows
 
         start = time.time()
         delay = POLL_INTERVAL_FAST
         while True:
             rows = self._fetch_vms(filter, fields, limit, offset, filter_kwargs)
-            if rows or (time.time() - start) >= wait_timeout:
+            if (
+                rows
+                or not self._membership_is_empty(filter, limit, offset, filter_kwargs)
+                or (time.time() - start) >= wait_timeout
+            ):
+                self._mark_populated()
                 return rows
             time.sleep(delay)
             delay = min(delay * 1.5, 2.0)
@@ -760,7 +790,8 @@ class CloudSnapshot(ResourceObject):
             retry_if_building: Whether to retry when the server returns
                 ``ValidationError`` with ``System snapshot is still building``.
             timeout: Maximum seconds to retry when ``retry_if_building``
-                is True (default: 30.0).
+                is True (default: 30.0). A timeout of 0 or negative does
+                not retry.
 
         Returns:
             The action response when VergeOS returns an object, otherwise
@@ -873,6 +904,7 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         super().__init__(client)
         self._vm_managers: dict[int, CloudSnapshotVMManager] = {}
         self._tenant_managers: dict[int, CloudSnapshotTenantManager] = {}
+        self._vms_populated: set[int] = set()
 
     def _to_model(
         self,
@@ -1404,6 +1436,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             NotFoundError: If snapshot not found.
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
+        self._vms_populated.discard(key)
+        self._vm_managers.pop(key, None)
+        self._tenant_managers.pop(key, None)
 
     def find_vms(
         self,
@@ -1426,7 +1461,8 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
             retry_if_building: Whether to retry when the server returns
                 ``ValidationError`` with ``System snapshot is still building``.
             timeout: Maximum seconds to retry when ``retry_if_building``
-                is True (default: 30.0).
+                is True (default: 30.0). A timeout of 0 or negative does
+                not retry.
 
         Returns:
             The action response when VergeOS returns an object, otherwise
@@ -1446,12 +1482,16 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
                     "cloud_snapshot_actions",
                     json_data={"action": "find_vms", "cloud_snapshot": snapshot_key},
                 )
+                self._vms_populated.add(snapshot_key)
+                vm_mgr = self._vm_managers.get(snapshot_key)
+                if vm_mgr is not None:
+                    vm_mgr._populated = True
                 if isinstance(response, dict):
                     return response
                 return None
             except ValidationError as exc:
-                if retry_if_building and "building" in str(exc).lower():
-                    if timeout > 0 and (time.time() - start) >= timeout:
+                if retry_if_building and "building" in str(exc).lower() and timeout > 0:
+                    if (time.time() - start) >= timeout:
                         raise
                     time.sleep(delay)
                     delay = min(delay * 2, 2.0)

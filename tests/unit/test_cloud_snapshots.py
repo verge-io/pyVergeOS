@@ -1761,3 +1761,110 @@ class TestCloudSnapshotVMReadOnly:
         assert vms == []
         assert not mock_sleep.called
         assert len(mock_session.request.call_args_list) == 3
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_find_vms_timeout_zero_or_negative_does_not_retry(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """find_vms with timeout=0 or negative raises immediately without retrying (issue #212)."""
+        mock_session.request.side_effect = ValidationError("System snapshot is still building")
+        mock_session.request.reset_mock()
+        with pytest.raises(ValidationError, match="System snapshot is still building"):
+            mock_client.cloud_snapshots.find_vms(7, timeout=0)
+        assert mock_session.request.call_count == 1
+        assert not mock_sleep.called
+
+        mock_session.request.reset_mock()
+        with pytest.raises(ValidationError, match="System snapshot is still building"):
+            mock_client.cloud_snapshots.find_vms(7, timeout=-1)
+        assert mock_session.request.call_count == 1
+        assert not mock_sleep.called
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_empty_membership_second_call_does_not_poll_or_post(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+    ) -> None:
+        """vms.list() remembers find_vms already ran so subsequent empty reads do not poll or POST (issue #212)."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+        ]
+        mock_session.request.reset_mock()
+
+        # First call: wait=False so it doesn't loop
+        vms1 = mock_client.cloud_snapshots.vms(1).list(wait=False)
+        assert vms1 == []
+        assert len(mock_session.request.call_args_list) == 3
+
+        # Second call: rows still empty, but find_vms already ran for this snapshot
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [_resp([])]
+
+        vms2 = mock_client.cloud_snapshots.vms(1).list(wait=True)
+        assert vms2 == []
+        assert mock_session.request.call_count == 1
+        assert mock_session.request.call_args.kwargs["method"] == "GET"
+        assert not mock_sleep.called
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_filtered_miss_stops_polling_once_membership_appears(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """Filtered read stops polling as soon as snapshot membership rows appear (issue #212)."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        with pytest.raises(NotFoundError, match="VM 'zz-not-a-vm' not found"):
+            mock_client.cloud_snapshots.vms(1).get(name="zz-not-a-vm")
+
+        # Stopped polling as soon as membership rows appeared, rather than timing out
+        assert mock_sleep.call_count == 0
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_cloud_snapshot_get_vms_second_call_skips_post_and_poll(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+    ) -> None:
+        """CloudSnapshot.get_vms() on an empty snapshot skips POST and polling on second call (issue #212)."""
+        snapshot = CloudSnapshot(sample_snapshot_data, mock_client.cloud_snapshots)
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+        ]
+        mock_session.request.reset_mock()
+
+        # Call 1 (wait=False)
+        vms1 = snapshot.get_vms(wait=False)
+        assert vms1 == []
+        assert mock_session.request.call_count == 3
+
+        # Call 2 (wait=True)
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [_resp([])]
+
+        vms2 = snapshot.get_vms(wait=True)
+        assert vms2 == []
+        assert mock_session.request.call_count == 1
+        assert mock_session.request.call_args.kwargs["method"] == "GET"
+        assert not mock_sleep.called
