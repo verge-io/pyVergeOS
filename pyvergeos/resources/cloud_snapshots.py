@@ -1482,10 +1482,10 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
                     "cloud_snapshot_actions",
                     json_data={"action": "find_vms", "cloud_snapshot": snapshot_key},
                 )
-                self._vms_populated.add(snapshot_key)
+                self._vms_populated.discard(snapshot_key)
                 vm_mgr = self._vm_managers.get(snapshot_key)
                 if vm_mgr is not None:
-                    vm_mgr._populated = True
+                    vm_mgr._populated = False
                 if isinstance(response, dict):
                     return response
                 return None
