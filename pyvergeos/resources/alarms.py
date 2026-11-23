@@ -91,7 +91,7 @@ class Alarm(ResourceObject):
     Represents an active alarm in VergeOS indicating a condition requiring
     attention such as errors, warnings, or critical issues.
 
-    Properties:
+    Attributes:
         level: Alarm severity (critical, error, warning, message, audit).
         level_display: Capitalized display name for level.
         status: Alarm status message.

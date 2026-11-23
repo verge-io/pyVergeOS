@@ -616,6 +616,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
         Args:
             name: Display name for the auth source (appears on login button).
             driver: Provider type. One of:
+
                 - azure: Azure Active Directory
                 - google: Google OAuth
                 - gitlab: GitLab (OpenID)
@@ -625,6 +626,7 @@ class AuthSourceManager(ResourceManager["AuthSource"]):
                 - oauth2: Generic OAuth2
                 - verge.io: Verge.io parent system
             settings: Driver-specific configuration. Common fields:
+
                 - client_id: OAuth client ID
                 - client_secret: OAuth client secret
                 - tenant_id: Azure tenant ID (Azure only)

@@ -80,7 +80,7 @@ class SiteSyncOutgoing(ResourceObject):
     Outgoing syncs send cloud snapshots from this system to a remote site
     for disaster recovery purposes.
 
-    Properties:
+    Attributes:
         site_key: Key of the associated site.
         name: Sync name.
         description: Sync description.
@@ -413,7 +413,7 @@ class SiteSyncIncoming(ResourceObject):
     Incoming syncs receive cloud snapshots from a remote site
     for disaster recovery purposes.
 
-    Properties:
+    Attributes:
         site_key: Key of the associated site.
         name: Sync name.
         description: Sync description.
