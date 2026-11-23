@@ -1213,8 +1213,9 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
                 still building (the message contains ``still building``).
                 The pause starts at the poll interval and doubles up to
                 30 seconds. Any other error is raised immediately. Off by
-                default: the client already retries transport failures,
-                and this one is an application error.
+                default. Automatic retries do not repeat POST, so this
+                refusal is retried only when the flag is on. The refused
+                POST did not create a row.
 
         Returns:
             Created CloudSnapshot object.

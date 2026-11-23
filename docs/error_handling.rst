@@ -275,7 +275,11 @@ Use the base ``VergeError`` to catch any pyvergeos exception:
 Retry Configuration
 -------------------
 
-pyvergeos automatically retries transient errors (429, 500, 502, 503, 504):
+pyvergeos retries transient errors on idempotent methods (``GET``, ``HEAD``,
+``OPTIONS``, ``PUT``, ``DELETE``, and ``TRACE``). The default status codes
+are 429, 500, 502, 503, and 504, and those methods are also retried when the
+connection fails or the read times out. ``POST`` and ``PATCH`` are not
+retried, so a lost or late reply is not sent a second time:
 
 .. code-block:: python
 

@@ -1,16 +1,23 @@
 """Connection and session management for VergeOS API."""
 
+from __future__ import annotations
+
 import warnings
 from base64 import b64encode
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Union
+from types import TracebackType
+from typing import TYPE_CHECKING, Optional, Union
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+if TYPE_CHECKING:
+    from urllib3.connectionpool import ConnectionPool
+    from urllib3.response import BaseHTTPResponse
 
 from pyvergeos.constants import (
     API_VERSION,
@@ -22,6 +29,35 @@ from pyvergeos.constants import (
 
 HeaderValue = Union[str, bytes]
 HeaderSnapshot = tuple[str, Optional[HeaderValue]]
+
+
+class _IdempotentMethodRetry(Retry):
+    """Retry a method only when doing so cannot apply the same request twice.
+
+    urllib3 consults ``allowed_methods`` for a status code and for a read
+    error. An error it files under ``other`` — an SSL failure while reading
+    the response is one — is retried for every method. A connect timeout is
+    still retried: the request was not sent.
+    """
+
+    def increment(
+        self,
+        method: str | None = None,
+        url: str | None = None,
+        response: BaseHTTPResponse | None = None,
+        error: Exception | None = None,
+        _pool: ConnectionPool | None = None,
+        _stacktrace: TracebackType | None = None,
+    ) -> _IdempotentMethodRetry:
+        if (
+            error is not None
+            and not self._is_connection_error(error)
+            and (method is None or not self._is_method_retryable(method))
+        ):
+            if _stacktrace is not None:
+                raise error.with_traceback(_stacktrace)
+            raise error
+        return super().increment(method, url, response, error, _pool, _stacktrace)
 
 
 class AuthMethod(Enum):
@@ -45,9 +81,10 @@ class VergeConnection:
             InsecureRequestWarning suppression is process-global — it will
             silence warnings for all clients in the same process, even those
             with verify_ssl=True.
-        retry_total: Number of retry attempts for transient failures.
+        retry_total: Retry attempts for transient failures of idempotent methods.
         retry_backoff_factor: Backoff factor for retry delay calculation.
-        retry_status_codes: HTTP status codes that trigger automatic retry.
+        retry_status_codes: HTTP status codes that trigger automatic retry
+            of an idempotent method.
         session: Optional caller-supplied requests session. When supplied, the
             SDK does not mount adapters, change TLS verification, or close it
             on disconnect by default. Header snapshots for VergeClient-managed
@@ -65,22 +102,22 @@ class VergeConnection:
     host: str
     username: str = ""
     api_base_url: str = field(init=False)
-    token: Optional[str] = None
-    token_expires: Optional[datetime] = None
+    token: str | None = None
+    token_expires: datetime | None = None
     verify_ssl: bool = True
     retry_total: int = RETRY_TOTAL
     retry_backoff_factor: float = RETRY_BACKOFF_FACTOR
     retry_status_codes: Iterable[int] = RETRY_STATUS_CODES
-    connected_at: Optional[datetime] = None
-    vergeos_version: Optional[str] = None
-    os_version: Optional[str] = None
-    cloud_name: Optional[str] = None
+    connected_at: datetime | None = None
+    vergeos_version: str | None = None
+    os_version: str | None = None
+    cloud_name: str | None = None
     is_connected: bool = False
-    session: Optional[requests.Session] = field(default=None, repr=False)
-    close_session: Optional[bool] = None
+    session: requests.Session | None = field(default=None, repr=False)
+    close_session: bool | None = None
 
     _owns_session: bool = field(init=False, default=True, repr=False)
-    _pre_connect_headers: Optional[dict[str, HeaderSnapshot]] = field(
+    _pre_connect_headers: dict[str, HeaderSnapshot] | None = field(
         init=False, default=None, repr=False
     )
 
@@ -117,8 +154,7 @@ class VergeConnection:
                 )
             return
 
-        # Configure retry strategy with configurable parameters
-        retry_strategy = Retry(
+        retry_strategy = _IdempotentMethodRetry(
             total=self.retry_total,
             backoff_factor=self.retry_backoff_factor,
             status_forcelist=list(self.retry_status_codes),
@@ -221,9 +257,9 @@ class VergeConnection:
 
 def build_auth_header(
     method: AuthMethod,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    token: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
+    token: str | None = None,
 ) -> dict[str, str]:
     """Build the Authorization header based on auth method.
 

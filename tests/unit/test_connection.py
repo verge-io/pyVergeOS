@@ -171,6 +171,9 @@ class TestVergeConnectionRetryConfig:
 
         assert allowed_methods is not None
         assert set(allowed_methods) == set(RETRY_METHODS)
+        assert "POST" not in allowed_methods
+        assert "PATCH" not in allowed_methods
+        assert {"GET", "PUT", "DELETE"} <= set(allowed_methods)
 
     def test_all_retry_params_together(self) -> None:
         custom_codes = frozenset({HTTPStatus.SERVICE_UNAVAILABLE})

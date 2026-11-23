@@ -209,10 +209,12 @@ class VergeClient:
             verify_ssl: Whether to verify SSL certificates.
             timeout: Default request timeout in seconds.
             auto_connect: Whether to connect immediately.
-            retry_total: Number of retry attempts for transient failures (default: 3).
+            retry_total: Retry attempts for transient failures of idempotent
+                methods (GET, HEAD, OPTIONS, PUT, DELETE, TRACE). Default: 3.
+                POST and PATCH are not retried.
             retry_backoff_factor: Backoff factor for retry delay calculation.
                 Delay = backoff_factor * (2 ** retry_count). Default: 1.
-            retry_status_codes: HTTP status codes that trigger automatic retry.
+            retry_status_codes: Status codes that retry an idempotent method.
                 Default: 429, 500, 502, 503, 504.
             session: Optional caller-supplied requests session. When supplied,
                 pyvergeos will not mount its own adapter, change session TLS

@@ -325,7 +325,9 @@ Retry Behavior
 Configuring Retries
 ^^^^^^^^^^^^^^^^^^^
 
-pyvergeos automatically retries on transient errors (429, 500, 502, 503, 504).
+pyvergeos retries transient errors on idempotent methods (``GET``, ``HEAD``,
+``OPTIONS``, ``PUT``, ``DELETE``, and ``TRACE``), including status 429, 500,
+502, 503, and 504. ``POST`` and ``PATCH`` are not retried.
 
 **Customize retry behavior:**
 
