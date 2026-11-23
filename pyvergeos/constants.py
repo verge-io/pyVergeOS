@@ -45,8 +45,8 @@ RETRY_STATUS_CODES = frozenset(
     }
 )
 
-#: HTTP methods that are safe to retry
-RETRY_METHODS = frozenset({"GET", "PUT", "DELETE", "POST"})
+#: Idempotent HTTP methods. Automatic retries may send these again.
+RETRY_METHODS = frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "PUT", "TRACE"})
 
 
 #: Default interval for task status polling

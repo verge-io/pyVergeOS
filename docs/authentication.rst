@@ -93,9 +93,12 @@ Additional connection options:
        username="admin",
        password="secret",
        timeout=60,              # Request timeout in seconds (default: 30)
-       retry_total=5,           # Number of retry attempts (default: 3)
+       retry_total=5,           # Retry attempts for idempotent methods (default: 3)
        retry_backoff_factor=2,  # Exponential backoff factor (default: 1)
    )
+
+Retries apply to ``GET``, ``HEAD``, ``OPTIONS``, ``PUT``, ``DELETE``, and
+``TRACE``. ``POST`` and ``PATCH`` are sent once.
 
 Checking Connection Status
 --------------------------

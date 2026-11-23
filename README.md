@@ -375,7 +375,7 @@ Everything the SDK raises inherits from `VergeError`, so catch that if you just 
 
 ## Retries and timeouts
 
-The client retries transient failures automatically, which by default means 429, 500, 502, 503, and 504, three times, with exponential backoff.
+The client retries transient failures of idempotent methods (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`, and `TRACE`). By default that is status 429, 500, 502, 503, and 504, three times, with exponential backoff, and the same methods are retried when the connection fails or the reply is late. `POST` and `PATCH` are not retried: a create whose reply is lost or arrives after the timeout is not sent again.
 
 ```python
 from http import HTTPStatus

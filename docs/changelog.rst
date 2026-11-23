@@ -38,6 +38,14 @@ Added
 Fixed
 ^^^^^
 
+- Automatic retries no longer send ``POST`` or ``PATCH`` again. A create
+  whose reply was lost, arrived after the client timeout, or was replaced
+  by 429 or 5xx was submitted a second time. Drives and NICs were
+  duplicated, and a named object came back as ``ConflictError`` for a row
+  the same call had just created. ``GET``, ``HEAD``, ``OPTIONS``, ``PUT``,
+  ``DELETE``, and ``TRACE`` are still retried. A connect timeout is still
+  retried for every method, because that failure happens before the request
+  is sent. (#216)
 - ``vnet_bond_interfaces`` requests ``parent_vnet`` and ``child_vnet``.
   ``network.bond_interfaces.list()`` filters on ``parent_vnet eq <key>``
   instead of the non-existent ``vnet`` column. ``VnetBondInterface`` exposes
@@ -78,9 +86,9 @@ Fixed
   right after a snapshot profile period is saved. The pause starts at the
   usual poll interval and doubles up to 30 seconds, bounded by
   ``wait_timeout``. Any other error is raised as before. The flag defaults
-  to off: the client already retries transport failures (429 and 5xx), and
-  this refusal is an application error. The POST did not create a row, so
-  retrying it does not make a second snapshot. ``wait`` and
+  to off. Automatic retries do not repeat POST, and this refusal is an
+  application error. The POST did not create a row, so retrying it does
+  not make a second snapshot. ``wait`` and
   ``retry_if_busy`` each get their own ``wait_timeout``. (#202)
 - Declared ``urllib3>=1.26``. Session setup calls
   ``Retry(allowed_methods=...)``, which urllib3 1.25 does not accept.
