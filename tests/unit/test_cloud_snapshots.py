@@ -1784,13 +1784,22 @@ class TestCloudSnapshotVMReadOnly:
         assert not mock_sleep.called
 
     @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    @patch("pyvergeos.resources.cloud_snapshots.time.time")
     def test_empty_membership_second_call_does_not_poll_or_post(
         self,
+        mock_time: MagicMock,
         mock_sleep: MagicMock,
         mock_client: VergeClient,
         mock_session: MagicMock,
     ) -> None:
-        """vms.list() remembers find_vms already ran so subsequent empty reads do not poll or POST (issue #212)."""
+        """A finished wait on an empty snapshot is not repeated (issue #212)."""
+        clock = {"t": 0.0}
+
+        def _advance() -> float:
+            clock["t"] += 20.0
+            return clock["t"]
+
+        mock_time.side_effect = _advance
         mock_session.request.side_effect = [
             _resp([]),
             _resp({"response": "ok"}),
@@ -1798,19 +1807,20 @@ class TestCloudSnapshotVMReadOnly:
         ]
         mock_session.request.reset_mock()
 
-        # First call: wait=False so it doesn't loop
-        vms1 = mock_client.cloud_snapshots.vms(1).list(wait=False)
+        vms1 = mock_client.cloud_snapshots.vms(1).list()
         assert vms1 == []
+        assert len(_find_vms_posts(mock_session)) == 1
         assert len(mock_session.request.call_args_list) == 3
 
-        # Second call: rows still empty, but find_vms already ran for this snapshot
         mock_session.request.reset_mock()
         mock_session.request.side_effect = [_resp([])]
+        mock_sleep.reset_mock()
 
-        vms2 = mock_client.cloud_snapshots.vms(1).list(wait=True)
+        vms2 = mock_client.cloud_snapshots.vms(1).list()
         assert vms2 == []
         assert mock_session.request.call_count == 1
         assert mock_session.request.call_args.kwargs["method"] == "GET"
+        assert _find_vms_posts(mock_session) == []
         assert not mock_sleep.called
 
     @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
@@ -1838,14 +1848,23 @@ class TestCloudSnapshotVMReadOnly:
         assert mock_sleep.call_count == 0
 
     @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    @patch("pyvergeos.resources.cloud_snapshots.time.time")
     def test_cloud_snapshot_get_vms_second_call_skips_post_and_poll(
         self,
+        mock_time: MagicMock,
         mock_sleep: MagicMock,
         mock_client: VergeClient,
         mock_session: MagicMock,
         sample_snapshot_data: dict[str, Any],
     ) -> None:
-        """CloudSnapshot.get_vms() on an empty snapshot skips POST and polling on second call (issue #212)."""
+        """get_vms() on an empty snapshot skips POST and polling on the second call."""
+        clock = {"t": 0.0}
+
+        def _advance() -> float:
+            clock["t"] += 20.0
+            return clock["t"]
+
+        mock_time.side_effect = _advance
         snapshot = CloudSnapshot(sample_snapshot_data, mock_client.cloud_snapshots)
         mock_session.request.side_effect = [
             _resp([]),
@@ -1854,17 +1873,158 @@ class TestCloudSnapshotVMReadOnly:
         ]
         mock_session.request.reset_mock()
 
-        # Call 1 (wait=False)
-        vms1 = snapshot.get_vms(wait=False)
+        vms1 = snapshot.get_vms()
         assert vms1 == []
+        assert len(_find_vms_posts(mock_session)) == 1
         assert mock_session.request.call_count == 3
 
-        # Call 2 (wait=True)
         mock_session.request.reset_mock()
         mock_session.request.side_effect = [_resp([])]
+        mock_sleep.reset_mock()
 
-        vms2 = snapshot.get_vms(wait=True)
+        vms2 = snapshot.get_vms()
         assert vms2 == []
         assert mock_session.request.call_count == 1
         assert mock_session.request.call_args.kwargs["method"] == "GET"
+        assert _find_vms_posts(mock_session) == []
         assert not mock_sleep.called
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_find_vms_then_list_waits_for_rows(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """vms().list() after find_vms waits until membership rows appear."""
+        mock_session.request.side_effect = [
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        mock_client.cloud_snapshots.find_vms(1)
+        assert not mock_sleep.called
+
+        vms = mock_client.cloud_snapshots.vms(1).list()
+
+        assert [vm.name for vm in vms] == ["TestVM"]
+        assert mock_sleep.called
+        assert [call.kwargs["method"] for call in mock_session.request.call_args_list] == [
+            "POST",
+            "GET",
+            "POST",
+            "GET",
+            "GET",
+        ]
+
+        mock_sleep.reset_mock()
+        mock_session.request.reset_mock()
+        mock_session.request.side_effect = [_resp([sample_vm_data])]
+
+        again = mock_client.cloud_snapshots.vms(1).list()
+
+        assert [vm.name for vm in again] == ["TestVM"]
+        assert mock_session.request.call_count == 1
+        assert mock_session.request.call_args.kwargs["method"] == "GET"
+        assert _find_vms_posts(mock_session) == []
+        assert not mock_sleep.called
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_find_vms_then_get_vms_waits_for_rows(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """get_vms() after find_vms waits until membership rows appear."""
+        snapshot = CloudSnapshot(sample_snapshot_data, mock_client.cloud_snapshots)
+        mock_session.request.side_effect = [
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        snapshot.find_vms()
+        assert not mock_sleep.called
+
+        vms = snapshot.get_vms()
+
+        assert [vm.name for vm in vms] == ["TestVM"]
+        assert mock_sleep.called
+        assert len(_find_vms_posts(mock_session)) == 2
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_list_wait_false_then_list_waits_for_rows(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """list(wait=False) does not skip the wait on the next list()."""
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        first = mock_client.cloud_snapshots.vms(1).list(wait=False)
+
+        assert first == []
+        assert not mock_sleep.called
+        assert len(_find_vms_posts(mock_session)) == 1
+
+        vms = mock_client.cloud_snapshots.vms(1).list()
+
+        assert [vm.name for vm in vms] == ["TestVM"]
+        assert mock_sleep.called
+        assert len(_find_vms_posts(mock_session)) == 2
+
+    @patch("pyvergeos.resources.cloud_snapshots.time.sleep")
+    def test_get_vms_wait_false_then_get_vms_waits_for_rows(
+        self,
+        mock_sleep: MagicMock,
+        mock_client: VergeClient,
+        mock_session: MagicMock,
+        sample_snapshot_data: dict[str, Any],
+        sample_vm_data: dict[str, Any],
+    ) -> None:
+        """get_vms(wait=False) does not skip the wait on the next get_vms()."""
+        snapshot = CloudSnapshot(sample_snapshot_data, mock_client.cloud_snapshots)
+        mock_session.request.side_effect = [
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([]),
+            _resp({"response": "ok"}),
+            _resp([]),
+            _resp([sample_vm_data]),
+        ]
+        mock_session.request.reset_mock()
+
+        first = snapshot.get_vms(wait=False)
+
+        assert first == []
+        assert not mock_sleep.called
+        assert len(_find_vms_posts(mock_session)) == 1
+
+        vms = snapshot.get_vms()
+
+        assert [vm.name for vm in vms] == ["TestVM"]
+        assert mock_sleep.called
+        assert len(_find_vms_posts(mock_session)) == 2

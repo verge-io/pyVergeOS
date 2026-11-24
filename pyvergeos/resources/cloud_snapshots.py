@@ -350,10 +350,13 @@ class CloudSnapshotVMManager(ResourceManager[CloudSnapshotVM]):
         error from the POST is raised. When ``find_vms`` runs and ``wait``
         is True, polls until membership rows appear or ``wait_timeout``
         expires (the platform populates rows asynchronously, issue #209).
-        The read stays scoped to this snapshot. ``is_snapshot`` is a
-        property of those rows, not a default filter. Pass
-        ``is_snapshot=False`` to match the lab query that returned the
-        snapshot's VMs.
+        The snapshot is remembered after those rows are read or that wait
+        finishes. ``find_vms()`` and ``wait=False`` do not, so the next
+        default read still waits. A finished wait with no rows is
+        remembered, so the next read returns at once. The read stays
+        scoped to this snapshot. ``is_snapshot`` is a property of those
+        rows, not a default filter. Pass ``is_snapshot=False`` to match
+        the lab query that returned the snapshot's VMs.
 
         Args:
             filter: OData filter string.
@@ -783,8 +786,9 @@ class CloudSnapshot(ResourceObject):
         Posts ``{"action": "find_vms", "cloud_snapshot": <key>}`` to
         ``cloud_snapshot_actions``. ``get_vms()`` and ``vms().list()``
         call this when the membership read is empty. On VergeOS 26.2.2.1
-        the rows stay empty until it runs. The UI posts the same action
-        when a snapshot is opened.
+        the rows stay empty until it runs, and they appear after this POST
+        returns. This call does not skip a later ``get_vms()`` wait. The
+        UI posts the same action when a snapshot is opened.
 
         Args:
             retry_if_building: Whether to retry when the server returns
@@ -814,7 +818,10 @@ class CloudSnapshot(ResourceObject):
         runs only when that membership is empty. A permission failure on
         the POST returns the rows already read. When ``find_vms`` runs and
         ``wait`` is True, polls until rows appear or ``wait_timeout``
-        expires (issue #209). ``is_snapshot`` is left to the caller.
+        expires (issue #209). The snapshot is remembered after rows are
+        read or that wait finishes. ``find_vms()`` and ``wait=False`` do
+        not, so the next default read still waits. A finished wait with
+        no rows is not repeated. ``is_snapshot`` is left to the caller.
 
         Args:
             wait: When find_vms runs, wait for membership rows to appear.
@@ -1455,7 +1462,8 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
         same body when a snapshot is opened. ``vms().list()`` and
         ``CloudSnapshot.get_vms()`` call this only when that read is
         empty. A read-only user who cannot POST still receives the rows
-        the GET returned.
+        the GET returned. The rows appear after this POST returns, so the
+        call does not mark the snapshot filled.
 
         Args:
             snapshot_key: Cloud snapshot ``$key``.
@@ -1483,10 +1491,6 @@ class CloudSnapshotManager(ResourceManager[CloudSnapshot]):
                     "cloud_snapshot_actions",
                     json_data={"action": "find_vms", "cloud_snapshot": snapshot_key},
                 )
-                self._vms_populated.add(snapshot_key)
-                vm_mgr = self._vm_managers.get(snapshot_key)
-                if vm_mgr is not None:
-                    vm_mgr._populated = True
                 if isinstance(response, dict):
                     return response
                 return None
