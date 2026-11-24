@@ -66,9 +66,14 @@ Fixed
   until VM rows appear when ``find_vms`` runs asynchronously. ``find_vms``
   retries if the server reports the system snapshot is still building. (#209)
 - ``cloud_snapshots.vms(key).list()`` and ``CloudSnapshot.get_vms()``
-  remember when ``find_vms`` has already run for a snapshot so subsequent
-  empty reads do not re-poll or post again. A filtered read stops polling as
-  soon as membership rows appear, and ``find_vms(timeout=0)`` does not retry. (#212)
+  remember a snapshot after its VM rows were read or a wait for them
+  finished, so a later empty read does not re-poll or post. A filtered
+  read stops polling as soon as membership rows appear, and
+  ``find_vms(timeout=0)`` does not retry. (#212)
+- A read after ``find_vms()`` or ``vms(key).list(wait=False)`` still waits
+  for membership rows. Those calls return before the platform writes the
+  rows, so they do not mark the snapshot filled. A second read of a
+  snapshot that holds no VMs still returns at once. (#217)
 - Reading a cloud snapshot's VMs works for a read-only user. The
   membership GET happens before ``find_vms``. When rows already exist
   the POST is skipped, so ``list(include_vms=True)`` does not POST once
