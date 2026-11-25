@@ -46,7 +46,21 @@ FILE_TYPES = {
     "ybvm": "Verge.io Virtual Machine",
     "nvram": "NVRAM",
     "zip": "ZIP",
+    "fd": "OVMF firmware",
 }
+
+FILE_DEFAULT_FIELDS = [
+    "$key",
+    "name",
+    "type",
+    "description",
+    "filesize",
+    "allocated_bytes",
+    "used_bytes",
+    "preferred_tier",
+    "modified",
+    "creator",
+]
 
 
 class File(ResourceObject):
@@ -153,6 +167,7 @@ class FileManager(ResourceManager[File]):
     """
 
     _endpoint = "files"
+    _default_fields = FILE_DEFAULT_FIELDS
 
     def _to_model(self, data: dict[str, Any]) -> File:
         return File(data, self)
@@ -186,20 +201,8 @@ class FileManager(ResourceManager[File]):
             >>> # List importable disk images
             >>> images = client.files.list(file_type=["ova", "ovf", "vmdk", "qcow2"])
         """
-        # Default fields for useful file information
         if fields is None:
-            fields = [
-                "$key",
-                "name",
-                "type",
-                "description",
-                "filesize",
-                "allocated_bytes",
-                "used_bytes",
-                "preferred_tier",
-                "modified",
-                "creator",
-            ]
+            fields = FILE_DEFAULT_FIELDS
 
         results = super().list(
             filter=filter, fields=fields, limit=limit, offset=offset, **filter_kwargs

@@ -261,7 +261,6 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
 
     _endpoint = "volumes"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "id",
@@ -336,22 +335,18 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
-        # Add fs_type filter
         if fs_type:
             filters.append(f"fs_type eq {quote_value(fs_type)}")
 
-        # Add service filter
         if service is not None:
             if isinstance(service, int):
                 filters.append(f"service eq {service}")
@@ -375,13 +370,11 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -448,7 +441,6 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"NAS volume with name '{name}' not found")
@@ -530,7 +522,6 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
         if service_key is None:
             raise ValueError("Could not resolve NAS service key")
 
-        # Build request body
         body: dict[str, Any] = {
             "name": name,
             "service": service_key,
@@ -565,7 +556,6 @@ class NASVolumeManager(ResourceManager["NASVolume"]):
             if vol_key:
                 return self.get(key=vol_key)
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
@@ -823,7 +813,6 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
 
     _endpoint = "volume_snapshots"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "name",
@@ -878,14 +867,12 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add volume filter (from scope or parameter)
         volume_key = self._volume_key
         if volume_key is None and volume is not None:
             # Check if it looks like a volume key (40-char hex) or a name
@@ -915,13 +902,11 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -981,7 +966,6 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Volume snapshot with name '{name}' not found")
@@ -1063,7 +1047,6 @@ class NASVolumeSnapshotManager(ResourceManager["NASVolumeSnapshot"]):
             if snap_key:
                 return self.get(key=snap_key)
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def delete(self, key: int) -> None:

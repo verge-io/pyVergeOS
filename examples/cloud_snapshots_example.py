@@ -162,7 +162,8 @@ def main() -> int:
         # =====================================================================
         print("=== Step 4: Query VMs and Tenants via Sub-managers ===")
 
-        # Query VMs
+        # Query VMs. On VergeOS 26.2 the membership rows stay empty until
+        # find_vms runs. list() posts that action only when the read is empty.
         vm_manager = client.cloud_snapshots.vms(snapshot.key)
         vms = vm_manager.list()
         print(f"VMs in snapshot (via sub-manager): {len(vms)}")

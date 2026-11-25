@@ -16,6 +16,7 @@ from pyvergeos.resources.tags import (
     TagManager,
     TagMember,
     TagMemberManager,
+    TagReferenceManager,
 )
 
 
@@ -1123,6 +1124,88 @@ class TestTagCategoryManager:
         manager.delete(123)
 
         mock_client._request.assert_called_once_with("DELETE", "tag_categories/123")
+
+
+class TestTagReferences:
+    """tag and reference, measured on VergeOS 26.2.2.1."""
+
+    def test_list_asks_for_the_measured_columns(self) -> None:
+        client = MagicMock()
+        client._request.return_value = []
+        rows = TagReferenceManager(client).list()
+        assert rows == []
+        assert client._request.call_args.kwargs["params"]["fields"] == "$key,tag,reference"
+
+    def test_tag_key_reads_a_ref(self) -> None:
+        from pyvergeos.resources.tags import TagReference
+
+        row = TagReference(
+            {"$key": 1, "tag": "tags/3", "reference": "snapshot_profile_period_tags/37"},
+            MagicMock(),
+        )
+        assert row.tag_key == 3
+        assert row.reference == "snapshot_profile_period_tags/37"
+
+    def test_fields_all_is_forwarded(self) -> None:
+        client = MagicMock()
+        client._request.return_value = []
+        TagReferenceManager(client).list(fields="all")
+        fields = client._request.call_args.kwargs["params"]["fields"]
+        assert fields.startswith("all")
+
+    def test_get_by_name_refused(self) -> None:
+        with pytest.raises(ValueError, match="no name column"):
+            TagReferenceManager(MagicMock()).get(name="gold")
+
+    def test_create_sends_tag_and_reference(self) -> None:
+        client = MagicMock()
+        client._request.return_value = {
+            "$key": 4,
+            "tag": 6,
+            "reference": "snapshot_profile_period_tags/37",
+        }
+        TagReferenceManager(client).create(tag=6, reference="snapshot_profile_period_tags/37")
+        post = client._request.call_args_list[0]
+        assert post.args[0] == "POST"
+        assert post.kwargs["json_data"] == {
+            "tag": 6,
+            "reference": "snapshot_profile_period_tags/37",
+        }
+
+    def test_create_rejects_unknown_field(self) -> None:
+        with pytest.raises(ValueError, match="unknown tag_references field"):
+            TagReferenceManager(MagicMock()).create(
+                tag=6,
+                reference="snapshot_profile_period_tags/37",
+                note="nope",
+            )
+
+    def test_update_sends_tag_and_reference(self) -> None:
+        client = MagicMock()
+        client._request.return_value = {
+            "$key": 4,
+            "tag": 6,
+            "reference": "snapshot_profile_period_tags/37",
+        }
+        TagReferenceManager(client).update(4, reference="snapshot_profile_period_tags/37")
+        put = client._request.call_args_list[0]
+        assert put.args[0] == "PUT"
+        assert put.kwargs["json_data"] == {"reference": "snapshot_profile_period_tags/37"}
+
+    def test_update_requires_columns(self) -> None:
+        with pytest.raises(ValueError, match="needs tag or reference"):
+            TagReferenceManager(MagicMock()).update(4)
+
+    def test_save_rejects_unknown_field(self) -> None:
+        from pyvergeos.resources.tags import TagReference
+
+        row = TagReference(
+            {"$key": 4, "tag": 6, "reference": "snapshot_profile_period_tags/37"},
+            TagReferenceManager(MagicMock()),
+        )
+        row.note = "nope"
+        with pytest.raises(ValueError, match="unknown tag_references field"):
+            row.save()
 
 
 class TestConstants:

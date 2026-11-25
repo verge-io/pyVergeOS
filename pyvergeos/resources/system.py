@@ -33,11 +33,6 @@ DIAG_STATUS_DISPLAY = {
 }
 
 
-# =============================================================================
-# System Settings
-# =============================================================================
-
-
 class SystemSetting(ResourceObject):
     """Represents a system setting in VergeOS.
 
@@ -286,11 +281,6 @@ class SettingsManager(ResourceManager[SystemSetting]):
         return [s for s in self.list() if s.is_modified]
 
 
-# =============================================================================
-# Licenses
-# =============================================================================
-
-
 class License(ResourceObject):
     """Represents a license in VergeOS.
 
@@ -533,7 +523,6 @@ class LicenseManager(ResourceManager[License]):
             >>> lic = client.licenses.get(name="Production")
             >>> print(f"Features: {lic.features}")
         """
-        # Use default fields if not specified
         if fields is None:
             fields = [
                 "$key",
@@ -704,11 +693,6 @@ class LicenseManager(ResourceManager[License]):
         from pyvergeos.exceptions import APIError
 
         raise APIError("Unexpected response format from license add")
-
-
-# =============================================================================
-# System Statistics (Dashboard)
-# =============================================================================
 
 
 class SystemStatistics:
@@ -1038,11 +1022,6 @@ class SystemStatistics:
         )
 
 
-# =============================================================================
-# System Inventory
-# =============================================================================
-
-
 class InventoryVM:
     """VM inventory item."""
 
@@ -1359,11 +1338,6 @@ class SystemInventory:
             f"Clusters={len(self.clusters)}, "
             f"Tenants={len(self.tenants)}>"
         )
-
-
-# =============================================================================
-# System Diagnostics
-# =============================================================================
 
 
 class SystemDiagnostic(ResourceObject):
@@ -1778,11 +1752,6 @@ class SystemDiagnosticManager(ResourceManager[SystemDiagnostic]):
         return None
 
 
-# =============================================================================
-# Root Certificates (Trusted CAs)
-# =============================================================================
-
-
 class RootCertificate(ResourceObject):
     """Represents a trusted root certificate authority in VergeOS.
 
@@ -2037,11 +2006,6 @@ class RootCertificateManager(ResourceManager[RootCertificate]):
             NotFoundError: If certificate not found.
         """
         self._client._request("DELETE", f"{self._endpoint}/{key}")
-
-
-# =============================================================================
-# System Manager
-# =============================================================================
 
 
 class SystemManager:

@@ -219,7 +219,6 @@ class SharedObjectManager:
         if tenant is not None:
             tenant_key = tenant.key
 
-        # Build filter
         filters: builtins.list[str] = []
         if tenant_key is not None:
             filters.append(f"recipient eq {tenant_key}")

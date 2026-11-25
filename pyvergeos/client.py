@@ -44,6 +44,7 @@ if TYPE_CHECKING:
         AuthSourceStateManager,
     )
     from pyvergeos.resources.billing import BillingManager
+    from pyvergeos.resources.bond_interfaces import VnetBondInterfaceManager
     from pyvergeos.resources.catalogs import (
         CatalogLogManager,
         CatalogManager,
@@ -99,10 +100,13 @@ if TYPE_CHECKING:
         SiteSyncScheduleManager,
     )
     from pyvergeos.resources.sites import SiteManager
-    from pyvergeos.resources.snapshot_profiles import SnapshotProfileManager
+    from pyvergeos.resources.snapshot_profiles import (
+        SnapshotProfileManager,
+        SnapshotProfilePeriodTagManager,
+    )
     from pyvergeos.resources.storage_tiers import StorageTierManager
     from pyvergeos.resources.system import SystemManager
-    from pyvergeos.resources.tags import TagCategoryManager, TagManager
+    from pyvergeos.resources.tags import TagCategoryManager, TagManager, TagReferenceManager
     from pyvergeos.resources.task_events import TaskEventManager
     from pyvergeos.resources.task_schedule_triggers import TaskScheduleTriggerManager
     from pyvergeos.resources.task_schedules import TaskScheduleManager
@@ -115,6 +119,7 @@ if TYPE_CHECKING:
         TenantRecipeManager,
     )
     from pyvergeos.resources.tenant_stats import TenantDashboardManager
+    from pyvergeos.resources.time import TimeDashboardManager, TimeSettingsManager
     from pyvergeos.resources.updates import (
         UpdateBranchManager,
         UpdateDashboardManager,
@@ -133,6 +138,7 @@ if TYPE_CHECKING:
         VmRecipeManager,
     )
     from pyvergeos.resources.vms import VMManager
+    from pyvergeos.resources.vmware import VmwareContainerManager
     from pyvergeos.resources.volume_vm_exports import (
         VolumeVmExportManager,
         VolumeVmExportStatManager,
@@ -203,10 +209,12 @@ class VergeClient:
             verify_ssl: Whether to verify SSL certificates.
             timeout: Default request timeout in seconds.
             auto_connect: Whether to connect immediately.
-            retry_total: Number of retry attempts for transient failures (default: 3).
+            retry_total: Retry attempts for transient failures of idempotent
+                methods (GET, HEAD, OPTIONS, PUT, DELETE, TRACE). Default: 3.
+                POST and PATCH are not retried.
             retry_backoff_factor: Backoff factor for retry delay calculation.
                 Delay = backoff_factor * (2 ** retry_count). Default: 1.
-            retry_status_codes: HTTP status codes that trigger automatic retry.
+            retry_status_codes: Status codes that retry an idempotent method.
                 Default: 429, 500, 502, 503, 504.
             session: Optional caller-supplied requests session. When supplied,
                 pyvergeos will not mount its own adapter, change session TLS
@@ -273,6 +281,7 @@ class VergeClient:
         self._site_syncs_incoming: SiteSyncIncomingManager | None = None
         self._site_sync_schedules: SiteSyncScheduleManager | None = None
         self._snapshot_profiles: SnapshotProfileManager | None = None
+        self._snapshot_profile_period_tags: SnapshotProfilePeriodTagManager | None = None
         self._cloud_snapshots: CloudSnapshotManager | None = None
         self._system: SystemManager | None = None
         self._resource_groups: ResourceGroupManager | None = None
@@ -280,6 +289,7 @@ class VergeClient:
         self._cloudinit_files: CloudInitFileManager | None = None
         self._tags: TagManager | None = None
         self._tag_categories: TagCategoryManager | None = None
+        self._tag_references: TagReferenceManager | None = None
         self._vm_imports: VmImportManager | None = None
         self._vm_import_logs: VmImportLogManager | None = None
         self._volume_vm_exports: VolumeVmExportManager | None = None
@@ -328,6 +338,10 @@ class VergeClient:
         self._cluster_status: ClusterStatusManager | None = None
         self._node_memory: NodeMemoryManager | None = None
         self._vsan_queries: VsanQueryManager | None = None
+        self._time_settings: TimeSettingsManager | None = None
+        self._time_dashboard: TimeDashboardManager | None = None
+        self._vmware_containers: VmwareContainerManager | None = None
+        self._vnet_bond_interfaces: VnetBondInterfaceManager | None = None
 
         if auto_connect:
             self.connect()
@@ -1039,6 +1053,19 @@ class VergeClient:
         return self._snapshot_profiles
 
     @property
+    def snapshot_profile_period_tags(self) -> SnapshotProfilePeriodTagManager:
+        """Rows that link a snapshot profile period to ``tag_references``.
+
+        A period's own rows are ``period.period_tags()``. This property
+        lists the whole table.
+        """
+        if self._snapshot_profile_period_tags is None:
+            from pyvergeos.resources.snapshot_profiles import SnapshotProfilePeriodTagManager
+
+            self._snapshot_profile_period_tags = SnapshotProfilePeriodTagManager(self)
+        return self._snapshot_profile_period_tags
+
+    @property
     def cloud_snapshots(self) -> CloudSnapshotManager:
         """Access cloud (system) snapshot operations for backup/DR."""
         if self._cloud_snapshots is None:
@@ -1153,6 +1180,19 @@ class VergeClient:
 
             self._tag_categories = TagCategoryManager(self)
         return self._tag_categories
+
+    @property
+    def tag_references(self) -> TagReferenceManager:
+        """Rows linked from ``snapshot_profile_period_tags.refs``.
+
+        Each row has ``tag`` and ``reference``. ``reference`` looks like
+        ``snapshot_profile_period_tags/37``, and that pair is unique.
+        """
+        if self._tag_references is None:
+            from pyvergeos.resources.tags import TagReferenceManager
+
+            self._tag_references = TagReferenceManager(self)
+        return self._tag_references
 
     @property
     def vm_imports(self) -> VmImportManager:
@@ -2114,3 +2154,61 @@ class VergeClient:
 
             self._vsan_queries = VsanQueryManager(self)
         return self._vsan_queries
+
+    @property
+    def time_settings(self) -> TimeSettingsManager:
+        """NTP and PTP configuration. VergeOS 26.2 and later.
+
+        Example:
+            >>> settings = client.time_settings.get()
+            >>> print(settings.mode, settings.ntp_servers)
+        """
+        if self._time_settings is None:
+            from pyvergeos.resources.time import TimeSettingsManager
+
+            self._time_settings = TimeSettingsManager(self)
+        return self._time_settings
+
+    @property
+    def time_dashboard(self) -> TimeDashboardManager:
+        """Read-only time view: settings, node sync, and related alarms.
+
+        VergeOS 26.2 and later.
+
+        Example:
+            >>> dashboard = client.time_dashboard.get()
+            >>> for node in dashboard.nodes:
+            ...     print(node.name, node.synced)
+        """
+        if self._time_dashboard is None:
+            from pyvergeos.resources.time import TimeDashboardManager
+
+            self._time_dashboard = TimeDashboardManager(self)
+        return self._time_dashboard
+
+    @property
+    def vmware_containers(self) -> VmwareContainerManager:
+        """VMware service containers.
+
+        Example:
+            >>> container = client.vmware_containers.get(1)
+            >>> container.install_vixdisklib("VMware-vix-disklib.tar.gz")
+        """
+        if self._vmware_containers is None:
+            from pyvergeos.resources.vmware import VmwareContainerManager
+
+            self._vmware_containers = VmwareContainerManager(self)
+        return self._vmware_containers
+
+    @property
+    def vnet_bond_interfaces(self) -> VnetBondInterfaceManager:
+        """Bond member interfaces across networks.
+
+        ``primary`` is requested when the server is VergeOS 26.2 or later.
+        A single network's members are also on ``network.bond_interfaces``.
+        """
+        if self._vnet_bond_interfaces is None:
+            from pyvergeos.resources.bond_interfaces import VnetBondInterfaceManager
+
+            self._vnet_bond_interfaces = VnetBondInterfaceManager(self)
+        return self._vnet_bond_interfaces

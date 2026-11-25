@@ -182,7 +182,6 @@ class VMSnapshotManager(ResourceManager[VMSnapshot]):
         if fields is None:
             fields = self._default_fields
 
-        # Build filter for this VM's machine
         machine_filter = f"machine eq {self.machine_key}"
         if filter:
             machine_filter = f"{machine_filter} and ({filter})"

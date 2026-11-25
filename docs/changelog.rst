@@ -6,6 +6,134 @@ All notable changes to pyvergeos will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+[Unreleased]
+------------
+
+[1.8.0] - 2026-11-25
+--------------------
+
+Added
+^^^^^
+
+- ``CloudSnapshot.find_vms()`` and ``CloudSnapshotManager.find_vms()``
+  post ``{"action": "find_vms", "cloud_snapshot": N}`` to
+  ``cloud_snapshot_actions``. On VergeOS 26.2.2.1 a new system snapshot's
+  ``cloud_snapshot_vms`` rows stay empty until that action runs. The UI
+  posts the same body when a snapshot is opened. (#201)
+- A snapshot profile period can be tag-scoped. ``periods.create()``,
+  ``update()``, ``save()`` and ``SnapshotProfile.add_period()`` take
+  ``include_tags``, ``exclude_tags`` and ``quiesce_tags``. Those write
+  ``partial_tag_args`` and ``quiesce_tag_args``, comma-separated tag keys,
+  plus ``type`` (``full``, ``partial_include`` or ``partial_exclude``).
+  ``partial_tags`` and ``quiesce_tags`` are read-only rows that point at a
+  ``snapshot_profile_period_tags`` row; the tag keys are read back through
+  ``refs[tag]``. ``snapshot_type="full"`` sends ``type`` and empty args,
+  which clears the scope. Measured on VergeOS 26.2.2.1. (#199)
+- ``client.snapshot_profile_period_tags`` reads and writes
+  ``snapshot_profile_period_tags`` (``$key``, ``snapshot_profile_period``,
+  ``refs``). ``period.period_tags()`` is the same manager limited to one
+  period. ``references()`` reads the nested rows with ``refs[all]``.
+  ``save()`` refuses a column the table does not have.
+- ``client.tag_references`` reads and writes ``tag_references``. The columns
+  are ``tag`` and ``reference`` (for example
+  ``snapshot_profile_period_tags/37``). That pair is unique.
+- VergeOS 26.2 API compatibility. ``client.time_settings`` reads and writes
+  the NTP/PTP singleton (``time_settings/self``). ``client.time_dashboard``
+  is the read-only view of those settings, each node's sync status, and the
+  related alarms. ``client.vmware_containers`` lists VMware service
+  containers and installs a VixDiskLib build. Columns added in 26.2 stay
+  out of the default projection on an older server. Those columns are VM
+  ``bios_serial`` and ``vgamem_mb``, network ``dhcp_broadcast`` and the VLAN
+  bond settings (mode, ``vlan_bond_primary``, MII timing, and the transmit
+  hash policy), drive ``is_primary``, bond member ``primary``, update
+  package ``dependencies``, ``restart_pending_packages``, VM import
+  ``preserve_bios_serial``, ``guest_agent_preinstalled`` and
+  ``replicate_tags``, machine status ``agent_ip_list`` and
+  ``time_sync_status``, alarm ``sub_owner_type``, and the advanced
+  ``vnet_bgp`` columns, including the daemon flags. ``VM.create()`` leaves
+  the machine type unset unless the caller chooses one, so 26.2 can default
+  to ``pc-q35-11.0``. Queries can send Wake-on-LAN, a machine can have 255
+  NICs, and the CPU model list includes the 26.2 names. Default file and
+  drive projections omit ``uuid``, because those columns are hidden.
+  ``physical_access`` is Super Users membership (console, BMC, and hardware
+  access). (#197)
+
+Fixed
+^^^^^
+
+- Automatic retries no longer send ``POST`` or ``PATCH`` again. A create
+  whose reply was lost, arrived after the client timeout, or was replaced
+  by 429 or 5xx was submitted a second time. Drives and NICs were
+  duplicated, and a named object came back as ``ConflictError`` for a row
+  the same call had just created. ``GET``, ``HEAD``, ``OPTIONS``, ``PUT``,
+  ``DELETE``, and ``TRACE`` are still retried. A connect timeout is still
+  retried for every method, because that failure happens before the request
+  is sent. (#216)
+- ``vnet_bond_interfaces`` requests ``parent_vnet`` and ``child_vnet``.
+  ``network.bond_interfaces.list()`` filters on ``parent_vnet eq <key>``
+  instead of the non-existent ``vnet`` column. ``VnetBondInterface`` exposes
+  ``parent_vnet_key`` and ``child_vnet_key``, while keeping ``vnet_key`` as
+  an alias. (#211)
+- Network reads keep ``$key`` as an int on VergeOS 26.2. Selecting
+  ``vlan_bond_primary`` makes the API return that key as a string, and the
+  26.2 default projection includes the column. ``list()``, ``get(key)``,
+  ``get(name=...)`` and ``list(name=...)`` store a numeric string key as
+  ``int`` when the row is built. (#205)
+- ``cloud_snapshots.vms(key).list()``, ``CloudSnapshot.get_vms()``, and
+  ``include_vms=True`` read ``cloud_snapshot_vms`` filtered by
+  ``cloud_snapshot eq N``. ``is_snapshot`` is not added: rows in that
+  table already belong to the snapshot. Pass ``is_snapshot=False`` for
+  the lab query that returned the tagged VMs. ``find_vms`` runs only
+  when that snapshot has no membership rows. (#201, #206)
+- ``cloud_snapshots.vms(key).list()`` and ``CloudSnapshot.get_vms()`` poll
+  until VM rows appear when ``find_vms`` runs asynchronously. ``find_vms``
+  retries if the server reports the system snapshot is still building. (#209)
+- ``cloud_snapshots.vms(key).list()`` and ``CloudSnapshot.get_vms()``
+  remember a snapshot after its VM rows were read or a wait for them
+  finished, so a later empty read does not re-poll or post. A filtered
+  read stops polling as soon as membership rows appear, and
+  ``find_vms(timeout=0)`` does not retry. (#212)
+- A read after ``find_vms()`` or ``vms(key).list(wait=False)`` still waits
+  for membership rows. Those calls return before the platform writes the
+  rows, so they do not mark the snapshot filled. A second read of a
+  snapshot that holds no VMs still returns at once. (#217)
+- Reading a cloud snapshot's VMs works for a read-only user. The
+  membership GET happens before ``find_vms``. When rows already exist
+  the POST is skipped, so ``list(include_vms=True)`` does not POST once
+  per snapshot. A permission failure on ``find_vms`` (HTTP 403) returns
+  the rows already read. Any other error from that read is raised. (#206)
+- ``cloud_snapshots.create(wait=True)`` waits on
+  ``GET cloud_snapshots/N?fields=all`` and reads ``status`` from that body.
+  ``get()`` with the default field list can return while that read still
+  says ``building``, so the wait was handing back a snapshot that was not
+  finished. A missing status is still not treated as finished, and
+  ``wait_timeout`` still raises ``VergeTimeoutError``. (#202)
+- ``cloud_snapshots.create(..., retry_if_busy=True)`` retries the POST when
+  VergeOS answers ``ValidationError: System snapshot is still building``.
+  That shows up while another system snapshot is in progress, for example
+  right after a snapshot profile period is saved. The pause starts at the
+  usual poll interval and doubles up to 30 seconds, bounded by
+  ``wait_timeout``. Any other error is raised as before. The flag defaults
+  to off. Automatic retries do not repeat POST, and this refusal is an
+  application error. The POST did not create a row, so retrying it does
+  not make a second snapshot. ``wait`` and
+  ``retry_if_busy`` each get their own ``wait_timeout``. (#202)
+- Declared ``urllib3>=1.26``. Session setup calls
+  ``Retry(allowed_methods=...)``, which urllib3 1.25 does not accept.
+  ``requests>=2.28.0`` still allows 1.25, so an environment that met the
+  declared dependencies could raise ``TypeError`` while creating a
+  connection. (#196)
+
+Docs
+^^^^
+
+- Resource docstrings render in the API reference again. Napoleon does not
+  recognise a ``Properties`` section, so a wrapped description became a
+  block quote and the fields under it were dropped. Those fields are
+  documented under ``Attributes``, and ``AuthSourceManager.create`` leaves
+  a blank line before its parameter list. Pull-request CI fails when
+  ``sphinx-build`` reports a warning. (#215)
+
 [1.7.1] - 2026-09-27
 --------------------
 

@@ -146,13 +146,11 @@ class GroupMemberManager(ResourceManager[GroupMember]):
 
         params["filter"] = " and ".join(filters)
 
-        # Default fields
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = "$key,parent_group,member,member#$display as member_display,creator"
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -484,7 +482,6 @@ class GroupManager(ResourceManager[Group]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
 
         # Exclude system groups if requested
@@ -496,20 +493,17 @@ class GroupManager(ResourceManager[Group]):
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -570,7 +564,6 @@ class GroupManager(ResourceManager[Group]):
             >>> group = client.groups.get(name="Administrators")
         """
         if key is not None:
-            # Direct fetch by key
             params: dict[str, Any] = {}
             if fields:
                 params["fields"] = self._projection(fields)
@@ -585,7 +578,6 @@ class GroupManager(ResourceManager[Group]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"Group '{name}' not found")
@@ -649,7 +641,6 @@ class GroupManager(ResourceManager[Group]):
             if group_key:
                 return self.get(key=int(group_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]

@@ -146,7 +146,6 @@ class NASServiceManager(ResourceManager[NASService]):
 
     _endpoint = "vm_services"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "name",
@@ -204,7 +203,6 @@ class NASServiceManager(ResourceManager[NASService]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
@@ -214,13 +212,11 @@ class NASServiceManager(ResourceManager[NASService]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -303,7 +299,6 @@ class NASServiceManager(ResourceManager[NASService]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"NAS service with name '{name}' not found")
@@ -394,7 +389,6 @@ class NASServiceManager(ResourceManager[NASService]):
             if isinstance(network, int):
                 network_key = network
             elif isinstance(network, str):
-                # Look up network by name
                 net_response = self._client._request(
                     "GET",
                     "vnets",
@@ -649,10 +643,6 @@ class NASServiceManager(ResourceManager[NASService]):
                 return result
         return None
 
-    # -------------------------------------------------------------------------
-    # CIFS Settings
-    # -------------------------------------------------------------------------
-
     def get_cifs_settings(self, key: int) -> CIFSSettings:
         """Get CIFS/SMB settings for a NAS service.
 
@@ -746,7 +736,6 @@ class NASServiceManager(ResourceManager[NASService]):
             body["workgroup"] = workgroup.lower()
 
         if min_protocol is not None:
-            # Map user-friendly values to API values
             protocol_map = {
                 "none": "none",
                 "smb2": "SMB2",
@@ -760,7 +749,6 @@ class NASServiceManager(ResourceManager[NASService]):
             body["server_min_protocol"] = protocol_map.get(min_protocol.lower(), min_protocol)
 
         if guest_mapping is not None:
-            # Map user-friendly values to API values
             guest_map = {
                 "never": "never",
                 "baduser": "bad user",
@@ -780,10 +768,6 @@ class NASServiceManager(ResourceManager[NASService]):
 
         self._client._request("PUT", f"vm_service_cifs/{cifs_key}", json_data=body)
         return self.get_cifs_settings(key)
-
-    # -------------------------------------------------------------------------
-    # NFS Settings
-    # -------------------------------------------------------------------------
 
     def get_nfs_settings(self, key: int) -> NFSSettings:
         """Get NFS settings for a NAS service.
@@ -896,7 +880,6 @@ class NASServiceManager(ResourceManager[NASService]):
             body["allow_all"] = allow_all
 
         if squash is not None:
-            # Map user-friendly values to API values
             squash_map = {
                 "root_squash": "root_squash",
                 "rootsquash": "root_squash",
@@ -910,7 +893,6 @@ class NASServiceManager(ResourceManager[NASService]):
             body["squash"] = squash_map.get(squash.lower(), squash)
 
         if data_access is not None:
-            # Map user-friendly values to API values
             access_map = {
                 "ro": "ro",
                 "readonly": "ro",

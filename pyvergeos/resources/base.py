@@ -890,7 +890,6 @@ class ResourceManager(Generic[T]):
         if fields:
             params["fields"] = self._projection(fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -954,7 +953,6 @@ class ResourceManager(Generic[T]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"{self._endpoint} with name '{name}' not found")

@@ -206,7 +206,6 @@ class NASUserManager(ResourceManager["NASUser"]):
 
     _endpoint = "vm_service_users"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "name",
@@ -261,33 +260,28 @@ class NASUserManager(ResourceManager["NASUser"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add service filter
         if service is not None:
             service_key = self._resolve_service_key(service)
             if service_key is not None:
                 filters.append(f"service eq {service_key}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {str(enabled).lower()}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -427,7 +421,6 @@ class NASUserManager(ResourceManager["NASUser"]):
         if service_key is None:
             raise ValueError(f"NAS service '{service}' not found")
 
-        # Build request body
         body: dict[str, Any] = {
             "service": service_key,
             "name": name,

@@ -408,7 +408,6 @@ class TaskManager(ResourceManager[Task]):
             >>> # Tasks by name pattern
             >>> backup_tasks = client.tasks.list(name="Backup")
         """
-        # Build filter conditions
         conditions: builtins.list[str] = []
 
         if filter:
@@ -428,14 +427,11 @@ class TaskManager(ResourceManager[Task]):
             # Check if name contains wildcards
             conditions.append(wildcard_condition("name", name))
 
-        # Add any additional filter kwargs
         if filter_kwargs:
             conditions.append(build_filter(**filter_kwargs))
 
-        # Combine conditions
         combined_filter = " and ".join(conditions) if conditions else None
 
-        # Use default fields if not specified
         if fields is None:
             fields = _DEFAULT_LIST_FIELDS
 
@@ -768,7 +764,6 @@ class TaskManager(ResourceManager[Task]):
         if not isinstance(response, dict):
             raise ValueError("Create operation returned invalid response")
 
-        # Get the full object
         key = response.get("$key")
         if key is not None:
             return self.get(int(key))

@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from pyvergeos.resources.cluster_tiers import ClusterTierManager
 
 
-# Status display mappings
 STATUS_DISPLAY = {
     "online": "Online",
     "offline": "Offline",
@@ -56,15 +55,18 @@ CPU_TYPES = [
     "host",
     "Broadwell",
     "Cascadelake-Server",
+    "ClearwaterForest",
     "Conroe",
     "Cooperlake",
     "core2duo",
     "coreduo",
     "Denverton",
+    "DiamondRapids",
     "EPYC",
     "EPYC-Genoa",
     "EPYC-Milan",
     "EPYC-Rome",
+    "EPYC-Turin",
     "GraniteRapids",
     "Haswell",
     "Icelake-Server",
@@ -81,6 +83,7 @@ CPU_TYPES = [
     "phenom",
     "SandyBridge",
     "SapphireRapids",
+    "SierraForest",
     "Skylake-Client",
     "Skylake-Server",
     "Snowridge",
@@ -656,7 +659,6 @@ class ClusterManager(ResourceManager[Cluster]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters = []
         if filter:
             filters.append(filter)
@@ -679,13 +681,11 @@ class ClusterManager(ResourceManager[Cluster]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -726,7 +726,6 @@ class ClusterManager(ResourceManager[Cluster]):
             >>> cluster = client.clusters.get(key=1)
             >>> cluster = client.clusters.get(name="Production")
         """
-        # Use default fields if not specified
         if fields is None:
             fields = self._default_fields
 
@@ -832,7 +831,6 @@ class ClusterManager(ResourceManager[Cluster]):
         if default_cpu and default_cpu not in CPU_TYPES:
             raise ValidationError(f"Invalid CPU type. Must be one of: {', '.join(CPU_TYPES)}")
 
-        # Build request body
         body: dict[str, Any] = {
             "name": name,
             "enabled": enabled,

@@ -33,12 +33,12 @@ from typing import TYPE_CHECKING, Any, Literal
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import Projected, ResourceManager, ResourceObject
+from pyvergeos.versions import prepare_default_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
 
-# Status display mappings
 STATUS_DISPLAY = {
     "initializing": "Initializing",
     "starting": "Starting",
@@ -79,11 +79,6 @@ LOG_LEVEL_DISPLAY = {
     "summary": "Summary",
     "debug": "Debug",
 }
-
-
-# =============================================================================
-# Machine Stats
-# =============================================================================
 
 
 class MachineStats(ResourceObject):
@@ -467,7 +462,6 @@ class MachineStatsManager(ResourceManager[MachineStats]):
 
         filters = [f"machine eq {self._machine_key}"]
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"timestamp ge {since_epoch}")
@@ -496,11 +490,6 @@ class MachineStatsManager(ResourceManager[MachineStats]):
             return [self._to_history_model(item) for item in response]
 
         return [self._to_history_model(response)]
-
-
-# =============================================================================
-# Machine Status
-# =============================================================================
 
 
 class MachineStatus(ResourceObject):
@@ -637,11 +626,64 @@ class MachineStatus(ResourceObject):
         info = self.get("agent_guest_info")
         return info if isinstance(info, dict) else {}
 
+    @property
+    def agent_ip_list(self) -> str:
+        """IP addresses reported by the guest agent, as one string.
+
+        VergeOS 26.2. The column is text, not a list. Empty when the
+        server did not return it.
+        """
+        raw = self.get("agent_ip_list")
+        if raw is None:
+            return ""
+        return str(raw)
+
+    @property
+    def time_sync_status(self) -> dict[str, Any] | list[Any]:
+        """Guest time sync status.
+
+        VergeOS 26.2. A JSON object while the guest is reporting, or
+        ``[]`` when there is nothing to report.
+        """
+        raw = self.get("time_sync_status")
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, list):
+            return raw
+        return []
+
     def __repr__(self) -> str:
         return (
             f"<MachineStatus machine={self.machine_key} "
             f"status={self.status_raw} running={self.is_running}>"
         )
+
+
+_MACHINE_STATUS_FIELDS = [
+    "$key",
+    "machine",
+    "running",
+    "migratable",
+    "status",
+    "status_info",
+    "state",
+    "powerstate",
+    "node",
+    "migrated_node",
+    "migration_destination",
+    "started",
+    "local_time",
+    "last_update",
+    "running_cores",
+    "running_ram",
+    "agent_version",
+    "agent_features",
+    "agent_guest_info",
+    *MachineStatus.projected_entries(),
+]
+
+# Guest-agent addresses and time sync, added in VergeOS 26.2.
+_MACHINE_STATUS_26_2_FIELDS = ["agent_ip_list", "time_sync_status"]
 
 
 class MachineStatusManager(ResourceManager[MachineStatus]):
@@ -658,29 +700,7 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
     """
 
     _endpoint = "machine_status"
-
-    _default_fields = [
-        "$key",
-        "machine",
-        "running",
-        "migratable",
-        "status",
-        "status_info",
-        "state",
-        "powerstate",
-        "node",
-        "migrated_node",
-        "migration_destination",
-        "started",
-        "local_time",
-        "last_update",
-        "running_cores",
-        "running_ram",
-        "agent_version",
-        "agent_features",
-        "agent_guest_info",
-        *MachineStatus.projected_entries(),
-    ]
+    _default_fields = _MACHINE_STATUS_FIELDS
 
     def __init__(self, client: VergeClient, machine_key: int) -> None:
         super().__init__(client)
@@ -707,6 +727,7 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
         Raises:
             NotFoundError: If status not found for this machine.
         """
+        prepare_default_fields(self, _MACHINE_STATUS_FIELDS, _MACHINE_STATUS_26_2_FIELDS)
         if fields is None:
             fields = self._default_fields
 
@@ -727,11 +748,6 @@ class MachineStatusManager(ResourceManager[MachineStatus]):
             return self._to_model(response[0])
 
         return self._to_model(response)
-
-
-# =============================================================================
-# Machine Logs
-# =============================================================================
 
 
 class MachineLog(ResourceObject):

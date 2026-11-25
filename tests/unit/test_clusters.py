@@ -850,6 +850,10 @@ class TestCPUTypes:
         assert "EPYC-Rome" in CPU_TYPES
         assert "Cascadelake-Server" in CPU_TYPES
         assert "qemu64" in CPU_TYPES
+        assert "ClearwaterForest" in CPU_TYPES
+        assert "DiamondRapids" in CPU_TYPES
+        assert "EPYC-Turin" in CPU_TYPES
+        assert "SierraForest" in CPU_TYPES
 
     def test_cpu_types_is_list(self) -> None:
         """Test CPU_TYPES is a list."""

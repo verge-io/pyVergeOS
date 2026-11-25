@@ -543,7 +543,6 @@ class BillingManager(ResourceManager[BillingRecord]):
         if filter:
             filters.append(filter)
 
-        # Convert datetime to epoch if needed
         if since is not None:
             since_epoch = int(since.timestamp()) if isinstance(since, datetime) else int(since)
             filters.append(f"created ge {since_epoch}")

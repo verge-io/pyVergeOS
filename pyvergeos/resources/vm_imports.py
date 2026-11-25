@@ -8,9 +8,40 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.versions import prepare_default_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
+
+_VM_IMPORT_FIELDS = [
+    "$key",
+    "id",
+    "name",
+    "vm",
+    "vm#$display as vm_display",
+    "uuid",
+    "file",
+    "file#$display as file_display",
+    "volume",
+    "volume#$display as volume_display",
+    "volume_path",
+    "status",
+    "status_info",
+    "importing",
+    "aborted",
+    "preserve_macs",
+    "preserve_drive_format",
+    "preferred_tier",
+    "timestamp",
+    "modified",
+]
+
+# Columns added to vm_imports in VergeOS 26.2.
+_VM_IMPORT_26_2_FIELDS = [
+    "preserve_bios_serial",
+    "guest_agent_preinstalled",
+    "replicate_tags",
+]
 
 
 class VmImport(ResourceObject):
@@ -37,6 +68,9 @@ class VmImport(ResourceObject):
         importing: Whether import is in progress.
         aborted: Whether import was aborted.
         preserve_macs: Whether to preserve MAC addresses from source.
+        preserve_bios_serial: Whether to keep the source SMBIOS serial (26.2).
+        guest_agent_preinstalled: Whether the guest agent is already installed (26.2).
+        replicate_tags: Whether source tags are copied onto the import (26.2).
         preserve_drive_format: Whether to preserve original drive format.
         preferred_tier: Preferred storage tier (1-5).
         timestamp: Creation timestamp.
@@ -89,6 +123,30 @@ class VmImport(ResourceObject):
     def has_error(self) -> bool:
         """Check if import has an error."""
         return self.get("status") in ("error", "aborted")
+
+    @property
+    def preserve_bios_serial(self) -> bool:
+        """Whether the import keeps the source SMBIOS serial.
+
+        VergeOS 26.2. False when the server did not return the field.
+        """
+        return bool(self.get("preserve_bios_serial", False))
+
+    @property
+    def guest_agent_preinstalled(self) -> bool:
+        """Whether the guest agent was flagged as already installed.
+
+        VergeOS 26.2. Set this on a batch whose guests already have the agent.
+        """
+        return bool(self.get("guest_agent_preinstalled", False))
+
+    @property
+    def replicate_tags(self) -> bool:
+        """Whether tags from the source are copied with the import.
+
+        VergeOS 26.2.
+        """
+        return bool(self.get("replicate_tags", False))
 
     @property
     def vm_key(self) -> int | None:
@@ -192,29 +250,7 @@ class VmImportManager(ResourceManager["VmImport"]):
 
     _endpoint = "vm_imports"
 
-    # Default fields for list operations
-    _default_fields = [
-        "$key",
-        "id",
-        "name",
-        "vm",
-        "vm#$display as vm_display",
-        "uuid",
-        "file",
-        "file#$display as file_display",
-        "volume",
-        "volume#$display as volume_display",
-        "volume_path",
-        "status",
-        "status_info",
-        "importing",
-        "aborted",
-        "preserve_macs",
-        "preserve_drive_format",
-        "preferred_tier",
-        "timestamp",
-        "modified",
-    ]
+    _default_fields = _VM_IMPORT_FIELDS
 
     def __init__(self, client: VergeClient) -> None:
         super().__init__(client)
@@ -251,29 +287,26 @@ class VmImportManager(ResourceManager["VmImport"]):
             >>> # List completed imports
             >>> done = client.vm_imports.list(status="complete")
         """
+        prepare_default_fields(self, _VM_IMPORT_FIELDS, _VM_IMPORT_26_2_FIELDS)
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add status filter
         if status:
             filters.append(f"status eq {quote_value(status)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -317,8 +350,8 @@ class VmImportManager(ResourceManager["VmImport"]):
             >>> # Get by name
             >>> imp = client.vm_imports.get(name="imported-vm")
         """
+        prepare_default_fields(self, _VM_IMPORT_FIELDS, _VM_IMPORT_26_2_FIELDS)
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -340,7 +373,6 @@ class VmImportManager(ResourceManager["VmImport"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(filter=f"name eq {quote_value(name)}", fields=fields, limit=1)
             if not results:
                 raise NotFoundError(f"VM import with name '{name}' not found")
@@ -364,6 +396,9 @@ class VmImportManager(ResourceManager["VmImport"]):
         override_nic_interface: str | None = None,
         cleanup_on_delete: bool = False,
         importing: bool = False,
+        preserve_bios_serial: bool = False,
+        guest_agent_preinstalled: bool = False,
+        replicate_tags: bool = False,
     ) -> VmImport:
         """Create a new VM import.
 
@@ -382,6 +417,13 @@ class VmImportManager(ResourceManager["VmImport"]):
             override_nic_interface: Override NIC interface type.
             cleanup_on_delete: Clean up import file path on delete.
             importing: Auto-start the import immediately after creation (default False).
+            preserve_bios_serial: Keep the source SMBIOS serial. Sent only when
+                True. VergeOS 26.2.
+            guest_agent_preinstalled: The guests already have the QEMU guest
+                agent, so the import should not treat it as missing. Sent only
+                when True. VergeOS 26.2.
+            replicate_tags: Copy tags from the source onto the imported VM.
+                Sent only when True. VergeOS 26.2.
 
         Returns:
             Created VmImport object.
@@ -445,6 +487,15 @@ class VmImportManager(ResourceManager["VmImport"]):
         if importing:
             body["importing"] = True
 
+        if preserve_bios_serial:
+            body["preserve_bios_serial"] = True
+
+        if guest_agent_preinstalled:
+            body["guest_agent_preinstalled"] = True
+
+        if replicate_tags:
+            body["replicate_tags"] = True
+
         response = self._client._request("POST", self._endpoint, json_data=body)
 
         # Get the created import
@@ -453,7 +504,6 @@ class VmImportManager(ResourceManager["VmImport"]):
             if imp_key:
                 return self.get(key=imp_key)
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
@@ -611,7 +661,6 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
 
     _endpoint = "vm_import_logs"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "vm_import",
@@ -661,14 +710,12 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add import filter (from scope or parameter)
         import_key = self._import_key
         if import_key is None and vm_import is not None:
             import_key = vm_import
@@ -676,20 +723,17 @@ class VmImportLogManager(ResourceManager["VmImportLog"]):
         if import_key is not None:
             filters.append(f"vm_import eq {quote_value(import_key)}")
 
-        # Add level filter
         if level:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

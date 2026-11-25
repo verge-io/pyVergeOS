@@ -562,7 +562,6 @@ class SiteManager(ResourceManager[Site]):
         if config_repair_server not in valid_sync_configs:
             raise ValidationError(f"config_repair_server must be one of: {valid_sync_configs}")
 
-        # Build request body
         body: dict[str, Any] = {
             "name": name,
             "url": url,

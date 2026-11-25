@@ -80,12 +80,15 @@ class SiteSyncOutgoing(ResourceObject):
     Outgoing syncs send cloud snapshots from this system to a remote site
     for disaster recovery purposes.
 
-    Properties:
+    Attributes:
         site_key: Key of the associated site.
         name: Sync name.
         description: Sync description.
         is_enabled: Whether the sync is enabled.
-        status: Sync status (offline, initializing, syncing, error).
+        status: Sync activity. Idle means the destination is waiting for its
+            next run. Older servers reported that same wait as offline, and
+            offline is still accepted, along with initializing, syncing, and
+            error.
         status_info: Additional status information.
         state: Sync state (offline, online, warning, error).
         url: Remote URL.
@@ -127,8 +130,17 @@ class SiteSyncOutgoing(ResourceObject):
 
     @property
     def status(self) -> str:
-        """Get sync status (offline, initializing, syncing, error)."""
-        return str(self.get("status", "offline"))
+        """Sync activity.
+
+        Idle is the usual waiting state on VergeOS 26.2. Offline is still
+        accepted from older servers. Also initializing, syncing, or error.
+        """
+        return str(self.get("status", "idle"))
+
+    @property
+    def is_idle(self) -> bool:
+        """Whether the sync is waiting for its next run."""
+        return self.status == "idle"
 
     @property
     def status_info(self) -> str:
@@ -401,12 +413,14 @@ class SiteSyncIncoming(ResourceObject):
     Incoming syncs receive cloud snapshots from a remote site
     for disaster recovery purposes.
 
-    Properties:
+    Attributes:
         site_key: Key of the associated site.
         name: Sync name.
         description: Sync description.
         is_enabled: Whether the sync is enabled.
-        status: Sync status (offline, syncing, error, etc.).
+        status: Sync activity. Idle means the destination is waiting for its
+            next run. Offline is still accepted from older servers, along
+            with syncing and error.
         status_info: Additional status information.
         state: Sync state (offline, online, warning, error).
         sync_id: Unique sync identifier.
@@ -444,8 +458,17 @@ class SiteSyncIncoming(ResourceObject):
 
     @property
     def status(self) -> str:
-        """Get sync status."""
-        return str(self.get("status", "offline"))
+        """Sync activity.
+
+        Idle is the usual waiting state on VergeOS 26.2. Offline is still
+        accepted from older servers.
+        """
+        return str(self.get("status", "idle"))
+
+    @property
+    def is_idle(self) -> bool:
+        """Whether the sync is waiting for its next run."""
+        return self.status == "idle"
 
     @property
     def status_info(self) -> str:
@@ -1928,10 +1951,6 @@ class SiteSyncScheduleManager(ResourceManager[SiteSyncSchedule]):
         self._client._request("DELETE", f"{self._endpoint}/{key}")
 
 
-# ============================================================================
-# Site Sync Stats
-# ============================================================================
-
 # Default fields for stats
 _DEFAULT_STATS_FIELDS = [
     "$key",
@@ -2364,10 +2383,6 @@ class SiteSyncStatsManager:
         return [SiteSyncStatsHistory(item, None) for item in response]  # type: ignore[arg-type]
 
 
-# ============================================================================
-# Site Sync Queue
-# ============================================================================
-
 # Default fields for queue items
 _DEFAULT_QUEUE_FIELDS = [
     "$key",
@@ -2725,10 +2740,6 @@ class SiteSyncQueueManager:
         return len(items)
 
 
-# ============================================================================
-# Site Sync Remote Snapshots
-# ============================================================================
-
 # Default fields for remote snapshots
 _DEFAULT_REMOTE_SNAP_FIELDS = [
     "$key",
@@ -3013,10 +3024,6 @@ class SiteSyncRemoteSnapManager:
         return len(snaps)
 
 
-# ============================================================================
-# Site Sync Incoming Verified
-# ============================================================================
-
 # Default fields for verified syncs
 _DEFAULT_VERIFIED_FIELDS = [
     "$key",
@@ -3250,10 +3257,6 @@ class SiteSyncIncomingVerifiedManager:
         }
         self._client._request("POST", self._actions_endpoint, json_data=body)
 
-
-# ============================================================================
-# Site Sync Logs
-# ============================================================================
 
 # Default fields for logs
 _DEFAULT_LOG_FIELDS = [

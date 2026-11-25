@@ -47,14 +47,10 @@ from typing import TYPE_CHECKING, Any
 from pyvergeos.exceptions import NotFoundError
 from pyvergeos.filters import build_filter, quote_value
 from pyvergeos.resources.base import ResourceManager, ResourceObject
+from pyvergeos.versions import prepare_default_fields
 
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
-
-
-# =============================================================================
-# Update Logs
-# =============================================================================
 
 
 class UpdateLog(ResourceObject):
@@ -141,33 +137,28 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add level filter
         if level is not None:
             filters.append(f"level eq {quote_value(level)}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        # Default sort by timestamp descending
         params["sort"] = "-timestamp"
 
         response = self._client._request("GET", self._endpoint, params=params)
@@ -251,11 +242,6 @@ class UpdateLogManager(ResourceManager["UpdateLog"]):
         return UpdateLog(data, self)
 
 
-# =============================================================================
-# Update Branches
-# =============================================================================
-
-
 class UpdateBranch(ResourceObject):
     """Update branch resource object.
 
@@ -318,7 +304,6 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
@@ -328,13 +313,11 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -398,11 +381,6 @@ class UpdateBranchManager(ResourceManager["UpdateBranch"]):
         return UpdateBranch(data, self)
 
 
-# =============================================================================
-# Update Source Status
-# =============================================================================
-
-
 class UpdateSourceStatus(ResourceObject):
     """Update source status resource object.
 
@@ -411,7 +389,8 @@ class UpdateSourceStatus(ResourceObject):
     Attributes:
         key: Status $key (row ID).
         source: Parent source key.
-        status: Current status (idle, refreshing, downloading, installing, applying, error).
+        status: Current status (idle, refreshing, downloading, installing,
+            uninstalling, applying, error).
         info: Additional status information text.
         nodes_updated: Count of nodes that have been updated.
         last_update: Timestamp of last status change.
@@ -432,7 +411,18 @@ class UpdateSourceStatus(ResourceObject):
     def is_busy(self) -> bool:
         """Check if source is currently busy with an operation."""
         status = self.get("status", "")
-        return status in ("refreshing", "downloading", "installing", "applying")
+        return status in (
+            "refreshing",
+            "downloading",
+            "installing",
+            "uninstalling",
+            "applying",
+        )
+
+    @property
+    def is_uninstalling(self) -> bool:
+        """Check if a package uninstall is in progress."""
+        return self.get("status") == "uninstalling"
 
     @property
     def is_error(self) -> bool:
@@ -517,14 +507,12 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add source filter (from scope or parameter)
         src_key = self._source_key
         if src_key is None and source is not None:
             src_key = source
@@ -535,13 +523,11 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -612,11 +598,6 @@ class UpdateSourceStatusManager(ResourceManager["UpdateSourceStatus"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateSourceStatus:
         """Convert API response to UpdateSourceStatus object."""
         return UpdateSourceStatus(data, self)
-
-
-# =============================================================================
-# Update Source Packages
-# =============================================================================
 
 
 class UpdateSourcePackage(ResourceObject):
@@ -735,14 +716,12 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add source filter (from scope or parameter)
         src_key = self._source_key
         if src_key is None and source is not None:
             src_key = source
@@ -750,7 +729,6 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         if src_key is not None:
             filters.append(f"source eq {src_key}")
 
-        # Add branch filter (from scope or parameter)
         br_key = self._branch_key
         if br_key is None and branch is not None:
             br_key = branch
@@ -758,20 +736,17 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
         if br_key is not None:
             filters.append(f"branch eq {br_key}")
 
-        # Add downloaded filter
         if downloaded is not None:
             filters.append(f"downloaded eq {1 if downloaded else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -851,11 +826,6 @@ class UpdateSourcePackageManager(ResourceManager["UpdateSourcePackage"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateSourcePackage:
         """Convert API response to UpdateSourcePackage object."""
         return UpdateSourcePackage(data, self)
-
-
-# =============================================================================
-# Update Sources
-# =============================================================================
 
 
 class UpdateSource(ResourceObject):
@@ -982,27 +952,23 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1107,7 +1073,6 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
             if src_key:
                 return self.get(key=int(src_key))
 
-        # Fallback: search by name
         return self.get(name=name)
 
     def update(  # type: ignore[override]
@@ -1250,11 +1215,6 @@ class UpdateSourceManager(ResourceManager["UpdateSource"]):
         return UpdateSource(data, self)
 
 
-# =============================================================================
-# Update Packages
-# =============================================================================
-
-
 class UpdatePackage(ResourceObject):
     """Update package resource object.
 
@@ -1268,6 +1228,7 @@ class UpdatePackage(ResourceObject):
         branch: Branch key.
         type: Package type (ybpkg).
         optional: Whether the package is optional.
+        dependencies: Packages this one requires. VergeOS 26.2.
         created: Creation timestamp.
         modified: Last modified timestamp.
     """
@@ -1299,6 +1260,36 @@ class UpdatePackage(ResourceObject):
         """Check if the package is optional."""
         return bool(self.get("optional", False))
 
+    @property
+    def dependencies(self) -> list[str]:
+        """Packages this one depends on.
+
+        VergeOS 26.2. A comma-separated string is split. Empty when the
+        server did not return the field.
+        """
+        raw = self.get("dependencies")
+        if isinstance(raw, list):
+            return [str(item) for item in raw if item]
+        if isinstance(raw, str) and raw.strip():
+            return [part.strip() for part in raw.split(",") if part.strip()]
+        return []
+
+
+_UPDATE_PACKAGE_FIELDS = [
+    "$key",
+    "name",
+    "description",
+    "version",
+    "branch",
+    "branch#name as branch_display",
+    "type",
+    "optional",
+    "created",
+    "modified",
+]
+
+_UPDATE_PACKAGE_26_2_FIELDS = ["dependencies"]
+
 
 class UpdatePackageManager(ResourceManager["UpdatePackage"]):
     """Manager for update package operations.
@@ -1316,19 +1307,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
     """
 
     _endpoint = "update_packages"
-
-    _default_fields = [
-        "$key",
-        "name",
-        "description",
-        "version",
-        "branch",
-        "branch#name as branch_display",
-        "type",
-        "optional",
-        "created",
-        "modified",
-    ]
+    _default_fields = _UPDATE_PACKAGE_FIELDS
 
     def list(  # noqa: A003
         self,
@@ -1352,29 +1331,26 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
         Returns:
             List of UpdatePackage objects.
         """
+        prepare_default_fields(self, _UPDATE_PACKAGE_FIELDS, _UPDATE_PACKAGE_26_2_FIELDS)
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add branch filter
         if branch is not None:
             filters.append(f"branch eq {branch}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -1411,6 +1387,7 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
             NotFoundError: If package not found.
             ValueError: If no identifier provided.
         """
+        prepare_default_fields(self, _UPDATE_PACKAGE_FIELDS, _UPDATE_PACKAGE_26_2_FIELDS)
         # Key and name are the same for packages
         pkg_name = key or name
         if pkg_name is None:
@@ -1432,11 +1409,6 @@ class UpdatePackageManager(ResourceManager["UpdatePackage"]):
     def _to_model(self, data: dict[str, Any]) -> UpdatePackage:
         """Convert API response to UpdatePackage object."""
         return UpdatePackage(data, self)
-
-
-# =============================================================================
-# Update Settings
-# =============================================================================
 
 
 class UpdateSettings(ResourceObject):
@@ -1464,6 +1436,8 @@ class UpdateSettings(ResourceObject):
         applying_updates: Whether updates are currently being applied.
         release_notes_url: URL to release notes.
         anonymize_statistics: Anonymize statistics sent to update server.
+        restart_pending_packages: JSON list of packages waiting on a restart.
+            VergeOS 26.2. Empty when nothing is pending.
     """
 
     @property
@@ -1521,6 +1495,20 @@ class UpdateSettings(ResourceObject):
         """Check if updates are currently being applied."""
         return bool(self.get("applying_updates", False))
 
+    @property
+    def restart_pending_packages(self) -> list[str]:
+        """Package names waiting on a restart.
+
+        VergeOS 26.2 stores this as a JSON list. Empty when nothing is
+        pending or the server did not return the field.
+        """
+        raw = self.get("restart_pending_packages")
+        if isinstance(raw, list):
+            return [str(item) for item in raw if item]
+        if isinstance(raw, str) and raw.strip():
+            return [part.strip() for part in raw.split(",") if part.strip()]
+        return []
+
     def check(self) -> dict[str, Any] | None:
         """Check for available updates.
 
@@ -1569,6 +1557,34 @@ class UpdateSettings(ResourceObject):
         return manager.update_all(force=force)
 
 
+_UPDATE_SETTINGS_FIELDS = [
+    "$key",
+    "name",
+    "source",
+    "source#name as source_display",
+    "branch",
+    "branch#name as branch_display",
+    "branch#description as branch_description",
+    "auto_refresh",
+    "auto_update",
+    "auto_reboot",
+    "update_time",
+    "max_vsan_usage",
+    "warm_reboot",
+    "multi_cluster_update",
+    "snapshot_cloud_on_update",
+    "snapshot_cloud_expire_seconds",
+    "installed",
+    "reboot_required",
+    "applying_updates",
+    "applying_updates_force",
+    "release_notes_url",
+    "anonymize_statistics",
+]
+
+_UPDATE_SETTINGS_26_2_FIELDS = ["restart_pending_packages"]
+
+
 class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
     """Manager for update settings operations.
 
@@ -1601,31 +1617,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
     """
 
     _endpoint = "update_settings"
-
-    _default_fields = [
-        "$key",
-        "name",
-        "source",
-        "source#name as source_display",
-        "branch",
-        "branch#name as branch_display",
-        "branch#description as branch_description",
-        "auto_refresh",
-        "auto_update",
-        "auto_reboot",
-        "update_time",
-        "max_vsan_usage",
-        "warm_reboot",
-        "multi_cluster_update",
-        "snapshot_cloud_on_update",
-        "snapshot_cloud_expire_seconds",
-        "installed",
-        "reboot_required",
-        "applying_updates",
-        "applying_updates_force",
-        "release_notes_url",
-        "anonymize_statistics",
-    ]
+    _default_fields = _UPDATE_SETTINGS_FIELDS
 
     def get(  # type: ignore[override]
         self,
@@ -1645,6 +1637,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         Returns:
             UpdateSettings object.
         """
+        prepare_default_fields(self, _UPDATE_SETTINGS_FIELDS, _UPDATE_SETTINGS_26_2_FIELDS)
         params: dict[str, Any] = {}
         if fields:
             params["fields"] = self._projection(fields)
@@ -1676,6 +1669,7 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
         snapshot_cloud_on_update: bool | None = None,
         snapshot_cloud_expire_seconds: int | None = None,
         anonymize_statistics: bool | None = None,
+        restart_pending_packages: list[str] | None = None,
     ) -> UpdateSettings:
         """Update the update settings.
 
@@ -1695,6 +1689,8 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
             snapshot_cloud_on_update: Take system snapshot before updates.
             snapshot_cloud_expire_seconds: Snapshot expiration period in seconds.
             anonymize_statistics: Anonymize statistics sent to update server.
+            restart_pending_packages: Package names waiting on a restart.
+                VergeOS 26.2. Sent only when not None. An empty list clears it.
 
         Returns:
             Updated UpdateSettings object.
@@ -1742,6 +1738,9 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
 
         if anonymize_statistics is not None:
             body["anonymize_statistics"] = anonymize_statistics
+
+        if restart_pending_packages is not None:
+            body["restart_pending_packages"] = restart_pending_packages
 
         if not body:
             return self.get()
@@ -1794,6 +1793,22 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
             ...     task = client.tasks.wait(result.get("task"))
         """
         return self._action("install")
+
+    def uninstall(self, installed_package: str) -> dict[str, Any] | None:
+        """Uninstall an optional package.
+
+        Dependents are removed with it. VergeOS 26.2.
+
+        Args:
+            installed_package: Name of the installed package to remove.
+
+        Returns:
+            Task information dict or None.
+
+        Example:
+            >>> client.update_settings.uninstall("private-ai")
+        """
+        return self._action("uninstall", installed_package=installed_package)
 
     def update_all(self, force: bool = False) -> dict[str, Any] | None:
         """Download, install, and reboot in one operation.
@@ -1853,11 +1868,6 @@ class UpdateSettingsManager(ResourceManager["UpdateSettings"]):
     def _to_model(self, data: dict[str, Any]) -> UpdateSettings:
         """Convert API response to UpdateSettings object."""
         return UpdateSettings(data, self)
-
-
-# =============================================================================
-# Update Dashboard
-# =============================================================================
 
 
 class UpdateDashboard(ResourceObject):

@@ -278,7 +278,6 @@ class LogManager(ResourceManager[Log]):
         if errors_only:
             level = ["error", "critical"]
 
-        # Level filter
         if level:
             if isinstance(level, str):
                 conditions.append(f"level eq {quote_value(level.lower())}")
@@ -318,14 +317,11 @@ class LogManager(ResourceManager[Log]):
                 before_us = int(before.timestamp() * 1_000_000)
             conditions.append(f"timestamp lt {before_us}")
 
-        # Add any additional filter kwargs
         if filter_kwargs:
             conditions.append(build_filter(**filter_kwargs))
 
-        # Combine conditions
         combined_filter = " and ".join(conditions) if conditions else None
 
-        # Use default fields if not specified
         if fields is None:
             fields = _DEFAULT_LOG_FIELDS
 

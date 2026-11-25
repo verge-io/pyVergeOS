@@ -40,7 +40,6 @@ NIC_FABRIC_STATUS_DISPLAY = {
     "no_path": "No Path",
 }
 
-# Default fields
 NIC_STATS_DEFAULT_FIELDS = [
     "$key",
     "parent_nic",

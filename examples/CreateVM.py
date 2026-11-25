@@ -65,14 +65,14 @@ def create_configured_vm(
     cloud_init_desc = " with cloud-init" if use_cloud_init else ""
     print(f"1. Creating VM with 2 CPU cores, 8GB RAM{cloud_init_desc}...")
 
-    # Build VM creation parameters
+    # Build VM creation parameters. Machine type is left unset so the
+    # server uses its own default.
     vm_params: dict[str, Any] = {
         "name": vm_name,
         "cpu_cores": 2,
         "ram": 8192,  # 8GB in MB
         "description": "Test VM created by pyvergeos example",
         "os_family": "linux",
-        "machine_type": "pc-q35-10.0",
     }
 
     # Add cloud-init configuration if requested

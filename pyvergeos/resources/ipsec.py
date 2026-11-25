@@ -81,7 +81,6 @@ PHASE2_PROTOCOL_MAP = {
     "ah": "AH (Auth Only)",
 }
 
-# Type aliases
 KeyExchangeType = Literal["auto", "ikev1", "ikev2"]
 ConnectionModeType = Literal["responder_only", "on_demand", "start"]
 NegotiationModeType = Literal["main", "aggressive"]
@@ -446,12 +445,10 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             filters.append(extra)
         params["filter"] = " and ".join(filters)
 
-        # Default fields
         if fields is None:
             fields = DEFAULT_CONNECTION_FIELDS.copy()
         params["fields"] = self._projection(fields)
 
-        # Sort by name
         params["sort"] = "name"
 
         if limit is not None:
@@ -490,7 +487,6 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
             NotFoundError: If connection not found.
             ValueError: If neither key nor name provided.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = DEFAULT_CONNECTION_FIELDS.copy()
 
@@ -673,7 +669,6 @@ class IPSecConnectionManager(ResourceManager[IPSecConnection]):
         self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
-        # Map kwargs to API field names
         field_mapping = {
             "name": "name",
             "remote_gateway": "remote_gateway",
@@ -807,12 +802,10 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             filters.append(extra)
         params["filter"] = " and ".join(filters)
 
-        # Default fields
         if fields is None:
             fields = DEFAULT_POLICY_FIELDS.copy()
         params["fields"] = self._projection(fields)
 
-        # Sort by name
         params["sort"] = "name"
 
         if limit is not None:
@@ -851,7 +844,6 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
             NotFoundError: If policy not found.
             ValueError: If neither key nor name provided.
         """
-        # Use default fields if not specified
         if fields is None:
             fields = DEFAULT_POLICY_FIELDS.copy()
 
@@ -969,7 +961,6 @@ class IPSecPolicyManager(ResourceManager[IPSecPolicy]):
         self._ensure_in_scope(key)
         body: dict[str, Any] = {}
 
-        # Map kwargs to API field names
         field_mapping = {
             "name": "name",
             "local_network": "local",

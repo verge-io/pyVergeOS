@@ -282,12 +282,30 @@ snapshot = client.cloud_snapshots.create(
     wait_timeout=600,
 )
 print(snapshot.status)
+
+# A new snapshot's VM rows stay empty until find_vms runs.
+# get_vms() and vms().list() post that action only when the read is empty.
+for vm in snapshot.get_vms():
+    print(vm.name)
 ```
 
 You can also scope a cloud snapshot to a set of tags, which captures only the VMs carrying them.
 
 ```python
 client.cloud_snapshots.create(name="db-only", include_tags="database", wait=True)
+```
+
+A scheduled profile period takes the same tag scope. The write columns are `partial_tag_args` and `quiesce_tag_args`. `partial_tags` and `quiesce_tags` are read-only rows.
+
+```python
+profile = client.snapshot_profiles.get(name="System Snapshots")
+profile.add_period(
+    name="DB hourly",
+    frequency="hourly",
+    retention_seconds=86400,
+    include_tags="database",
+    quiesce_tags="database",
+)
 ```
 
 ## Tenants
@@ -357,7 +375,7 @@ Everything the SDK raises inherits from `VergeError`, so catch that if you just 
 
 ## Retries and timeouts
 
-The client retries transient failures automatically, which by default means 429, 500, 502, 503, and 504, three times, with exponential backoff.
+The client retries transient failures of idempotent methods (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`, and `TRACE`). By default that is status 429, 500, 502, 503, and 504, three times, with exponential backoff, and the same methods are retried when the connection fails or the reply is late. `POST` and `PATCH` are not retried: a create whose reply is lost or arrives after the timeout is not sent again.
 
 ```python
 from http import HTTPStatus

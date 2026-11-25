@@ -209,7 +209,6 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
     _endpoint = "volume_syncs"
     _actions_endpoint = "volume_sync_actions"
 
-    # Default fields for list operations
     _default_fields = [
         "$key",
         "id",
@@ -291,14 +290,12 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         """
         params: dict[str, Any] = {}
 
-        # Build filter
         filters: builtins.list[str] = []
         if filter:
             filters.append(filter)
         if filter_kwargs:
             filters.append(build_filter(**filter_kwargs))
 
-        # Add service filter
         if service is not None:
             if isinstance(service, int):
                 filters.append(f"service eq {service}")
@@ -319,20 +316,17 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
                     if svc_response:
                         filters.append(f"service eq {svc_response.get('$key')}")
 
-        # Add enabled filter
         if enabled is not None:
             filters.append(f"enabled eq {1 if enabled else 0}")
 
         if filters:
             params["filter"] = " and ".join(filters)
 
-        # Use default fields if not specified
         if fields:
             params["fields"] = self._projection(fields)
         else:
             params["fields"] = self._projection(self._default_fields)
 
-        # Pagination
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -382,7 +376,6 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
             >>> sync = client.volume_syncs.get(name="DailyBackup", service="NAS01")
         """
         if key is not None:
-            # Fetch by key using id filter
             params: dict[str, Any] = {
                 "filter": f"id eq {quote_value(key)}",
             }
@@ -404,7 +397,6 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
             return self._to_model(response)
 
         if name is not None:
-            # Search by name
             results = self.list(
                 filter=f"name eq {quote_value(name)}",
                 service=service,
@@ -548,7 +540,6 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
         }
         api_delete = delete_map.get(destination_delete.lower(), destination_delete)
 
-        # Build request body
         body: dict[str, Any] = {
             "service": service_key,
             "name": name,
@@ -592,7 +583,6 @@ class NASVolumeSyncManager(ResourceManager["NASVolumeSync"]):
             if sync_key:
                 return self.get(key=sync_key)
 
-        # Fallback: search by name
         return self.get(name=name, service=service_key)
 
     def update(  # type: ignore[override]

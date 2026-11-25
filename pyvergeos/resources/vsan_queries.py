@@ -14,6 +14,14 @@ from pyvergeos.resources.queries import QUERY_DEFAULT_FIELDS, QueryResult
 if TYPE_CHECKING:
     from pyvergeos.client import VergeClient
 
+# Public vSAN query names. findinode used to be reachable as a query and
+# is no longer part of the public API, so it is not listed here.
+VSAN_QUERY_TYPES = (
+    "getjournalstatus",
+    "gettierstatus",
+    "getrepairstatus",
+)
+
 
 class VsanQueryManager(ResourceManager[QueryResult]):
     """Manager for vSAN diagnostic queries.

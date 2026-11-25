@@ -231,6 +231,31 @@ asynchronous, the manager takes its own ``wait`` argument:
    except VergeTimeoutError:
        print("Snapshot did not settle within the timeout")
 
+The wait reads ``cloud_snapshots/N?fields=all``. A plain ``get()`` of the
+same row can look finished while that read still says ``building``.
+
+If another system snapshot is already building, the create is refused
+before it starts:
+
+.. code-block:: python
+
+   from pyvergeos.exceptions import ValidationError
+
+   try:
+       snapshot = client.cloud_snapshots.create(
+           name="nightly",
+           wait=True,
+           retry_if_busy=True,
+           wait_timeout=600,
+       )
+   except ValidationError as e:
+       print(f"Create refused: {e}")
+
+``retry_if_busy`` retries only ``ValidationError`` whose message says the
+system snapshot is still building. Saving a snapshot profile period can
+start one. The refused POST does not create a row, so the retry is not a
+second snapshot. Leave the flag off to handle that error yourself.
+
 Catching All Errors
 -------------------
 
@@ -250,7 +275,11 @@ Use the base ``VergeError`` to catch any pyvergeos exception:
 Retry Configuration
 -------------------
 
-pyvergeos automatically retries transient errors (429, 500, 502, 503, 504):
+pyvergeos retries transient errors on idempotent methods (``GET``, ``HEAD``,
+``OPTIONS``, ``PUT``, ``DELETE``, and ``TRACE``). The default status codes
+are 429, 500, 502, 503, and 504, and those methods are also retried when the
+connection fails or the read times out. ``POST`` and ``PATCH`` are not
+retried, so a lost or late reply is not sent a second time:
 
 .. code-block:: python
 

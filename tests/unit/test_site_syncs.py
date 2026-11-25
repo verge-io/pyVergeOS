@@ -140,6 +140,7 @@ class TestSiteSyncOutgoing:
         assert sync.status == "offline"
         assert sync.status_info == ""
         assert sync.state == "offline"
+        assert sync.is_idle is False
         assert sync.is_syncing is False
         assert sync.is_online is False
         assert sync.has_error is False
@@ -651,6 +652,7 @@ class TestSiteSyncIncoming:
         assert sync.status == "offline"
         assert sync.status_info == ""
         assert sync.state == "offline"
+        assert sync.is_idle is False
         assert sync.is_syncing is False
         assert sync.is_online is False
         assert sync.has_error is False
