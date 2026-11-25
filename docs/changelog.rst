@@ -9,6 +9,9 @@ and this project adheres to `Semantic Versioning <https://semver.org/>`_.
 [Unreleased]
 ------------
 
+[1.8.0] - 2026-11-25
+--------------------
+
 Added
 ^^^^^
 
@@ -34,6 +37,26 @@ Added
 - ``client.tag_references`` reads and writes ``tag_references``. The columns
   are ``tag`` and ``reference`` (for example
   ``snapshot_profile_period_tags/37``). That pair is unique.
+- VergeOS 26.2 API compatibility. ``client.time_settings`` reads and writes
+  the NTP/PTP singleton (``time_settings/self``). ``client.time_dashboard``
+  is the read-only view of those settings, each node's sync status, and the
+  related alarms. ``client.vmware_containers`` lists VMware service
+  containers and installs a VixDiskLib build. Columns added in 26.2 stay
+  out of the default projection on an older server. Those columns are VM
+  ``bios_serial`` and ``vgamem_mb``, network ``dhcp_broadcast`` and the VLAN
+  bond settings (mode, ``vlan_bond_primary``, MII timing, and the transmit
+  hash policy), drive ``is_primary``, bond member ``primary``, update
+  package ``dependencies``, ``restart_pending_packages``, VM import
+  ``preserve_bios_serial``, ``guest_agent_preinstalled`` and
+  ``replicate_tags``, machine status ``agent_ip_list`` and
+  ``time_sync_status``, alarm ``sub_owner_type``, and the advanced
+  ``vnet_bgp`` columns, including the daemon flags. ``VM.create()`` leaves
+  the machine type unset unless the caller chooses one, so 26.2 can default
+  to ``pc-q35-11.0``. Queries can send Wake-on-LAN, a machine can have 255
+  NICs, and the CPU model list includes the 26.2 names. Default file and
+  drive projections omit ``uuid``, because those columns are hidden.
+  ``physical_access`` is Super Users membership (console, BMC, and hardware
+  access). (#197)
 
 Fixed
 ^^^^^
@@ -50,7 +73,7 @@ Fixed
   ``network.bond_interfaces.list()`` filters on ``parent_vnet eq <key>``
   instead of the non-existent ``vnet`` column. ``VnetBondInterface`` exposes
   ``parent_vnet_key`` and ``child_vnet_key``, while keeping ``vnet_key`` as
-  an alias.
+  an alias. (#211)
 - Network reads keep ``$key`` as an int on VergeOS 26.2. Selecting
   ``vlan_bond_primary`` makes the API return that key as a string, and the
   26.2 default projection includes the column. ``list()``, ``get(key)``,
@@ -100,6 +123,16 @@ Fixed
   ``requests>=2.28.0`` still allows 1.25, so an environment that met the
   declared dependencies could raise ``TypeError`` while creating a
   connection. (#196)
+
+Docs
+^^^^
+
+- Resource docstrings render in the API reference again. Napoleon does not
+  recognise a ``Properties`` section, so a wrapped description became a
+  block quote and the fields under it were dropped. Those fields are
+  documented under ``Attributes``, and ``AuthSourceManager.create`` leaves
+  a blank line before its parameter list. Pull-request CI fails when
+  ``sphinx-build`` reports a warning. (#215)
 
 [1.7.1] - 2026-09-27
 --------------------
